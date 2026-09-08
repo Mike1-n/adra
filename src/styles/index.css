@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: 16 185 129;
+    --color-bg: 2 6 23;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-100 font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Custom sleek scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #090d16;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #334155;
+  }
+}
+
+@layer components {
+  /* Glass card styling */
+  .adra-card {
+    @apply bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-xl shadow-lg transition-all duration-200;
+  }
+  
+  .adra-card-hover {
+    @apply hover:border-slate-700 hover:shadow-xl hover:shadow-emerald-950/20 hover:-translate-y-0.5;
+  }
+
+  /* Interactive inputs */
+  .adra-input {
+    @apply w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all;
+  }
+
+  .adra-select {
+    @apply w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all;
+  }
+
+  /* Badges */
+  .badge-emerald {
+    @apply bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
+  }
+  .badge-amber {
+    @apply bg-amber-500/10 text-amber-400 border border-amber-500/30 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
+  }
+  .badge-blue {
+    @apply bg-blue-500/10 text-blue-400 border border-blue-500/30 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
+  }
+  .badge-rose {
+    @apply bg-rose-500/10 text-rose-400 border border-rose-500/30 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
+  }
+  .badge-slate {
+    @apply bg-slate-800 text-slate-300 border border-slate-700 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
+  }
+}
+
+/* Print optimizations for academic & NGO field reporting */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .adra-card {
+    border: 1px solid #e2e8f0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    color: #0f172a !important;
+  }
+}
