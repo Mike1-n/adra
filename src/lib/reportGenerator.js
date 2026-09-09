@@ -57,24 +57,24 @@ export function exportToPDF({
   });
 
   // ADRA Header Banner
-  doc.setFillColor(6, 78, 59); // Emerald 900
+  doc.setFillColor(0, 107, 86); // Dark Green #006B56
   doc.rect(0, 0, 842, 65, 'F');
 
   // Title
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(255, 255, 255); // White #FFFFFF
   doc.text('ADRA DEVELOPMENT MANAGEMENT SYSTEM', 40, 32);
 
   // Subtitle / Report Type
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  doc.setTextColor(167, 243, 208); // Emerald 200
+  doc.setTextColor(232, 245, 241); // Light Green #E8F5F1
   doc.text(title || 'Official Management Report', 40, 50);
 
   // Generation timestamp & metadata
   doc.setFontSize(9);
-  doc.setTextColor(203, 213, 225);
+  doc.setTextColor(245, 247, 246); // Light Gray #F5F7F6
   doc.text(`Generated: ${new Date().toLocaleString()}`, 640, 35);
   doc.text('Confidential NGO Document', 640, 48);
 
@@ -90,19 +90,19 @@ export function exportToPDF({
 
   // Summary KPI block if provided
   if (summary && summary.length > 0) {
-    doc.setFillColor(241, 245, 249);
+    doc.setFillColor(245, 247, 246); // Light Gray #F5F7F6
     doc.roundedRect(40, currentY, 762, 35, 4, 4, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.setTextColor(15, 23, 42);
+    doc.setTextColor(28, 28, 28); // Black #1C1C1C
 
     let offsetX = 55;
     summary.forEach(item => {
       doc.text(`${item.label}: `, offsetX, currentY + 22);
-      doc.setTextColor(5, 150, 105);
+      doc.setTextColor(0, 133, 106); // Primary #00856A
       const labelWidth = doc.getTextWidth(`${item.label}: `);
       doc.text(`${item.value}`, offsetX + labelWidth, currentY + 22);
-      doc.setTextColor(15, 23, 42);
+      doc.setTextColor(28, 28, 28); // Black #1C1C1C
       offsetX += 180;
     });
 
@@ -121,18 +121,18 @@ export function exportToPDF({
     })),
     theme: 'grid',
     headStyles: {
-      fillColor: [4, 120, 87],
-      textColor: 255,
+      fillColor: [0, 133, 106], // Primary #00856A
+      textColor: 255, // White #FFFFFF
       fontSize: 9,
       fontStyle: 'bold',
       halign: 'left'
     },
     bodyStyles: {
       fontSize: 8.5,
-      textColor: [30, 41, 59]
+      textColor: [28, 28, 28] // Black #1C1C1C
     },
     alternateRowStyles: {
-      fillColor: [248, 250, 252]
+      fillColor: [245, 247, 246] // Light Gray #F5F7F6
     },
     margin: { left: 40, right: 40 },
     didDrawPage: (data) => {

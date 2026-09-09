@@ -192,7 +192,7 @@ export function Dashboard({ onNavigate }) {
       </div>
 
       {/* KPI Metric Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         <StatCard
           title="Active Projects"
           value={`${activeProjects} / ${totalProjects}`}

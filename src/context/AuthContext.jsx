@@ -6,7 +6,7 @@ import { useToast } from './ToastContext';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  // Default to Administrator account for instant first-look satisfaction
+  // Start with unauthenticated user so the Login / Sign Up page is the first page shown
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('adra_current_user');
@@ -14,7 +14,7 @@ export function AuthProvider({ children }) {
     } catch (e) {
       console.error(e);
     }
-    return demoAccounts[0]; // Administrator
+    return null; // Prompt Login / Sign Up first
   });
 
   const [loading, setLoading] = useState(false);
@@ -59,57 +59,75 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (identifier, password) => {
     setLoading(true);
     try {
       if (isSupabaseConfigured && supabase) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
+        const { data, error } = await supabase.auth.signInWithPassword({ email: identifier, password });
+        if (!error && data?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
 
-        const userObj = {
-          id: data.user.id,
-          email: data.user.email,
-          full_name: profile?.full_name || data.user.email,
-          role: profile?.role || 'Administrator',
-          department: profile?.department || 'Operations',
-          avatar: profile?.avatar_url || demoAccounts[0].avatar
-        };
+          const userObj = {
+            id: data.user.id,
+            email: data.user.email,
+            full_name: profile?.full_name || data.user.email,
+            role: profile?.role || 'Administrator',
+            department: profile?.department || 'Operations',
+            avatar: profile?.avatar_url || demoAccounts[0].avatar
+          };
 
-        setCurrentUser(userObj);
-        db.logAudit({ action: 'AUTH', module: 'Authentication', details: `User logged in: ${userObj.email}` });
-        toast.success(`Welcome back, ${userObj.full_name}!`);
-        return userObj;
+          setCurrentUser(userObj);
+          db.logAudit({ action: 'AUTH', module: 'Authentication', details: `User logged in: ${userObj.email}` });
+          toast.success(`Welcome back, ${userObj.full_name} (${userObj.role})!`);
+          return userObj;
+        }
       }
 
-      // Offline / Mock Demo Auth
-      const matched = demoAccounts.find(a => a.email.toLowerCase() === email.toLowerCase());
-      if (matched && password === 'Password123!') {
-        setCurrentUser(matched);
-        db.logAudit({ action: 'AUTH', module: 'Authentication', details: `User logged in (Demo): ${matched.email}` });
-        toast.success(`Logged in as ${matched.full_name} (${matched.role})`);
-        return matched;
-      } else if (matched) {
-        throw new Error('Invalid password. Hint: Password123!');
+      // Query ADRA database directly (adra_users / adra_beneficiaries)
+      const userObj = await db.authenticateUser(identifier, password);
+      setCurrentUser(userObj);
+      toast.success(`Welcome back, ${userObj.full_name} (${userObj.role})!`);
+      return userObj;
+    } catch (err) {
+      toast.error(err.message || 'Login failed. Please check credentials.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signup = async (signupData) => {
+    setLoading(true);
+    try {
+      if (signupData.accountType === 'Beneficiary') {
+        const res = await db.registerBeneficiaryAccount(signupData);
+        const userObj = res.user || res.account;
+        toast.info(`Account verification pending: As we await administrator verification, ID ${res.beneficiary.beneficiary_code} has been registered.`);
+        return { ...userObj, beneficiary: res.beneficiary };
       } else {
-        // Create dynamic user for testing
-        const customUser = {
-          id: `usr_${Date.now()}`,
-          email,
-          full_name: email.split('@')[0].toUpperCase(),
-          role: 'Project Officer',
-          department: 'Field Operations',
-          avatar: demoAccounts[1].avatar
-        };
-        setCurrentUser(customUser);
-        toast.success(`Logged in as ${customUser.full_name}`);
-        return customUser;
+        const newUser = await db.createUser({
+          email: signupData.email,
+          password: signupData.password || 'Password123!',
+          full_name: signupData.full_name,
+          first_name: signupData.first_name,
+          middle_name: signupData.middle_name,
+          last_name: signupData.last_name,
+          id_number: signupData.id_number || signupData.national_id,
+          national_id: signupData.id_number || signupData.national_id,
+          phone: signupData.phone_number || signupData.phone,
+          role: signupData.role || 'Project Officer',
+          department: signupData.department || 'Field Operations'
+        });
+        toast.info(`Account verification pending: As we await administrator verification, account for ${newUser.full_name} is under review.`);
+        return newUser;
       }
+    } catch (err) {
+      toast.error(err.message || 'Registration failed.');
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -120,7 +138,7 @@ export function AuthProvider({ children }) {
       await supabase.auth.signOut();
     }
     if (currentUser) {
-      db.logAudit({ action: 'AUTH', module: 'Authentication', details: `User logged out: ${currentUser.email}` });
+      db.logAudit({ action: 'AUTH', module: 'Authentication', details: `User logged out: ${currentUser.email || currentUser.full_name}` });
     }
     setCurrentUser(null);
     localStorage.removeItem('adra_current_user');
@@ -128,11 +146,19 @@ export function AuthProvider({ children }) {
   };
 
   // Quick switch role helper for presentation / viva defense
-  const quickSwitchRole = (roleName) => {
-    const target = demoAccounts.find(a => a.role === roleName) || demoAccounts[0];
-    setCurrentUser(target);
-    db.logAudit({ action: 'AUTH', module: 'Role Switch', details: `Switched demo role to ${roleName}` });
-    toast.info(`Switched view to ${target.role}: ${target.full_name}`);
+  const quickSwitchRole = async (roleName) => {
+    try {
+      const users = await db.getUsers();
+      const target = users.find(a => a.role === roleName) || demoAccounts.find(a => a.role === roleName) || demoAccounts[0];
+      setCurrentUser(target);
+      db.logAudit({ action: 'AUTH', module: 'Role Switch', details: `Switched role to ${roleName}` });
+      toast.info(`Switched view to ${target.role}: ${target.full_name}`);
+      return target;
+    } catch (e) {
+      const fallback = demoAccounts.find(a => a.role === roleName) || demoAccounts[0];
+      setCurrentUser(fallback);
+      return fallback;
+    }
   };
 
   const hasPermission = (allowedRoles) => {
@@ -143,8 +169,14 @@ export function AuthProvider({ children }) {
 
   const roleHelpers = {
     isAdmin: currentUser?.role === 'Administrator',
+    isProgramManager: currentUser?.role === 'Program Manager',
+    isSupervisor: currentUser?.role === 'Supervisor',
     isProjectOfficer: currentUser?.role === 'Project Officer',
+    isFieldWorker: currentUser?.role === 'Field Worker',
     isFinanceOfficer: currentUser?.role === 'Finance Officer',
+    isSupplier: currentUser?.role === 'Supplier',
+    isDonor: currentUser?.role === 'Donor',
+    isBeneficiary: currentUser?.role === 'Beneficiary',
     isMEOfficer: currentUser?.role === 'M&E Officer',
   };
 
@@ -154,6 +186,7 @@ export function AuthProvider({ children }) {
         currentUser,
         loading,
         login,
+        signup,
         logout,
         quickSwitchRole,
         hasPermission,
