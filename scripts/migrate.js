@@ -7,13 +7,24 @@ const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Read from DATABASE_URL environment variable or configure via terminal
-const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
+// Auto-read .env file if DATABASE_URL is not set in process environment
+function getDatabaseUrl() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+
+  const envPath = path.join(__dirname, '..', '.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    const match = envContent.match(/^DATABASE_URL=(.*)$/m);
+    if (match) return match[1].trim().replace(/^["']|["']$/g, '');
+  }
+  return null;
+}
+
+const connectionString = getDatabaseUrl();
 
 async function runMigrations() {
   if (!connectionString) {
-    console.log('ℹ️ Usage: Set DATABASE_URL and run `node scripts/migrate.js`');
-    console.log('Example: DATABASE_URL="postgresql://postgres.[REF]:[PASSWORD]@[HOST]:6543/postgres" node scripts/migrate.js');
+    console.error('❌ Error: DATABASE_URL not found in environment or .env file.');
     process.exit(1);
   }
 
@@ -38,7 +49,7 @@ async function runMigrations() {
 
     console.log('🚀 Executing schema.sql (Tables, Indexes, RLS Policies, Triggers)...');
     await client.query(schemaSql);
-    console.log('✅ Schema executed and tables created successfully!');
+    console.log('✅ Schema executed successfully!');
 
     console.log('🌱 Reading seed.sql...');
     const seedSql = fs.readFileSync(seedPath, 'utf8');
@@ -47,7 +58,7 @@ async function runMigrations() {
     await client.query(seedSql);
     console.log('✅ Seed records inserted successfully!');
 
-    console.log('\n🎉 ALL 12 DATABASE TABLES AND SEED RECORDS ARE LIVE ON YOUR SUPABASE INSTANCE!');
+    console.log('\n🎉 ALL 12 DATABASE TABLES AND SEED RECORDS ARE SYNCHRONIZED ON SUPABASE!');
   } catch (err) {
     console.error('❌ Error executing database migration:', err);
   } finally {
