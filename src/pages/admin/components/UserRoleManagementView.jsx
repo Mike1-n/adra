@@ -1,0 +1,571 @@
+import React, { useState, useEffect } from 'react';
+import {
+  UserCheck,
+  UserPlus,
+  Shield,
+  Edit2,
+  Trash2,
+  Power,
+  Mail,
+  Building,
+  Key,
+  CheckCircle2,
+  AlertCircle,
+  Search,
+  Filter
+} from 'lucide-react';
+import { Card, CardHeader } from '../../../components/common/Card';
+import { Button } from '../../../components/common/Button';
+import { Modal } from '../../../components/common/Modal';
+import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
+import { db } from '../../../lib/supabase';
+import { useToast } from '../../../context/ToastContext';
+
+export function UserRoleManagementView() {
+  const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const toast = useToast();
+
+  // Modals
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  // Form states
+  const [formData, setFormData] = useState({
+    full_name: '',
+    email: '',
+    password: '',
+    role: 'Field Worker',
+    department: 'Humanitarian Operations',
+    avatar: ''
+  });
+
+  const [editFormData, setEditFormData] = useState({
+    full_name: '',
+    email: '',
+    department: ''
+  });
+
+  const [assignedRole, setAssignedRole] = useState('Field Worker');
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [uList, rList] = await Promise.all([
+        db.getUsers(),
+        db.getRoles()
+      ]);
+      setUsers(uList);
+      setRoles(rList);
+    } catch (err) {
+      toast.error('Failed to load user accounts.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleOpenCreate = () => {
+    setFormData({
+      full_name: '',
+      email: '',
+      password: 'Password123!',
+      role: 'Field Worker',
+      department: 'Community Mobilization',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
+    });
+    setIsCreateOpen(true);
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    try {
+      await db.createUser(formData);
+      toast.success(`Account created for ${formData.full_name} (${formData.role})`);
+      setIsCreateOpen(false);
+      loadData();
+    } catch (err) {
+      toast.error('Failed to create user.');
+    }
+  };
+
+  const handleOpenEdit = (user) => {
+    setSelectedUser(user);
+    setEditFormData({
+      full_name: user.full_name,
+      email: user.email,
+      department: user.department || ''
+    });
+    setIsEditOpen(true);
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    try {
+      await db.updateUser(selectedUser.id, editFormData);
+      toast.success(`Updated profile for ${editFormData.full_name}`);
+      setIsEditOpen(false);
+      loadData();
+    } catch (err) {
+      toast.error('Failed to update user.');
+    }
+  };
+
+  const handleOpenRoleModal = (user) => {
+    setSelectedUser(user);
+    setAssignedRole(user.role);
+    setIsRoleModalOpen(true);
+  };
+
+  const handleSaveRole = async (e) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    try {
+      await db.updateUserRole(selectedUser.id, assignedRole);
+      toast.success(`Assigned role ${assignedRole} to ${selectedUser.full_name}`);
+      setIsRoleModalOpen(false);
+      loadData();
+    } catch (err) {
+      toast.error('Failed to update role.');
+    }
+  };
+
+  const handleToggleStatus = async (user) => {
+    const newStatus = user.status === 'Active' ? 'Deactivated' : 'Active';
+    try {
+      await db.toggleUserStatus(user.id, newStatus);
+      toast.info(`Account status for ${user.full_name} changed to ${newStatus}`);
+      loadData();
+    } catch (err) {
+      toast.error('Failed to change status.');
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    try {
+      await db.deleteUser(selectedUser.id);
+      toast.success(`Deleted user account: ${selectedUser.full_name}`);
+      setIsDeleteOpen(false);
+      loadData();
+    } catch (err) {
+      toast.error('Failed to delete user.');
+    }
+  };
+
+  const filteredUsers = users.filter((u) => {
+    const matchesSearch =
+      u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+      u.email?.toLowerCase().includes(search.toLowerCase()) ||
+      u.department?.toLowerCase().includes(search.toLowerCase());
+    const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
+    const matchesStatus = statusFilter === 'ALL' || (u.status || 'Active') === statusFilter;
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+
+  const getRoleBadgeStyle = (role) => {
+    switch (role) {
+      case 'Administrator':
+        return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+      case 'Program Manager':
+        return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+      case 'Supervisor':
+        return 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30';
+      case 'Finance Officer':
+        return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+      case 'Project Officer':
+        return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30';
+      case 'Field Worker':
+        return 'bg-teal-500/20 text-teal-300 border-teal-500/30';
+      case 'Supplier':
+        return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+      case 'Donor':
+        return 'bg-rose-500/20 text-rose-300 border-rose-500/30';
+      case 'Beneficiary':
+        return 'bg-slate-700 text-slate-300 border-slate-600';
+      default:
+        return 'bg-slate-800 text-slate-300 border-slate-700';
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Header & Controls */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <UserCheck className="w-6 h-6 text-emerald-400" />
+            User & Role Management
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+            Create, view, edit, deactivate, reactivate, and assign roles for all 8 system stakeholders.
+          </p>
+        </div>
+
+        <Button
+          variant="primary"
+          onClick={handleOpenCreate}
+          icon={UserPlus}
+        >
+          Create User Account
+        </Button>
+      </div>
+
+      {/* Search & Filters */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, email, department..."
+            className="adra-input pl-10 text-xs sm:text-sm"
+          />
+        </div>
+
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          className="adra-select text-xs sm:text-sm"
+        >
+          <option value="ALL">All System Roles (8)</option>
+          {roles.map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="adra-select text-xs sm:text-sm"
+        >
+          <option value="ALL">All Statuses</option>
+          <option value="Active">Active Accounts</option>
+          <option value="Deactivated">Deactivated Accounts</option>
+          <option value="Suspended">Suspended Accounts</option>
+        </select>
+      </div>
+
+      {loading ? (
+        <LoadingSpinner text="Retrieving registered system users..." />
+      ) : filteredUsers.length === 0 ? (
+        <div className="p-12 text-center bg-slate-900/50 border border-slate-800 rounded-2xl">
+          <p className="text-sm font-semibold text-slate-300">No users match criteria</p>
+          <p className="text-xs text-slate-500 mt-1">Try broadening your search or register a new user account.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredUsers.map((u) => {
+            const isActive = (u.status || 'Active') === 'Active';
+            return (
+              <Card
+                key={u.id}
+                className="flex flex-col justify-between adra-card-hover relative"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                        alt={u.full_name}
+                        className="w-12 h-12 rounded-xl object-cover border border-slate-700 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-bold text-white truncate">
+                          {u.full_name}
+                        </h3>
+                        <p className="text-xs text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                          <Mail className="w-3 h-3 text-slate-500 shrink-0" />
+                          <span className="truncate">{u.email}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2 border-t border-slate-800/80 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">System Role:</span>
+                      <span className={`px-2 py-0.5 rounded-md border text-[11px] font-semibold ${getRoleBadgeStyle(u.role)}`}>
+                        {u.role}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">Department:</span>
+                      <span className="text-slate-300 text-[11px] truncate max-w-[160px]">
+                        {u.department || 'Operations'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-[11px]">Account Status:</span>
+                      <span className={`text-[11px] font-medium flex items-center gap-1 ${isActive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                        {u.status || 'Active'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Action Toolbar */}
+                <div className="flex items-center justify-between gap-1.5 pt-3 mt-4 border-t border-slate-800">
+                  <button
+                    onClick={() => handleOpenRoleModal(u)}
+                    className="px-2.5 py-1 text-xs rounded-lg text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 font-medium transition"
+                  >
+                    Change Role
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenEdit(u)}
+                      title="Edit Profile"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={() => handleToggleStatus(u)}
+                      title={isActive ? 'Deactivate Account' : 'Reactivate Account'}
+                      className={`p-1.5 rounded-lg transition ${isActive ? 'text-amber-400 hover:bg-amber-500/10' : 'text-emerald-400 hover:bg-emerald-500/10'}`}
+                    >
+                      <Power className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSelectedUser(u);
+                        setIsDeleteOpen(true);
+                      }}
+                      title="Delete User Account"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      <Modal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        title="Create System User Account"
+      >
+        <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-semibold text-slate-300 mb-1">Full Legal Name</label>
+            <input
+              type="text"
+              required
+              value={formData.full_name}
+              onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+              placeholder="e.g. Grace Wambui"
+              className="adra-input text-xs sm:text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Official Email Address</label>
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="g.wambui@adra.org"
+                className="adra-input text-xs sm:text-sm"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Initial Password</label>
+              <input
+                type="text"
+                required
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="adra-input text-xs sm:text-sm font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Assigned Stakeholder Role</label>
+              <select
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                className="adra-select text-xs sm:text-sm font-medium"
+              >
+                {roles.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Department / Operations Zone</label>
+              <input
+                type="text"
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                placeholder="e.g. Drought Relief Command"
+                className="adra-input text-xs sm:text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+            <Button type="button" variant="secondary" onClick={() => setIsCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Create User
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit User Modal */}
+      {selectedUser && (
+        <Modal
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          title={`Edit Profile: ${selectedUser.full_name}`}
+        >
+          <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Full Legal Name</label>
+              <input
+                type="text"
+                required
+                value={editFormData.full_name}
+                onChange={(e) => setEditFormData({ ...editFormData, full_name: e.target.value })}
+                className="adra-input text-xs sm:text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Official Email</label>
+              <input
+                type="email"
+                required
+                value={editFormData.email}
+                onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                className="adra-input text-xs sm:text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">Department</label>
+              <input
+                type="text"
+                value={editFormData.department}
+                onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                className="adra-input text-xs sm:text-sm"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+              <Button type="button" variant="secondary" onClick={() => setIsEditOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary">
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Change Role Modal */}
+      {selectedUser && (
+        <Modal
+          isOpen={isRoleModalOpen}
+          onClose={() => setIsRoleModalOpen(false)}
+          title={`Role Assignment: ${selectedUser.full_name}`}
+          maxWidth="max-w-md"
+        >
+          <form onSubmit={handleSaveRole} className="space-y-4 text-xs">
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+              <p className="font-semibold text-slate-200">{selectedUser.full_name}</p>
+              <p className="text-slate-400">{selectedUser.email}</p>
+              <p className="text-emerald-400 font-mono mt-1 text-[11px]">Current: {selectedUser.role}</p>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1.5">
+                Assign System Role
+              </label>
+              <select
+                value={assignedRole}
+                onChange={(e) => setAssignedRole(e.target.value)}
+                className="adra-select text-xs sm:text-sm font-medium"
+              >
+                {roles.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+              <Button type="button" variant="secondary" onClick={() => setIsRoleModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary">
+                Assign Role
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Delete User Confirmation Modal */}
+      {selectedUser && (
+        <Modal
+          isOpen={isDeleteOpen}
+          onClose={() => setIsDeleteOpen(false)}
+          title="Confirm User Deletion"
+          maxWidth="max-w-md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/30 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-rose-200">Irreversible Action</p>
+                <p className="text-rose-300/80 mt-0.5 leading-relaxed">
+                  Are you sure you want to permanently delete the user account for <strong>{selectedUser.full_name}</strong> ({selectedUser.email})? This action will be audited in the security logs.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setIsDeleteOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={handleDeleteUser}>
+                Delete User
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { Login } from './pages/auth/Login';
+import { initializeNativeApp } from './lib/capacitor';
 
 // Pages
 import { Dashboard } from './pages/Dashboard';
@@ -21,6 +22,18 @@ import { SettingsPage } from './pages/SettingsPage';
 export function App() {
   const { currentUser } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
+
+  useEffect(() => {
+    initializeNativeApp({
+      onHardwareBack: () => {
+        if (currentTab !== 'dashboard') {
+          setCurrentTab('dashboard');
+          return true; // handled, don't exit
+        }
+        return false; // exit app
+      }
+    });
+  }, [currentTab]);
 
   if (!currentUser) {
     return <Login onLoginSuccess={() => setCurrentTab('dashboard')} />;

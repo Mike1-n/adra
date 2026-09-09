@@ -11,6 +11,26 @@
   body {
     @apply bg-slate-950 text-slate-100 font-sans antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    overscroll-behavior-y: none;
+  }
+
+  input, textarea, select {
+    user-select: auto;
+    -webkit-user-select: auto;
+  }
+
+  /* Safe areas for mobile notches and navigation bars */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   /* Custom sleek scrollbar */

@@ -657,7 +657,28 @@ export const demoAccounts = [
     full_name: 'Dr. Elizabeth Warren',
     role: 'Administrator',
     department: 'Executive Country Leadership',
+    status: 'Active',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'user-pm',
+    email: 'program.manager@adra.org',
+    password: 'Password123!',
+    full_name: 'Grace Ochieng',
+    role: 'Program Manager',
+    department: 'Emergency Response & Programs',
+    status: 'Active',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'user-sup',
+    email: 'supervisor@adra.org',
+    password: 'Password123!',
+    full_name: 'Emmanuel Adeyemi',
+    role: 'Supervisor',
+    department: 'Field Quality & Compliance',
+    status: 'Active',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
   },
   {
     id: 'user-po',
@@ -666,7 +687,18 @@ export const demoAccounts = [
     full_name: 'John Mwangi',
     role: 'Project Officer',
     department: 'Humanitarian Operations',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
+    status: 'Active',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'user-fw',
+    email: 'field.worker@adra.org',
+    password: 'Password123!',
+    full_name: 'Amina Abdi',
+    role: 'Field Worker',
+    department: 'Community Mobilization',
+    status: 'Active',
+    avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80'
   },
   {
     id: 'user-fo',
@@ -675,15 +707,185 @@ export const demoAccounts = [
     full_name: 'Alex Morgan',
     role: 'Finance Officer',
     department: 'Financial Control & Grants',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
+    status: 'Active',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
   },
   {
-    id: 'user-me',
-    email: 'me.officer@adra.org',
+    id: 'user-sup-vendor',
+    email: 'procurement@africasupplies.com',
     password: 'Password123!',
-    full_name: 'Sarah Kimani',
-    role: 'M&E Officer',
-    department: 'Monitoring, Evaluation & Learning',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+    full_name: 'Hassan Gedi',
+    role: 'Supplier',
+    department: 'Equatorial Relief Logistics',
+    status: 'Active',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'user-donor',
+    email: 'sjenkins@usaid.gov',
+    password: 'Password123!',
+    full_name: 'Sarah Jenkins',
+    role: 'Donor',
+    department: 'USAID Bureau for Humanitarian Assistance',
+    status: 'Active',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'user-ben',
+    email: 'mary.nyambura@adra.community',
+    password: 'Password123!',
+    full_name: 'Mary Nyambura',
+    role: 'Beneficiary',
+    department: 'Community Self-Help Group (Lodwar)',
+    status: 'Active',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80'
   }
 ];
+
+export const initialRoles = [
+  'Administrator',
+  'Program Manager',
+  'Supervisor',
+  'Field Worker',
+  'Finance Officer',
+  'Supplier',
+  'Donor',
+  'Beneficiary'
+];
+
+export const initialPermissions = [
+  { role: 'Administrator', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: true, can_export: true },
+  { role: 'Program Manager', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: false, can_export: true },
+  { role: 'Supervisor', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: false, can_export: true },
+  { role: 'Project Officer', can_view: true, can_create: true, can_edit: true, can_approve: false, can_delete: false, can_export: true },
+  { role: 'Finance Officer', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: false, can_export: true },
+  { role: 'Field Worker', can_view: true, can_create: true, can_edit: false, can_approve: false, can_delete: false, can_export: false },
+  { role: 'Supplier', can_view: true, can_create: false, can_edit: false, can_approve: false, can_delete: false, can_export: false },
+  { role: 'Donor', can_view: true, can_create: false, can_edit: false, can_approve: false, can_delete: false, can_export: true },
+  { role: 'Beneficiary', can_view: true, can_create: false, can_edit: false, can_approve: false, can_delete: false, can_export: false }
+];
+
+export const initialLocations = [
+  { id: 'loc-1', name: 'Turkana County Office', type: 'Field Office', state: 'Rift Valley', county: 'Turkana', district: 'Lodwar Central', community: 'Zone 4 Camp', active: true, contact: '+254-54-21045' },
+  { id: 'loc-2', name: 'Garissa Sub-Office', type: 'Field Office', state: 'North Eastern', county: 'Garissa', district: 'Dadaab', community: 'Hagadera Sector B', active: true, contact: '+254-46-21012' },
+  { id: 'loc-3', name: 'Marsabit Logistics Hub', type: 'Distribution Center', state: 'Eastern', county: 'Marsabit', district: 'Moyale Border', community: 'Township Village', active: true, contact: '+254-69-21088' },
+  { id: 'loc-4', name: 'Nairobi Regional Headquarters', type: 'Headquarters', state: 'Nairobi', county: 'Nairobi', district: 'Westlands', community: 'HQ Compound', active: true, contact: '+254-20-2718870' },
+  { id: 'loc-5', name: 'Mandera Outreach Post', type: 'Community Post', state: 'North Eastern', county: 'Mandera', district: 'Rhamu', community: 'Riverine Zone', active: false, contact: '+254-46-31002' }
+];
+
+export const initialApprovals = [
+  {
+    id: 'app-001',
+    category: 'User Registration',
+    requester_name: 'Kevin Otieno',
+    requester_email: 'kevin.otieno@adra.org',
+    role_requested: 'Field Worker',
+    department: 'Turkana WASH Taskforce',
+    details: 'New field worker recruitment for boreholes rehabilitation phase 2.',
+    status: 'Pending',
+    date: new Date(Date.now() - 3600000 * 4).toISOString(),
+    priority: 'High'
+  },
+  {
+    id: 'app-002',
+    category: 'Supplier Onboarding',
+    requester_name: 'Al-Madina Agro Commodities Ltd',
+    requester_email: 'procure@almadina-agro.co.ke',
+    role_requested: 'Supplier',
+    department: 'Drought Seeds & Fodder',
+    details: 'Prequalified vendor application for supplying 5,000 bags of certified drought-resistant sorghum.',
+    status: 'Pending',
+    date: new Date(Date.now() - 3600000 * 18).toISOString(),
+    priority: 'Medium'
+  },
+  {
+    id: 'app-003',
+    category: 'Operational Budget',
+    requester_name: 'Alex Morgan (Finance Officer)',
+    requester_email: 'finance.officer@adra.org',
+    role_requested: 'Budget Release',
+    department: 'Financial Control',
+    details: 'Emergency cash disbursement authorization of $45,000 for flood response voucher redemption in Garissa.',
+    status: 'Pending',
+    date: new Date(Date.now() - 3600000 * 2).toISOString(),
+    priority: 'Urgent'
+  },
+  {
+    id: 'app-004',
+    category: 'Aid Distribution Batch',
+    requester_name: 'John Mwangi (Project Officer)',
+    requester_email: 'project.officer@adra.org',
+    role_requested: 'Distribution Dispatch',
+    department: 'DR-CSA Programme',
+    details: 'Authorization to disburse 1,200 Solar Irrigation & Drip Kits to verified smallholder farmer cooperatives.',
+    status: 'Approved',
+    date: new Date(Date.now() - 3600000 * 48).toISOString(),
+    priority: 'High'
+  }
+];
+
+export const initialSuppliers = [
+  { id: 'sup-1', company_name: 'Equatorial Relief Logistics', category: 'Fleet & Cargo', contact_person: 'Hassan Gedi', phone: '+254-711-234567', email: 'procurement@africasupplies.com', status: 'Active', rating: 4.8 },
+  { id: 'sup-2', company_name: 'Simlaw Certified Seeds Kenya', category: 'Agriculture & Inputs', contact_person: 'Faith Waweru', phone: '+254-722-456789', email: 'orders@simlaw.co.ke', status: 'Active', rating: 4.9 },
+  { id: 'sup-3', company_name: 'Davis & Shirtliff Water Technologies', category: 'WASH Equipment', contact_person: 'Eng. Paul Kilonzo', phone: '+254-733-678901', email: 'humanitarian@dayliff.com', status: 'Active', rating: 5.0 },
+  { id: 'sup-4', company_name: 'MedAid Kenya Pharmaceuticals', category: 'Medical & Hygiene', contact_person: 'Dr. James Kariuki', phone: '+254-700-112233', email: 'supplies@medaid.ke', status: 'Pending Review', rating: 4.2 }
+];
+
+export const initialInventory = [
+  { id: 'inv-1', item_name: 'Solar Borehole Submersible Pump Units', category: 'WASH', quantity: 24, unit: 'Sets', warehouse: 'Lodwar Central Depot', min_threshold: 5, status: 'In Stock' },
+  { id: 'inv-2', item_name: 'Certified Drought Sorghum Seeds (25kg bags)', category: 'Agriculture', quantity: 850, unit: 'Bags', warehouse: 'Marsabit Logistics Hub', min_threshold: 100, status: 'In Stock' },
+  { id: 'inv-3', item_name: 'Family Hygiene Dignity Kits', category: 'Health & Shelter', quantity: 1420, unit: 'Kits', warehouse: 'Garissa Sub-Office', min_threshold: 200, status: 'In Stock' },
+  { id: 'inv-4', item_name: 'Water Purification Chlorination Tablets (Boxes of 100)', category: 'WASH', quantity: 3200, unit: 'Boxes', warehouse: 'Nairobi Central Store', min_threshold: 500, status: 'In Stock' },
+  { id: 'inv-5', item_name: 'Micro-Drip Irrigation Line Bundles', category: 'Agriculture', quantity: 65, unit: 'Bundles', warehouse: 'Lodwar Central Depot', min_threshold: 80, status: 'Low Stock' }
+];
+
+export const initialSecuritySettings = {
+  min_password_length: 10,
+  require_special_chars: true,
+  require_numbers: true,
+  session_timeout_minutes: 60,
+  max_login_attempts: 5,
+  account_lockout_duration_minutes: 30,
+  two_factor_auth_required: false,
+  ip_whitelist_enabled: false,
+  active_sessions_count: 8,
+  suspicious_activities: [
+    { id: 'sec-1', ip: '197.232.14.88', location: 'Nairobi, KE', user: 'admin@adra.org', event: 'Successful Login', time: '10 mins ago', status: 'Normal' },
+    { id: 'sec-2', ip: '102.68.79.12', location: 'Mombasa, KE', user: 'unknown@external.net', event: 'Failed Login (3 attempts)', time: '4 hours ago', status: 'Blocked' },
+    { id: 'sec-3', ip: '41.89.24.110', location: 'Lodwar, KE', user: 'project.officer@adra.org', event: 'Password Changed', time: '1 day ago', status: 'Normal' }
+  ]
+};
+
+export const initialSystemSettings = {
+  org_name: 'ADRA (Adventist Development and Relief Agency)',
+  country_office: 'Kenya & East Central Africa Division',
+  registration_number: 'NGO-REG-1983-00412',
+  tax_pin: 'P051239841K',
+  default_currency: 'USD ($)',
+  fiscal_year_start: 'January 1',
+  contact_email: 'info@adrakenya.org',
+  contact_phone: '+254-20-2718870',
+  headquarters_address: 'ADRA Complex, Riverside Drive, Nairobi',
+  id_formats: {
+    project: 'PRJ-YYYY-###',
+    beneficiary: 'BEN-YYYY-#####',
+    intervention: 'INT-YYYY-####',
+    voucher: 'VCH-YYYY-####'
+  },
+  reporting_frequency: 'Monthly',
+  auto_audit_logging: true
+};
+
+export const initialNotifications = [
+  { id: 'notif-1', title: 'Q3 Humanitarian Audit Scheduled', message: 'Annual external compliance and donor audit commencing on October 15. All field officers must finalize logframe indicators.', type: 'Announcement', target_roles: ['All'], active: true, created_at: '2025-08-15' },
+  { id: 'notif-2', title: 'New Drought Emergency Appeal (ECHO)', message: 'New funding stream of $1.8M allocated for rapid livestock feed and clean water distribution in Marsabit.', type: 'Alert', target_roles: ['Program Manager', 'Finance Officer', 'Project Officer'], active: true, created_at: '2025-08-20' },
+  { id: 'notif-3', title: 'System Security Protocol Update', message: 'Mandatory password renewal rule active for all field staff accounts. Review complexity in Security Management.', type: 'Security', target_roles: ['All'], active: true, created_at: '2025-08-22' }
+];
+
+export const initialFaqs = [
+  { id: 'faq-1', category: 'User & Access', question: 'How do I approve newly registered field workers or partners?', answer: 'Navigate to Admin Console > User Approvals. Click "Review Application", check credentials, and select Approve to grant immediate role-based system access.' },
+  { id: 'faq-2', category: 'Operations', question: 'How are project codes generated across country programs?', answer: 'Project codes are formatted automatically according to the Organization ID Settings (e.g., PRJ-2025-001) ensuring unique traceable accounting across multi-donor grants.' },
+  { id: 'faq-3', category: 'Compliance', question: 'Where can I inspect immutable audit records for viva or donor verification?', answer: 'Go to Admin Console > Audit Trail or System Reports. You can filter by action (LOGIN, CREATE, UPDATE, DELETE), view full JSON payloads, and download signed PDF reports.' },
+  { id: 'faq-4', category: 'Data Safety', question: 'How do I generate an offline data backup before field deployments?', answer: 'Under Admin Console > Data Management, click "Export Database Backup (JSON)". This saves a full cryptographically-timestamped snapshot of all 12 modules.' }
+];
+

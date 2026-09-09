@@ -143,8 +143,14 @@ export function AuthProvider({ children }) {
 
   const roleHelpers = {
     isAdmin: currentUser?.role === 'Administrator',
+    isProgramManager: currentUser?.role === 'Program Manager',
+    isSupervisor: currentUser?.role === 'Supervisor',
     isProjectOfficer: currentUser?.role === 'Project Officer',
+    isFieldWorker: currentUser?.role === 'Field Worker',
     isFinanceOfficer: currentUser?.role === 'Finance Officer',
+    isSupplier: currentUser?.role === 'Supplier',
+    isDonor: currentUser?.role === 'Donor',
+    isBeneficiary: currentUser?.role === 'Beneficiary',
     isMEOfficer: currentUser?.role === 'M&E Officer',
   };
 

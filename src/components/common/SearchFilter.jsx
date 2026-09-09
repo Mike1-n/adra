@@ -33,14 +33,14 @@ export function SearchFilter({
       </div>
 
       {/* Filter Dropdown & Action Buttons */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5">
         {filterOptions.length > 0 && onFilterChange && (
-          <div className="relative flex items-center">
+          <div className="relative flex-1 sm:flex-initial flex items-center min-w-[160px]">
             <Filter className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
             <select
               value={selectedFilter}
               onChange={(e) => onFilterChange(e.target.value)}
-              className="adra-select pl-9 pr-8 text-sm cursor-pointer"
+              className="adra-select pl-9 pr-8 text-xs sm:text-sm cursor-pointer w-full"
             >
               {filterOptions.map((opt) => (
                 <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-100">
@@ -51,7 +51,7 @@ export function SearchFilter({
           </div>
         )}
 
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
+        {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
       </div>
     </div>
   );

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ADRA DMS</string>
+    <string name="title_activity_main">ADRA DMS</string>
+    <string name="package_name">org.adra.dms</string>
+    <string name="custom_url_scheme">org.adra.dms</string>
+</resources>

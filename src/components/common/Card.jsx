@@ -5,7 +5,7 @@ export function Card({ children, className, hover = false, ...props }) {
   return (
     <div
       className={cn(
-        'adra-card p-5',
+        'adra-card p-3.5 sm:p-5',
         hover && 'adra-card-hover cursor-pointer',
         className
       )}

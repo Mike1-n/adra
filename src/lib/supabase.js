@@ -29,7 +29,16 @@ const STORAGE_KEYS = {
   PARTNERS: 'adra_partners',
   DOCUMENTS: 'adra_documents',
   AUDIT_LOGS: 'adra_audit_logs',
-  USERS: 'adra_users'
+  USERS: 'adra_users',
+  LOCATIONS: 'adra_locations',
+  APPROVALS: 'adra_approvals',
+  PERMISSIONS: 'adra_permissions',
+  SECURITY_SETTINGS: 'adra_security_settings',
+  SYSTEM_SETTINGS: 'adra_system_settings',
+  NOTIFICATIONS: 'adra_notifications',
+  FAQS: 'adra_faqs',
+  SUPPLIERS: 'adra_suppliers',
+  INVENTORY: 'adra_inventory'
 };
 
 function getLocalData(key, defaultData) {
@@ -568,7 +577,7 @@ export const db = {
     saveLocalData(STORAGE_KEYS.AUDIT_LOGS, updated);
   },
 
-  // --- USERS ---
+  // --- USERS & IAM ---
   async getUsers() {
     if (isSupabaseConfigured) {
       const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
@@ -577,15 +586,471 @@ export const db = {
     return getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
   },
 
-  async updateUserRole(id, role) {
+  async createUser(userData) {
+    const newUser = {
+      id: `usr_${Date.now()}`,
+      email: userData.email,
+      password: userData.password || 'Password123!',
+      full_name: userData.full_name,
+      role: userData.role || 'Field Worker',
+      department: userData.department || 'Field Operations',
+      status: 'Active',
+      avatar: userData.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      created_at: new Date().toISOString()
+    };
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('profiles').update({ role }).eq('id', id).select().single();
-      if (error) throw error;
-      return data;
+      const { data, error } = await supabase.from('profiles').insert([newUser]).select().single();
+      if (!error && data) return data;
     }
     const current = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
-    const updated = current.map(u => u.id === id ? { ...u, role } : u);
+    const updated = [newUser, ...current];
     saveLocalData(STORAGE_KEYS.USERS, updated);
+    await this.logAudit({ action: 'CREATE', module: 'User Management', record_id: newUser.id, details: `Created user account for ${newUser.full_name} (${newUser.role})` });
+    return newUser;
+  },
+
+  async updateUser(id, userData) {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase.from('profiles').update(userData).eq('id', id).select().single();
+      if (!error && data) return data;
+    }
+    const current = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
+    const updated = current.map(u => u.id === id ? { ...u, ...userData } : u);
+    saveLocalData(STORAGE_KEYS.USERS, updated);
+    await this.logAudit({ action: 'UPDATE', module: 'User Management', record_id: id, details: `Updated profile details for user ${id}` });
     return updated.find(u => u.id === id);
+  },
+
+  async deleteUser(id) {
+    if (isSupabaseConfigured) {
+      await supabase.from('profiles').delete().eq('id', id);
+    }
+    const current = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
+    const updated = current.filter(u => u.id !== id);
+    saveLocalData(STORAGE_KEYS.USERS, updated);
+    await this.logAudit({ action: 'DELETE', module: 'User Management', record_id: id, details: `Deleted user account ${id}` });
+    return true;
+  },
+
+  async toggleUserStatus(id, newStatus) {
+    return this.updateUser(id, { status: newStatus });
+  },
+
+  async updateUserRole(id, role) {
+    return this.updateUser(id, { role });
+  },
+
+  async getRoles() {
+    return mock.initialRoles;
+  },
+
+  // --- PERMISSIONS MATRIX ---
+  async getPermissions() {
+    return getLocalData(STORAGE_KEYS.PERMISSIONS, mock.initialPermissions);
+  },
+
+  async updatePermission(role, field, value) {
+    const current = getLocalData(STORAGE_KEYS.PERMISSIONS, mock.initialPermissions);
+    const updated = current.map(p => p.role === role ? { ...p, [field]: value } : p);
+    saveLocalData(STORAGE_KEYS.PERMISSIONS, updated);
+    await this.logAudit({ action: 'UPDATE', module: 'Permission Management', record_id: role, details: `Modified ${field} permission for role ${role} to ${value}` });
+    return updated;
+  },
+
+  // --- APPROVALS MANAGEMENT ---
+  async getApprovals(categoryFilter) {
+    const current = getLocalData(STORAGE_KEYS.APPROVALS, mock.initialApprovals);
+    if (!categoryFilter || categoryFilter === 'ALL') return current;
+    return current.filter(a => a.category === categoryFilter);
+  },
+
+  async updateApprovalStatus(id, status, notes = '') {
+    const current = getLocalData(STORAGE_KEYS.APPROVALS, mock.initialApprovals);
+    const updated = current.map(a => a.id === id ? { ...a, status, review_notes: notes, reviewed_at: new Date().toISOString() } : a);
+    saveLocalData(STORAGE_KEYS.APPROVALS, updated);
+    await this.logAudit({ action: 'APPROVE', module: 'Approval Management', record_id: id, details: `${status} request ${id}: ${notes}` });
+    return updated.find(a => a.id === id);
+  },
+
+  async createApproval(data) {
+    const newApproval = {
+      id: `app-${Date.now().toString().slice(-4)}`,
+      ...data,
+      status: 'Pending',
+      date: new Date().toISOString()
+    };
+    const current = getLocalData(STORAGE_KEYS.APPROVALS, mock.initialApprovals);
+    const updated = [newApproval, ...current];
+    saveLocalData(STORAGE_KEYS.APPROVALS, updated);
+    await this.logAudit({ action: 'CREATE', module: 'Approval Management', record_id: newApproval.id, details: `Submitted new ${newApproval.category} approval request` });
+    return newApproval;
+  },
+
+  // --- LOCATIONS MANAGEMENT ---
+  async getLocations() {
+    return getLocalData(STORAGE_KEYS.LOCATIONS, mock.initialLocations);
+  },
+
+  async createLocation(locationData) {
+    const newLocation = {
+      id: `loc-${Date.now().toString().slice(-4)}`,
+      ...locationData,
+      active: true
+    };
+    const current = getLocalData(STORAGE_KEYS.LOCATIONS, mock.initialLocations);
+    const updated = [newLocation, ...current];
+    saveLocalData(STORAGE_KEYS.LOCATIONS, updated);
+    await this.logAudit({ action: 'CREATE', module: 'Location Management', record_id: newLocation.id, details: `Created operational location ${newLocation.name}` });
+    return newLocation;
+  },
+
+  async deleteLocation(id) {
+    const current = getLocalData(STORAGE_KEYS.LOCATIONS, mock.initialLocations);
+    const updated = current.filter(l => l.id !== id);
+    saveLocalData(STORAGE_KEYS.LOCATIONS, updated);
+    await this.logAudit({ action: 'DELETE', module: 'Location Management', record_id: id, details: `Deleted location ${id}` });
+    return true;
+  },
+
+  // --- SUPPLIERS & VENDORS ---
+  async getSuppliers() {
+    return getLocalData(STORAGE_KEYS.SUPPLIERS, mock.initialSuppliers);
+  },
+
+  async createSupplier(data) {
+    const newSupplier = {
+      id: `sup-${Date.now().toString().slice(-4)}`,
+      ...data,
+      status: 'Active',
+      rating: 5.0
+    };
+    const current = getLocalData(STORAGE_KEYS.SUPPLIERS, mock.initialSuppliers);
+    const updated = [newSupplier, ...current];
+    saveLocalData(STORAGE_KEYS.SUPPLIERS, updated);
+    await this.logAudit({ action: 'CREATE', module: 'Supplier Management', record_id: newSupplier.id, details: `Registered supplier ${newSupplier.company_name}` });
+    return newSupplier;
+  },
+
+  async deleteSupplier(id) {
+    const current = getLocalData(STORAGE_KEYS.SUPPLIERS, mock.initialSuppliers);
+    const updated = current.filter(s => s.id !== id);
+    saveLocalData(STORAGE_KEYS.SUPPLIERS, updated);
+    await this.logAudit({ action: 'DELETE', module: 'Supplier Management', record_id: id, details: `Deleted supplier ${id}` });
+    return true;
+  },
+
+  // --- INVENTORY ---
+  async getInventory() {
+    return getLocalData(STORAGE_KEYS.INVENTORY, mock.initialInventory);
+  },
+
+  async createInventoryItem(data) {
+    const newItem = {
+      id: `inv-${Date.now().toString().slice(-4)}`,
+      ...data,
+      status: Number(data.quantity) < Number(data.min_threshold || 10) ? 'Low Stock' : 'In Stock'
+    };
+    const current = getLocalData(STORAGE_KEYS.INVENTORY, mock.initialInventory);
+    const updated = [newItem, ...current];
+    saveLocalData(STORAGE_KEYS.INVENTORY, updated);
+    await this.logAudit({ action: 'CREATE', module: 'Inventory Management', record_id: newItem.id, details: `Created inventory item ${newItem.item_name}` });
+    return newItem;
+  },
+
+  async updateInventoryItem(id, data) {
+    const current = getLocalData(STORAGE_KEYS.INVENTORY, mock.initialInventory);
+    const updated = current.map(item => item.id === id ? { ...item, ...data } : item);
+    saveLocalData(STORAGE_KEYS.INVENTORY, updated);
+    return updated.find(item => item.id === id);
+  },
+
+  async deleteInventoryItem(id) {
+    const current = getLocalData(STORAGE_KEYS.INVENTORY, mock.initialInventory);
+    const updated = current.filter(item => item.id !== id);
+    saveLocalData(STORAGE_KEYS.INVENTORY, updated);
+    return true;
+  },
+
+  // --- SECURITY SETTINGS ---
+  async getSecuritySettings() {
+    return getLocalData(STORAGE_KEYS.SECURITY_SETTINGS, mock.initialSecuritySettings);
+  },
+
+  async updateSecuritySettings(newSettings) {
+    const current = getLocalData(STORAGE_KEYS.SECURITY_SETTINGS, mock.initialSecuritySettings);
+    const updated = { ...current, ...newSettings };
+    saveLocalData(STORAGE_KEYS.SECURITY_SETTINGS, updated);
+    await this.logAudit({ action: 'UPDATE', module: 'Security Management', details: 'Updated system security policies and password rules' });
+    return updated;
+  },
+
+  // --- SYSTEM SETTINGS ---
+  async getSystemSettings() {
+    return getLocalData(STORAGE_KEYS.SYSTEM_SETTINGS, mock.initialSystemSettings);
+  },
+
+  async updateSystemSettings(newSettings) {
+    const current = getLocalData(STORAGE_KEYS.SYSTEM_SETTINGS, mock.initialSystemSettings);
+    const updated = { ...current, ...newSettings };
+    saveLocalData(STORAGE_KEYS.SYSTEM_SETTINGS, updated);
+    await this.logAudit({ action: 'UPDATE', module: 'System Settings', details: 'Updated organization identity and ID number formatting' });
+    return updated;
+  },
+
+  // --- NOTIFICATIONS & ANNOUNCEMENTS ---
+  async getNotifications() {
+    return getLocalData(STORAGE_KEYS.NOTIFICATIONS, mock.initialNotifications);
+  },
+
+  async createNotification(data) {
+    const newNotif = {
+      id: `notif-${Date.now().toString().slice(-4)}`,
+      ...data,
+      active: true,
+      created_at: new Date().toISOString().split('T')[0]
+    };
+    const current = getLocalData(STORAGE_KEYS.NOTIFICATIONS, mock.initialNotifications);
+    const updated = [newNotif, ...current];
+    saveLocalData(STORAGE_KEYS.NOTIFICATIONS, updated);
+    await this.logAudit({ action: 'CREATE', module: 'Notifications', record_id: newNotif.id, details: `Broadcasted announcement: ${newNotif.title}` });
+    return newNotif;
+  },
+
+  async deleteNotification(id) {
+    const current = getLocalData(STORAGE_KEYS.NOTIFICATIONS, mock.initialNotifications);
+    const updated = current.filter(n => n.id !== id);
+    saveLocalData(STORAGE_KEYS.NOTIFICATIONS, updated);
+    return true;
+  },
+
+  // --- FAQS & SUPPORT ---
+  async getFaqs() {
+    return getLocalData(STORAGE_KEYS.FAQS, mock.initialFaqs);
+  },
+
+  async createFaq(data) {
+    const newFaq = {
+      id: `faq-${Date.now().toString().slice(-4)}`,
+      ...data
+    };
+    const current = getLocalData(STORAGE_KEYS.FAQS, mock.initialFaqs);
+    const updated = [newFaq, ...current];
+    saveLocalData(STORAGE_KEYS.FAQS, updated);
+    await this.logAudit({ action: 'CREATE', module: 'Help Management', record_id: newFaq.id, details: `Added FAQ: ${newFaq.question}` });
+    return newFaq;
+  },
+
+  async deleteFaq(id) {
+    const current = getLocalData(STORAGE_KEYS.FAQS, mock.initialFaqs);
+    const updated = current.filter(f => f.id !== id);
+    saveLocalData(STORAGE_KEYS.FAQS, updated);
+    return true;
+  },
+
+  // --- ADMIN COMPREHENSIVE STATS ---
+  async getAdminStats() {
+    const [beneficiaries, users, interventions, inventory, projects, suppliers, approvals] = await Promise.all([
+      this.getBeneficiaries(),
+      this.getUsers(),
+      this.getInterventions(),
+      this.getInventory(),
+      this.getProjects(),
+      this.getSuppliers(),
+      this.getApprovals()
+    ]);
+
+    const totalInventoryUnits = inventory.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    const activeUsersCount = users.filter(u => u.status !== 'Deactivated' && u.status !== 'Suspended').length;
+    const pendingApprovalsCount = approvals.filter(a => a.status === 'Pending').length;
+
+    return {
+      totalBeneficiaries: beneficiaries.length,
+      activeUsers: activeUsersCount,
+      totalDistributions: interventions.length,
+      totalInventoryItems: inventory.length,
+      totalInventoryUnits,
+      totalProgrammes: projects.length,
+      totalSuppliers: suppliers.length,
+      pendingApprovals: pendingApprovalsCount,
+      timestamp: new Date().toISOString()
+    };
+  },
+
+  // --- DATA MANAGEMENT: EXPORT & RESTORE BACKUP ---
+  async exportBackup() {
+    const backup = {
+      version: '1.0.0',
+      exported_at: new Date().toISOString(),
+      system: 'ADRA Development & Humanitarian Management System',
+      data: {
+        projects: await this.getProjects(),
+        beneficiaries: await this.getBeneficiaries(),
+        activities: await this.getActivities(),
+        interventions: await this.getInterventions(),
+        indicators: await this.getIndicators(),
+        budgets: await this.getBudgets(),
+        expenditures: await this.getExpenditures(),
+        donors: await this.getDonors(),
+        partners: await this.getPartners(),
+        users: await this.getUsers(),
+        permissions: await this.getPermissions(),
+        approvals: await this.getApprovals(),
+        locations: await this.getLocations(),
+        suppliers: await this.getSuppliers(),
+        inventory: await this.getInventory(),
+        security_settings: await this.getSecuritySettings(),
+        system_settings: await this.getSystemSettings(),
+        notifications: await this.getNotifications(),
+        faqs: await this.getFaqs(),
+        audit_logs: await this.getAuditLogs()
+      }
+    };
+    await this.logAudit({ action: 'EXPORT', module: 'Data Management', details: 'Full system database backup exported as JSON' });
+    return backup;
+  },
+
+  async restoreBackup(backupData) {
+    if (!backupData || !backupData.data) {
+      throw new Error('Invalid ADRA backup format');
+    }
+    const d = backupData.data;
+    if (d.projects) saveLocalData(STORAGE_KEYS.PROJECTS, d.projects);
+    if (d.beneficiaries) saveLocalData(STORAGE_KEYS.BENEFICIARIES, d.beneficiaries);
+    if (d.activities) saveLocalData(STORAGE_KEYS.ACTIVITIES, d.activities);
+    if (d.interventions) saveLocalData(STORAGE_KEYS.INTERVENTIONS, d.interventions);
+    if (d.indicators) saveLocalData(STORAGE_KEYS.INDICATORS, d.indicators);
+    if (d.budgets) saveLocalData(STORAGE_KEYS.BUDGETS, d.budgets);
+    if (d.expenditures) saveLocalData(STORAGE_KEYS.EXPENDITURES, d.expenditures);
+    if (d.donors) saveLocalData(STORAGE_KEYS.DONORS, d.donors);
+    if (d.partners) saveLocalData(STORAGE_KEYS.PARTNERS, d.partners);
+    if (d.users) saveLocalData(STORAGE_KEYS.USERS, d.users);
+    if (d.permissions) saveLocalData(STORAGE_KEYS.PERMISSIONS, d.permissions);
+    if (d.approvals) saveLocalData(STORAGE_KEYS.APPROVALS, d.approvals);
+    if (d.locations) saveLocalData(STORAGE_KEYS.LOCATIONS, d.locations);
+    if (d.suppliers) saveLocalData(STORAGE_KEYS.SUPPLIERS, d.suppliers);
+    if (d.inventory) saveLocalData(STORAGE_KEYS.INVENTORY, d.inventory);
+    if (d.security_settings) saveLocalData(STORAGE_KEYS.SECURITY_SETTINGS, d.security_settings);
+    if (d.system_settings) saveLocalData(STORAGE_KEYS.SYSTEM_SETTINGS, d.system_settings);
+    if (d.notifications) saveLocalData(STORAGE_KEYS.NOTIFICATIONS, d.notifications);
+    if (d.faqs) saveLocalData(STORAGE_KEYS.FAQS, d.faqs);
+
+    await this.logAudit({ action: 'RESTORE', module: 'Data Management', details: `Restored database backup generated on ${backupData.exported_at || 'unknown date'}` });
+    return true;
+  },
+
+  async runDataIntegrityCheck() {
+    const [projects, beneficiaries, interventions, activities, expenditures] = await Promise.all([
+      this.getProjects(),
+      this.getBeneficiaries(),
+      this.getInterventions(),
+      this.getActivities(),
+      this.getExpenditures()
+    ]);
+
+    const projectIds = new Set(projects.map(p => p.id));
+    const orphanInterventions = interventions.filter(i => i.project_id && !projectIds.has(i.project_id)).length;
+    const orphanActivities = activities.filter(a => a.project_id && !projectIds.has(a.project_id)).length;
+    const orphanExpenditures = expenditures.filter(e => e.project_id && !projectIds.has(e.project_id)).length;
+
+    return {
+      status: 'Passed',
+      checkedAt: new Date().toISOString(),
+      entitiesScanned: projects.length + beneficiaries.length + interventions.length + activities.length + expenditures.length,
+      orphanRecordsFound: orphanInterventions + orphanActivities + orphanExpenditures,
+      issues: [
+        orphanInterventions > 0 && `${orphanInterventions} interventions linked to nonexistent project IDs`,
+        orphanActivities > 0 && `${orphanActivities} activities linked to nonexistent project IDs`,
+        orphanExpenditures > 0 && `${orphanExpenditures} expenditure lines linked to nonexistent project IDs`
+      ].filter(Boolean)
+    };
+  },
+
+  // --- GLOBAL ADMIN SEARCH ---
+  async globalAdminSearch(query) {
+    if (!query || query.trim().length < 2) return [];
+    const q = query.toLowerCase().trim();
+
+    const [users, beneficiaries, projects, interventions, logs, suppliers] = await Promise.all([
+      this.getUsers(),
+      this.getBeneficiaries(),
+      this.getProjects(),
+      this.getInterventions(),
+      this.getAuditLogs(),
+      this.getSuppliers()
+    ]);
+
+    const results = [];
+
+    // Search Users
+    users.forEach(u => {
+      if (u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q)) {
+        results.push({
+          type: 'User',
+          id: u.id,
+          title: u.full_name,
+          subtitle: `${u.role} — ${u.email}`,
+          meta: u.department,
+          badge: u.status || 'Active'
+        });
+      }
+    });
+
+    // Search Beneficiaries
+    beneficiaries.forEach(b => {
+      if (b.full_name?.toLowerCase().includes(q) || b.beneficiary_code?.toLowerCase().includes(q) || b.location?.toLowerCase().includes(q)) {
+        results.push({
+          type: 'Beneficiary',
+          id: b.id,
+          title: b.full_name,
+          subtitle: `${b.beneficiary_code} — ${b.location}`,
+          meta: b.vulnerability_category,
+          badge: 'Registered'
+        });
+      }
+    });
+
+    // Search Programmes
+    projects.forEach(p => {
+      if (p.project_name?.toLowerCase().includes(q) || p.project_code?.toLowerCase().includes(q) || p.location?.toLowerCase().includes(q)) {
+        results.push({
+          type: 'Programme',
+          id: p.id,
+          title: p.project_name,
+          subtitle: `${p.project_code} — ${p.location}`,
+          meta: p.status,
+          badge: p.status
+        });
+      }
+    });
+
+    // Search Aid Distributions
+    interventions.forEach(i => {
+      if (i.beneficiary_name?.toLowerCase().includes(q) || i.intervention_code?.toLowerCase().includes(q) || i.intervention_type?.toLowerCase().includes(q)) {
+        results.push({
+          type: 'Distribution',
+          id: i.id,
+          title: `${i.intervention_type} for ${i.beneficiary_name}`,
+          subtitle: `${i.intervention_code} — ${i.date}`,
+          meta: i.details,
+          badge: 'Delivered'
+        });
+      }
+    });
+
+    // Search Suppliers
+    suppliers.forEach(s => {
+      if (s.company_name?.toLowerCase().includes(q) || s.contact_person?.toLowerCase().includes(q) || s.category?.toLowerCase().includes(q)) {
+        results.push({
+          type: 'Supplier',
+          id: s.id,
+          title: s.company_name,
+          subtitle: `${s.category} — ${s.contact_person}`,
+          meta: s.phone,
+          badge: s.status
+        });
+      }
+    });
+
+    return results.slice(0, 30);
   }
 };
