@@ -8,7 +8,6 @@ import {
   Truck,
   CheckCircle2,
   Clock,
-  AlertTriangle,
   ArrowRight,
   ShieldCheck,
   Database,
@@ -41,7 +40,7 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
       setStats(adminStats);
       setPendingApprovals(approvals.filter(a => a.status === 'Pending').slice(0, 4));
     } catch (err) {
-      toast.error('Failed to load live administrator metrics.');
+      toast.error('Failed to load live metrics.');
     } finally {
       setLoading(false);
     }
@@ -54,7 +53,7 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
   const handleQuickApprove = async (id, title) => {
     try {
       await db.updateApprovalStatus(id, 'Approved', 'Approved via Administrator Quick Action');
-      toast.success(`Request "${title}" approved!`);
+      toast.success(`Request approved`);
       loadDashboardData();
     } catch (err) {
       toast.error('Approval failed.');
@@ -64,7 +63,7 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
   const handleQuickReject = async (id, title) => {
     try {
       await db.updateApprovalStatus(id, 'Rejected', 'Rejected via Administrator Quick Action');
-      toast.info(`Request "${title}" rejected.`);
+      toast.info(`Request rejected`);
       loadDashboardData();
     } catch (err) {
       toast.error('Rejection failed.');
@@ -72,39 +71,20 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
   };
 
   if (loading) {
-    return <LoadingSpinner text="Aggregating live administrator telemetry..." />;
+    return <LoadingSpinner text="Aggregating live telemetry..." />;
   }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Welcome Banner with Quick Search */}
-      <div className="p-4 sm:p-6 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-slate-900 to-slate-900 border border-emerald-500/20 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      {/* Clean Page Title Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" /> Executive Control
-            </span>
-            <span className="text-xs text-slate-400">Live Database Synced</span>
-          </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white mt-1">
-            System Administration Console
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-300 mt-0.5 max-w-xl">
-            Real-time oversight of beneficiaries, staff security, humanitarian programmes, field offices, and operational approvals.
-          </p>
+          <h2 className="text-xl font-bold text-white tracking-tight">System Overview</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Real-time metrics, active personnel, programmes, and pending approvals</p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2">
           <Button
             variant="secondary"
-            size="sm"
-            onClick={onOpenSearch}
-            icon={Search}
-          >
-            Global Search
-          </Button>
-          <Button
-            variant="primary"
             size="sm"
             onClick={() => onNavigateTab('users')}
             icon={Plus}
@@ -114,12 +94,12 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
         </div>
       </div>
 
-      {/* 7 Key Admin Statistics Grid (Function 1) */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* 4 Clean Primary KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Beneficiaries"
           value={stats?.totalBeneficiaries.toLocaleString() || '0'}
-          subtitle="Enrolled & mapped"
+          subtitle="Enrolled & mapped in field"
           icon={Users}
           color="emerald"
           onClick={() => onNavigateTab('beneficiaries')}
@@ -128,45 +108,18 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
         <StatCard
           title="Active Users"
           value={stats?.activeUsers.toString() || '0'}
-          subtitle="Staff, partners & donors"
+          subtitle="Staff & partners across 8 roles"
           icon={UserCheck}
           color="blue"
           onClick={() => onNavigateTab('users')}
         />
 
         <StatCard
-          title="Distributions"
-          value={stats?.totalDistributions.toLocaleString() || '0'}
-          subtitle="Direct aid operations"
-          icon={HeartHandshake}
-          color="purple"
-          onClick={() => onNavigateTab('programmes')}
-        />
-
-        <StatCard
-          title="Warehouse Inventory"
-          value={`${stats?.totalInventoryUnits.toLocaleString() || 0}`}
-          subtitle={`${stats?.totalInventoryItems || 0} relief stock lines`}
-          icon={Package}
-          color="amber"
-          onClick={() => onNavigateTab('programmes')}
-        />
-
-        <StatCard
           title="Programmes"
           value={stats?.totalProgrammes.toString() || '0'}
-          subtitle="Multi-donor projects"
+          subtitle="Active humanitarian grants"
           icon={FolderKanban}
           color="cyan"
-          onClick={() => onNavigateTab('programmes')}
-        />
-
-        <StatCard
-          title="Suppliers & Vendors"
-          value={stats?.totalSuppliers.toString() || '0'}
-          subtitle="Prequalified partners"
-          icon={Truck}
-          color="blue"
           onClick={() => onNavigateTab('programmes')}
         />
 
@@ -175,70 +128,88 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
           value={stats?.pendingApprovals.toString() || '0'}
           subtitle={stats?.pendingApprovals > 0 ? 'Requires attention' : 'Queue cleared'}
           icon={Clock}
-          color="amber"
+          color={stats?.pendingApprovals > 0 ? 'amber' : 'emerald'}
           onClick={() => onNavigateTab('approvals')}
-        />
-
-        <StatCard
-          title="System Security"
-          value="Healthy"
-          subtitle="Lockouts & sessions active"
-          icon={Lock}
-          color="emerald"
-          onClick={() => onNavigateTab('security')}
         />
       </div>
 
-      {/* Two Column Grid: Pending Approvals Queue & System Governance Telemetry */}
+      {/* Secondary Metrics Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-2xl bg-slate-850 border border-slate-800 text-xs">
+        <div className="flex items-center gap-3 px-3 py-1">
+          <Package className="w-4 h-4 text-amber-600 shrink-0" />
+          <div className="min-w-0">
+            <span className="font-bold text-slate-100">{stats?.totalInventoryUnits.toLocaleString() || 0} Relief Units</span>
+            <p className="text-[10px] text-slate-400 truncate">{stats?.totalInventoryItems || 0} relief stock items</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 px-3 py-1 border-t sm:border-t-0 sm:border-l border-slate-800">
+          <Truck className="w-4 h-4 text-sky-600 shrink-0" />
+          <div className="min-w-0">
+            <span className="font-bold text-slate-100">{stats?.totalSuppliers || 0} Registered Vendors</span>
+            <p className="text-[10px] text-slate-400 truncate">Prequalified aid suppliers</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 px-3 py-1 border-t sm:border-t-0 sm:border-l border-slate-800">
+          <HeartHandshake className="w-4 h-4 text-purple-600 shrink-0" />
+          <div className="min-w-0">
+            <span className="font-bold text-slate-100">{stats?.totalDistributions || 0} Aid Distributions</span>
+            <p className="text-[10px] text-slate-400 truncate">Direct community relief operations</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Two Column Grid: Pending Approvals & System Governance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Actionable Pending Approvals Queue */}
         <div className="lg:col-span-2 space-y-4">
           <Card>
             <CardHeader
-              title="Urgent Administrative Approval Requests"
-              subtitle="Pending staff registrations, supplier onboarding, and budget releases"
+              title="Urgent Administrative Requests"
+              subtitle="Pending staff registrations, vendor onboarding, and budget releases"
               action={
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => onNavigateTab('approvals')}
                 >
-                  View All <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                  View Queue <ArrowRight className="w-3.5 h-3.5 ml-1" />
                 </Button>
               }
             />
 
             {pendingApprovals.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-xs">
-                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
-                <p className="font-semibold text-slate-200">No Pending Approvals</p>
-                <p className="mt-1">All registration and expenditure requests are up to date.</p>
+                <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2 opacity-80" />
+                <p className="font-semibold text-slate-100">No Pending Approvals</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">All registration and expenditure queues are up to date.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {pendingApprovals.map((app) => (
                   <div
                     key={app.id}
-                    className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                    className="p-3 rounded-xl bg-slate-850 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                        <span className="font-mono text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold">
                           {app.id}
                         </span>
-                        <span className="text-xs font-bold text-white truncate">
+                        <span className="text-xs font-semibold text-slate-100 truncate">
                           {app.category}
                         </span>
                         {app.priority === 'Urgent' && (
-                          <span className="text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded-full">
                             Urgent
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-300 mt-1 font-medium truncate">
-                        {app.requester_name} ({app.requester_email})
+                      <p className="text-xs text-slate-200 mt-1 font-medium truncate">
+                        {app.requester_name}
                       </p>
-                      <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
+                      <p className="text-[11px] text-slate-400 line-clamp-1">
                         {app.details}
                       </p>
                     </div>
@@ -255,7 +226,6 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
                         variant="primary"
                         size="sm"
                         onClick={() => handleQuickApprove(app.id, app.category)}
-                        icon={CheckCircle2}
                       >
                         Approve
                       </Button>
@@ -271,66 +241,55 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
         <div className="space-y-4">
           <Card>
             <CardHeader
-              title="System Governance Status"
+              title="Governance & Security"
               subtitle="Real-time operational safeguards"
             />
 
-            <div className="space-y-3 text-xs">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-850 border border-slate-800">
                 <div className="flex items-center gap-2.5">
-                  <Database className="w-4 h-4 text-emerald-400" />
+                  <Database className="w-4 h-4 text-emerald-600" />
                   <div>
-                    <p className="font-semibold text-slate-200">Database Engine</p>
+                    <p className="font-semibold text-slate-100">Database Engine</p>
                     <p className="text-[10px] text-slate-400">
-                      {isSupabaseConfigured ? 'Supabase Cloud PostgreSQL' : 'Local Mock Data Engine'}
+                      {isSupabaseConfigured ? 'PostgreSQL Live' : 'Persistent Storage'}
                     </p>
                   </div>
                 </div>
                 <span className="badge-emerald text-[10px]">Active</span>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-850 border border-slate-800">
                 <div className="flex items-center gap-2.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
                   <div>
-                    <p className="font-semibold text-slate-200">Role-Based Access (RBAC)</p>
-                    <p className="text-[10px] text-slate-400">8 Roles Configured</p>
+                    <p className="font-semibold text-slate-100">RBAC Security</p>
+                    <p className="text-[10px] text-slate-400">8 Roles Enforced</p>
                   </div>
                 </div>
                 <span className="badge-emerald text-[10px]">Enforced</span>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-850 border border-slate-800">
                 <div className="flex items-center gap-2.5">
-                  <FileCheck2 className="w-4 h-4 text-blue-400" />
+                  <FileCheck2 className="w-4 h-4 text-sky-600" />
                   <div>
-                    <p className="font-semibold text-slate-200">System Audit Trail</p>
-                    <p className="text-[10px] text-slate-400">Immutable Event Log</p>
+                    <p className="font-semibold text-slate-100">Audit Trail</p>
+                    <p className="text-[10px] text-slate-400">Event Stream Logging</p>
                   </div>
                 </div>
                 <span className="badge-blue text-[10px]">Recording</span>
               </div>
-
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <Radio className="w-4 h-4 text-purple-400" />
-                  <div>
-                    <p className="font-semibold text-slate-200">System Broadcasts</p>
-                    <p className="text-[10px] text-slate-400">Alert Notifications</p>
-                  </div>
-                </div>
-                <span className="badge-purple text-[10px]">Enabled</span>
-              </div>
             </div>
 
-            <div className="pt-4 mt-4 border-t border-slate-800">
+            <div className="pt-3 mt-3 border-t border-slate-800">
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full justify-center"
+                className="w-full justify-center text-xs"
                 onClick={() => onNavigateTab('data')}
               >
-                Data Management & Backups
+                Backups & Data Management
               </Button>
             </div>
           </Card>

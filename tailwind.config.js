@@ -8,28 +8,70 @@ export default {
   theme: {
     extend: {
       colors: {
+        brand: {
+          primary: '#00856A',
+          dark: '#006B56',
+          light: '#E8F5F1',
+          white: '#FFFFFF',
+          black: '#1C1C1C',
+          gray: '#F5F7F6',
+        },
         adra: {
-          50: '#ecfdf5',
-          100: '#d1fae5',
-          200: '#a7f3d0',
-          300: '#6ee7b7',
-          400: '#34d399',
-          500: '#10b981', // Brand Emerald
-          600: '#059669',
-          700: '#047857',
-          800: '#065f46',
-          900: '#064e3b',
-          navy: '#0b192c',
-          card: '#112239',
-          accent: '#f59e0b'
-        }
+          primary: '#00856A',
+          dark: '#006B56',
+          light: '#E8F5F1',
+          white: '#FFFFFF',
+          black: '#1C1C1C',
+          gray: '#F5F7F6',
+          50: '#E8F5F1',
+          100: '#E8F5F1',
+          200: '#c2eadc',
+          300: '#8ed6c1',
+          400: '#00a382',
+          500: '#00856A', // Primary
+          600: '#006B56', // Dark Green
+          700: '#005443',
+          800: '#003e32',
+          900: '#002921',
+          navy: '#1C1C1C',
+          card: '#222423',
+          accent: '#00856A',
+        },
+        emerald: {
+          50: '#E8F5F1',  // Light Green
+          100: '#E8F5F1',
+          200: '#c2eadc',
+          300: '#8ed6c1',
+          400: '#00a382',
+          500: '#00856A', // Primary
+          600: '#006B56', // Dark Green
+          700: '#005443',
+          800: '#003e32',
+          900: '#002921',
+          950: '#001a15',
+        },
+        slate: {
+          50: '#F8FAFC',
+          100: '#1C1C1C', // Brand Charcoal Black
+          200: '#1F2937', // Dark Charcoal
+          300: '#374151', // Dark Slate
+          400: '#4B5563', // Medium Dark Slate (readable)
+          500: '#64748B', // Muted Slate
+          600: '#475569', // Darker Muted Slate
+          700: '#334155', // Dark Slate
+          800: '#1E293B', // Very Dark Slate
+          850: '#111827', // Near Black
+          900: '#0F172A', // Deep Charcoal
+          950: '#020617', // Pitch Charcoal Black
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       boxShadow: {
-        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
-        'card-glow': '0 0 25px -5px rgba(16, 185, 129, 0.15)',
+        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.05)',
+        'card-glow': '0 0 25px -5px rgba(0, 133, 106, 0.12)',
+        'brand-glow': '0 0 20px -2px rgba(0, 133, 106, 0.20)',
       }
     },
   },

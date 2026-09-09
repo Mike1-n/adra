@@ -26,8 +26,14 @@ import { db } from '../../../lib/supabase';
 import { formatDate } from '../../../lib/utils';
 import { useToast } from '../../../context/ToastContext';
 
-export function DataSettingsSupportView() {
-  const [activeSubTab, setActiveSubTab] = useState('settings');
+export function DataSettingsSupportView({ initialTab = 'settings' }) {
+  const [activeSubTab, setActiveSubTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveSubTab(initialTab);
+    }
+  }, [initialTab]);
   const [systemSettings, setSystemSettings] = useState(null);
   const [faqs, setFaqs] = useState([]);
   const [stats, setStats] = useState(null);

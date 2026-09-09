@@ -4,16 +4,19 @@
 
 @layer base {
   :root {
-    --color-primary: 16 185 129;
-    --color-bg: 2 6 23;
+    --color-primary: 0 133 106; /* #00856A */
+    --color-primary-dark: 0 107 86; /* #006B56 */
+    --color-primary-light: 232 245 241; /* #E8F5F1 */
+    --color-black: 28 28 28; /* #1C1C1C */
+    --color-gray-light: 245 247 246; /* #F5F7F6 */
+    --color-white: 255 255 255; /* #FFFFFF */
   }
 
   body {
-    @apply bg-slate-950 text-slate-100 font-sans antialiased;
+    @apply bg-white text-slate-900 font-sans antialiased;
+    color: #1C1C1C;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-tap-highlight-color: transparent;
-    user-select: none;
-    -webkit-user-select: none;
     overscroll-behavior-y: none;
   }
 
@@ -33,57 +36,75 @@
     margin-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  /* Custom sleek scrollbar */
+  /* Custom sleek scrollbar for white theme */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: #090d16;
+    background: #F5F7F6;
   }
   ::-webkit-scrollbar-thumb {
-    background: #1e293b;
+    background: #CBD5E1;
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #334155;
+    background: #00856A;
   }
 }
 
 @layer components {
-  /* Glass card styling */
+  /* Clean card styling for white theme */
   .adra-card {
-    @apply bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-xl shadow-lg transition-all duration-200;
+    @apply bg-white border border-slate-200 rounded-xl shadow-sm transition-all duration-200 text-slate-900;
   }
   
   .adra-card-hover {
-    @apply hover:border-slate-700 hover:shadow-xl hover:shadow-emerald-950/20 hover:-translate-y-0.5;
+    @apply hover:border-emerald-500/50 hover:shadow-md hover:shadow-emerald-500/10 hover:-translate-y-0.5;
   }
 
-  /* Interactive inputs */
+  /* Interactive inputs with clear visible text */
   .adra-input {
-    @apply w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all;
+    @apply w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500 transition-all;
+    color: #1C1C1C !important;
   }
 
   .adra-select {
-    @apply w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all;
+    @apply w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500 transition-all;
+    color: #1C1C1C !important;
   }
 
-  /* Badges */
+  /* Brand Badges */
   .badge-emerald {
-    @apply bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
+    @apply bg-emerald-50 text-emerald-700 border border-emerald-500/30 font-semibold px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5 shadow-sm;
+  }
+  .badge-primary {
+    background-color: #00856A !important;
+    color: #FFFFFF !important;
+    @apply font-semibold px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5 shadow-sm;
+  }
+  .badge-darkgreen {
+    background-color: #006B56 !important;
+    color: #FFFFFF !important;
+    @apply font-semibold px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5 shadow-sm;
+  }
+  .badge-lightgreen {
+    @apply bg-emerald-50 text-emerald-700 border border-emerald-500/30 font-semibold px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5 shadow-sm;
   }
   .badge-amber {
-    @apply bg-amber-500/10 text-amber-400 border border-amber-500/30 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
+    @apply bg-amber-50 text-amber-800 border border-amber-300 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
   }
   .badge-blue {
-    @apply bg-blue-500/10 text-blue-400 border border-blue-500/30 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
+    @apply bg-sky-50 text-sky-800 border border-sky-300 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
   }
   .badge-rose {
-    @apply bg-rose-500/10 text-rose-400 border border-rose-500/30 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
+    @apply bg-rose-50 text-rose-800 border border-rose-300 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
   }
   .badge-slate {
-    @apply bg-slate-800 text-slate-300 border border-slate-700 font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
+    background-color: #F5F7F6;
+    color: #1E293B;
+    border: 1px solid #CBD5E1;
+    @apply font-medium px-2.5 py-1 rounded-full text-xs inline-flex items-center gap-1.5;
   }
 }
 
@@ -99,10 +120,115 @@
   .print-only {
     display: block !important;
   }
-  .adra-card {
-    border: 1px solid #e2e8f0 !important;
-    background: #ffffff !important;
-    box-shadow: none !important;
-    color: #0f172a !important;
-  }
+}
+
+/* ==========================================================================
+   High Contrast Design System & Typography Engine
+   ========================================================================== */
+
+/* Headings default to Brand Black on white backgrounds */
+h1, h2, h3, h4, h5, h6 {
+  color: #1C1C1C;
+}
+
+/* Headings INSIDE dark or brand green containers MUST be pure white */
+[class*="bg-emerald-"] h1,
+[class*="bg-emerald-"] h2,
+[class*="bg-emerald-"] h3,
+[class*="bg-emerald-"] h4,
+[class*="from-emerald-"] h1,
+[class*="from-emerald-"] h2,
+[class*="from-emerald-"] h3,
+[class*="from-emerald-"] h4,
+[class*="bg-rose-"] h1,
+[class*="bg-rose-"] h2,
+[class*="bg-rose-"] h3,
+[class*="bg-rose-"] h4,
+.text-white h1,
+.text-white h2,
+.text-white h3,
+.text-white h4 {
+  color: #FFFFFF !important;
+}
+
+/* Surface mappings for white theme */
+.bg-slate-950,
+.bg-slate-900 {
+  background-color: #FFFFFF !important;
+}
+.bg-slate-850,
+.bg-slate-800 {
+  background-color: #F5F7F6 !important;
+}
+.border-slate-800,
+.border-slate-700 {
+  border-color: #CBD5E1 !important;
+}
+
+/* PURE WHITE TEXT for buttons, badges, pills, and dark/green hero cards */
+.text-white,
+[class*="text-white"],
+button[class*="bg-emerald-"],
+button[class*="bg-emerald-"] span,
+button[class*="bg-emerald-"] p,
+button[class*="bg-emerald-"] svg,
+button[class*="bg-rose-"],
+button[class*="bg-rose-"] span,
+button[class*="bg-rose-"] svg,
+.btn-primary,
+.btn-primary *,
+.badge-primary,
+.badge-darkgreen {
+  color: #FFFFFF !important;
+}
+
+/* White buttons on emerald cards (e.g. "Apply Now", "Request Assistance") */
+button.bg-white,
+button.bg-white span,
+button.bg-white p,
+button.bg-white svg {
+  color: #006B56 !important;
+}
+
+/* High Contrast Slate Typography on White Surfaces */
+.text-slate-950,
+.text-slate-900,
+.text-slate-800 {
+  color: #1C1C1C !important;
+}
+.text-slate-700 {
+  color: #1E293B !important;
+}
+.text-slate-600 {
+  color: #334155 !important;
+}
+.text-slate-500 {
+  color: #475569 !important; /* Crisp Slate 600 - High Contrast */
+}
+.text-slate-400 {
+  color: #64748B !important; /* Visible Slate 500 */
+}
+
+/* Legacy dark-theme classes mapped to crisp dark text on white canvas */
+.text-slate-100,
+.text-slate-200,
+.text-slate-300 {
+  color: #1C1C1C !important;
+}
+
+/* Light emerald accents on green cards */
+[class*="bg-emerald-"] .text-emerald-100,
+[class*="from-emerald-"] .text-emerald-100,
+[class*="bg-emerald-"] .text-emerald-200,
+[class*="from-emerald-"] .text-emerald-200 {
+  color: #E8F5F1 !important;
+}
+
+/* Table styling */
+table th {
+  color: #1C1C1C !important;
+  background-color: #F5F7F6 !important;
+}
+table td {
+  color: #1C1C1C !important;
 }

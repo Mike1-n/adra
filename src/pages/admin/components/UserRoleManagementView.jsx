@@ -152,6 +152,16 @@ export function UserRoleManagementView() {
     }
   };
 
+  const handleVerifyUser = async (user) => {
+    try {
+      await db.verifyUser(user.id);
+      toast.success(`Account for ${user.full_name} has been verified and activated!`);
+      loadData();
+    } catch (err) {
+      toast.error('Failed to verify account.');
+    }
+  };
+
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
     try {
@@ -170,7 +180,11 @@ export function UserRoleManagementView() {
       u.email?.toLowerCase().includes(search.toLowerCase()) ||
       u.department?.toLowerCase().includes(search.toLowerCase());
     const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
-    const matchesStatus = statusFilter === 'ALL' || (u.status || 'Active') === statusFilter;
+    const matchesStatus =
+      statusFilter === 'ALL' ||
+      (statusFilter === 'Pending Verification'
+        ? (u.status === 'Pending Verification' || u.is_active === false)
+        : (u.status || 'Active') === statusFilter);
     return matchesSearch && matchesRole && matchesStatus;
   });
 
@@ -222,6 +236,24 @@ export function UserRoleManagementView() {
         </Button>
       </div>
 
+      {/* Pending Accounts Banner if any */}
+      {users.some(u => u.status === 'Pending Verification' || u.is_active === false) && (
+        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-amber-200 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="font-semibold">
+              {users.filter(u => u.status === 'Pending Verification' || u.is_active === false).length} account(s): Account verification pending. Awaiting administrator verification before they can log in.
+            </span>
+          </div>
+          <button
+            onClick={() => setStatusFilter('Pending Verification')}
+            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] transition cursor-pointer"
+          >
+            Review Pending Accounts →
+          </button>
+        </div>
+      )}
+
       {/* Search & Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="relative">
@@ -253,6 +285,7 @@ export function UserRoleManagementView() {
         >
           <option value="ALL">All Statuses</option>
           <option value="Active">Active Accounts</option>
+          <option value="Pending Verification">Account Verification Pending (New)</option>
           <option value="Deactivated">Deactivated Accounts</option>
           <option value="Suspended">Suspended Accounts</option>
         </select>
@@ -311,22 +344,39 @@ export function UserRoleManagementView() {
 
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400 text-[11px]">Account Status:</span>
-                      <span className={`text-[11px] font-medium flex items-center gap-1 ${isActive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                        {u.status || 'Active'}
-                      </span>
+                      {u.status === 'Pending Verification' || u.is_active === false ? (
+                        <span className="text-[11px] font-bold flex items-center gap-1 text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                          Account Verification Pending
+                        </span>
+                      ) : (
+                        <span className={`text-[11px] font-medium flex items-center gap-1 ${isActive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                          {u.status || 'Active'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Card Action Toolbar */}
                 <div className="flex items-center justify-between gap-1.5 pt-3 mt-4 border-t border-slate-800">
-                  <button
-                    onClick={() => handleOpenRoleModal(u)}
-                    className="px-2.5 py-1 text-xs rounded-lg text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 font-medium transition"
-                  >
-                    Change Role
-                  </button>
+                  {u.status === 'Pending Verification' || u.is_active === false ? (
+                    <button
+                      onClick={() => handleVerifyUser(u)}
+                      className="px-3 py-1 text-xs rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Verify & Activate
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleOpenRoleModal(u)}
+                      className="px-2.5 py-1 text-xs rounded-lg text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 font-medium transition cursor-pointer"
+                    >
+                      Change Role
+                    </button>
+                  )}
 
                   <div className="flex items-center gap-1">
                     <button

@@ -23,8 +23,14 @@ import { db } from '../../../lib/supabase';
 import { formatCurrency, formatDate } from '../../../lib/utils';
 import { useToast } from '../../../context/ToastContext';
 
-export function FieldGovernanceView() {
-  const [activeSubTab, setActiveSubTab] = useState('programmes');
+export function FieldGovernanceView({ initialTab = 'programmes' }) {
+  const [activeSubTab, setActiveSubTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveSubTab(initialTab);
+    }
+  }, [initialTab]);
   const [programmes, setProgrammes] = useState([]);
   const [locations, setLocations] = useState([]);
   const [managers, setManagers] = useState([]);

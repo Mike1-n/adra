@@ -232,6 +232,27 @@ export const initialBeneficiaries = [
     registration_date: '2024-04-12',
     project_id: 'pr4',
     project_name: 'Emergency Flood Relief'
+  },
+  {
+    id: 'b7',
+    beneficiary_code: 'ADRA-SS-000125',
+    full_name: 'Mary Nyambura',
+    email: 'mary.nyambura@adra.community',
+    gender: 'Female',
+    date_of_birth: '1989-06-18',
+    age: 36,
+    phone_number: '+254-718-920114',
+    national_id: '29481023',
+    location: 'Lodwar Central, Turkana West',
+    household_size: 5,
+    vulnerability_category: 'Female-headed Household',
+    verification_status: 'Verified Active',
+    registration_date: '2025-01-20',
+    project_id: 'pr1',
+    project_name: 'Drought Resilience & Climate-Smart Agriculture',
+    emergency_contact: 'Peter Lokidor (+254-722-114455)',
+    primary_needs: ['Food', 'Water', 'Agricultural support'],
+    qr_token: 'ADRA-SS-000125-VFD891'
   }
 ];
 
@@ -359,6 +380,32 @@ export const initialInterventions = [
     quantity_or_value: '2-Month Cash Stipend ($200 value)',
     intervention_date: '2024-05-18',
     responsible_officer: 'John Mwangi'
+  },
+  {
+    id: 'i6',
+    intervention_code: 'INT-2025-006',
+    beneficiary_id: 'b7',
+    beneficiary_name: 'Mary Nyambura',
+    project_id: 'pr1',
+    project_name: 'Drought Resilience & Climate-Smart Agriculture',
+    intervention_type: 'Agricultural Support',
+    description: 'Certified Drought-Resistant Sorghum Seeds (10kg) and Micro-Drip Irrigation kit with training manual.',
+    quantity_or_value: '1 Irrigation Kit + 10kg Sorghum ($160 value)',
+    intervention_date: '2025-02-18',
+    responsible_officer: 'John Mwangi'
+  },
+  {
+    id: 'i7',
+    intervention_code: 'INT-2025-007',
+    beneficiary_id: 'b7',
+    beneficiary_name: 'Mary Nyambura',
+    project_id: 'pr2',
+    project_name: 'Clean Water Access & WASH Infrastructure',
+    intervention_type: 'Clean Water & WASH',
+    description: 'Emergency clean water jerrycans (2 x 20L) and 100-tablet water purification Aquatabs blister pack.',
+    quantity_or_value: '2 Jerrycans + 100 Aquatabs ($40 value)',
+    intervention_date: '2025-07-18',
+    responsible_officer: 'Sarah Kimani'
   }
 ];
 
@@ -653,6 +700,7 @@ export const demoAccounts = [
   {
     id: 'user-admin',
     email: 'admin@adra.org',
+    phone: '+211-920-000001',
     password: 'Password123!',
     full_name: 'Dr. Elizabeth Warren',
     role: 'Administrator',
@@ -663,6 +711,7 @@ export const demoAccounts = [
   {
     id: 'user-pm',
     email: 'program.manager@adra.org',
+    phone: '+211-920-000002',
     password: 'Password123!',
     full_name: 'Grace Ochieng',
     role: 'Program Manager',
@@ -673,6 +722,7 @@ export const demoAccounts = [
   {
     id: 'user-sup',
     email: 'supervisor@adra.org',
+    phone: '+211-920-000003',
     password: 'Password123!',
     full_name: 'Emmanuel Adeyemi',
     role: 'Supervisor',
@@ -683,6 +733,7 @@ export const demoAccounts = [
   {
     id: 'user-po',
     email: 'project.officer@adra.org',
+    phone: '+211-920-000004',
     password: 'Password123!',
     full_name: 'John Mwangi',
     role: 'Project Officer',
@@ -693,6 +744,7 @@ export const demoAccounts = [
   {
     id: 'user-fw',
     email: 'field.worker@adra.org',
+    phone: '+211-920-000005',
     password: 'Password123!',
     full_name: 'Amina Abdi',
     role: 'Field Worker',
@@ -703,6 +755,7 @@ export const demoAccounts = [
   {
     id: 'user-fo',
     email: 'finance.officer@adra.org',
+    phone: '+211-920-000006',
     password: 'Password123!',
     full_name: 'Alex Morgan',
     role: 'Finance Officer',
@@ -713,6 +766,7 @@ export const demoAccounts = [
   {
     id: 'user-sup-vendor',
     email: 'procurement@africasupplies.com',
+    phone: '+211-920-000007',
     password: 'Password123!',
     full_name: 'Hassan Gedi',
     role: 'Supplier',
@@ -723,6 +777,7 @@ export const demoAccounts = [
   {
     id: 'user-donor',
     email: 'sjenkins@usaid.gov',
+    phone: '+1-202-555-0143',
     password: 'Password123!',
     full_name: 'Sarah Jenkins',
     role: 'Donor',
@@ -733,6 +788,9 @@ export const demoAccounts = [
   {
     id: 'user-ben',
     email: 'mary.nyambura@adra.community',
+    phone: '+254-718-920114',
+    national_id: '29481023',
+    beneficiary_code: 'ADRA-SS-000125',
     password: 'Password123!',
     full_name: 'Mary Nyambura',
     role: 'Beneficiary',
@@ -888,4 +946,199 @@ export const initialFaqs = [
   { id: 'faq-3', category: 'Compliance', question: 'Where can I inspect immutable audit records for viva or donor verification?', answer: 'Go to Admin Console > Audit Trail or System Reports. You can filter by action (LOGIN, CREATE, UPDATE, DELETE), view full JSON payloads, and download signed PDF reports.' },
   { id: 'faq-4', category: 'Data Safety', question: 'How do I generate an offline data backup before field deployments?', answer: 'Under Admin Console > Data Management, click "Export Database Backup (JSON)". This saves a full cryptographically-timestamped snapshot of all 12 modules.' }
 ];
+
+export const initialAssistanceRequests = [
+  {
+    id: 'req-1',
+    request_code: 'ADR-REQ-2026-00125',
+    beneficiary_id: 'b7',
+    beneficiary_name: 'Mary Nyambura',
+    beneficiary_code: 'ADRA-SS-000125',
+    category: 'Food',
+    urgency: 'High',
+    household_members: 5,
+    description: 'Immediate household supplementary grain ration needed due to delayed rainfall harvest.',
+    preferred_depot: 'Lodwar Central Humanitarian Depot',
+    status: 'Approved',
+    status_label: 'Approved',
+    status_stage: 3, // 1: Pending Review, 2: Under Review, 3: Approved, 4: Fulfilled, 5: Rejected
+    created_at: '2025-08-28T09:30:00Z',
+    reviewed_by: 'John Mwangi (Project Officer)',
+    review_notes: 'Approved under ECHO emergency drought allocation. Collection ticket issued for Sept 15 distribution.',
+    expected_dispatch_date: '2025-09-15'
+  },
+  {
+    id: 'req-2',
+    request_code: 'ADR-REQ-2026-00126',
+    beneficiary_id: 'b7',
+    beneficiary_name: 'Mary Nyambura',
+    beneficiary_code: 'ADRA-SS-000125',
+    category: 'Water',
+    urgency: 'Critical',
+    household_members: 5,
+    description: 'Borehole salinity high; household urgently requires water purification sachets and food-grade jerricans.',
+    preferred_depot: 'Lodwar Central Humanitarian Depot',
+    status: 'Fulfilled',
+    status_label: 'Fulfilled',
+    status_stage: 4,
+    created_at: '2025-07-10T14:15:00Z',
+    reviewed_by: 'Sarah Kimani (WASH Officer)',
+    review_notes: 'Fulfilled on July 18 during Mobile WASH Dispatch #4.',
+    expected_dispatch_date: '2025-07-18'
+  },
+  {
+    id: 'req-3',
+    request_code: 'ADR-REQ-2026-00127',
+    beneficiary_id: 'b7',
+    beneficiary_name: 'Mary Nyambura',
+    beneficiary_code: 'ADRA-SS-000125',
+    category: 'Agricultural support',
+    urgency: 'Standard',
+    household_members: 5,
+    description: 'Request for drought-resistant sorghum seed pack and drip irrigation tubing for community garden plot.',
+    preferred_depot: 'Turkana West Sub-County Office',
+    status: 'Pending',
+    status_label: 'Pending Review',
+    status_stage: 1,
+    created_at: '2025-09-02T11:00:00Z',
+    reviewed_by: 'Pending Agronomist Verification',
+    review_notes: 'Request entered into ADRA system. Awaiting field worker community verification.',
+    expected_dispatch_date: 'Pending Review'
+  }
+];
+
+export const initialBeneficiaryComplaints = [
+  {
+    id: 'cmp-1',
+    ticket_code: 'CMP-2025-001',
+    beneficiary_id: 'b7',
+    beneficiary_name: 'Mary Nyambura',
+    category: 'Distribution Logistics',
+    severity: 'Medium',
+    is_anonymous: false,
+    subject: 'Long waiting hours at Lodwar depot checkpoint',
+    description: 'During the July 18 distribution, elderly and mothers with infants queued for over 4 hours under the sun before registration desks opened.',
+    status: 'Resolved',
+    created_at: '2025-07-19T10:00:00Z',
+    resolution_notes: 'Shaded waiting canopy and priority queue line for vulnerable mothers established for all future distributions.',
+    resolved_by: 'David Ochieng (Compliance Officer)',
+    resolved_at: '2025-07-24T16:00:00Z'
+  }
+];
+
+export const initialAidDistributions = [
+  {
+    id: 'dist-1',
+    distribution_code: 'DST-2025-08',
+    project_id: 'pr1',
+    project_name: 'Drought Resilience & Climate-Smart Agriculture',
+    title: 'September Emergency Food & Nutrition Dispatch',
+    centre_name: 'Lodwar Central Humanitarian Depot',
+    location: 'Turkana West, Lodwar Town (Opposite County Commissioner)',
+    date: '2025-09-15',
+    time_window: '08:30 AM - 03:30 PM',
+    status: 'Upcoming',
+    allocated_items: [
+      '25kg Fortified Maize Flour',
+      '10kg Yellow Split Peas / Pulses',
+      '5 Litres Fortified Vegetable Oil',
+      '1kg Iodized Salt',
+      '500g Super Cereal (CSB+) for Children'
+    ],
+    collection_token: 'TKN-LOD-9182',
+    officer_in_charge: 'John Mwangi (+254-712-889900)',
+    instructions: 'Please bring your digital or printed ADRA Beneficiary ID with QR code. Face-to-face biometric or token verification required upon entry.'
+  },
+  {
+    id: 'dist-2',
+    distribution_code: 'DST-2025-09',
+    project_id: 'pr2',
+    project_name: 'Clean Water Access & WASH Infrastructure',
+    title: 'Q4 Community Hygiene & Jerrycan Allocation',
+    centre_name: 'Kakuma Community Water Point 3',
+    location: 'Kakuma Sub-County, Turkana North',
+    date: '2025-09-28',
+    time_window: '09:00 AM - 01:00 PM',
+    status: 'Scheduled',
+    allocated_items: [
+      '2 x 20L Food-grade Water Jerrycans',
+      'Aquatabs Water Purification Pack (100 tablets)',
+      '1 Family Hygiene Bar Soap Pack (6 bars)'
+    ],
+    collection_token: 'TKN-KAK-4412',
+    officer_in_charge: 'Sarah Kimani (+254-723-778811)',
+    instructions: 'Each household receives 1 package. Tokens can be redeemed by designated secondary household representative.'
+  }
+];
+
+export const initialBeneficiaryFaqs = [
+  {
+    id: 'bfaq-1',
+    category: 'Eligibility & Registration',
+    question: 'How do I know if my household qualifies for ADRA emergency assistance?',
+    answer: 'ADRA prioritizes the most vulnerable community members including female-headed households, elderly individuals living alone, persons with severe disabilities, orphans, and families displaced by climate disasters. Registration is verified by local community elders and ADRA field assessment officers.'
+  },
+  {
+    id: 'bfaq-2',
+    category: 'Beneficiary ID & Verification',
+    question: 'What do I do if I lose my phone or cannot print my digital Beneficiary ID card?',
+    answer: 'Your unique Beneficiary ID number (e.g., BEN-2025-007) and phone number are recorded in the central database. When you visit any ADRA distribution centre or field office, our officer can look up your record using your National ID, phone number, or biometric verification.'
+  },
+  {
+    id: 'bfaq-3',
+    category: 'Aid Collection',
+    question: 'Can a family member collect my allocated rations on my behalf?',
+    answer: 'Yes. When submitting a request or updating your profile, register an Emergency Contact / Secondary Representative. The designated person must present your digital token and a valid identification document at the distribution point.'
+  },
+  {
+    id: 'bfaq-4',
+    category: 'Complaints & Confidentiality',
+    question: 'Is it safe to report an issue or complaint about aid distribution?',
+    answer: 'Yes, 100%. ADRA has a strict zero-retaliation policy. You can submit complaints anonymously through the "Feedback & Complaints" tab in this portal. All reports are routed directly to the Independent Compliance and Safeguarding team.'
+  }
+];
+
+export const approvedAdraContacts = [
+  {
+    id: 'cont-1',
+    office: 'National Headquarters (Nairobi)',
+    address: 'ADRA Complex, Riverside Drive, Westlands, Nairobi',
+    phone: '+254-20-2718870',
+    toll_free_hotline: '0800-720-112',
+    email: 'info@adrakenya.org',
+    whatsapp: '+254-712-345678',
+    hours: 'Monday - Thursday: 8:00 AM - 5:00 PM, Friday: 8:00 AM - 1:00 PM'
+  },
+  {
+    id: 'cont-2',
+    office: 'Turkana Regional Field Office (Lodwar)',
+    address: 'Opposite County Commissioner compound, Lodwar Town',
+    phone: '+254-718-990011',
+    toll_free_hotline: '0800-720-112',
+    email: 'turkana.field@adrakenya.org',
+    whatsapp: '+254-718-990011',
+    hours: 'Monday - Friday: 8:00 AM - 4:30 PM'
+  },
+  {
+    id: 'cont-3',
+    office: 'Garissa Regional Field Office',
+    address: 'Kismayu Road, Next to Red Cross Centre, Garissa',
+    phone: '+254-722-556677',
+    toll_free_hotline: '0800-720-112',
+    email: 'garissa.field@adrakenya.org',
+    whatsapp: '+254-722-556677',
+    hours: 'Monday - Friday: 8:00 AM - 4:30 PM'
+  },
+  {
+    id: 'cont-4',
+    office: 'Moyale Sub-County Field Base',
+    address: 'Moyale Town Centre, Marsabit County',
+    phone: '+254-733-441122',
+    toll_free_hotline: '0800-720-112',
+    email: 'moyale.field@adrakenya.org',
+    whatsapp: '+254-733-441122',
+    hours: 'Monday - Friday: 8:00 AM - 4:00 PM'
+  }
+];
+
 

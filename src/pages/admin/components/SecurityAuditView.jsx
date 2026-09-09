@@ -26,8 +26,14 @@ import { db } from '../../../lib/supabase';
 import { formatDate } from '../../../lib/utils';
 import { useToast } from '../../../context/ToastContext';
 
-export function SecurityAuditView() {
-  const [activeTab, setActiveTab] = useState('audit');
+export function SecurityAuditView({ initialTab = 'audit' }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [securitySettings, setSecuritySettings] = useState(null);
   const [loading, setLoading] = useState(true);

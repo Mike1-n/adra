@@ -3,12 +3,12 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileBottomNav } from './MobileBottomNav';
 
-export function AppLayout({ currentTab, onSelectTab, currentTabTitle, children }) {
+export function AppLayout({ currentTab, onSelectTab, currentTabTitle, onSwitchToAdminWeb, children }) {
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen bg-white text-slate-100 overflow-hidden font-sans">
       {/* Desktop Sidebar (Only visible on lg+ screens) */}
       <div className="hidden lg:block h-full shrink-0">
-        <Sidebar currentTab={currentTab} onSelectTab={onSelectTab} />
+        <Sidebar currentTab={currentTab} onSelectTab={onSelectTab} onSwitchToAdminWeb={onSwitchToAdminWeb} />
       </div>
 
       {/* Main Content Area */}
@@ -17,9 +17,10 @@ export function AppLayout({ currentTab, onSelectTab, currentTabTitle, children }
           currentTab={currentTab}
           onSelectTab={onSelectTab}
           currentTabTitle={currentTabTitle}
+          onSwitchToAdminWeb={onSwitchToAdminWeb}
         />
 
-        <main className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6 lg:p-8 pb-24 lg:pb-8 bg-slate-950">
+        <main className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6 lg:p-8 pb-24 lg:pb-8 bg-white">
           <div className="max-w-7xl mx-auto space-y-5">
             {children}
           </div>
@@ -30,6 +31,7 @@ export function AppLayout({ currentTab, onSelectTab, currentTabTitle, children }
       <MobileBottomNav
         currentTab={currentTab}
         onSelectTab={onSelectTab}
+        onSwitchToAdminWeb={onSwitchToAdminWeb}
       />
     </div>
   );

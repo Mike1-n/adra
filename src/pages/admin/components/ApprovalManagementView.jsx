@@ -22,13 +22,19 @@ import { db } from '../../../lib/supabase';
 import { formatDate } from '../../../lib/utils';
 import { useToast } from '../../../context/ToastContext';
 
-export function ApprovalManagementView() {
+export function ApprovalManagementView({ initialCategory = 'ALL' }) {
   const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [categoryFilter, setCategoryFilter] = useState(initialCategory);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [search, setSearch] = useState('');
   const toast = useToast();
+
+  useEffect(() => {
+    if (initialCategory) {
+      setCategoryFilter(initialCategory);
+    }
+  }, [initialCategory]);
 
   // Review Modal
   const [isReviewOpen, setIsReviewOpen] = useState(false);
