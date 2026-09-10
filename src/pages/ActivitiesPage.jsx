@@ -162,12 +162,12 @@ export function ActivitiesPage() {
       {/* Top Banner / Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <CalendarCheck2 className="w-6 h-6 text-emerald-400" />
-            Project Activities & Workplans
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <CalendarCheck2 className="w-6 h-6 text-emerald-600" />
+            Project Activities & Field Schedules
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Plan, monitor and report progress on field operations and community training sessions.
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+            Operational workplan execution, output verification, and milestone completion logs.
           </p>
         </div>
 

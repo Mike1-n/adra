@@ -77,14 +77,14 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Clean Page Title Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-tight">System Overview</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Real-time metrics, active personnel, programmes, and pending approvals</p>
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">System Overview</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Real-time metrics, active personnel, programmes, and pending approvals</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="secondary"
+            variant="primary"
             size="sm"
             onClick={() => onNavigateTab('users')}
             icon={Plus}
@@ -108,7 +108,7 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
         <StatCard
           title="Active Users"
           value={stats?.activeUsers.toString() || '0'}
-          subtitle="Staff & partners across 8 roles"
+          subtitle={`Staff & partners across ${stats?.rolesCount || 8} roles`}
           icon={UserCheck}
           color="blue"
           onClick={() => onNavigateTab('users')}
@@ -134,28 +134,28 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
       </div>
 
       {/* Secondary Metrics Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-2xl bg-slate-850 border border-slate-800 text-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
         <div className="flex items-center gap-3 px-3 py-1">
           <Package className="w-4 h-4 text-amber-600 shrink-0" />
           <div className="min-w-0">
-            <span className="font-bold text-slate-100">{stats?.totalInventoryUnits.toLocaleString() || 0} Relief Units</span>
-            <p className="text-[10px] text-slate-400 truncate">{stats?.totalInventoryItems || 0} relief stock items</p>
+            <span className="font-bold text-slate-900">{stats?.totalInventoryUnits.toLocaleString() || 0} Relief Units</span>
+            <p className="text-[10px] text-slate-500 truncate">{stats?.totalInventoryItems || 0} relief stock items</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-3 py-1 border-t sm:border-t-0 sm:border-l border-slate-800">
+        <div className="flex items-center gap-3 px-3 py-1 border-t sm:border-t-0 sm:border-l border-slate-200">
           <Truck className="w-4 h-4 text-sky-600 shrink-0" />
           <div className="min-w-0">
-            <span className="font-bold text-slate-100">{stats?.totalSuppliers || 0} Registered Vendors</span>
-            <p className="text-[10px] text-slate-400 truncate">Prequalified aid suppliers</p>
+            <span className="font-bold text-slate-900">{stats?.totalSuppliers || 0} Registered Vendors</span>
+            <p className="text-[10px] text-slate-500 truncate">Prequalified aid suppliers</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-3 py-1 border-t sm:border-t-0 sm:border-l border-slate-800">
+        <div className="flex items-center gap-3 px-3 py-1 border-t sm:border-t-0 sm:border-l border-slate-200">
           <HeartHandshake className="w-4 h-4 text-purple-600 shrink-0" />
           <div className="min-w-0">
-            <span className="font-bold text-slate-100">{stats?.totalDistributions || 0} Aid Distributions</span>
-            <p className="text-[10px] text-slate-400 truncate">Direct community relief operations</p>
+            <span className="font-bold text-slate-900">{stats?.totalDistributions || 0} Aid Distributions</span>
+            <p className="text-[10px] text-slate-500 truncate">Direct community relief operations</p>
           </div>
         </div>
       </div>
@@ -180,24 +180,24 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
             />
 
             {pendingApprovals.length === 0 ? (
-              <div className="py-8 text-center text-slate-400 text-xs">
+              <div className="py-8 text-center text-slate-500 text-xs">
                 <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2 opacity-80" />
-                <p className="font-semibold text-slate-100">No Pending Approvals</p>
-                <p className="mt-0.5 text-[11px] text-slate-400">All registration and expenditure queues are up to date.</p>
+                <p className="font-semibold text-slate-900">No Pending Approvals</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">All registration and expenditure queues are up to date.</p>
               </div>
             ) : (
               <div className="space-y-2.5">
                 {pendingApprovals.map((app) => (
                   <div
                     key={app.id}
-                    className="p-3 rounded-xl bg-slate-850 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold">
+                        <span className="font-mono text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold">
                           {app.id}
                         </span>
-                        <span className="text-xs font-semibold text-slate-100 truncate">
+                        <span className="text-xs font-bold text-slate-900 truncate">
                           {app.category}
                         </span>
                         {app.priority === 'Urgent' && (
@@ -206,15 +206,15 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-200 mt-1 font-medium truncate">
+                      <p className="text-xs text-slate-800 mt-1 font-semibold truncate">
                         {app.requester_name}
                       </p>
-                      <p className="text-[11px] text-slate-400 line-clamp-1">
+                      <p className="text-[11px] text-slate-500 line-clamp-1">
                         {app.details}
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+                    <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
                       <Button
                         variant="danger"
                         size="sm"
@@ -246,12 +246,12 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
             />
 
             <div className="space-y-2.5 text-xs">
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-850 border border-slate-800">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                 <div className="flex items-center gap-2.5">
                   <Database className="w-4 h-4 text-emerald-600" />
                   <div>
-                    <p className="font-semibold text-slate-100">Database Engine</p>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="font-semibold text-slate-900">Database Engine</p>
+                    <p className="text-[10px] text-slate-500">
                       {isSupabaseConfigured ? 'PostgreSQL Live' : 'Persistent Storage'}
                     </p>
                   </div>
@@ -259,30 +259,30 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
                 <span className="badge-emerald text-[10px]">Active</span>
               </div>
 
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-850 border border-slate-800">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                 <div className="flex items-center gap-2.5">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
                   <div>
-                    <p className="font-semibold text-slate-100">RBAC Security</p>
-                    <p className="text-[10px] text-slate-400">8 Roles Enforced</p>
+                    <p className="font-semibold text-slate-900">RBAC Security</p>
+                    <p className="text-[10px] text-slate-500">{stats?.rolesCount || 8} Roles Enforced</p>
                   </div>
                 </div>
                 <span className="badge-emerald text-[10px]">Enforced</span>
               </div>
 
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-850 border border-slate-800">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
                 <div className="flex items-center gap-2.5">
                   <FileCheck2 className="w-4 h-4 text-sky-600" />
                   <div>
-                    <p className="font-semibold text-slate-100">Audit Trail</p>
-                    <p className="text-[10px] text-slate-400">Event Stream Logging</p>
+                    <p className="font-semibold text-slate-900">Audit Trail</p>
+                    <p className="text-[10px] text-slate-500">Event Stream Logging</p>
                   </div>
                 </div>
                 <span className="badge-blue text-[10px]">Recording</span>
               </div>
             </div>
 
-            <div className="pt-3 mt-3 border-t border-slate-800">
+            <div className="pt-3 mt-3 border-t border-slate-200">
               <Button
                 variant="outline"
                 size="sm"

@@ -5,7 +5,7 @@ import { MobileBottomNav } from './MobileBottomNav';
 
 export function AppLayout({ currentTab, onSelectTab, currentTabTitle, onSwitchToAdminWeb, children }) {
   return (
-    <div className="flex h-screen bg-white text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen bg-white text-slate-900 overflow-hidden font-sans">
       {/* Desktop Sidebar (Only visible on lg+ screens) */}
       <div className="hidden lg:block h-full shrink-0">
         <Sidebar currentTab={currentTab} onSelectTab={onSelectTab} onSwitchToAdminWeb={onSwitchToAdminWeb} />

@@ -67,17 +67,17 @@ export function BeneficiaryOversightView() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Users className="w-6 h-6 text-emerald-400" />
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <Users className="w-6 h-6 text-emerald-600" />
             Beneficiary Compliance Oversight
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
             Read-only administrative compliance view of beneficiary records, biometric/ID verification, and vulnerability oversight.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs bg-slate-900 border border-slate-800 text-slate-300 px-3 py-1 rounded-lg">
+          <span className="text-xs bg-slate-100 border border-slate-200 text-slate-700 font-semibold px-3 py-1 rounded-lg">
             Oversight Mode (Read-Only)
           </span>
         </div>
@@ -85,22 +85,22 @@ export function BeneficiaryOversightView() {
 
       {/* Compliance Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total Enrolled</p>
-          <h3 className="text-2xl font-bold text-white mt-1">{beneficiaries.length.toLocaleString()}</h3>
-          <p className="text-[11px] text-emerald-400 mt-0.5">Across all operational zones</p>
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total Enrolled</p>
+          <h3 className="text-2xl font-black text-slate-900 mt-1">{beneficiaries.length.toLocaleString()}</h3>
+          <p className="text-[11px] text-emerald-700 font-medium mt-0.5">Across all operational zones</p>
         </div>
 
-        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Verified Compliance</p>
-          <h3 className="text-2xl font-bold text-emerald-400 mt-1">{verifiedCount.toLocaleString()}</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Audit-passed household IDs</p>
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Verified Compliance</p>
+          <h3 className="text-2xl font-black text-emerald-700 mt-1">{verifiedCount.toLocaleString()}</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">Audit-passed household IDs</p>
         </div>
 
-        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Pending / Flagged</p>
-          <h3 className="text-2xl font-bold text-amber-400 mt-1">{(pendingCount + flaggedCount).toLocaleString()}</h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Awaiting field officer review</p>
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Pending / Flagged</p>
+          <h3 className="text-2xl font-black text-amber-700 mt-1">{(pendingCount + flaggedCount).toLocaleString()}</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">Awaiting field officer review</p>
         </div>
       </div>
 
@@ -146,15 +146,15 @@ export function BeneficiaryOversightView() {
       {loading ? (
         <LoadingSpinner text="Compiling compliance verification records..." />
       ) : filtered.length === 0 ? (
-        <div className="p-12 text-center bg-slate-900/50 border border-slate-800 rounded-2xl">
-          <p className="text-sm font-semibold text-slate-300">No beneficiaries match criteria</p>
+        <div className="p-12 text-center bg-slate-50 border border-slate-200 rounded-2xl">
+          <p className="text-sm font-bold text-slate-900">No beneficiaries match criteria</p>
           <p className="text-xs text-slate-500 mt-1">Adjust your filters to inspect records.</p>
         </div>
       ) : (
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/80 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider text-[10px]">
+              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="py-3.5 px-4">Beneficiary ID</th>
                   <th className="py-3.5 px-4">Full Legal Name</th>
@@ -164,33 +164,33 @@ export function BeneficiaryOversightView() {
                   <th className="py-3.5 px-4 text-right">Inspection</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-200">
+              <tbody className="divide-y divide-slate-200 text-slate-800">
                 {filtered.map((b) => {
                   const status = b.verification_status || 'Verified';
                   return (
-                    <tr key={b.id} className="hover:bg-slate-900/50 transition">
-                      <td className="py-3.5 px-4 font-mono font-semibold text-emerald-400">
+                    <tr key={b.id} className="hover:bg-slate-50 transition">
+                      <td className="py-3.5 px-4 font-mono font-bold text-emerald-700">
                         {b.beneficiary_code}
                       </td>
-                      <td className="py-3.5 px-4 font-medium text-white">
+                      <td className="py-3.5 px-4 font-bold text-slate-900">
                         {b.full_name}
                       </td>
-                      <td className="py-3.5 px-4 text-slate-300">
+                      <td className="py-3.5 px-4 text-slate-700 font-medium">
                         {b.location}
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-300 border border-slate-700">
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-800 border border-slate-200 font-medium">
                           {b.vulnerability_category}
                         </span>
                       </td>
                       <td className="py-3.5 px-4">
                         <span
-                          className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${
+                          className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
                             status === 'Verified'
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
                               : status === 'Flagged'
-                              ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                              : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                              ? 'bg-rose-50 text-rose-800 border-rose-300'
+                              : 'bg-amber-50 text-amber-800 border-amber-300'
                           }`}
                         >
                           {status === 'Verified' ? (
@@ -207,7 +207,7 @@ export function BeneficiaryOversightView() {
                             setSelectedBen(b);
                             setIsDetailOpen(true);
                           }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-700 hover:bg-slate-100 transition"
                           title="Inspect Compliance Profile"
                         >
                           <Eye className="w-4 h-4" />
@@ -230,43 +230,43 @@ export function BeneficiaryOversightView() {
           title={`Compliance Dossier: ${selectedBen.beneficiary_code}`}
         >
           <div className="space-y-4 text-xs">
-            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2.5">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Full Legal Name:</span>
-                <span className="font-bold text-white text-sm">{selectedBen.full_name}</span>
+                <span className="text-slate-500">Full Legal Name:</span>
+                <span className="font-bold text-slate-900 text-sm">{selectedBen.full_name}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Household Identification:</span>
-                <span className="font-mono text-emerald-400">{selectedBen.beneficiary_code}</span>
+                <span className="text-slate-500">Household Identification:</span>
+                <span className="font-mono text-emerald-700 font-bold">{selectedBen.beneficiary_code}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Demographics:</span>
-                <span className="text-slate-200">{selectedBen.gender}, Age: {selectedBen.age || 'N/A'}</span>
+                <span className="text-slate-500">Demographics:</span>
+                <span className="text-slate-800 font-medium">{selectedBen.gender}, Age: {selectedBen.age || 'N/A'}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Operational Zone:</span>
-                <span className="text-slate-200">{selectedBen.location}</span>
+                <span className="text-slate-500">Operational Zone:</span>
+                <span className="text-slate-800 font-medium">{selectedBen.location}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Vulnerability Classification:</span>
-                <span className="font-medium text-amber-300">{selectedBen.vulnerability_category}</span>
+                <span className="text-slate-500">Vulnerability Classification:</span>
+                <span className="font-semibold text-amber-800">{selectedBen.vulnerability_category}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Verification Compliance State:</span>
-                <span className="font-semibold text-emerald-400">{selectedBen.verification_status || 'Verified'}</span>
+                <span className="text-slate-500">Verification Compliance State:</span>
+                <span className="font-bold text-emerald-700">{selectedBen.verification_status || 'Verified'}</span>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/20 text-[11px] text-emerald-300">
-              <p className="font-semibold flex items-center gap-1.5 mb-1">
-                <FileCheck2 className="w-4 h-4 text-emerald-400" /> Compliance Audit Trail
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-500/30 text-[11px] text-emerald-900">
+              <p className="font-bold flex items-center gap-1.5 mb-1 text-emerald-800">
+                <FileCheck2 className="w-4 h-4 text-emerald-600" /> Compliance Audit Trail
               </p>
-              <p className="text-emerald-200/80 leading-relaxed">
+              <p className="text-emerald-800/90 leading-relaxed">
                 Record verified against biometric national identity registry. Eligible for emergency food baskets, solar water vouchers, and vocational grants.
               </p>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-800">
+            <div className="flex justify-end pt-2 border-t border-slate-200">
               <Button variant="secondary" onClick={() => setIsDetailOpen(false)}>
                 Close Dossier
               </Button>

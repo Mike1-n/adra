@@ -67,17 +67,17 @@ export function GlobalSearchView({ onSelectEntity }) {
   const getTypeBadgeClass = (type) => {
     switch (type) {
       case 'User':
-        return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+        return 'bg-blue-50 text-blue-800 border-blue-300';
       case 'Beneficiary':
-        return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+        return 'bg-emerald-50 text-emerald-800 border-emerald-500/30';
       case 'Programme':
-        return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30';
+        return 'bg-cyan-50 text-cyan-800 border-cyan-300';
       case 'Distribution':
-        return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+        return 'bg-purple-50 text-purple-800 border-purple-300';
       case 'Supplier':
-        return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+        return 'bg-amber-50 text-amber-800 border-amber-300';
       default:
-        return 'bg-slate-800 text-slate-300 border-slate-700';
+        return 'bg-slate-100 text-slate-700 border-slate-300';
     }
   };
 
@@ -85,30 +85,30 @@ export function GlobalSearchView({ onSelectEntity }) {
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header */}
       <div>
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <Search className="w-6 h-6 text-emerald-400" />
+        <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <Search className="w-6 h-6 text-emerald-600" />
           Global Multi-Entity Admin Search
         </h2>
-        <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+        <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
           Unified real-time search across users, registered beneficiaries, programmes, direct aid transactions, and suppliers.
         </p>
       </div>
 
       {/* Main Search Bar */}
       <div className="relative">
-        <Search className="w-5 h-5 text-emerald-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <Search className="w-5 h-5 text-emerald-600 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           type="text"
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Type to search users, beneficiaries, programmes, aid dispatches, or suppliers..."
-          className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-2xl pl-12 pr-10 py-3.5 text-sm sm:text-base text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition shadow-xl"
+          className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-600 rounded-2xl pl-12 pr-10 py-3.5 text-sm sm:text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition shadow-xs"
         />
         {query && (
           <button
             onClick={() => setQuery('')}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900"
           >
             <X className="w-4 h-4" />
           </button>
@@ -126,8 +126,8 @@ export function GlobalSearchView({ onSelectEntity }) {
             onClick={() => setTypeFilter(t)}
             className={`px-3 py-1 rounded-full text-xs font-semibold transition border ${
               typeFilter === t
-                ? 'bg-emerald-500 text-white border-emerald-400 shadow-sm'
-                : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:text-slate-200'
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
             {t === 'ALL' ? 'All Entities' : t}
@@ -139,13 +139,13 @@ export function GlobalSearchView({ onSelectEntity }) {
       {loading ? (
         <LoadingSpinner text="Scanning database indices..." />
       ) : query.trim().length >= 2 && filteredResults.length === 0 ? (
-        <div className="p-12 text-center bg-slate-900/50 border border-slate-800 rounded-2xl">
-          <p className="text-sm font-semibold text-slate-300">No records found for "{query}"</p>
+        <div className="p-12 text-center bg-slate-50 border border-slate-200 rounded-2xl">
+          <p className="text-sm font-bold text-slate-900">No records found for "{query}"</p>
           <p className="text-xs text-slate-500 mt-1">Try searching for a different name, ID, or location.</p>
         </div>
       ) : filteredResults.length > 0 ? (
         <div className="space-y-2.5">
-          <p className="text-xs font-medium text-slate-400 px-1">
+          <p className="text-xs font-medium text-slate-500 px-1">
             Found {filteredResults.length} matching entities
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -154,7 +154,7 @@ export function GlobalSearchView({ onSelectEntity }) {
                 key={`${r.type}-${r.id}-${idx}`}
                 className="adra-card-hover p-4 flex items-start gap-3.5 relative"
               >
-                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 shrink-0 mt-0.5">
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 shrink-0 mt-0.5">
                   {getTypeIcon(r.type)}
                 </div>
 
@@ -164,20 +164,20 @@ export function GlobalSearchView({ onSelectEntity }) {
                       {r.type}
                     </span>
                     {r.badge && (
-                      <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
+                      <span className="text-[10px] text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded font-medium">
                         {r.badge}
                       </span>
                     )}
                   </div>
 
-                  <h3 className="text-sm font-bold text-white mt-1 truncate">
+                  <h3 className="text-sm font-bold text-slate-900 mt-1 truncate">
                     {r.title}
                   </h3>
-                  <p className="text-xs text-slate-300 mt-0.5 truncate">
+                  <p className="text-xs text-slate-700 mt-0.5 truncate font-medium">
                     {r.subtitle}
                   </p>
                   {r.meta && (
-                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-1">
+                    <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">
                       {r.meta}
                     </p>
                   )}
@@ -188,8 +188,8 @@ export function GlobalSearchView({ onSelectEntity }) {
         </div>
       ) : (
         /* Empty / Initial State with Sample Keywords */
-        <div className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800/80 text-center space-y-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-3">
+          <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
             Quick Discovery Prompts
           </p>
           <div className="flex flex-wrap justify-center gap-2 max-w-md mx-auto">
@@ -197,7 +197,7 @@ export function GlobalSearchView({ onSelectEntity }) {
               <button
                 key={keyword}
                 onClick={() => setQuery(keyword)}
-                className="px-3 py-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 hover:text-emerald-400 hover:border-emerald-500/30 transition"
+                className="px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs text-slate-700 hover:text-emerald-700 hover:border-emerald-500 font-medium transition shadow-2xs"
               >
                 "{keyword}"
               </button>

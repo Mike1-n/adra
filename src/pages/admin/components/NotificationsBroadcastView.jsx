@@ -92,11 +92,11 @@ export function NotificationsBroadcastView() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Radio className="w-6 h-6 text-emerald-400" />
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <Radio className="w-6 h-6 text-emerald-600" />
             System Notifications & Announcements
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
             Configure system alerts, broadcast announcements to field teams, and manage automated triggers.
           </p>
         </div>
@@ -122,9 +122,9 @@ export function NotificationsBroadcastView() {
             {loading ? (
               <LoadingSpinner text="Retrieving broadcasts..." />
             ) : notifications.length === 0 ? (
-              <div className="py-10 text-center text-slate-400 text-xs">
-                <Bell className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
-                <p className="font-semibold text-slate-200">No Active Broadcasts</p>
+              <div className="py-10 text-center text-slate-500 text-xs">
+                <Bell className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+                <p className="font-bold text-slate-900">No Active Broadcasts</p>
                 <p className="mt-0.5">Publish an announcement to notify staff or donors.</p>
               </div>
             ) : (
@@ -132,25 +132,25 @@ export function NotificationsBroadcastView() {
                 {notifications.map((n) => (
                   <div
                     key={n.id}
-                    className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start justify-between gap-4 adra-card-hover"
+                    className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-4 adra-card-hover"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                             n.type === 'Alert'
-                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                              ? 'bg-amber-50 text-amber-800 border-amber-300'
                               : n.type === 'Security'
-                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                              : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                              ? 'bg-rose-50 text-rose-800 border-rose-300'
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
                           }`}
                         >
                           {n.type}
                         </span>
-                        <h3 className="text-sm font-bold text-white">{n.title}</h3>
+                        <h3 className="text-sm font-bold text-slate-900">{n.title}</h3>
                       </div>
 
-                      <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                      <p className="text-xs text-slate-700 mt-1.5 leading-relaxed font-medium">
                         {n.message}
                       </p>
 
@@ -163,7 +163,7 @@ export function NotificationsBroadcastView() {
 
                     <button
                       onClick={() => handleDelete(n.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                       title="Delete Broadcast"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -184,55 +184,55 @@ export function NotificationsBroadcastView() {
             />
 
             <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-2">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
                 <div>
-                  <p className="font-semibold text-slate-200">Budget Overrun Alert</p>
-                  <p className="text-[10px] text-slate-400">Notify Finance when expenditure exceeds 85% of budget cap</p>
+                  <p className="font-bold text-slate-900">Budget Overrun Alert</p>
+                  <p className="text-[10px] text-slate-500">Notify Finance when expenditure exceeds 85% of budget cap</p>
                 </div>
                 <input
                   type="checkbox"
                   checked={rules.low_budget}
                   onChange={() => handleToggleRule('low_budget')}
-                  className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 shrink-0"
+                  className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
                 />
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-2">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
                 <div>
-                  <p className="font-semibold text-slate-200">M&E Indicator Target Reached</p>
-                  <p className="text-[10px] text-slate-400">Broadcast celebration when indicator hits 100% of target</p>
+                  <p className="font-bold text-slate-900">M&E Indicator Target Reached</p>
+                  <p className="text-[10px] text-slate-500">Broadcast celebration when indicator hits 100% of target</p>
                 </div>
                 <input
                   type="checkbox"
                   checked={rules.me_milestone}
                   onChange={() => handleToggleRule('me_milestone')}
-                  className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 shrink-0"
+                  className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
                 />
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-2">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
                 <div>
-                  <p className="font-semibold text-slate-200">Pending User Approval</p>
-                  <p className="text-[10px] text-slate-400">Alert Admin when newly registered staff submits verification</p>
+                  <p className="font-bold text-slate-900">Pending User Approval</p>
+                  <p className="text-[10px] text-slate-500">Alert Admin when newly registered staff submits verification</p>
                 </div>
                 <input
                   type="checkbox"
                   checked={rules.approval_alert}
                   onChange={() => handleToggleRule('approval_alert')}
-                  className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 shrink-0"
+                  className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
                 />
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-2">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
                 <div>
-                  <p className="font-semibold text-slate-200">Brute-Force Intrusion Warning</p>
-                  <p className="text-[10px] text-slate-400">Trigger immediate lockout notice upon 5 failed logins</p>
+                  <p className="font-bold text-slate-900">Brute-Force Intrusion Warning</p>
+                  <p className="text-[10px] text-slate-500">Trigger immediate lockout notice upon 5 failed logins</p>
                 </div>
                 <input
                   type="checkbox"
                   checked={rules.security_warning}
                   onChange={() => handleToggleRule('security_warning')}
-                  className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 shrink-0"
+                  className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
                 />
               </div>
             </div>
@@ -248,7 +248,7 @@ export function NotificationsBroadcastView() {
       >
         <form onSubmit={handleCreate} className="space-y-4 text-xs">
           <div>
-            <label className="block font-semibold text-slate-300 mb-1">Broadcast Title</label>
+            <label className="block font-semibold text-slate-800 mb-1">Broadcast Title</label>
             <input
               type="text"
               required
@@ -261,7 +261,7 @@ export function NotificationsBroadcastView() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Alert Classification</label>
+              <label className="block font-semibold text-slate-800 mb-1">Alert Classification</label>
               <select
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value })}
@@ -274,7 +274,7 @@ export function NotificationsBroadcastView() {
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Target Audience</label>
+              <label className="block font-semibold text-slate-800 mb-1">Target Audience</label>
               <select
                 value={formData.target_roles}
                 onChange={(e) => setFormData({ ...formData, target_roles: e.target.value })}
@@ -290,7 +290,7 @@ export function NotificationsBroadcastView() {
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-300 mb-1">Broadcast Message Body</label>
+            <label className="block font-semibold text-slate-800 mb-1">Broadcast Message Body</label>
             <textarea
               required
               rows={4}
@@ -301,7 +301,7 @@ export function NotificationsBroadcastView() {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
             <Button type="button" variant="secondary" onClick={() => setIsCreateOpen(false)}>
               Cancel
             </Button>

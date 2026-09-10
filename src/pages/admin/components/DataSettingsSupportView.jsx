@@ -198,23 +198,23 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
       {/* Header & Sub-Tabs */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Settings className="w-6 h-6 text-emerald-400" />
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <Settings className="w-6 h-6 text-emerald-600" />
             Settings, Data Governance & Support Center
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
             Manage organization profile, ID templates, database backups, executive reports, and help resources.
           </p>
         </div>
 
         {/* Sub-tab pills */}
-        <div className="flex flex-wrap items-center p-1 rounded-xl bg-slate-900 border border-slate-800 gap-1">
+        <div className="flex flex-wrap items-center p-1 rounded-xl bg-slate-100 border border-slate-200 gap-1">
           <button
             onClick={() => setActiveSubTab('settings')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
               activeSubTab === 'settings'
-                ? 'bg-emerald-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             System Settings
@@ -223,8 +223,8 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
             onClick={() => setActiveSubTab('data')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
               activeSubTab === 'data'
-                ? 'bg-emerald-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Data Management
@@ -233,8 +233,8 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
             onClick={() => setActiveSubTab('reports')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
               activeSubTab === 'reports'
-                ? 'bg-emerald-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             System Reports
@@ -243,8 +243,8 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
             onClick={() => setActiveSubTab('support')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
               activeSubTab === 'support'
-                ? 'bg-emerald-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Help & FAQs ({faqs.length})
@@ -263,7 +263,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
           <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Organization Legal Name</label>
+                <label className="block font-semibold text-slate-800 mb-1">Organization Legal Name</label>
                 <input
                   type="text"
                   required
@@ -273,7 +273,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Country Office Jurisdiction</label>
+                <label className="block font-semibold text-slate-800 mb-1">Country Office Jurisdiction</label>
                 <input
                   type="text"
                   required
@@ -286,7 +286,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">NGO Registration No.</label>
+                <label className="block font-semibold text-slate-800 mb-1">NGO Registration No.</label>
                 <input
                   type="text"
                   value={settingsForm.registration_number}
@@ -295,7 +295,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Tax PIN / Revenue ID</label>
+                <label className="block font-semibold text-slate-800 mb-1">Tax PIN / Revenue ID</label>
                 <input
                   type="text"
                   value={settingsForm.tax_pin}
@@ -304,7 +304,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Default Reporting Currency</label>
+                <label className="block font-semibold text-slate-800 mb-1">Default Reporting Currency</label>
                 <select
                   value={settingsForm.default_currency}
                   onChange={(e) => setSettingsForm({ ...settingsForm, default_currency: e.target.value })}
@@ -318,11 +318,11 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-800">
-              <h4 className="font-bold text-white text-xs mb-2">Identification-Number Template Formats</h4>
+            <div className="pt-3 border-t border-slate-200">
+              <h4 className="font-bold text-slate-900 text-xs mb-2">Identification-Number Template Formats</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">Programme Code Format</label>
+                  <label className="block text-[11px] text-slate-600 mb-1">Programme Code Format</label>
                   <input
                     type="text"
                     value={settingsForm.id_formats.project}
@@ -334,7 +334,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">Beneficiary ID Format</label>
+                  <label className="block text-[11px] text-slate-600 mb-1">Beneficiary ID Format</label>
                   <input
                     type="text"
                     value={settingsForm.id_formats.beneficiary}
@@ -346,7 +346,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">Intervention Code Format</label>
+                  <label className="block text-[11px] text-slate-600 mb-1">Intervention Code Format</label>
                   <input
                     type="text"
                     value={settingsForm.id_formats.intervention}
@@ -358,7 +358,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1">Expense Voucher Format</label>
+                  <label className="block text-[11px] text-slate-600 mb-1">Expense Voucher Format</label>
                   <input
                     type="text"
                     value={settingsForm.id_formats.voucher}
@@ -372,7 +372,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-800 flex justify-end">
+            <div className="pt-3 border-t border-slate-200 flex justify-end">
               <Button type="submit" variant="primary" icon={Save}>
                 Save Configuration
               </Button>
@@ -392,9 +392,9 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
             />
 
             <div className="space-y-4 text-xs">
-              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
-                <p className="font-semibold text-white">Full System Export (JSON Snapshot)</p>
-                <p className="text-slate-400 leading-relaxed text-[11px]">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <p className="font-bold text-slate-900">Full System Export (JSON Snapshot)</p>
+                <p className="text-slate-600 leading-relaxed text-[11px]">
                   Downloads a complete offline snapshot including projects, beneficiaries, aid distributions, indicators, budgets, approvals, and audit logs.
                 </p>
                 <Button
@@ -407,13 +407,13 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
                 </Button>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
-                <p className="font-semibold text-white">Restore Database from JSON Snapshot</p>
-                <p className="text-slate-400 leading-relaxed text-[11px]">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <p className="font-bold text-slate-900">Restore Database from JSON Snapshot</p>
+                <p className="text-slate-600 leading-relaxed text-[11px]">
                   Upload a previously exported backup file to restore system state. Warning: Overwrites local reactive storage.
                 </p>
-                <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium cursor-pointer transition text-xs">
-                  <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer transition text-xs shadow-xs">
+                  <Upload className="w-3.5 h-3.5 text-white" />
                   <span>Choose Backup File...</span>
                   <input
                     type="file"
@@ -434,7 +434,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
             />
 
             <div className="space-y-4 text-xs">
-              <p className="text-slate-300 leading-relaxed text-[11px]">
+              <p className="text-slate-700 leading-relaxed text-[11px] font-medium">
                 Validates foreign key integrity across humanitarian programmes, beneficiary links, activity schedules, and finance vouchers.
               </p>
 
@@ -449,20 +449,20 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
               </Button>
 
               {integrityReport && (
-                <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2 animate-in fade-in">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 animate-in fade-in">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-white">Scan Result:</span>
+                    <span className="font-bold text-slate-900">Scan Result:</span>
                     <span className="badge-emerald">{integrityReport.status}</span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center justify-between text-slate-600">
                     <span>Entities Scanned:</span>
-                    <span className="font-mono text-white">{integrityReport.entitiesScanned} Records</span>
+                    <span className="font-mono text-slate-900 font-bold">{integrityReport.entitiesScanned} Records</span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center justify-between text-slate-600">
                     <span>Orphan Records:</span>
-                    <span className="font-mono text-emerald-400">{integrityReport.orphanRecordsFound}</span>
+                    <span className="font-mono text-emerald-700 font-bold">{integrityReport.orphanRecordsFound}</span>
                   </div>
-                  <p className="text-[10px] text-slate-500 pt-1 border-t border-slate-800">
+                  <p className="text-[10px] text-slate-500 pt-1 border-t border-slate-200">
                     Checked at {formatDate(integrityReport.checkedAt)}
                   </p>
                 </div>
@@ -492,28 +492,32 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800">
-                <p className="text-slate-400 font-semibold uppercase text-[10px]">Beneficiary Ingestion</p>
-                <p className="text-xl font-bold text-white mt-1">{stats?.totalBeneficiaries} Households</p>
-                <p className="text-[11px] text-emerald-400 mt-0.5">100% verified against registry</p>
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <p className="text-slate-500 font-semibold uppercase text-[10px]">Beneficiary Ingestion</p>
+                <p className="text-xl font-black text-slate-900 mt-1">{stats?.totalBeneficiaries || 0} Households</p>
+                <p className="text-[11px] text-emerald-700 font-semibold mt-0.5">
+                  {stats?.totalBeneficiaries > 0 ? Math.round(((stats?.verifiedBeneficiaries || 0) / stats?.totalBeneficiaries) * 100) : 100}% verified in registry
+                </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800">
-                <p className="text-slate-400 font-semibold uppercase text-[10px]">Relief Distribution</p>
-                <p className="text-xl font-bold text-white mt-1">{stats?.totalDistributions} Dispatches</p>
-                <p className="text-[11px] text-blue-400 mt-0.5">WASH, Agri & Food assistance</p>
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <p className="text-slate-500 font-semibold uppercase text-[10px]">Relief Distribution</p>
+                <p className="text-xl font-black text-slate-900 mt-1">{stats?.totalDistributions || 0} Dispatches</p>
+                <p className="text-[11px] text-sky-700 font-semibold mt-0.5">WASH, Agri & Food assistance</p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800">
-                <p className="text-slate-400 font-semibold uppercase text-[10px]">Inventory Reserves</p>
-                <p className="text-xl font-bold text-white mt-1">{stats?.totalInventoryUnits} Units</p>
-                <p className="text-[11px] text-amber-400 mt-0.5">Stocked across 4 warehouses</p>
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <p className="text-slate-500 font-semibold uppercase text-[10px]">Inventory Reserves</p>
+                <p className="text-xl font-black text-slate-900 mt-1">{stats?.totalInventoryUnits || 0} Units</p>
+                <p className="text-[11px] text-amber-800 font-semibold mt-0.5">
+                  Stocked across {stats?.warehousesCount || 1} relief {stats?.warehousesCount === 1 ? 'depot' : 'depots'}
+                </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800">
-                <p className="text-slate-400 font-semibold uppercase text-[10px]">Active Stakeholders</p>
-                <p className="text-xl font-bold text-white mt-1">{stats?.activeUsers} User Accounts</p>
-                <p className="text-[11px] text-purple-400 mt-0.5">Assigned across 8 system roles</p>
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <p className="text-slate-500 font-semibold uppercase text-[10px]">Active Stakeholders</p>
+                <p className="text-xl font-black text-slate-900 mt-1">{stats?.activeUsers || 0} User Accounts</p>
+                <p className="text-[11px] text-purple-700 font-semibold mt-0.5">Assigned across {stats?.rolesCount || 8} system roles</p>
               </div>
             </div>
           </Card>
@@ -524,7 +528,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
       {activeSubTab === 'support' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-600">
               Manage frequently asked questions, technical support contacts, and system user guides.
             </p>
 
@@ -542,20 +546,20 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
               <Card key={f.id} className="adra-card-hover flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-500/30 px-2 py-0.5 rounded">
                       {f.category}
                     </span>
                     <button
                       onClick={() => handleDeleteFaq(f.id)}
-                      className="p-1 text-slate-500 hover:text-rose-400 transition"
+                      className="p-1 text-slate-400 hover:text-rose-600 transition"
                       title="Delete FAQ"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  <h3 className="text-sm font-bold text-white">{f.question}</h3>
-                  <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                  <h3 className="text-sm font-bold text-slate-900">{f.question}</h3>
+                  <p className="text-xs text-slate-700 mt-2 leading-relaxed font-medium">
                     {f.answer}
                   </p>
                 </div>
@@ -570,25 +574,29 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
               subtitle="Escalation channels for satellite connectivity, password resets, and hardware"
             />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center gap-3">
-                <Phone className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3">
+                <Phone className="w-5 h-5 text-emerald-600 shrink-0" />
                 <div>
-                  <p className="font-semibold text-white">Emergency Hotline</p>
-                  <p className="text-slate-400 text-[11px]">+254-20-2718870 (Ext 104)</p>
+                  <p className="font-bold text-slate-900">Emergency Hotline</p>
+                  <p className="text-slate-600 text-[11px]">
+                    {systemSettings?.contact_phone || settingsForm.contact_phone || 'Contact Support'}
+                  </p>
                 </div>
               </div>
-              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center gap-3">
-                <Mail className="w-5 h-5 text-blue-400 shrink-0" />
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3">
+                <Mail className="w-5 h-5 text-sky-600 shrink-0" />
                 <div>
-                  <p className="font-semibold text-white">Support Email</p>
-                  <p className="text-slate-400 text-[11px]">support@adrakenya.org</p>
+                  <p className="font-bold text-slate-900">Support Email</p>
+                  <p className="text-slate-600 text-[11px]">
+                    {systemSettings?.contact_email || settingsForm.contact_email || 'support@adra.org'}
+                  </p>
                 </div>
               </div>
-              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center gap-3">
-                <Clock className="w-5 h-5 text-purple-400 shrink-0" />
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3">
+                <Clock className="w-5 h-5 text-purple-600 shrink-0" />
                 <div>
-                  <p className="font-semibold text-white">Operational Hours</p>
-                  <p className="text-slate-400 text-[11px]">24/7 Field Support</p>
+                  <p className="font-bold text-slate-900">Operational Hours</p>
+                  <p className="text-slate-600 text-[11px]">24/7 Field Support</p>
                 </div>
               </div>
             </div>
@@ -604,7 +612,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
       >
         <form onSubmit={handleCreateFaq} className="space-y-4 text-xs">
           <div>
-            <label className="block font-semibold text-slate-300 mb-1">FAQ Category</label>
+            <label className="block font-semibold text-slate-800 mb-1">FAQ Category</label>
             <select
               value={faqForm.category}
               onChange={(e) => setFaqForm({ ...faqForm, category: e.target.value })}
@@ -618,7 +626,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-300 mb-1">Frequently Asked Question</label>
+            <label className="block font-semibold text-slate-800 mb-1">Frequently Asked Question</label>
             <input
               type="text"
               required
@@ -630,7 +638,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-300 mb-1">Detailed Technical / Procedural Answer</label>
+            <label className="block font-semibold text-slate-800 mb-1">Detailed Technical / Procedural Answer</label>
             <textarea
               required
               rows={4}
@@ -641,7 +649,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
             <Button type="button" variant="secondary" onClick={() => setIsFaqModalOpen(false)}>
               Cancel
             </Button>

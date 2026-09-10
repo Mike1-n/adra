@@ -29,8 +29,8 @@ export function StatCard({
     >
       <div className="flex items-start justify-between gap-2 sm:gap-3">
         <div className="space-y-0.5 sm:space-y-1 min-w-0">
-          <p className="text-[11px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider truncate">{title}</p>
-          <h3 className="text-xl sm:text-2xl font-bold text-slate-100 font-heading tracking-tight truncate">{value}</h3>
+          <p className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wider truncate">{title}</p>
+          <h3 className="text-2xl sm:text-3xl font-black text-slate-900 font-heading tracking-tight truncate">{value}</h3>
         </div>
         {Icon && (
           <div className={cn('p-2 sm:p-3 rounded-xl border shrink-0', colorMap[color] || colorMap.emerald)}>
@@ -40,12 +40,12 @@ export function StatCard({
       </div>
 
       {(subtitle || trendValue) && (
-        <div className="flex items-center gap-1.5 sm:gap-2 mt-3 pt-2 sm:pt-3 border-t border-slate-800 text-[11px] sm:text-xs text-slate-400">
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-3 pt-2 sm:pt-3 border-t border-slate-200 text-[11px] sm:text-xs text-slate-600 font-medium">
           {trendValue && (
             <span
               className={cn(
-                'inline-flex items-center gap-0.5 font-medium px-1.5 py-0.5 rounded',
-                trend === 'down' ? 'text-rose-700 bg-rose-50 border border-rose-200' : 'text-emerald-600 bg-emerald-50 border border-emerald-500/30'
+                'inline-flex items-center gap-0.5 font-semibold px-1.5 py-0.5 rounded',
+                trend === 'down' ? 'text-rose-700 bg-rose-50 border border-rose-200' : 'text-emerald-700 bg-emerald-50 border border-emerald-500/30'
               )}
             >
               {trend === 'down' ? (

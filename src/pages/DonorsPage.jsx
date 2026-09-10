@@ -149,12 +149,12 @@ export function DonorsPage() {
       {/* Top Banner / Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Building2 className="w-6 h-6 text-emerald-400" />
-            Institutional Donors & Implementing Partners
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <Building2 className="w-6 h-6 text-emerald-600" />
+            Donor & Partner Portfolio
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Stakeholder relations with bilateral donors, international funds, ministries and local NGOs.
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+            Manage institutional partners, grant contracts, multilateral agencies, and NGO partnerships.
           </p>
         </div>
 

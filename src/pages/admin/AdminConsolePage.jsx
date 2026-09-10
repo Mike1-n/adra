@@ -274,24 +274,13 @@ export function AdminConsolePage() {
         {/* Action Toolbar */}
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           <Button
-            variant="secondary"
+            variant="primary"
             size="sm"
             onClick={() => setIsSearchModalOpen(true)}
             icon={Search}
             className="flex-1 sm:flex-none"
           >
             Global Search
-          </Button>
-
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleQuickBackup}
-            disabled={isExporting}
-            icon={Download}
-            className="flex-1 sm:flex-none"
-          >
-            {isExporting ? 'Exporting...' : 'Backup JSON'}
           </Button>
 
           <Button
@@ -379,11 +368,11 @@ export function AdminConsolePage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Search className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Search className="w-5 h-5 text-emerald-600" />
                   Global Multi-Entity Search Engine (Function 16)
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-600">
                   Scans live users, beneficiaries, programmes, distributions, and registered suppliers with instant type filters.
                 </p>
               </div>

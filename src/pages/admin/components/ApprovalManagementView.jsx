@@ -47,10 +47,10 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
     category: 'Operational Budget',
     requester_name: '',
     requester_email: '',
-    role_requested: 'Budget Release',
+    role_requested: '',
     department: '',
     details: '',
-    priority: 'High'
+    priority: 'Normal'
   });
 
   const loadApprovals = async () => {
@@ -130,11 +130,11 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <FileCheck className="w-6 h-6 text-emerald-400" />
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <FileCheck className="w-6 h-6 text-emerald-600" />
             Approval Management & User Onboarding
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
             Admin governance for user verification (staff, suppliers, donors) and operational budget sign-offs.
           </p>
         </div>
@@ -188,10 +188,10 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
       {loading ? (
         <LoadingSpinner text="Querying approval records from database..." />
       ) : filteredApprovals.length === 0 ? (
-        <div className="p-12 text-center bg-slate-900/50 border border-slate-800 rounded-2xl">
-          <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
-          <p className="text-sm font-semibold text-slate-200">No Approvals Found</p>
-          <p className="text-xs text-slate-400 mt-1">No requests currently match the selected criteria.</p>
+        <div className="p-12 text-center bg-slate-50 border border-slate-200 rounded-2xl">
+          <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
+          <p className="text-sm font-bold text-slate-900">No Approvals Found</p>
+          <p className="text-xs text-slate-500 mt-1">No requests currently match the selected criteria.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -204,29 +204,29 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
                 className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 adra-card-hover"
               >
                 <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 shrink-0">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 shrink-0">
                     {getCategoryIcon(app.category)}
                   </div>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-500/20 px-2 py-0.5 rounded">
+                      <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-500/30 px-2 py-0.5 rounded">
                         {app.id}
                       </span>
-                      <h3 className="text-sm font-bold text-white">
+                      <h3 className="text-sm font-bold text-slate-900">
                         {app.category}
                       </h3>
                       {app.priority === 'Urgent' && (
-                        <span className="text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-semibold bg-rose-50 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-full">
                           Urgent
                         </span>
                       )}
                     </div>
 
-                    <p className="text-xs text-slate-300 font-medium mt-1">
-                      Requester: <span className="text-white">{app.requester_name}</span> ({app.requester_email})
+                    <p className="text-xs text-slate-700 font-medium mt-1">
+                      Requester: <span className="text-slate-900 font-bold">{app.requester_name}</span> ({app.requester_email})
                     </p>
-                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed line-clamp-2">
+                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed line-clamp-2">
                       {app.details}
                     </p>
 
@@ -234,21 +234,21 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
                       <span>Submitted: {formatDate(app.date)}</span>
                       {app.department && <span>Department: {app.department}</span>}
                       {app.review_notes && (
-                        <span className="text-slate-400 italic">Remarks: "{app.review_notes}"</span>
+                        <span className="text-slate-700 font-medium italic">Remarks: "{app.review_notes}"</span>
                       )}
                     </div>
                   </div>
                 </div>
 
                 {/* Status & Actions */}
-                <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto justify-between sm:justify-end pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+                <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto justify-between sm:justify-end pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-200">
                   <span
                     className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
                       isApproved
-                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30 font-bold'
                         : isPending
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                        : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                        ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
+                        : 'bg-rose-50 text-rose-800 border-rose-300 font-bold'
                     }`}
                   >
                     {app.status}
@@ -277,29 +277,29 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
           title={`Review Request: ${selectedApproval.id}`}
         >
           <div className="space-y-4 text-xs">
-            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400 text-[11px]">Request Category:</span>
-                <span className="font-bold text-white text-xs">{selectedApproval.category}</span>
+                <span className="text-slate-500 text-[11px]">Request Category:</span>
+                <span className="font-bold text-slate-900 text-xs">{selectedApproval.category}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400 text-[11px]">Requester / Candidate:</span>
-                <span className="font-medium text-emerald-400">{selectedApproval.requester_name}</span>
+                <span className="text-slate-500 text-[11px]">Requester / Candidate:</span>
+                <span className="font-bold text-emerald-700">{selectedApproval.requester_name}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400 text-[11px]">Email / Contact:</span>
-                <span className="text-slate-300">{selectedApproval.requester_email}</span>
+                <span className="text-slate-500 text-[11px]">Email / Contact:</span>
+                <span className="text-slate-800">{selectedApproval.requester_email}</span>
               </div>
-              <div className="pt-2 border-t border-slate-800">
-                <p className="text-slate-400 text-[11px] mb-1">Detailed Justification:</p>
-                <p className="text-slate-200 leading-relaxed bg-slate-900 p-2.5 rounded-lg border border-slate-800/80">
+              <div className="pt-2 border-t border-slate-200">
+                <p className="text-slate-600 text-[11px] mb-1 font-semibold">Detailed Justification:</p>
+                <p className="text-slate-800 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200">
                   {selectedApproval.details}
                 </p>
               </div>
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">
+              <label className="block font-semibold text-slate-800 mb-1">
                 Administrator Review Decision Remarks
               </label>
               <textarea
@@ -311,7 +311,7 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
               />
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
               <Button variant="secondary" onClick={() => setIsReviewOpen(false)}>
                 Close
               </Button>
@@ -345,7 +345,7 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
       >
         <form onSubmit={handleSubmitRequest} className="space-y-4 text-xs">
           <div>
-            <label className="block font-semibold text-slate-300 mb-1">Request Category</label>
+            <label className="block font-semibold text-slate-800 mb-1">Request Category</label>
             <select
               value={submitData.category}
               onChange={(e) => setSubmitData({ ...submitData, category: e.target.value })}
@@ -360,7 +360,7 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Requester Name</label>
+              <label className="block font-semibold text-slate-800 mb-1">Requester Name</label>
               <input
                 type="text"
                 required
@@ -371,7 +371,7 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Requester Email</label>
+              <label className="block font-semibold text-slate-800 mb-1">Requester Email</label>
               <input
                 type="email"
                 required
@@ -384,7 +384,7 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-300 mb-1">Request Justification & Scope</label>
+            <label className="block font-semibold text-slate-800 mb-1">Request Justification & Scope</label>
             <textarea
               required
               rows={3}
@@ -395,7 +395,7 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
             <Button type="button" variant="secondary" onClick={() => setIsSubmitOpen(false)}>
               Cancel
             </Button>

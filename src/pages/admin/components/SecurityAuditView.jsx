@@ -129,9 +129,9 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
         return 'bg-rose-500/10 text-rose-400 border-rose-500/30';
       case 'EXPORT':
       case 'RESTORE':
-        return 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30';
+        return 'bg-cyan-50 text-cyan-800 border-cyan-300';
       default:
-        return 'bg-slate-800 text-slate-400 border-slate-700';
+        return 'bg-slate-100 text-slate-700 border-slate-300';
     }
   };
 
@@ -140,23 +140,23 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
       {/* Header & Sub-Tabs */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Lock className="w-6 h-6 text-emerald-400" />
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <Lock className="w-6 h-6 text-emerald-600" />
             Security Management & System Audit Trail
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
             Audit immutable system transactions and manage password policies, session timeouts, and suspicious activity.
           </p>
         </div>
 
         {/* Sub-tab pills */}
-        <div className="flex items-center p-1 rounded-xl bg-slate-900 border border-slate-800">
+        <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
           <button
             onClick={() => setActiveTab('audit')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
               activeTab === 'audit'
-                ? 'bg-emerald-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Audit Trail ({auditLogs.length})
@@ -165,8 +165,8 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
             onClick={() => setActiveTab('security')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
               activeTab === 'security'
-                ? 'bg-emerald-500 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Security Policies
@@ -224,7 +224,7 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
           <Card className="p-0 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-950/80 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider text-[10px]">
+                <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                   <tr>
                     <th className="py-3.5 px-4">Timestamp</th>
                     <th className="py-3.5 px-4">User Email & Role</th>
@@ -234,27 +234,27 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
                     <th className="py-3.5 px-4 text-right">Inspect</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                <tbody className="divide-y divide-slate-200 text-slate-800">
                   {filteredLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-900/50 transition">
-                      <td className="py-3 px-4 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                    <tr key={log.id} className="hover:bg-slate-50 transition">
+                      <td className="py-3 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">
                         {formatDate(log.created_at)}
                       </td>
                       <td className="py-3 px-4">
-                        <span className="font-semibold text-white block truncate max-w-[150px]">
+                        <span className="font-bold text-slate-900 block truncate max-w-[150px]">
                           {log.user_email}
                         </span>
-                        <span className="text-[10px] text-slate-400">{log.user_role || 'Staff'}</span>
+                        <span className="text-[10px] text-slate-500 font-medium">{log.user_role || 'Staff'}</span>
                       </td>
                       <td className="py-3 px-4">
                         <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${getActionBadgeClass(log.action)}`}>
                           {log.action}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-slate-300 font-medium">
+                      <td className="py-3 px-4 text-slate-800 font-medium">
                         {log.module}
                       </td>
-                      <td className="py-3 px-4 text-slate-300 max-w-xs truncate">
+                      <td className="py-3 px-4 text-slate-700 max-w-xs truncate">
                         {log.details}
                       </td>
                       <td className="py-3 px-4 text-right">
@@ -263,7 +263,7 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
                             setSelectedLog(log);
                             setIsLogDetailOpen(true);
                           }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-700 hover:bg-slate-100 transition"
                           title="View JSON Payload"
                         >
                           <Eye className="w-4 h-4" />
@@ -290,8 +290,8 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
 
             <form onSubmit={handleSaveSecurity} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">
-                  Minimum Password Length: <span className="text-emerald-400 font-mono">{secForm.min_password_length} characters</span>
+                <label className="block font-semibold text-slate-800 mb-1">
+                  Minimum Password Length: <span className="text-emerald-700 font-bold font-mono">{secForm.min_password_length} characters</span>
                 </label>
                 <input
                   type="range"
@@ -299,19 +299,19 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
                   max="24"
                   value={secForm.min_password_length}
                   onChange={(e) => setSecForm({ ...secForm, min_password_length: Number(e.target.value) })}
-                  className="w-full accent-emerald-500"
+                  className="w-full accent-emerald-600"
                 />
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-slate-800">
+              <div className="space-y-2 pt-2 border-t border-slate-200">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={secForm.require_special_chars}
                     onChange={(e) => setSecForm({ ...secForm, require_special_chars: e.target.checked })}
-                    className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0"
+                    className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500"
                   />
-                  <span className="text-slate-200">Require at least one special symbol (!@#$%^&*)</span>
+                  <span className="text-slate-800 font-medium">Require at least one special symbol (!@#$%^&*)</span>
                 </label>
 
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -319,9 +319,9 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
                     type="checkbox"
                     checked={secForm.require_numbers}
                     onChange={(e) => setSecForm({ ...secForm, require_numbers: e.target.checked })}
-                    className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0"
+                    className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500"
                   />
-                  <span className="text-slate-200">Require at least one numeric digit (0-9)</span>
+                  <span className="text-slate-800 font-medium">Require at least one numeric digit (0-9)</span>
                 </label>
 
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -329,15 +329,15 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
                     type="checkbox"
                     checked={secForm.two_factor_auth_required}
                     onChange={(e) => setSecForm({ ...secForm, two_factor_auth_required: e.target.checked })}
-                    className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0"
+                    className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500"
                   />
-                  <span className="text-slate-200">Enforce Two-Factor Authentication (2FA OTP) for Admins</span>
+                  <span className="text-slate-800 font-medium">Enforce Two-Factor Authentication (2FA OTP) for Admins</span>
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
                 <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Max Failed Attempts (Lockout)</label>
+                  <label className="block font-semibold text-slate-800 mb-1">Max Failed Attempts (Lockout)</label>
                   <input
                     type="number"
                     value={secForm.max_login_attempts}
@@ -346,7 +346,7 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Session Inactivity Timeout (Mins)</label>
+                  <label className="block font-semibold text-slate-800 mb-1">Session Inactivity Timeout (Mins)</label>
                   <input
                     type="number"
                     value={secForm.session_timeout_minutes}
@@ -356,7 +356,7 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-800 flex justify-end">
+              <div className="pt-3 border-t border-slate-200 flex justify-end">
                 <Button type="submit" variant="primary" icon={Save}>
                   Save Security Policies
                 </Button>
@@ -372,19 +372,19 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
                 subtitle="Active tokens and global session revocation"
               />
 
-              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Active Concurrent Sessions:</span>
-                  <span className="font-bold text-emerald-400 text-sm">
-                    {securitySettings?.active_sessions_count || 8} Devices
+                  <span className="text-slate-600">Active Concurrent Sessions:</span>
+                  <span className="font-bold text-emerald-700 text-sm">
+                    {securitySettings?.active_sessions_count || 1} {securitySettings?.active_sessions_count === 1 ? 'Device' : 'Devices'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Account Lockout Duration:</span>
-                  <span className="text-slate-200 font-medium">30 Minutes</span>
+                  <span className="text-slate-600">Account Lockout Duration:</span>
+                  <span className="text-slate-900 font-bold">{secForm.account_lockout_duration_minutes || 30} Minutes</span>
                 </div>
 
-                <div className="pt-2 border-t border-slate-800">
+                <div className="pt-2 border-t border-slate-200">
                   <Button
                     variant="danger"
                     size="sm"
@@ -405,33 +405,41 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
                 subtitle="Monitored IP addresses and brute-force detections"
               />
 
-              <div className="space-y-2.5 text-xs">
-                {securitySettings?.suspicious_activities?.map((sec) => (
-                  <div
-                    key={sec.id}
-                    className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between gap-3"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-white font-semibold">{sec.ip}</span>
-                        <span className="text-slate-400 text-[10px]">({sec.location})</span>
-                        <span
-                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-                            sec.status === 'Blocked'
-                              ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                              : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                          }`}
-                        >
-                          {sec.status}
-                        </span>
+              {(!securitySettings?.suspicious_activities || securitySettings.suspicious_activities.length === 0) ? (
+                <div className="py-6 text-center text-xs text-slate-500">
+                  <ShieldCheck className="w-6 h-6 text-emerald-600 mx-auto mb-1.5 opacity-80" />
+                  <p className="font-bold text-slate-900">No Security Threats Detected</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">All authentication telemetry is normal.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5 text-xs">
+                  {securitySettings.suspicious_activities.map((sec) => (
+                    <div
+                      key={sec.id}
+                      className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-slate-900 font-bold">{sec.ip}</span>
+                          <span className="text-slate-500 text-[10px]">({sec.location})</span>
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                              sec.status === 'Blocked'
+                                ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
+                            }`}
+                          >
+                            {sec.status}
+                          </span>
+                        </div>
+                        <p className="text-slate-700 text-[11px] mt-0.5 font-medium">{sec.event} — {sec.user}</p>
                       </div>
-                      <p className="text-slate-300 text-[11px] mt-0.5">{sec.event} — {sec.user}</p>
-                    </div>
 
-                    <span className="text-[10px] text-slate-500 shrink-0">{sec.time}</span>
-                  </div>
-                ))}
-              </div>
+                      <span className="text-[10px] text-slate-500 shrink-0">{sec.time}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
           </div>
         </div>
@@ -445,37 +453,37 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
           title={`Audit Payload: ${selectedLog.id}`}
         >
           <div className="space-y-3 text-xs">
-            <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
               <div className="flex justify-between">
-                <span className="text-slate-400">Timestamp:</span>
-                <span className="text-white font-mono">{formatDate(selectedLog.created_at)}</span>
+                <span className="text-slate-500">Timestamp:</span>
+                <span className="text-slate-900 font-bold font-mono">{formatDate(selectedLog.created_at)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Actor Email:</span>
-                <span className="text-emerald-400 font-medium">{selectedLog.user_email}</span>
+                <span className="text-slate-500">Actor Email:</span>
+                <span className="text-emerald-700 font-bold">{selectedLog.user_email}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Role:</span>
-                <span className="text-white">{selectedLog.user_role}</span>
+                <span className="text-slate-500">Role:</span>
+                <span className="text-slate-900 font-medium">{selectedLog.user_role}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Module:</span>
-                <span className="text-white font-medium">{selectedLog.module}</span>
+                <span className="text-slate-500">Module:</span>
+                <span className="text-slate-900 font-medium">{selectedLog.module}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Action:</span>
-                <span className="font-bold text-emerald-400">{selectedLog.action}</span>
+                <span className="text-slate-500">Action:</span>
+                <span className="font-bold text-emerald-700">{selectedLog.action}</span>
               </div>
             </div>
 
             <div>
-              <p className="font-semibold text-slate-300 mb-1">Transaction Details & Audit Record:</p>
-              <pre className="p-3 bg-slate-950 border border-slate-800 rounded-xl font-mono text-[11px] text-emerald-300 overflow-x-auto whitespace-pre-wrap">
+              <p className="font-bold text-slate-900 mb-1">Transaction Details & Audit Record:</p>
+              <pre className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] text-slate-900 overflow-x-auto whitespace-pre-wrap">
                 {selectedLog.details}
               </pre>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-800">
+            <div className="flex justify-end pt-2 border-t border-slate-200">
               <Button variant="secondary" onClick={() => setIsLogDetailOpen(false)}>
                 Close
               </Button>

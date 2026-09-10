@@ -79,10 +79,10 @@ export function UserRoleManagementView() {
     setFormData({
       full_name: '',
       email: '',
-      password: 'Password123!',
-      role: 'Field Worker',
-      department: 'Community Mobilization',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
+      password: '',
+      role: roles[0] || 'Field Worker',
+      department: '',
+      avatar: ''
     });
     setIsCreateOpen(true);
   };
@@ -191,25 +191,25 @@ export function UserRoleManagementView() {
   const getRoleBadgeStyle = (role) => {
     switch (role) {
       case 'Administrator':
-        return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+        return 'bg-emerald-50 text-emerald-800 border-emerald-500/30';
       case 'Program Manager':
-        return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+        return 'bg-blue-50 text-blue-800 border-blue-300';
       case 'Supervisor':
-        return 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30';
+        return 'bg-indigo-50 text-indigo-800 border-indigo-300';
       case 'Finance Officer':
-        return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+        return 'bg-amber-50 text-amber-900 border-amber-300';
       case 'Project Officer':
-        return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30';
+        return 'bg-cyan-50 text-cyan-900 border-cyan-300';
       case 'Field Worker':
-        return 'bg-teal-500/20 text-teal-300 border-teal-500/30';
+        return 'bg-teal-50 text-teal-900 border-teal-300';
       case 'Supplier':
-        return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+        return 'bg-purple-50 text-purple-900 border-purple-300';
       case 'Donor':
-        return 'bg-rose-500/20 text-rose-300 border-rose-500/30';
+        return 'bg-rose-50 text-rose-900 border-rose-300';
       case 'Beneficiary':
-        return 'bg-slate-700 text-slate-300 border-slate-600';
+        return 'bg-slate-100 text-slate-800 border-slate-300';
       default:
-        return 'bg-slate-800 text-slate-300 border-slate-700';
+        return 'bg-slate-100 text-slate-800 border-slate-300';
     }
   };
 
@@ -218,11 +218,11 @@ export function UserRoleManagementView() {
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <UserCheck className="w-6 h-6 text-emerald-400" />
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <UserCheck className="w-6 h-6 text-emerald-600" />
             User & Role Management
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
             Create, view, edit, deactivate, reactivate, and assign roles for all 8 system stakeholders.
           </p>
         </div>
@@ -238,16 +238,16 @@ export function UserRoleManagementView() {
 
       {/* Pending Accounts Banner if any */}
       {users.some(u => u.status === 'Pending Verification' || u.is_active === false) && (
-        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-amber-200 text-xs">
+        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 flex items-center justify-between gap-3 text-amber-900 text-xs">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-amber-600 animate-pulse" />
             <span className="font-semibold">
               {users.filter(u => u.status === 'Pending Verification' || u.is_active === false).length} account(s): Account verification pending. Awaiting administrator verification before they can log in.
             </span>
           </div>
           <button
             onClick={() => setStatusFilter('Pending Verification')}
-            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[11px] transition cursor-pointer"
+            className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-[11px] transition cursor-pointer"
           >
             Review Pending Accounts →
           </button>
@@ -272,7 +272,7 @@ export function UserRoleManagementView() {
           onChange={(e) => setRoleFilter(e.target.value)}
           className="adra-select text-xs sm:text-sm"
         >
-          <option value="ALL">All System Roles (8)</option>
+          <option value="ALL">All System Roles ({roles.length})</option>
           {roles.map((r) => (
             <option key={r} value={r}>{r}</option>
           ))}
@@ -294,8 +294,8 @@ export function UserRoleManagementView() {
       {loading ? (
         <LoadingSpinner text="Retrieving registered system users..." />
       ) : filteredUsers.length === 0 ? (
-        <div className="p-12 text-center bg-slate-900/50 border border-slate-800 rounded-2xl">
-          <p className="text-sm font-semibold text-slate-300">No users match criteria</p>
+        <div className="p-12 text-center bg-slate-50 border border-slate-200 rounded-2xl">
+          <p className="text-sm font-semibold text-slate-800">No users match criteria</p>
           <p className="text-xs text-slate-500 mt-1">Try broadening your search or register a new user account.</p>
         </div>
       ) : (
@@ -313,45 +313,45 @@ export function UserRoleManagementView() {
                       <img
                         src={u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
                         alt={u.full_name}
-                        className="w-12 h-12 rounded-xl object-cover border border-slate-700 shrink-0"
+                        className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
                       />
                       <div className="min-w-0">
-                        <h3 className="text-sm font-bold text-white truncate">
+                        <h3 className="text-sm font-bold text-slate-900 truncate">
                           {u.full_name}
                         </h3>
-                        <p className="text-xs text-slate-400 truncate flex items-center gap-1 mt-0.5">
-                          <Mail className="w-3 h-3 text-slate-500 shrink-0" />
+                        <p className="text-xs text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                          <Mail className="w-3 h-3 text-slate-400 shrink-0" />
                           <span className="truncate">{u.email}</span>
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 pt-2 border-t border-slate-800/80 text-xs">
+                  <div className="space-y-1.5 pt-2 border-t border-slate-200 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px]">System Role:</span>
+                      <span className="text-slate-500 text-[11px]">System Role:</span>
                       <span className={`px-2 py-0.5 rounded-md border text-[11px] font-semibold ${getRoleBadgeStyle(u.role)}`}>
                         {u.role}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px]">Department:</span>
-                      <span className="text-slate-300 text-[11px] truncate max-w-[160px]">
+                      <span className="text-slate-500 text-[11px]">Department:</span>
+                      <span className="text-slate-800 font-medium text-[11px] truncate max-w-[160px]">
                         {u.department || 'Operations'}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px]">Account Status:</span>
+                      <span className="text-slate-500 text-[11px]">Account Status:</span>
                       {u.status === 'Pending Verification' || u.is_active === false ? (
-                        <span className="text-[11px] font-bold flex items-center gap-1 text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="text-[11px] font-bold flex items-center gap-1 text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
                           Account Verification Pending
                         </span>
                       ) : (
-                        <span className={`text-[11px] font-medium flex items-center gap-1 ${isActive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                        <span className={`text-[11px] font-medium flex items-center gap-1 ${isActive ? 'text-emerald-700 font-semibold' : 'text-rose-700 font-semibold'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-600' : 'bg-rose-600'}`} />
                           {u.status || 'Active'}
                         </span>
                       )}
@@ -360,19 +360,19 @@ export function UserRoleManagementView() {
                 </div>
 
                 {/* Card Action Toolbar */}
-                <div className="flex items-center justify-between gap-1.5 pt-3 mt-4 border-t border-slate-800">
+                <div className="flex items-center justify-between gap-1.5 pt-3 mt-4 border-t border-slate-200">
                   {u.status === 'Pending Verification' || u.is_active === false ? (
                     <button
                       onClick={() => handleVerifyUser(u)}
-                      className="px-3 py-1 text-xs rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      className="px-3 py-1 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-white" />
                       Verify & Activate
                     </button>
                   ) : (
                     <button
                       onClick={() => handleOpenRoleModal(u)}
-                      className="px-2.5 py-1 text-xs rounded-lg text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 font-medium transition cursor-pointer"
+                      className="px-2.5 py-1 text-xs rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-500/30 font-semibold transition cursor-pointer"
                     >
                       Change Role
                     </button>
@@ -382,7 +382,7 @@ export function UserRoleManagementView() {
                     <button
                       onClick={() => handleOpenEdit(u)}
                       title="Edit Profile"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
@@ -390,7 +390,7 @@ export function UserRoleManagementView() {
                     <button
                       onClick={() => handleToggleStatus(u)}
                       title={isActive ? 'Deactivate Account' : 'Reactivate Account'}
-                      className={`p-1.5 rounded-lg transition ${isActive ? 'text-amber-400 hover:bg-amber-500/10' : 'text-emerald-400 hover:bg-emerald-500/10'}`}
+                      className={`p-1.5 rounded-lg transition ${isActive ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
                     >
                       <Power className="w-4 h-4" />
                     </button>
@@ -401,7 +401,7 @@ export function UserRoleManagementView() {
                         setIsDeleteOpen(true);
                       }}
                       title="Delete User Account"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -421,7 +421,7 @@ export function UserRoleManagementView() {
       >
         <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
           <div>
-            <label className="block font-semibold text-slate-300 mb-1">Full Legal Name</label>
+            <label className="block font-semibold text-slate-800 mb-1">Full Legal Name</label>
             <input
               type="text"
               required
@@ -434,7 +434,7 @@ export function UserRoleManagementView() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Official Email Address</label>
+              <label className="block font-semibold text-slate-800 mb-1">Official Email Address</label>
               <input
                 type="email"
                 required
@@ -445,7 +445,7 @@ export function UserRoleManagementView() {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Initial Password</label>
+              <label className="block font-semibold text-slate-800 mb-1">Initial Password</label>
               <input
                 type="text"
                 required
@@ -458,7 +458,7 @@ export function UserRoleManagementView() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Assigned Stakeholder Role</label>
+              <label className="block font-semibold text-slate-800 mb-1">Assigned Stakeholder Role</label>
               <select
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
@@ -470,7 +470,7 @@ export function UserRoleManagementView() {
               </select>
             </div>
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Department / Operations Zone</label>
+              <label className="block font-semibold text-slate-800 mb-1">Department / Operations Zone</label>
               <input
                 type="text"
                 value={formData.department}
@@ -481,7 +481,7 @@ export function UserRoleManagementView() {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
             <Button type="button" variant="secondary" onClick={() => setIsCreateOpen(false)}>
               Cancel
             </Button>
@@ -501,7 +501,7 @@ export function UserRoleManagementView() {
         >
           <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Full Legal Name</label>
+              <label className="block font-semibold text-slate-800 mb-1">Full Legal Name</label>
               <input
                 type="text"
                 required
@@ -512,7 +512,7 @@ export function UserRoleManagementView() {
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Official Email</label>
+              <label className="block font-semibold text-slate-800 mb-1">Official Email</label>
               <input
                 type="email"
                 required
@@ -523,7 +523,7 @@ export function UserRoleManagementView() {
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">Department</label>
+              <label className="block font-semibold text-slate-800 mb-1">Department</label>
               <input
                 type="text"
                 value={editFormData.department}
@@ -532,7 +532,7 @@ export function UserRoleManagementView() {
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
               <Button type="button" variant="secondary" onClick={() => setIsEditOpen(false)}>
                 Cancel
               </Button>
@@ -553,14 +553,14 @@ export function UserRoleManagementView() {
           maxWidth="max-w-md"
         >
           <form onSubmit={handleSaveRole} className="space-y-4 text-xs">
-            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
-              <p className="font-semibold text-slate-200">{selectedUser.full_name}</p>
-              <p className="text-slate-400">{selectedUser.email}</p>
-              <p className="text-emerald-400 font-mono mt-1 text-[11px]">Current: {selectedUser.role}</p>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <p className="font-bold text-slate-900">{selectedUser.full_name}</p>
+              <p className="text-slate-500">{selectedUser.email}</p>
+              <p className="text-emerald-700 font-semibold mt-1 text-[11px]">Current: {selectedUser.role}</p>
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-300 mb-1.5">
+              <label className="block font-semibold text-slate-800 mb-1.5">
                 Assign System Role
               </label>
               <select
@@ -574,7 +574,7 @@ export function UserRoleManagementView() {
               </select>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
               <Button type="button" variant="secondary" onClick={() => setIsRoleModalOpen(false)}>
                 Cancel
               </Button>
@@ -595,11 +595,11 @@ export function UserRoleManagementView() {
           maxWidth="max-w-md"
         >
           <div className="space-y-4 text-xs">
-            <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/30 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-rose-200">Irreversible Action</p>
-                <p className="text-rose-300/80 mt-0.5 leading-relaxed">
+                <p className="font-bold text-rose-900">Irreversible Action</p>
+                <p className="text-rose-800 mt-0.5 leading-relaxed">
                   Are you sure you want to permanently delete the user account for <strong>{selectedUser.full_name}</strong> ({selectedUser.email})? This action will be audited in the security logs.
                 </p>
               </div>

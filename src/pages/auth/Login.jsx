@@ -150,7 +150,7 @@ export function Login({ onLoginSuccess }) {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-100 sm:py-6 flex flex-col items-center justify-center font-sans select-none overflow-x-hidden">
+    <div className="min-h-screen w-full bg-slate-100 sm:py-6 flex flex-col items-center justify-center font-sans overflow-x-hidden">
       {/* MOBILE DEVICE CONTAINER (Matches Uploaded Mockup) */}
       <div className="w-full sm:max-w-[420px] bg-white min-h-screen sm:min-h-[880px] sm:rounded-[44px] sm:border-[10px] sm:border-slate-800 sm:shadow-2xl flex flex-col relative overflow-hidden">
         

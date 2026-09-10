@@ -52,17 +52,17 @@ export default {
         },
         slate: {
           50: '#F8FAFC',
-          100: '#1C1C1C', // Brand Charcoal Black
-          200: '#1F2937', // Dark Charcoal
-          300: '#374151', // Dark Slate
-          400: '#4B5563', // Medium Dark Slate (readable)
-          500: '#64748B', // Muted Slate
-          600: '#475569', // Darker Muted Slate
-          700: '#334155', // Dark Slate
-          800: '#1E293B', // Very Dark Slate
-          850: '#111827', // Near Black
-          900: '#0F172A', // Deep Charcoal
-          950: '#020617', // Pitch Charcoal Black
+          100: '#F1F5F9',
+          200: '#E2E8F0',
+          300: '#CBD5E1',
+          400: '#94A3B8',
+          500: '#64748B',
+          600: '#475569',
+          700: '#334155',
+          800: '#1E293B',
+          850: '#111827',
+          900: '#0F172A',
+          950: '#020617',
         },
       },
       fontFamily: {

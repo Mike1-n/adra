@@ -156,18 +156,18 @@ export function Dashboard({ onNavigate }) {
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-900 border border-emerald-500/20 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-50 via-emerald-100/50 to-white border border-emerald-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold uppercase tracking-wider">
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold uppercase tracking-wider">
               {currentUser?.role} Console
             </span>
-            <span className="text-xs text-slate-400">Academic Project Edition</span>
+            <span className="text-xs text-slate-500 font-medium">Academic Project Edition</span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white mt-1">
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
             Welcome, {currentUser?.full_name || 'Officer'}
           </h2>
-          <p className="text-xs sm:text-sm text-slate-300 mt-0.5 max-w-xl">
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5 max-w-xl font-medium">
             Centralized monitoring of humanitarian relief, development programs, and community interventions.
           </p>
         </div>
@@ -263,10 +263,10 @@ export function Dashboard({ onNavigate }) {
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#0f172a', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />
                 <Legend
-                  wrapperStyle={{ fontSize: '12px', color: '#cbd5e1' }}
+                  wrapperStyle={{ fontSize: '12px', color: '#334155' }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -295,9 +295,9 @@ export function Dashboard({ onNavigate }) {
                 />
                 <Tooltip
                   formatter={(val) => formatCurrency(val)}
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', color: '#0f172a', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />
-                <Legend wrapperStyle={{ fontSize: '12px', color: '#cbd5e1' }} />
+                <Legend wrapperStyle={{ fontSize: '12px', color: '#334155' }} />
                 <Bar dataKey="budget" name="Budget" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="spent" name="Spent" fill="#10b981" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -317,11 +317,11 @@ export function Dashboard({ onNavigate }) {
           <div className="space-y-3 mt-2">
             {interventionTypeData.map((item, idx) => (
               <div key={item.name} className="flex flex-col gap-1 text-xs">
-                <div className="flex items-center justify-between text-slate-300">
-                  <span className="font-medium truncate">{item.name}</span>
-                  <span className="text-emerald-400 font-semibold">{item.count} items</span>
+                <div className="flex items-center justify-between text-slate-800">
+                  <span className="font-semibold truncate">{item.name}</span>
+                  <span className="text-emerald-700 font-bold">{item.count} items</span>
                 </div>
-                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                   <div
                     className="bg-emerald-500 h-full rounded-full transition-all duration-500"
                     style={{
@@ -350,22 +350,22 @@ export function Dashboard({ onNavigate }) {
             {data.activities.slice(0, 4).map((act) => (
               <div
                 key={act.id}
-                className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                className="p-3 rounded-xl bg-slate-50 border border-slate-200 hover:border-slate-300 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
               >
                 <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0 mt-0.5">
+                  <div className="p-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 mt-0.5">
                     <Activity className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-semibold text-slate-200">{act.activity_name}</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <h4 className="text-xs font-bold text-slate-900">{act.activity_name}</h4>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
                       {act.project_name || 'Project'} • {act.location}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0 text-xs">
-                  <span className="text-slate-400 flex items-center gap-1 text-[11px]">
+                  <span className="text-slate-600 flex items-center gap-1 text-[11px] font-medium">
                     <Clock className="w-3 h-3" />
                     {formatDate(act.activity_date)}
                   </span>

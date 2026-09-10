@@ -58,12 +58,12 @@ export function SettingsPage() {
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Settings className="w-6 h-6 text-emerald-400" />
-            System Configuration & Database Diagnostics
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <Settings className="w-6 h-6 text-emerald-600" />
+            System Settings & Diagnostics
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Database connection parameters, role switching, and academic demonstration settings.
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+            Configure system preferences, offline caching, and database connections.
           </p>
         </div>
       </div>

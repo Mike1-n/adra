@@ -153,7 +153,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
   const isChildView = currentView !== 'dashboard' && currentView !== 'auth_choice';
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-0 sm:p-4 md:p-6 font-sans select-none">
+    <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-0 sm:p-4 md:p-6 font-sans">
       {/* Top Bar for Desktop Examiner (Switcher & Frame Toggles) */}
       <div className="w-full max-w-md hidden sm:flex items-center justify-between pb-3 text-xs text-slate-500">
         <div className="flex items-center gap-2">

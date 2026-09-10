@@ -18,6 +18,13 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior-y: none;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  ::selection {
+    background-color: rgba(0, 133, 106, 0.25);
+    color: inherit;
   }
 
   input, textarea, select {
@@ -131,26 +138,6 @@ h1, h2, h3, h4, h5, h6 {
   color: #1C1C1C;
 }
 
-/* Headings INSIDE dark or brand green containers MUST be pure white */
-[class*="bg-emerald-"] h1,
-[class*="bg-emerald-"] h2,
-[class*="bg-emerald-"] h3,
-[class*="bg-emerald-"] h4,
-[class*="from-emerald-"] h1,
-[class*="from-emerald-"] h2,
-[class*="from-emerald-"] h3,
-[class*="from-emerald-"] h4,
-[class*="bg-rose-"] h1,
-[class*="bg-rose-"] h2,
-[class*="bg-rose-"] h3,
-[class*="bg-rose-"] h4,
-.text-white h1,
-.text-white h2,
-.text-white h3,
-.text-white h4 {
-  color: #FFFFFF !important;
-}
-
 /* Surface mappings for white theme */
 .bg-slate-950,
 .bg-slate-900 {
@@ -165,20 +152,15 @@ h1, h2, h3, h4, h5, h6 {
   border-color: #CBD5E1 !important;
 }
 
-/* PURE WHITE TEXT for buttons, badges, pills, and dark/green hero cards */
-.text-white,
-[class*="text-white"],
-button[class*="bg-emerald-"],
-button[class*="bg-emerald-"] span,
-button[class*="bg-emerald-"] p,
-button[class*="bg-emerald-"] svg,
-button[class*="bg-rose-"],
-button[class*="bg-rose-"] span,
-button[class*="bg-rose-"] svg,
+/* Solid colored buttons & badges keep pure white text */
 .btn-primary,
 .btn-primary *,
 .badge-primary,
-.badge-darkgreen {
+.badge-darkgreen,
+button[class*="bg-emerald-"],
+button[class*="bg-emerald-"] *,
+button[class*="bg-rose-"],
+button[class*="bg-rose-"] * {
   color: #FFFFFF !important;
 }
 
@@ -214,14 +196,6 @@ button.bg-white svg {
 .text-slate-200,
 .text-slate-300 {
   color: #1C1C1C !important;
-}
-
-/* Light emerald accents on green cards */
-[class*="bg-emerald-"] .text-emerald-100,
-[class*="from-emerald-"] .text-emerald-100,
-[class*="bg-emerald-"] .text-emerald-200,
-[class*="from-emerald-"] .text-emerald-200 {
-  color: #E8F5F1 !important;
 }
 
 /* Table styling */

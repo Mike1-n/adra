@@ -82,11 +82,11 @@ export function PermissionMatrixView() {
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-emerald-400" />
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <ShieldCheck className="w-6 h-6 text-emerald-600" />
             Permission Management Matrix
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
             Configure granular access controls: view, create, edit, approve, delete, and export per stakeholder role.
           </p>
         </div>
@@ -102,8 +102,8 @@ export function PermissionMatrixView() {
       </div>
 
       {/* Guidance Note */}
-      <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-start gap-3 text-xs text-slate-300">
-        <Info className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3 text-xs text-slate-700">
+        <Info className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
         <p className="leading-relaxed">
           Changes take effect immediately across all active user sessions and are persisted to the database. Administrators maintain superuser override access across all security enclaves.
         </p>
@@ -114,7 +114,7 @@ export function PermissionMatrixView() {
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/80 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider text-[10px]">
+              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="py-3.5 px-5">Stakeholder Role</th>
                   {actionColumns.map(col => {
@@ -122,7 +122,7 @@ export function PermissionMatrixView() {
                     return (
                       <th key={col.key} className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center justify-center gap-1">
-                          <Icon className="w-3.5 h-3.5 text-emerald-400" />
+                          <Icon className="w-3.5 h-3.5 text-emerald-600" />
                           <span>{col.label}</span>
                         </div>
                       </th>
@@ -130,12 +130,12 @@ export function PermissionMatrixView() {
                   })}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-200">
+              <tbody className="divide-y divide-slate-200 text-slate-800">
                 {permissions.map((perm) => (
-                  <tr key={perm.role} className="hover:bg-slate-900/40 transition">
+                  <tr key={perm.role} className="hover:bg-slate-50 transition">
                     <td className="py-4 px-5">
-                      <span className="font-bold text-sm text-white">{perm.role}</span>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
+                      <span className="font-bold text-sm text-slate-900">{perm.role}</span>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
                         {perm.role === 'Administrator' ? 'Full System Superuser' : 'Role-based scoping'}
                       </p>
                     </td>
@@ -149,14 +149,14 @@ export function PermissionMatrixView() {
                             title={`Toggle ${col.label} for ${perm.role}`}
                             className={`w-8 h-8 rounded-lg inline-flex items-center justify-center transition-all ${
                               isAllowed
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
-                                : 'bg-slate-950/60 text-slate-600 border border-slate-800 hover:text-slate-400 hover:border-slate-700'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-500/40 hover:bg-emerald-100 font-bold'
+                                : 'bg-slate-100 text-slate-400 border border-slate-200 hover:text-slate-600 hover:border-slate-300'
                             }`}
                           >
                             {isAllowed ? (
-                              <Check className="w-4 h-4 font-bold" />
+                              <Check className="w-4 h-4 font-bold text-emerald-700" />
                             ) : (
-                              <X className="w-3.5 h-3.5" />
+                              <X className="w-3.5 h-3.5 text-slate-400" />
                             )}
                           </button>
                         </td>
@@ -174,9 +174,9 @@ export function PermissionMatrixView() {
       <div className="sm:hidden space-y-4">
         {permissions.map((perm) => (
           <Card key={perm.role} className="space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="font-bold text-sm text-white">{perm.role}</span>
-              <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <span className="font-bold text-sm text-slate-900">{perm.role}</span>
+              <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-500/30 px-2 py-0.5 rounded-full font-semibold">
                 RBAC Role
               </span>
             </div>
@@ -190,15 +190,15 @@ export function PermissionMatrixView() {
                     onClick={() => handleToggle(perm.role, col.key, isAllowed)}
                     className={`flex items-center justify-between p-2 rounded-lg border text-left transition ${
                       isAllowed
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                        : 'bg-slate-950/50 border-slate-800/80 text-slate-500'
+                        ? 'bg-emerald-50 border-emerald-500/30 text-emerald-800 font-semibold'
+                        : 'bg-slate-50 border-slate-200 text-slate-500'
                     }`}
                   >
                     <span className="font-medium text-[11px]">{col.label}</span>
                     {isAllowed ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0 font-bold" />
                     ) : (
-                      <X className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                      <X className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     )}
                   </button>
                 );

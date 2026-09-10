@@ -120,17 +120,17 @@ export function AdminWebPortalLayout({
   ];
 
   return (
-    <div className="flex h-screen bg-white text-slate-100 overflow-hidden font-sans select-none antialiased">
+    <div className="flex h-screen bg-white text-slate-900 overflow-hidden font-sans antialiased">
       {/* Streamlined Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 bg-white border-r border-slate-800 flex-col h-full shrink-0 z-30">
+      <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col h-full shrink-0 z-30">
         {/* Brand Header */}
-        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-800">
+        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-black text-sm shadow-md shadow-emerald-600/20">
               A
             </div>
             <div>
-              <span className="font-bold text-sm tracking-tight text-slate-100 flex items-center gap-1.5">
+              <span className="font-bold text-sm tracking-tight text-slate-900 flex items-center gap-1.5">
                 ADRA <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-500/30">Admin</span>
               </span>
               <p className="text-[10px] text-slate-500 font-medium">Enterprise Web Portal</p>
@@ -140,7 +140,7 @@ export function AdminWebPortalLayout({
 
         {/* 5 Primary Navigation Items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Console Navigation
           </p>
           {navItems.map((item) => {
@@ -171,17 +171,17 @@ export function AdminWebPortalLayout({
         </nav>
 
         {/* Footer: Switch to Field App & Profile */}
-        <div className="p-3 border-t border-slate-800 space-y-2">
+        <div className="p-3 border-t border-slate-200 space-y-2">
           {/* Subtle Switch to Field App */}
           <button
             onClick={onSwitchToFieldApp}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-semibold transition group"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-black text-xs font-bold transition group"
           >
             <span className="flex items-center gap-2">
-              <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-              Field Application
+              <Smartphone className="w-3.5 h-3.5 text-black" />
+              <span className="text-black font-bold">Field Application</span>
             </span>
-            <ChevronRight className="w-3 h-3 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            <ChevronRight className="w-3 h-3 text-black group-hover:translate-x-0.5 transition-transform" />
           </button>
 
           {/* User Account */}
@@ -200,10 +200,10 @@ export function AdminWebPortalLayout({
             <button
               onClick={logout}
               title="Sign Out of ADRA"
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer active:scale-95"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-black hover:text-black bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer active:scale-95"
             >
-              <LogOut className="w-3.5 h-3.5 text-rose-600" />
-              <span>Logout</span>
+              <LogOut className="w-3.5 h-3.5 text-black" />
+              <span className="text-black font-bold">Logout</span>
             </button>
           </div>
         </div>
@@ -238,49 +238,29 @@ export function AdminWebPortalLayout({
             {/* Clean Search Trigger */}
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs text-slate-600 hover:text-slate-900 transition"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 text-xs text-white font-bold transition shadow-sm cursor-pointer"
             >
-              <Search className="w-3.5 h-3.5 text-slate-500" />
-              <span className="hidden sm:inline font-medium">Search...</span>
-              <kbd className="hidden sm:inline-block px-1.5 py-0.2 bg-white border border-slate-300 text-[10px] rounded text-slate-500 font-mono">
-                ⌘K
-              </kbd>
-            </button>
-
-            {/* DB Status Badge */}
-            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 font-medium">
-              <span className={`w-1.5 h-1.5 rounded-full ${isSupabaseConfigured ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-              <span>{isSupabaseConfigured ? 'PostgreSQL' : 'Local DB'}</span>
-            </div>
-
-            {/* Backup Export */}
-            <button
-              onClick={handleExportBackup}
-              disabled={isExporting}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-semibold text-slate-800 transition disabled:opacity-50"
-              title="Download full JSON snapshot"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-400" />
-              <span>{isExporting ? 'Exporting...' : 'Backup'}</span>
+              <Search className="w-3.5 h-3.5 text-white" />
+              <span className="font-bold text-white">Search...</span>
             </button>
 
             {/* Switch to Field App */}
             <button
               onClick={onSwitchToFieldApp}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-500/30 text-emerald-600 text-xs font-semibold transition shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
             >
-              <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden sm:inline">Field App</span>
+              <Smartphone className="w-3.5 h-3.5 text-white" />
+              <span className="hidden sm:inline text-white font-bold">Field App</span>
             </button>
 
             {/* Prominent Admin Logout Button */}
             <button
               onClick={logout}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 hover:text-rose-800 text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 border border-rose-700 text-white text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
               title="Log out of Admin Portal"
             >
-              <LogOut className="w-3.5 h-3.5 text-rose-600" />
-              <span>Logout</span>
+              <LogOut className="w-3.5 h-3.5 text-white" />
+              <span className="text-white font-bold">Logout</span>
             </button>
           </div>
         </header>

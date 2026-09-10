@@ -1270,7 +1270,13 @@ export const db = {
 
   // --- SECURITY SETTINGS ---
   async getSecuritySettings() {
-    return getLocalData(STORAGE_KEYS.SECURITY_SETTINGS, mock.initialSecuritySettings);
+    const current = getLocalData(STORAGE_KEYS.SECURITY_SETTINGS, mock.initialSecuritySettings);
+    const users = await this.getUsers();
+    const activeCount = users.filter(u => u.status === 'Active' || (u.is_active !== false && u.status !== 'Deactivated' && u.status !== 'Suspended')).length;
+    return {
+      ...current,
+      active_sessions_count: activeCount || 1
+    };
   },
 
   async updateSecuritySettings(newSettings) {
@@ -1656,26 +1662,32 @@ export const db = {
 
   // --- ADMIN COMPREHENSIVE STATS ---
   async getAdminStats() {
-    const [beneficiaries, users, interventions, inventory, projects, suppliers, approvals] = await Promise.all([
+    const [beneficiaries, users, interventions, inventory, projects, suppliers, approvals, roles] = await Promise.all([
       this.getBeneficiaries(),
       this.getUsers(),
       this.getInterventions(),
       this.getInventory(),
       this.getProjects(),
       this.getSuppliers(),
-      this.getApprovals()
+      this.getApprovals(),
+      this.getRoles()
     ]);
 
     const totalInventoryUnits = inventory.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
     const activeUsersCount = users.filter(u => u.status !== 'Deactivated' && u.status !== 'Suspended').length;
     const pendingApprovalsCount = approvals.filter(a => a.status === 'Pending').length;
+    const uniqueWarehouses = new Set(inventory.map(i => i.warehouse).filter(Boolean)).size;
+    const verifiedBeneficiariesCount = beneficiaries.filter(b => (b.verification_status || 'Verified') === 'Verified' || (b.verification_status || '').includes('Verified')).length;
 
     return {
       totalBeneficiaries: beneficiaries.length,
+      verifiedBeneficiaries: verifiedBeneficiariesCount,
       activeUsers: activeUsersCount,
+      rolesCount: roles.length,
       totalDistributions: interventions.length,
       totalInventoryItems: inventory.length,
       totalInventoryUnits,
+      warehousesCount: uniqueWarehouses || 1,
       totalProgrammes: projects.length,
       totalSuppliers: suppliers.length,
       pendingApprovals: pendingApprovalsCount,

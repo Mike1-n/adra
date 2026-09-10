@@ -198,12 +198,12 @@ export function FinancePage() {
       {/* Top Banner / Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <DollarSign className="w-6 h-6 text-emerald-400" />
-            Financial Management & Grants Control
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <DollarSign className="w-6 h-6 text-emerald-600" />
+            Financial Management & Grant Tracking
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Monitor budget allocations, expense dispatches, and project burn rates.
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+            Monitor budget line items, expenditure vouchers, donor disbursements, and financial compliance.
           </p>
         </div>
 

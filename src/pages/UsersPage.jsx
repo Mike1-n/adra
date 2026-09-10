@@ -69,11 +69,11 @@ export function UsersPage() {
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <UserCheck className="w-6 h-6 text-emerald-400" />
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <UserCheck className="w-6 h-6 text-emerald-600" />
             User Management & Access Control (RBAC)
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
             Admin console for managing user accounts, permissions, and security roles.
           </p>
         </div>
