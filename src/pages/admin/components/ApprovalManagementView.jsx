@@ -12,7 +12,8 @@ import {
   Eye,
   Filter,
   Search,
-  Plus
+  Plus,
+  Users
 } from 'lucide-react';
 import { Card, CardHeader } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
@@ -112,16 +113,19 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
 
   const getCategoryIcon = (cat) => {
     switch (cat) {
+      case 'Beneficiary Verification':
+      case 'User Onboarding':
+        return <Users className="w-4 h-4 text-emerald-600" />;
       case 'User Registration':
-        return <UserCheck className="w-4 h-4 text-emerald-400" />;
+        return <UserCheck className="w-4 h-4 text-emerald-600" />;
       case 'Supplier Onboarding':
-        return <Truck className="w-4 h-4 text-blue-400" />;
+        return <Truck className="w-4 h-4 text-blue-600" />;
       case 'Operational Budget':
-        return <DollarSign className="w-4 h-4 text-amber-400" />;
+        return <DollarSign className="w-4 h-4 text-amber-600" />;
       case 'Aid Distribution Batch':
-        return <HeartHandshake className="w-4 h-4 text-purple-400" />;
+        return <HeartHandshake className="w-4 h-4 text-purple-600" />;
       default:
-        return <FileCheck className="w-4 h-4 text-slate-400" />;
+        return <FileCheck className="w-4 h-4 text-slate-500" />;
     }
   };
 
@@ -132,10 +136,10 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <FileCheck className="w-6 h-6 text-emerald-600" />
-            Approval Management & User Onboarding
+            Approval Management & Onboarding Queues
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Admin governance for user verification (staff, suppliers, donors) and operational budget sign-offs.
+            Admin governance for user & beneficiary verification, supplier onboarding, and operational budget authorizations.
           </p>
         </div>
 
@@ -167,6 +171,7 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
           className="adra-select text-xs sm:text-sm"
         >
           <option value="ALL">All Categories</option>
+          <option value="Beneficiary Verification">Beneficiary Verification (Households)</option>
           <option value="User Registration">User Registrations (Staff / Donors)</option>
           <option value="Supplier Onboarding">Supplier Onboarding</option>
           <option value="Operational Budget">Operational Budget Sign-offs</option>

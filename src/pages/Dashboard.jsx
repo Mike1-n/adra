@@ -172,7 +172,17 @@ export function Dashboard({ onNavigate }) {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          {(currentUser?.role === 'Program Manager' || currentUser?.role === 'Administrator') && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onNavigate('programs')}
+              className="bg-white border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-bold"
+            >
+              Programs Manager
+            </Button>
+          )}
           <Button
             variant="primary"
             size="sm"

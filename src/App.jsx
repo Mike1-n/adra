@@ -7,6 +7,7 @@ import { initializeNativeApp } from './lib/capacitor';
 
 // Humanitarian Field Application Pages
 import { Dashboard } from './pages/Dashboard';
+import { ProgramsPage } from './pages/ProgramsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { BeneficiariesPage } from './pages/BeneficiariesPage';
 import { ActivitiesPage } from './pages/ActivitiesPage';
@@ -24,8 +25,11 @@ import { AdminWebPortalPage } from './pages/admin/AdminWebPortalPage';
 // Specialized Beneficiary Mobile Application (Section 1.5.4)
 import { BeneficiaryMobileApp } from './pages/beneficiary/BeneficiaryMobileApp';
 
+// Dedicated Programme Manager Dashboard
+import { ProgrammeManagerDashboard } from './pages/programme-manager/ProgrammeManagerDashboard';
+
 export function App() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout, quickSwitchRole } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
 
   // Dual Architecture:
@@ -85,7 +89,10 @@ export function App() {
     } else if (currentUser.role === 'M&E Officer') {
       setCurrentTab('me');
       setAppMode('field_app');
-    } else if (currentUser.role === 'Project Officer' || currentUser.role === 'Program Manager') {
+    } else if (currentUser.role === 'Program Manager') {
+      setCurrentTab('programs');
+      setAppMode('field_app');
+    } else if (currentUser.role === 'Project Officer') {
       setCurrentTab('projects');
       setAppMode('field_app');
     } else if (currentUser.role === 'Field Worker') {
@@ -118,8 +125,20 @@ export function App() {
     );
   }
 
+  // If Programme Manager logs in or switches to Programme Manager mode:
+  if (currentUser.role === 'Program Manager' || currentUser.role === 'Programme Manager' || appMode === 'programme_manager') {
+    return (
+      <ProgrammeManagerDashboard
+        currentUser={currentUser}
+        onLogout={logout}
+        onSwitchRole={quickSwitchRole}
+      />
+    );
+  }
+
   const tabTitles = {
     dashboard: 'Field Operations Dashboard',
+    programs: 'Programme Manager Dashboard',
     projects: 'Project Portfolio',
     beneficiaries: 'Beneficiary Management',
     activities: 'Project Activities',
@@ -139,51 +158,59 @@ export function App() {
         return <BeneficiaryMobileApp onSwitchToFieldApp={() => setCurrentTab('dashboard')} />;
       case 'dashboard':
         return <Dashboard onNavigate={setCurrentTab} />;
+      case 'programs':
+        return (
+          <ProgrammeManagerDashboard
+            currentUser={currentUser}
+            onLogout={logout}
+            onSwitchRole={quickSwitchRole}
+          />
+        );
       case 'projects':
         return (
-          <ProtectedRoute allowedRoles={['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
+          <ProtectedRoute allowedRoles={['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
             <ProjectsPage />
           </ProtectedRoute>
         );
       case 'beneficiaries':
         return (
-          <ProtectedRoute allowedRoles={['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
+          <ProtectedRoute allowedRoles={['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
             <BeneficiariesPage />
           </ProtectedRoute>
         );
       case 'activities':
         return (
-          <ProtectedRoute allowedRoles={['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
+          <ProtectedRoute allowedRoles={['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
             <ActivitiesPage />
           </ProtectedRoute>
         );
       case 'interventions':
         return (
-          <ProtectedRoute allowedRoles={['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
+          <ProtectedRoute allowedRoles={['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
             <InterventionsPage />
           </ProtectedRoute>
         );
       case 'me':
         return (
-          <ProtectedRoute allowedRoles={['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
+          <ProtectedRoute allowedRoles={['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
             <MonitoringEvaluationPage />
           </ProtectedRoute>
         );
       case 'finance':
         return (
-          <ProtectedRoute allowedRoles={['Administrator', 'Finance Officer', 'Project Officer']}>
+          <ProtectedRoute allowedRoles={['Administrator', 'Program Manager', 'Finance Officer', 'Project Officer']}>
             <FinancePage />
           </ProtectedRoute>
         );
       case 'donors':
         return (
-          <ProtectedRoute allowedRoles={['Administrator', 'Project Officer', 'Finance Officer']}>
+          <ProtectedRoute allowedRoles={['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer']}>
             <DonorsPage />
           </ProtectedRoute>
         );
       case 'reports':
         return (
-          <ProtectedRoute allowedRoles={['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
+          <ProtectedRoute allowedRoles={['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer']}>
             <ReportsPage />
           </ProtectedRoute>
         );

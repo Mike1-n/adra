@@ -283,7 +283,7 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
       </header>
 
       {/* Main Content Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-12">
         {loading ? (
           <div className="text-center py-20">
             <div className="w-10 h-10 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
@@ -339,63 +339,6 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
           </>
         )}
       </main>
-
-      {/* Mobile Sticky Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2 flex items-center justify-around shadow-lg">
-        <button
-          type="button"
-          onClick={() => setActiveTab('id_card')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold cursor-pointer ${
-            activeTab === 'id_card' ? 'text-emerald-700' : 'text-slate-400'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" />
-          <span>My ID</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('requests')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold cursor-pointer ${
-            activeTab === 'requests' ? 'text-emerald-700' : 'text-slate-400'
-          }`}
-        >
-          <HandHeart className="w-4 h-4" />
-          <span>Requests</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('distributions')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold cursor-pointer ${
-            activeTab === 'distributions' ? 'text-emerald-700' : 'text-slate-400'
-          }`}
-        >
-          <Truck className="w-4 h-4" />
-          <span>Schedules</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('notifications')}
-          className={`flex flex-col items-center gap-1 text-[10px] font-bold relative cursor-pointer ${
-            activeTab === 'notifications' ? 'text-emerald-700' : 'text-slate-400'
-          }`}
-        >
-          <Bell className="w-4 h-4" />
-          <span>Updates</span>
-          <span className="absolute -top-1 right-1 w-2 h-2 rounded-full bg-rose-600" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen(true)}
-          className="flex flex-col items-center gap-1 text-[10px] font-bold text-slate-400 cursor-pointer"
-        >
-          <Menu className="w-4 h-4" />
-          <span>More</span>
-        </button>
-      </nav>
     </div>
   );
 }

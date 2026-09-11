@@ -99,9 +99,9 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
         <StatCard
           title="Beneficiaries"
           value={stats?.totalBeneficiaries.toLocaleString() || '0'}
-          subtitle="Enrolled & mapped in field"
+          subtitle={stats?.pendingBeneficiaries > 0 ? `${stats.pendingBeneficiaries} pending verification` : 'All enrolled households verified'}
           icon={Users}
-          color="emerald"
+          color={stats?.pendingBeneficiaries > 0 ? 'amber' : 'emerald'}
           onClick={() => onNavigateTab('beneficiaries')}
         />
 

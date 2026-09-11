@@ -18,6 +18,8 @@ import {
   Sparkles,
   Lock,
   Globe,
+  X,
+  Layers,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
@@ -49,18 +51,19 @@ export function Sidebar({ currentTab, onSelectTab, onSwitchToAdminWeb, isMobile 
   }, []);
 
   const navigation = [
-    { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, roles: ['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
-    { id: 'projects', name: 'Projects', icon: FolderKanban, roles: ['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
-    { id: 'beneficiaries', name: 'Beneficiaries', icon: Users, roles: ['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
-    { id: 'activities', name: 'Activities', icon: CalendarCheck2, roles: ['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
-    { id: 'interventions', name: 'Interventions', icon: HeartHandshake, roles: ['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
-    { id: 'me', name: 'Monitoring & Eval', icon: Target, roles: ['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
-    { id: 'finance', name: 'Finance & Grants', icon: DollarSign, roles: ['Administrator', 'Finance Officer', 'Project Officer'] },
-    { id: 'donors', name: 'Donors & Partners', icon: Building2, roles: ['Administrator', 'Project Officer', 'Finance Officer'] },
-    { id: 'reports', name: 'Reports & Export', icon: FileText, roles: ['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
+    { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
+    { id: 'programs', name: 'Programs Manager', icon: Layers, roles: ['Administrator', 'Program Manager', 'Project Officer', 'M&E Officer', 'Finance Officer'] },
+    { id: 'projects', name: 'Projects', icon: FolderKanban, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
+    { id: 'beneficiaries', name: 'Beneficiaries', icon: Users, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
+    { id: 'activities', name: 'Activities', icon: CalendarCheck2, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
+    { id: 'interventions', name: 'Interventions', icon: HeartHandshake, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
+    { id: 'me', name: 'Monitoring & Eval', icon: Target, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
+    { id: 'finance', name: 'Finance & Grants', icon: DollarSign, roles: ['Administrator', 'Program Manager', 'Finance Officer', 'Project Officer'] },
+    { id: 'donors', name: 'Donors & Partners', icon: Building2, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer'] },
+    { id: 'reports', name: 'Reports & Export', icon: FileText, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
     { id: 'users', name: 'Admin Console', icon: ShieldCheck, roles: ['Administrator'] },
     { id: 'audit', name: 'Audit Logs', icon: History, roles: ['Administrator'] },
-    { id: 'settings', name: 'Settings & DB', icon: Settings, roles: ['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
+    { id: 'settings', name: 'Settings & DB', icon: Settings, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
   ];
 
   const filteredNav = navigation.filter(item =>
@@ -80,16 +83,29 @@ export function Sidebar({ currentTab, onSelectTab, onSwitchToAdminWeb, isMobile 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-full select-none">
       {/* Brand Header */}
-      <div className="h-16 flex items-center gap-3 px-5 border-b border-slate-200 bg-white">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 flex items-center justify-center text-white font-black text-base shadow-md shadow-emerald-500/20">
-          A
+      <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 bg-white">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 flex items-center justify-center text-white font-black text-base shadow-md shadow-emerald-500/20">
+            A
+          </div>
+          <div className="flex flex-col">
+            <span className="font-extrabold text-base tracking-tight text-slate-900 flex items-center gap-1.5">
+              ADRA <span className="text-emerald-700 text-xs font-semibold px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-500/30">DMS</span>
+            </span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Field Application</span>
+          </div>
         </div>
-        <div className="flex flex-col">
-          <span className="font-extrabold text-base tracking-tight text-slate-900 flex items-center gap-1.5">
-            ADRA <span className="text-emerald-700 text-xs font-semibold px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-500/30">DMS</span>
-          </span>
-          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Field Application</span>
-        </div>
+
+        {isMobile && onCloseMobile && (
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
+            aria-label="Close sidebar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Role Switcher for Quick Academic Defense */}
@@ -125,11 +141,6 @@ export function Sidebar({ currentTab, onSelectTab, onSwitchToAdminWeb, isMobile 
             <span className="font-bold text-emerald-800 flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Admin Web App
             </span>
-            {pendingApprovals > 0 && (
-              <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
-                {pendingApprovals} pending
-              </span>
-            )}
           </div>
           <p className="text-[10px] text-slate-600 leading-tight mb-2">
             Standalone HQ portal for 17 admin functions & database controls.

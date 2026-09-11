@@ -18,12 +18,20 @@ import { Modal } from '../../../components/common/Modal';
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
 
-export function AssistanceRequestView({ beneficiary }) {
+export function AssistanceRequestView({
+  beneficiary,
+  onRequestNew,
+  statusFilter: propStatusFilter,
+  onStatusFilterChange
+}) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [localStatusFilter, setLocalStatusFilter] = useState('ALL');
   const toast = useToast();
+
+  const statusFilter = propStatusFilter !== undefined ? propStatusFilter : localStatusFilter;
+  const setStatusFilter = onStatusFilterChange || setLocalStatusFilter;
 
   const [formData, setFormData] = useState({
     category: 'Food Rations',
@@ -95,153 +103,246 @@ export function AssistanceRequestView({ beneficiary }) {
     return r.status.toLowerCase() === statusFilter.toLowerCase();
   });
 
+  const getStageNum = (req) => {
+    if (req.status_stage) return req.status_stage;
+    const st = (req.status || '').toLowerCase();
+    if (st.includes('fulfill') || st.includes('disburs')) return 4;
+    if (st.includes('approv')) return 3;
+    if (st.includes('review')) return 2;
+    return 1;
+  };
+
   const getStatusBadge = (status) => {
-    switch (status) {
-      case 'Approved':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300"><CheckCircle className="w-3.5 h-3.5" /> Approved</span>;
-      case 'Fulfilled':
-        return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-300"><Truck className="w-3.5 h-3.5" /> Fulfilled</span>;
-      case 'Under Review':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300"><Clock className="w-3.5 h-3.5" /> Under Review</span>;
-      case 'Rejected':
-        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300"><XCircle className="w-3.5 h-3.5" /> Ineligible</span>;
-      default:
-        return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300"><Clock className="w-3.5 h-3.5" /> Pending Review</span>;
+    const st = (status || '').toLowerCase();
+    if (st.includes('approv')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-50 text-[#006B56] border border-emerald-200/80 shadow-2xs">
+          <CheckCircle className="w-3.5 h-3.5 stroke-[2.5]" /> Approved
+        </span>
+      );
     }
+    if (st.includes('fulfill') || st.includes('disburs')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-teal-50 text-teal-800 border border-teal-200/80 shadow-2xs">
+          <Truck className="w-3.5 h-3.5 stroke-[2.5]" /> Disbursed
+        </span>
+      );
+    }
+    if (st.includes('review') && !st.includes('pending')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+          <Clock className="w-3.5 h-3.5 stroke-[2.5]" /> Under Review
+        </span>
+      );
+    }
+    if (st.includes('reject') || st.includes('ineligib')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
+          <XCircle className="w-3.5 h-3.5 stroke-[2.5]" /> Ineligible
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+        <Clock className="w-3.5 h-3.5 stroke-[2.5]" /> Pending Review
+      </span>
+    );
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header & Submit Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <HandHeart className="w-5 h-5 text-emerald-600" />
-            Assistance Requests & Live Status Tracker
-          </h2>
-          <p className="text-xs text-slate-500">
-            Submit applications for emergency humanitarian assistance and track evaluation progress in real-time
+    <div className="space-y-4">
+      {/* Clean Single Header */}
+      <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div className="space-y-0.5 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+              My Assistance Requests
+            </h2>
+            {statusFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-50 text-[#006B56] border border-emerald-200/80 shadow-2xs">
+                <span>Filter: {statusFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('ALL')}
+                  className="hover:text-rose-600 cursor-pointer font-black text-xs leading-none"
+                  title="Clear filter (show all)"
+                >
+                  ×
+                </button>
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 font-medium truncate">
+            {statusFilter === 'ALL'
+              ? 'Track review status and dispatch progress for your household.'
+              : `Showing ${statusFilter} requests (${filteredRequests.length})`}
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={() => setIsModalOpen(true)}
-          icon={Plus}
-          className="shadow-sm"
+        <button
+          type="button"
+          onClick={() => (onRequestNew ? onRequestNew() : setIsModalOpen(true))}
+          className="px-3.5 py-2 rounded-xl bg-[#006B56] hover:bg-[#005544] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition active:scale-[0.98] cursor-pointer shrink-0"
         >
-          Request Aid Assistance
-        </Button>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200 w-fit overflow-x-auto max-w-full">
-        {['ALL', 'Pending', 'Under Review', 'Approved', 'Fulfilled'].map(tab => (
-          <button
-            key={tab}
-            onClick={() => setStatusFilter(tab)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-              statusFilter === tab
-                ? 'bg-white text-emerald-800 font-bold shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-            }`}
-          >
-            {tab === 'ALL' ? 'All Requests' : tab}
-          </button>
-        ))}
+          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>New Request</span>
+        </button>
       </div>
 
       {/* Requests List */}
       {loading ? (
-        <div className="p-8 text-center text-slate-400 text-xs">Loading assistance records...</div>
+        <div className="p-8 text-center text-slate-400 text-xs font-medium">Loading assistance records...</div>
       ) : filteredRequests.length === 0 ? (
-        <div className="adra-card p-12 text-center space-y-3 bg-white">
-          <FileText className="w-10 h-10 text-slate-300 mx-auto" />
-          <h3 className="font-bold text-sm text-slate-800">No requests found in this category</h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            You currently have no assistance requests matching the selected filter. Click below to submit a new application.
+        <div className="p-10 text-center space-y-3 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+          <FileText className="w-9 h-9 text-slate-300 mx-auto" />
+          <h3 className="font-bold text-sm text-slate-800">No requests found</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto font-medium">
+            You have no assistance requests matching this filter category.
           </p>
-          <Button variant="primary" size="sm" onClick={() => setIsModalOpen(true)}>
-            Submit New Request
-          </Button>
+          <button
+            type="button"
+            onClick={() => (onRequestNew ? onRequestNew() : setIsModalOpen(true))}
+            className="px-4 py-2 rounded-xl bg-[#006B56] text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-xs hover:bg-[#005544] cursor-pointer transition active:scale-[0.98]"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Submit Request
+          </button>
         </div>
       ) : (
-        <div className="space-y-4">
-          {filteredRequests.map(req => (
-            <div
-              key={req.id}
-              className="adra-card p-5 bg-white border border-slate-800 space-y-4 hover:border-emerald-500/30 transition shadow-sm"
-            >
-              {/* Card Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-500/30 text-emerald-600 font-bold">
-                    <HandHeart className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-slate-100">{req.category}</h4>
-                      <span className="font-mono text-xs text-slate-400 font-semibold">#{req.request_code}</span>
-                    </div>
-                    <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" />
-                        {new Date(req.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+        <div className="space-y-3.5">
+          {filteredRequests.map(req => {
+            const stageNum = getStageNum(req);
+            const stages = ['Submitted', 'Under Review', 'Approved', 'Disbursed'];
+
+            return (
+              <div
+                key={req.id}
+                className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 space-y-3.5 shadow-xs hover:border-emerald-300/80 transition-all"
+              >
+                {/* Header Row */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="font-black text-sm text-slate-900 leading-snug">
+                        {req.category}
+                      </h4>
+                      <span className="font-mono text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80">
+                        #{req.request_code}
                       </span>
-                      <span>•</span>
-                      <span>Urgency: <strong className="text-rose-700 font-semibold">{req.urgency}</strong></span>
-                    </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 font-medium">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        {new Date(req.created_at).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </span>
+                      {req.urgency && (
+                        <>
+                          <span className="text-slate-300">•</span>
+                          <span
+                            className={`font-bold ${
+                              req.urgency === 'Critical' ? 'text-rose-600' : 'text-amber-700'
+                            }`}
+                          >
+                            Urgency: {req.urgency}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div className="shrink-0">
+                    {getStatusBadge(req.status)}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-auto">
-                  {getStatusBadge(req.status)}
+                {/* Modern Slim 4-Stage Progress Track (Replaces clunky 4-box stepper) */}
+                <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-medium text-slate-500">
+                      Current Stage:{' '}
+                      <strong className="text-slate-900 font-black">
+                        {req.status === 'Pending' ? 'Pending Review' : req.status}
+                      </strong>
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Stage {stageNum} of 4
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {stages.map((st, idx) => {
+                      const isDone = stageNum >= idx + 1;
+                      const isCurrent = stageNum === idx + 1;
+                      return (
+                        <div key={st} className="space-y-1">
+                          <div
+                            className={`h-1.5 rounded-full transition-all duration-300 ${
+                              isDone ? 'bg-[#006B56]' : 'bg-slate-200'
+                            }`}
+                          />
+                          <span
+                            className={`block text-[10px] text-center truncate ${
+                              isCurrent
+                                ? 'font-black text-[#006B56]'
+                                : isDone
+                                ? 'font-bold text-slate-700'
+                                : 'text-slate-400'
+                            }`}
+                          >
+                            {st}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              {/* Progress Stepper (Function 6: Request Status) */}
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Request Evaluation Stepper</p>
-                <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                  <div className={`p-2 rounded-lg border font-medium ${req.status_stage >= 1 ? 'bg-emerald-50 border-emerald-500/40 text-emerald-800 font-bold' : 'bg-white border-slate-200 text-slate-400'}`}>
-                    1. Pending Review
-                  </div>
-                  <div className={`p-2 rounded-lg border font-medium ${req.status_stage >= 2 ? 'bg-emerald-50 border-emerald-500/40 text-emerald-800 font-bold' : 'bg-white border-slate-200 text-slate-400'}`}>
-                    2. Under Review
-                  </div>
-                  <div className={`p-2 rounded-lg border font-medium ${req.status_stage >= 3 ? 'bg-emerald-50 border-emerald-500/40 text-emerald-800 font-bold' : 'bg-white border-slate-200 text-slate-400'}`}>
-                    3. Approved
-                  </div>
-                  <div className={`p-2 rounded-lg border font-medium ${req.status_stage >= 4 ? 'bg-emerald-50 border-emerald-500/40 text-emerald-800 font-bold' : 'bg-white border-slate-200 text-slate-400'}`}>
-                    4. Disbursed
-                  </div>
-                </div>
-              </div>
+                {/* Justification / Depot Details */}
+                <div className="space-y-2 text-xs">
+                  {req.description && (
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-slate-800 leading-relaxed font-medium">
+                      <span className="font-bold text-slate-900">Reason: </span>
+                      {req.description}
+                    </div>
+                  )}
 
-              {/* Description & Reviewer Notes */}
-              <div className="text-xs space-y-1.5 text-slate-700">
-                <p className="leading-relaxed"><strong className="text-slate-900 font-semibold">Household Justification:</strong> {req.description}</p>
-                <p className="flex items-center gap-1.5 text-slate-500">
-                  <MapPin className="w-3.5 h-3.5" /> Preferred Distribution Hub: <strong className="text-slate-800 font-medium">{req.preferred_depot}</strong>
-                </p>
-
-                {req.review_notes && (
-                  <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-500/20 text-emerald-900 text-xs mt-2">
-                    <p className="font-semibold text-emerald-950 flex items-center gap-1 mb-0.5">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                      ADRA Evaluation Officer Notes ({req.reviewed_by || 'Field Supervisor'}):
-                    </p>
-                    <p>{req.review_notes}</p>
-                    {req.expected_dispatch_date && (
-                      <p className="mt-1 text-[11px] font-semibold text-emerald-800">
-                        Scheduled Collection Date: {req.expected_dispatch_date}
-                      </p>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 pt-0.5">
+                    {req.preferred_depot && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="font-medium text-slate-700">{req.preferred_depot}</span>
+                      </span>
+                    )}
+                    {req.household_members && (
+                      <span className="font-medium text-slate-600">
+                        Household: <strong className="text-slate-900 font-bold">{req.household_members}</strong>
+                      </span>
                     )}
                   </div>
-                )}
+
+                  {/* Review Notes (if available) */}
+                  {req.review_notes && (
+                    <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/60 text-emerald-900 space-y-1">
+                      <p className="font-bold text-emerald-950 flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-[#006B56]" />
+                        <span>ADRA Field Office Review</span>
+                      </p>
+                      <p className="text-slate-700 leading-relaxed">{req.review_notes}</p>
+                      {req.expected_dispatch_date && (
+                        <p className="text-[11px] font-bold text-[#006B56] pt-0.5">
+                          Scheduled Collection: {req.expected_dispatch_date}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

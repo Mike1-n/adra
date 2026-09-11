@@ -31,13 +31,13 @@ import { NotificationsBroadcastView } from './components/NotificationsBroadcastV
 import { DataSettingsSupportView } from './components/DataSettingsSupportView';
 
 export function AdminWebPortalPage({ onSwitchToFieldApp }) {
-  // 5 Primary Sections: 'overview', 'identity', 'field', 'security', 'system'
+  // 6 Primary Sections: 'overview', 'identity', 'beneficiaries', 'field', 'security', 'system'
   const [activeSection, setActiveSection] = useState('overview');
 
   // Sub-tabs for each section
   const [subTabs, setSubTabs] = useState({
     identity: 'users',      // 'users' | 'permissions' | 'approvals'
-    field: 'programmes',    // 'programmes' | 'locations' | 'beneficiaries' | 'approvals'
+    field: 'programmes',    // 'programmes' | 'locations' | 'approvals'
     security: 'audit',      // 'audit' | 'policies' | 'broadcasts'
     system: 'settings',     // 'settings' | 'backups' | 'reports' | 'faqs'
   });
@@ -62,8 +62,7 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
         setSectionSubTab('identity', 'approvals');
         break;
       case 'beneficiaries':
-        setActiveSection('field');
-        setSectionSubTab('field', 'beneficiaries');
+        setActiveSection('beneficiaries');
         break;
       case 'programmes':
         setActiveSection('field');
@@ -152,7 +151,14 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
         </div>
       )}
 
-      {/* 3. FIELD OPERATIONS */}
+      {/* 3. BENEFICIARY MANAGEMENT */}
+      {activeSection === 'beneficiaries' && (
+        <div className="space-y-6">
+          <BeneficiaryOversightView />
+        </div>
+      )}
+
+      {/* 4. FIELD OPERATIONS */}
       {activeSection === 'field' && (
         <div className="space-y-6">
           <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-850 border border-slate-800 w-fit">
@@ -181,18 +187,6 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
             </button>
 
             <button
-              onClick={() => setSectionSubTab('field', 'beneficiaries')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                subTabs.field === 'beneficiaries'
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              Beneficiary Oversight
-            </button>
-
-            <button
               onClick={() => setSectionSubTab('field', 'approvals')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
                 subTabs.field === 'approvals'
@@ -208,13 +202,12 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
           <div>
             {subTabs.field === 'programmes' && <FieldGovernanceView initialTab="programmes" />}
             {subTabs.field === 'locations' && <FieldGovernanceView initialTab="locations" />}
-            {subTabs.field === 'beneficiaries' && <BeneficiaryOversightView />}
             {subTabs.field === 'approvals' && <ApprovalManagementView initialCategory="Operational Budget" />}
           </div>
         </div>
       )}
 
-      {/* 4. SECURITY & AUDIT */}
+      {/* 5. SECURITY & AUDIT */}
       {activeSection === 'security' && (
         <div className="space-y-6">
           <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-850 border border-slate-800 w-fit">
@@ -263,7 +256,7 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
         </div>
       )}
 
-      {/* 5. SYSTEM & DATA */}
+      {/* 6. SYSTEM & DATA */}
       {activeSection === 'system' && (
         <div className="space-y-6">
           <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-850 border border-slate-800 w-fit">

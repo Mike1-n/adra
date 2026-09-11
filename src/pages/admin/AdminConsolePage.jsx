@@ -45,29 +45,36 @@ import { GlobalSearchView } from './components/GlobalSearchView';
 
 export function AdminConsolePage() {
   // Navigation State: hub and subFunction
-  // Hubs: 'executive', 'identity', 'field', 'security', 'data', 'support'
+  // Hubs: 'executive', 'identity', 'beneficiaries', 'field', 'security', 'data', 'support'
   const [activeHub, setActiveHub] = useState('executive');
   const [activeFunction, setActiveFunction] = useState('dashboard');
   
-  // Pending approvals counter for badge
+  // Pending approvals & beneficiary verification counter for badges
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  const [pendingBeneficiariesCount, setPendingBeneficiariesCount] = useState(0);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const toast = useToast();
 
-  const loadApprovalBadge = async () => {
+  const loadBadges = async () => {
     try {
-      const approvals = await db.getApprovals('ALL');
+      const [approvals, bens] = await Promise.all([
+        db.getApprovals('ALL'),
+        db.getBeneficiaries()
+      ]);
       const pending = approvals.filter(a => a.status === 'Pending').length;
       setPendingApprovalsCount(pending);
+
+      const pendingBens = bens.filter(b => (b.verification_status || b.status) === 'Pending Verification').length;
+      setPendingBeneficiariesCount(pendingBens);
     } catch (e) {
       console.error(e);
     }
   };
 
   useEffect(() => {
-    loadApprovalBadge();
-    const interval = setInterval(loadApprovalBadge, 15000);
+    loadBadges();
+    const interval = setInterval(loadBadges, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -100,7 +107,7 @@ export function AdminConsolePage() {
         setActiveFunction('user-approvals');
         break;
       case 'beneficiaries':
-        setActiveHub('field');
+        setActiveHub('beneficiaries');
         setActiveFunction('beneficiaries');
         break;
       case 'programmes':
@@ -198,11 +205,20 @@ export function AdminConsolePage() {
       ]
     },
     {
+      id: 'beneficiaries',
+      name: 'Beneficiary Management',
+      icon: Users,
+      badge: null,
+      functions: [
+        { id: 'beneficiaries', name: 'Beneficiary Oversight & Verification', icon: Users, num: 'F6', count: pendingBeneficiariesCount },
+      ]
+    },
+    {
       id: 'field',
       name: 'Field & Programmes',
       icon: FolderKanban,
+      badge: null,
       functions: [
-        { id: 'beneficiaries', name: 'Beneficiary Oversight', icon: Users, num: 'F6' },
         { id: 'programmes', name: 'Programme Portfolio', icon: FolderKanban, num: 'F7' },
         { id: 'locations', name: 'Location Hierarchy', icon: MapPin, num: 'F8' },
         { id: 'operational-approvals', name: 'Operational Approval Workflow', icon: HeartHandshake, num: 'F10' },
@@ -257,7 +273,7 @@ export function AdminConsolePage() {
             {pendingApprovalsCount > 0 && (
               <button
                 onClick={() => navigateTo('user-approvals')}
-                className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs font-semibold flex items-center gap-1 border border-amber-500/30 hover:bg-amber-500/30 transition"
+                className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs font-semibold flex items-center gap-1 border border-amber-500/30 hover:bg-amber-500/30 transition cursor-pointer"
               >
                 <Clock className="w-3 h-3" /> {pendingApprovalsCount} Approvals Pending
               </button>
@@ -295,7 +311,7 @@ export function AdminConsolePage() {
         </div>
       </div>
 
-      {/* Hub Navigation Ribbon (6 Functional Hubs) */}
+      {/* Hub Navigation Ribbon (7 Functional Hubs) */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
         {hubs.map((hub) => {
           const Icon = hub.icon;
@@ -392,10 +408,12 @@ export function AdminConsolePage() {
           <ApprovalManagementView initialCategory="User Registration" />
         )}
 
-        {/* Hub 3: Field & Programmes */}
-        {activeHub === 'field' && activeFunction === 'beneficiaries' && (
+        {/* Hub 3: Beneficiary Management */}
+        {activeHub === 'beneficiaries' && activeFunction === 'beneficiaries' && (
           <BeneficiaryOversightView />
         )}
+
+        {/* Hub 4: Field & Programmes */}
         {activeHub === 'field' && activeFunction === 'programmes' && (
           <FieldGovernanceView initialTab="programmes" />
         )}
@@ -406,7 +424,7 @@ export function AdminConsolePage() {
           <ApprovalManagementView initialCategory="Operational Budget" />
         )}
 
-        {/* Hub 4: Security & Governance */}
+        {/* Hub 5: Security & Governance */}
         {activeHub === 'security' && activeFunction === 'audit' && (
           <SecurityAuditView initialTab="audit" />
         )}

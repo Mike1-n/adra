@@ -1,274 +1,325 @@
 import React from 'react';
 import {
-  HandHeart,
-  CreditCard,
-  Truck,
-  History,
-  MessageSquareQuote,
-  ShieldCheck,
-  AlertCircle,
-  Clock,
-  CheckCircle,
-  Calendar,
   ChevronRight,
-  Phone,
-  Sparkles,
-  QrCode,
+  ArrowRight,
+  FileText,
+  Gift,
+  Bell,
+  MessageSquare,
+  Calendar,
+  Megaphone,
   Package,
-  ArrowRight
+  Truck,
+  HandHeart
 } from 'lucide-react';
-import { Button } from '../../../components/common/Button';
 
 export function BeneficiaryMobileDashboard({
   beneficiary,
   requests = [],
   distributions = [],
+  notifications = [],
+  unreadCount = 0,
   onRequestAssistance,
   onNavigateTab
 }) {
-  // Find pending or active request
-  const latestRequest = requests[0] || null;
-  const upcomingDist = distributions[0] || null;
+  const currentReq = requests[0] || null;
+  const currentDist = distributions[0] || null;
+  const latestNotif = notifications[0] || null;
+
+  // Extract initials for clean profile avatar
+  const initials = beneficiary?.full_name
+    ? beneficiary.full_name
+        .trim()
+        .split(/\s+/)
+        .map(n => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase()
+    : 'ID';
 
   return (
-    <div className="space-y-4 p-4 pb-20 bg-white text-slate-900">
-      {/* Beneficiary Header Card */}
-      <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-slate-50 border border-emerald-200 shadow-xs">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <img
-              src={beneficiary?.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80'}
-              alt=""
-              className="w-12 h-12 rounded-2xl object-cover border-2 border-emerald-500 shadow-xs"
-            />
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Welcome back
-              </span>
-              <h2 className="text-base font-black text-slate-900 tracking-tight">
-                {beneficiary?.full_name || 'Mary Nyambura'}
-              </h2>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
-                  {beneficiary?.beneficiary_code || 'ADRA-SS-000125'}
-                </span>
-                <span className="text-[10px] text-slate-400">•</span>
-                <span className="text-[11px] text-slate-500 truncate max-w-[130px]">
-                  {beneficiary?.location?.split(',')[0] || 'Turkana West'}
-                </span>
-              </div>
-            </div>
+    <div className="space-y-3.5 p-4 pb-12 bg-[#F4F7F5] text-slate-900 font-sans">
+      {/* 1. CLEAN CONSOLIDATED BENEFICIARY PROFILE (COMPACT) */}
+      <div className="bg-white rounded-2xl p-3 border border-slate-200/70 shadow-2xs">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Avatar circle with initials */}
+          <div className="w-10 h-10 rounded-xl bg-[#006B56] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-2xs">
+            {initials}
           </div>
 
-          <div className="shrink-0">
-            {beneficiary?.verification_status === 'Flagged for Review' ? (
-              <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-300 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" /> Flagged
+          <div className="min-w-0">
+            <span className="text-[10px] font-semibold text-slate-400 block leading-tight">
+              Welcome back,
+            </span>
+            <h2 className="text-sm font-black text-slate-900 tracking-tight truncate leading-tight mt-0.5">
+              {beneficiary?.full_name || 'Beneficiary'}
+            </h2>
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                {beneficiary?.beneficiary_code || 'ADRA-SS-PENDING'}
               </span>
-            ) : (
-              <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200 flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-emerald-600" /> Verified
-              </span>
-            )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* HERO PRIMARY ACTION: REQUEST ASSISTANCE */}
-      <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 text-white shadow-lg shadow-emerald-700/20 relative overflow-hidden">
-        <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-xl pointer-events-none" />
-
-        <div className="relative z-10 space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/40 text-emerald-100 text-[10px] font-bold border border-emerald-400/40">
-            <Sparkles className="w-3 h-3 text-emerald-200" />
-            Humanitarian Support Active
-          </div>
-
-          <div>
-            <h3 className="text-lg font-black tracking-tight text-white">
-              Need Assistance?
-            </h3>
-            <p className="text-xs text-emerald-100/90 leading-relaxed mt-0.5 max-w-xs">
-              Apply for food rations, clean water, medical aid, shelter, or seeds in under 3 minutes.
-            </p>
-          </div>
-
+      {/* 2. QUICK ACTIONS GRID (4 CLEAN TILES) */}
+      <div className="space-y-2 pt-1">
+        <div className="flex items-center justify-between px-1">
+          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Quick Actions
+          </h3>
           <button
             type="button"
-            onClick={onRequestAssistance}
-            className="w-full py-3 px-4 rounded-xl bg-white hover:bg-emerald-50 text-emerald-900 font-extrabold text-xs flex items-center justify-center gap-2 transition shadow-sm cursor-pointer active:scale-98"
+            onClick={() => onNavigateTab('my_requests')}
+            className="text-xs font-bold text-[#006B56] hover:underline flex items-center cursor-pointer"
           >
-            <HandHeart className="w-4 h-4 text-emerald-600" />
-            <span>Select & Request Assistance</span>
-            <ArrowRight className="w-4 h-4 text-emerald-600 ml-1" />
+            <span>View All</span>
+            <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
           </button>
         </div>
-      </div>
 
-      {/* RECENT REQUEST STATUS CARD */}
-      {latestRequest && (
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-emerald-600" />
-              Latest Assistance Request
+        <div className="grid grid-cols-4 gap-2.5">
+          {/* My Requests */}
+          <button
+            type="button"
+            onClick={() => onNavigateTab('my_requests')}
+            className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-2xs hover:shadow-sm group"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-black flex items-center justify-center mb-1.5 shadow-2xs group-hover:scale-105 transition relative">
+              <FileText className="w-6 h-6 stroke-[2.5] text-black" />
+              {requests.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 bg-black text-white text-[9px] font-black rounded-full shadow-2xs">
+                  {requests.length}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] font-extrabold text-black leading-tight">
+              My Requests
             </span>
-            <button
-              type="button"
-              onClick={() => onNavigateTab('my_requests')}
-              className="text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
-            >
-              View All ({requests.length})
-            </button>
-          </div>
-
-          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-xs font-bold text-slate-700">
-                {latestRequest.request_code}
-              </span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                latestRequest.status === 'Approved'
-                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                  : latestRequest.status === 'Pending' || latestRequest.status === 'Submitted'
-                  ? 'bg-amber-100 text-amber-800 border-amber-300'
-                  : 'bg-blue-100 text-blue-800 border-blue-300'
-              }`}>
-                {latestRequest.status_label || latestRequest.status}
-              </span>
-            </div>
-
-            <div className="text-xs">
-              <span className="font-bold text-slate-900 block">{latestRequest.category}</span>
-              <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
-                {latestRequest.description}
-              </p>
-            </div>
-
-            {latestRequest.review_notes && (
-              <p className="text-[10px] text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                <span className="font-semibold">Reviewer Notes: </span>
-                {latestRequest.review_notes}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ACTIVE COLLECTION TOKEN CARD */}
-      {upcomingDist && upcomingDist.collection_token && (
-        <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
-              <Truck className="w-3.5 h-3.5 text-emerald-700" />
-              Upcoming Gate Collection
-            </span>
-            <button
-              type="button"
-              onClick={() => onNavigateTab('distributions')}
-              className="text-[11px] font-bold text-emerald-800 hover:underline cursor-pointer"
-            >
-              Details
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-emerald-300">
-            <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Gate Token
-              </span>
-              <span className="font-mono text-sm font-black text-emerald-800">
-                {upcomingDist.collection_token}
-              </span>
-              <span className="text-[10px] text-slate-500 block mt-0.5">
-                {upcomingDist.centre_name} • {upcomingDist.date}
-              </span>
-            </div>
-            <QrCode className="w-8 h-8 text-emerald-700" />
-          </div>
-        </div>
-      )}
-
-      {/* QUICK SERVICES GRID */}
-      <div className="space-y-2">
-        <span className="text-xs font-bold text-slate-800 block px-1">
-          Beneficiary Services
-        </span>
-
-        <div className="grid grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            onClick={() => onNavigateTab('id_card')}
-            className="p-3.5 rounded-2xl bg-white border border-slate-200 text-left hover:border-emerald-300 hover:shadow-xs transition cursor-pointer"
-          >
-            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-2">
-              <CreditCard className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-bold text-slate-900 block">My Digital ID</span>
-            <span className="text-[10px] text-slate-400">QR pass & verification</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => onNavigateTab('distributions')}
-            className="p-3.5 rounded-2xl bg-white border border-slate-200 text-left hover:border-emerald-300 hover:shadow-xs transition cursor-pointer"
-          >
-            <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center mb-2">
-              <Truck className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-bold text-slate-900 block">Schedules</span>
-            <span className="text-[10px] text-slate-400">Depots & date slots</span>
-          </button>
-
+          {/* Aid History */}
           <button
             type="button"
             onClick={() => onNavigateTab('history')}
-            className="p-3.5 rounded-2xl bg-white border border-slate-200 text-left hover:border-emerald-300 hover:shadow-xs transition cursor-pointer"
+            className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-2xs hover:shadow-sm group"
           >
-            <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-2">
-              <History className="w-4 h-4" />
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-black flex items-center justify-center mb-1.5 shadow-2xs group-hover:scale-105 transition">
+              <Gift className="w-6 h-6 stroke-[2.5] text-black" />
             </div>
-            <span className="text-xs font-bold text-slate-900 block">Aid History</span>
-            <span className="text-[10px] text-slate-400">Past rations & receipts</span>
+            <span className="text-[11px] font-extrabold text-black leading-tight">
+              Aid History
+            </span>
           </button>
 
+          {/* Notifications */}
+          <button
+            type="button"
+            onClick={() => onNavigateTab('notifications')}
+            className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-2xs hover:shadow-sm group"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-black flex items-center justify-center mb-1.5 shadow-2xs group-hover:scale-105 transition relative">
+              <Bell className="w-6 h-6 stroke-[2.5] text-black" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 bg-[#E53E3E] text-white text-[9px] font-black rounded-full shadow-2xs">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] font-extrabold text-black leading-tight">
+              Notifications
+            </span>
+          </button>
+
+          {/* Feedback & Complaints */}
           <button
             type="button"
             onClick={() => onNavigateTab('feedback')}
-            className="p-3.5 rounded-2xl bg-white border border-slate-200 text-left hover:border-emerald-300 hover:shadow-xs transition cursor-pointer"
+            className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-2xs hover:shadow-sm group"
           >
-            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mb-2">
-              <MessageSquareQuote className="w-4 h-4" />
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-black flex items-center justify-center mb-1.5 shadow-2xs group-hover:scale-105 transition">
+              <MessageSquare className="w-6 h-6 stroke-[2.5] text-black" />
             </div>
-            <span className="text-xs font-bold text-slate-900 block">Feedback & Report</span>
-            <span className="text-[10px] text-slate-400">Confidential grievance</span>
+            <span className="text-[11px] font-extrabold text-black leading-tight">
+              Feedback
+            </span>
           </button>
         </div>
       </div>
 
-      {/* TOLL-FREE HOTLINE BANNER */}
-      <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+      {/* 3. PRIMARY ACTION: REQUEST ASSISTANCE */}
+      <button
+        type="button"
+        onClick={onRequestAssistance}
+        className="w-full py-3.5 px-5 rounded-2xl bg-[#006B56] hover:bg-[#005745] text-white font-extrabold text-sm flex items-center justify-between shadow-sm cursor-pointer transition active:scale-[0.99]"
+      >
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
-            <Phone className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">
-              ADRA Toll-Free Hotline
-            </span>
-            <span className="text-xs font-extrabold text-slate-900">
-              0800-720-112
-            </span>
-          </div>
+          <HandHeart className="w-5 h-5 text-white shrink-0" />
+          <span className="tracking-wide">Request Assistance</span>
+        </div>
+        <ArrowRight className="w-5 h-5 text-white shrink-0" />
+      </button>
+
+      {/* 4. DYNAMIC: MY CURRENT REQUEST (ONLY REAL DATA) */}
+      <div className="space-y-1.5 pt-1">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5 text-[#006B56]" />
+            My Current Request
+          </span>
+          {requests.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigateTab('my_requests')}
+              className="text-[11px] font-bold text-[#006B56] hover:underline cursor-pointer"
+            >
+              View All ({requests.length})
+            </button>
+          )}
         </div>
 
-        <a
-          href="tel:0800720112"
-          className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition"
-        >
-          Call Free
-        </a>
+        {currentReq ? (
+          <div
+            onClick={() => onNavigateTab('my_requests')}
+            className="bg-white rounded-2xl p-3.5 shadow-2xs border border-slate-100 flex items-center justify-between cursor-pointer hover:border-emerald-200 transition"
+          >
+            <div className="w-11 h-11 rounded-xl bg-[#EAF5F0] text-[#006B56] flex items-center justify-center shrink-0">
+              <Package className="w-5 h-5" />
+            </div>
+
+            <div className="flex-1 px-3 min-w-0">
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-extrabold text-slate-900 truncate">
+                  {currentReq.category ? `${currentReq.category} Assistance` : 'Assistance Request'}
+                </h4>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                  currentReq.status === 'Approved'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : currentReq.status === 'Fulfilled'
+                    ? 'bg-blue-100 text-blue-800'
+                    : currentReq.status === 'Rejected'
+                    ? 'bg-rose-100 text-rose-800'
+                    : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {currentReq.status_label || currentReq.status || 'Under Review'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5 font-mono">
+                {currentReq.request_code}
+              </p>
+              {currentReq.created_at && (
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Submitted: {new Date(currentReq.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+
+            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl p-4 border border-slate-200/70 text-center space-y-1.5 shadow-2xs">
+            <p className="text-xs font-bold text-slate-700">No active assistance requests</p>
+            <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+              Need food rations, clean water, or agricultural support?
+            </p>
+            <button
+              type="button"
+              onClick={onRequestAssistance}
+              className="text-xs font-extrabold text-[#006B56] hover:underline pt-0.5 inline-flex items-center gap-1 cursor-pointer"
+            >
+              <span>Submit a Request</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* 5. DYNAMIC: UPCOMING DISTRIBUTION (ONLY REAL DATA) */}
+      <div className="space-y-1.5 pt-1">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-[#006B56]" />
+            Upcoming Distribution
+          </span>
+          {distributions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigateTab('distributions')}
+              className="text-[11px] font-bold text-[#006B56] hover:underline cursor-pointer"
+            >
+              Schedules ({distributions.length})
+            </button>
+          )}
+        </div>
+
+        {currentDist ? (
+          <div
+            onClick={() => onNavigateTab('distributions')}
+            className="bg-white rounded-2xl p-3.5 shadow-2xs border border-slate-100 flex items-center justify-between cursor-pointer hover:border-emerald-200 transition"
+          >
+            <div className="w-11 h-11 rounded-xl bg-[#EAF5F0] text-[#006B56] flex items-center justify-center shrink-0">
+              <Truck className="w-5 h-5" />
+            </div>
+
+            <div className="flex-1 px-3 min-w-0">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-extrabold text-slate-900 truncate">
+                  {currentDist.title || currentDist.aid_type || 'Aid Distribution'}
+                </h4>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold shrink-0 ml-2">
+                  {currentDist.status || 'Upcoming'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-slate-600 mt-1 font-medium">
+                <span>📅 {currentDist.date || 'Scheduled'}</span>
+                {currentDist.time_window && <span>🕒 {currentDist.time_window}</span>}
+              </div>
+              {currentDist.centre_name && (
+                <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                  📍 {currentDist.centre_name}
+                </p>
+              )}
+            </div>
+
+            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl p-3.5 border border-slate-200/70 text-xs text-slate-500 shadow-2xs">
+            No distributions currently scheduled in your area.
+          </div>
+        )}
+      </div>
+
+      {/* 6. DYNAMIC: LATEST NOTIFICATION (ONLY IF NOTIFICATIONS EXIST) */}
+      {latestNotif && (
+        <div
+          onClick={() => onNavigateTab('notifications')}
+          className="bg-white rounded-2xl p-3.5 shadow-2xs border border-slate-100 flex items-center justify-between cursor-pointer hover:border-emerald-200 transition"
+        >
+          <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#006B56] flex items-center justify-center shrink-0 mr-2.5">
+            <Megaphone className="w-4 h-4" />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-900 truncate">
+                {latestNotif.title || 'Latest Notification'}
+              </h4>
+              {latestNotif.created_at && (
+                <span className="text-[10px] text-slate-400 shrink-0 ml-2">
+                  {latestNotif.created_at}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">
+              {latestNotif.message}
+            </p>
+          </div>
+
+          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+        </div>
+      )}
     </div>
   );
 }

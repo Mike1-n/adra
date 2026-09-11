@@ -236,24 +236,6 @@ export function UserRoleManagementView() {
         </Button>
       </div>
 
-      {/* Pending Accounts Banner if any */}
-      {users.some(u => u.status === 'Pending Verification' || u.is_active === false) && (
-        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 flex items-center justify-between gap-3 text-amber-900 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-600 animate-pulse" />
-            <span className="font-semibold">
-              {users.filter(u => u.status === 'Pending Verification' || u.is_active === false).length} account(s): Account verification pending. Awaiting administrator verification before they can log in.
-            </span>
-          </div>
-          <button
-            onClick={() => setStatusFilter('Pending Verification')}
-            className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-[11px] transition cursor-pointer"
-          >
-            Review Pending Accounts →
-          </button>
-        </div>
-      )}
-
       {/* Search & Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="relative">

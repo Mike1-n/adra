@@ -1,0 +1,421 @@
+{
+  "Central Equatoria": {
+    "Juba": {
+      "Juba Na Bari": ["Hai Malakal", "Atlabara", "Konyo Konyo", "Tongping", "Hai Cinema", "Hai Jalaba", "Central"],
+      "Kator": ["Kator West", "Kator South", "Malakia", "Hai Neem", "Ghabat"],
+      "Munuki": ["Munuki Block A", "Munuki Block B", "Munuki Block C", "Gudele 1", "Gudele 2", "Luri"],
+      "Northern Bari": ["Bilinyang", "Mogiri", "Kworijik", "Jebel Lado"],
+      "Rejaf": ["Rejaf East", "Rejaf West", "Gondokoro", "Nesitu"]
+    },
+    "Yei": {
+      "Yei Town": ["Sopiri", "Goli", "Lomuku", "Dar-es-salam", "Hai Gabat"],
+      "Otogo": ["Otogo Center", "Marakonye", "Kendeling"],
+      "Mugwo": ["Mugwo Center", "Panyume Road", "Wuji"],
+      "Lasu": ["Lasu Center", "Kandiyo", "Libogo"],
+      "Tore": ["Tore Center", "Kajiko", "Bori"]
+    },
+    "Kajo-Keji": {
+      "Kangapo I": ["Wudu", "Mondikolok", "Leire"],
+      "Kangapo II": ["Biri", "Kala", "Mere"],
+      "Liwolo": ["Liwolo Center", "Kerwa", "Lori"],
+      "Lire": ["Lire Center", "Godu", "Kendu"],
+      "Nyepo": ["Nyepo Center", "Lira", "Moingbela"]
+    },
+    "Morobo": {
+      "Kimba": ["Kimba Center", "Kaya", "Yondu"],
+      "Gulumbi": ["Gulumbi Center", "Alero"],
+      "Lujulo": ["Lujulo Center", "Isebi"],
+      "Panyume": ["Panyume Center", "Morobo Town"]
+    },
+    "Lainya": {
+      "Lainya Center": ["Lainya Town", "Bereka", "Kenyi"],
+      "Mukaya": ["Mukaya Center", "Lokurubang"],
+      "Kupera": ["Kupera Center", "Wuji"],
+      "Kenyi": ["Kenyi Center", "Dimu"]
+    },
+    "Terekeka": {
+      "Terekeka Center": ["Terekeka Town", "Mani", "Nyori"],
+      "Regengo": ["Regengo Center", "Bari"],
+      "Tombek": ["Tombek Center", "Muni"],
+      "Gemeiza": ["Gemeiza Center", "Gwor"]
+    },
+    "Mangalla": {
+      "Mangalla Center": ["Mangalla Town", "Bungu"],
+      "Malek": ["Malek Center", "Gemeiza South"]
+    },
+    "Rokon": {
+      "Rokon Center": ["Rokon Town", "Tindalo", "Morsak"]
+    },
+    "Lirya": {
+      "Lirya Center": ["Lirya Town", "Lowoi", "Langabu"]
+    }
+  },
+
+  "Eastern Equatoria": {
+    "Torit": {
+      "Torit Town": ["Hai Murobe", "Hai Iluhum", "Hai Mayo", "Hai Mission", "Hai Longute"],
+      "Ifwotu": ["Ifwotu Center", "Oguruny", "Hulung"],
+      "Hiyala": ["Hiyala Center", "Chalamni", "Haforiere"],
+      "Kudo": ["Kudo Center", "Lopit", "Ohilang"],
+      "Imurok": ["Imurok Center", "Lafon Junction"],
+      "Bur": ["Bur Center", "Odu"]
+    },
+    "Magwi": {
+      "Magwi Town": ["Magwi Central", "Agoro", "Obbo"],
+      "Nimule": ["Nimule Town", "Motoyo", "Anzara", "Malakia Nimule"],
+      "Pageri": ["Pageri Center", "Loa", "Moli Tokuro"],
+      "Pajok": ["Pajok Center", "Achol-Pii", "Palotaka"],
+      "Owiny Ki-Bul": ["Owiny Center", "Iwire", "Panyikwara"]
+    },
+    "Kapoeta South": {
+      "Kapoeta Town": ["Machi", "Longeleya", "Hai Kamps", "Naknak"],
+      "Kauto": ["Kauto Center", "Lochor-ekuyen"]
+    },
+    "Kapoeta North": {
+      "Riwoto": ["Riwoto Center", "Lomerera"],
+      "Najie": ["Najie Center", "Chumakori"],
+      "Lokwamor": ["Lokwamor Center", "Kalimunet"]
+    },
+    "Kapoeta East": {
+      "Narus": ["Narus Center", "Lokichoggio Border", "Nadapal"],
+      "Mogos": ["Mogos Center", "Longeleya East"],
+      "Natinga": ["Natinga Center", "Boma Gate"]
+    },
+    "Ikotos": {
+      "Ikotos Center": ["Ikotos Town", "Losite", "Chahari"],
+      "Imatong": ["Imatong Center", "Gariya", "Katire"],
+      "Hatire": ["Hatire Center", "Lomohidang"]
+    },
+    "Budi": {
+      "Chukudum": ["Chukudum Town", "Kimatong", "Nagishot"],
+      "Komiri": ["Komiri Center", "Lauro"]
+    },
+    "Lafon": {
+      "Lafon Center": ["Lafon Town", "Margi", "Pacidi"],
+      "Lofi": ["Lofi Center", "Burgilo"]
+    }
+  },
+
+  "Jonglei": {
+    "Bor": {
+      "Bor Town": ["Hai Panwel", "Hai Machakos", "Hai Malou", "Leudiet", "Akordit"],
+      "Anyidi": ["Anyidi Center", "Chuei-keer", "Mareng"],
+      "Baidit": ["Baidit Center", "Makol-cuei", "Mayen"],
+      "Kolnyang": ["Kolnyang Center", "Abeulat", "Werkok"],
+      "Makuach": ["Makuach Center", "Kapat", "Werkok"]
+    },
+    "Twic East": {
+      "Panyagor": ["Panyagor Center", "Kongor"],
+      "Lith": ["Lith Center", "Ayual"],
+      "Nyuak": ["Nyuak Center", "Wangulei"],
+      "Ajuong": ["Ajuong Center", "Mabior"]
+    },
+    "Duk": {
+      "Duk Poktap": ["Poktap Center", "Padiet", "Pagak"],
+      "Ageer": ["Ageer Center", "Dongchak"],
+      "Padiet": ["Padiet Center", "Koyom"]
+    },
+    "Akobo": {
+      "Akobo Town": ["Bilkey", "Nyandit", "Dengjok", "Alali"],
+      "Diror": ["Diror Center", "Meer"]
+    },
+    "Nyirol": {
+      "Lankien": ["Lankien Town", "Pading"],
+      "Thol": ["Thol Center", "Cingdit"],
+      "Pading": ["Pading Center", "Pulturuk"]
+    },
+    "Uror": {
+      "Yuai": ["Yuai Center", "Motot"],
+      "Pieri": ["Pieri Center", "Pathai"],
+      "Pulchuol": ["Pulchuol Center", "Palouny"]
+    },
+    "Fangak": {
+      "Old Fangak": ["Old Fangak Town", "Pahuor"],
+      "New Fangak": ["New Fangak Town", "Manajang"],
+      "Toor": ["Toor Center", "Barbuoi"]
+    },
+    "Canal/Pigi": {
+      "Canal": ["Canal Center", "Khorfulus"],
+      "Atar": ["Atar Center", "Diel"]
+    },
+    "Ayod": {
+      "Ayod Center": ["Ayod Town", "Mogok"],
+      "Pajut": ["Pajut Center", "Wau", "Haat"]
+    }
+  },
+
+  "Lakes": {
+    "Rumbek Centre": {
+      "Rumbek Town": ["Hai Cinema", "Hai Matangai", "Hai Mayom", "Hai Melek", "Akuac"],
+      "Jiir": ["Jiir Center", "Maleng-agok"],
+      "Matangai": ["Matangai Center", "Abonkodit"]
+    },
+    "Rumbek East": {
+      "Aduel": ["Aduel Center", "Atiaba"],
+      "Paloch": ["Paloch Center", "Cuei-chok"],
+      "Thon-abut": ["Thon-abut Center", "Pacong"]
+    },
+    "Rumbek North": {
+      "Maper": ["Maper Center", "Meen"],
+      "Malueth": ["Malueth Center", "Madol"]
+    },
+    "Wulu": {
+      "Wulu Center": ["Wulu Town", "Domoloto"],
+      "Makundi": ["Makundi Center", "Bargel"]
+    },
+    "Cueibet": {
+      "Cueibet Town": ["Cueibet Center", "Pagor"],
+      "Abiriu": ["Abiriu Center", "Duony"],
+      "Malou Pec": ["Malou Pec Center", "Mayath"]
+    },
+    "Yirol West": {
+      "Yirol Town": ["Yirol Central", "Aluakluak"],
+      "Geng-geng": ["Geng-geng Center", "Anuol"]
+    },
+    "Yirol East": {
+      "Nyang": ["Nyang Center", "Adior"],
+      "Yali": ["Yali Center", "Malek"]
+    },
+    "Awerial": {
+      "Mingkaman": ["Mingkaman IDP Settlement", "Awerial Center"],
+      "Bunagok": ["Bunagok Center", "Puluk", "Dor"]
+    }
+  },
+
+  "Northern Bahr el Ghazal": {
+    "Aweil Centre": {
+      "Aweil Town": ["Hai Salaam", "Hai Mathiang", "Hai Naivasha", "Hai Maper"],
+      "Nyalath": ["Nyalath Center", "Barmayen"],
+      "Chelkou": ["Chelkou Center", "Aradit"]
+    },
+    "Aweil East": {
+      "Wanyjok": ["Wanyjok Center", "Malualkon"],
+      "Madhol": ["Madhol Center", "Yargot"],
+      "Baac": ["Baac Center", "Mangok"]
+    },
+    "Aweil West": {
+      "Nyamlel": ["Nyamlel Center", "Marial Baai"],
+      "Gomjuer": ["Gomjuer Center", "Ayat"]
+    },
+    "Aweil North": {
+      "Gok Machar": ["Gok Machar Town", "Malual North"],
+      "Ariath": ["Ariath Center", "Mayom Angok"]
+    },
+    "Aweil South": {
+      "Nyoc Awany": ["Nyoc Center", "Tieraliet"],
+      "Panthou": ["Panthou Center", "Tarweng"]
+    }
+  },
+
+  "Unity": {
+    "Rubkona": {
+      "Rubkona Center": ["Rubkona Market", "Chambang", "Wunkur"],
+      "Nhialdiu": ["Nhialdiu Center", "Ding Ding"],
+      "Kaljak": ["Kaljak Center", "Dhorbor"]
+    },
+    "Bentiu": {
+      "Bentiu Town": ["Bentiu Center", "Hai Lich", "Bentiu IDP Camp / PoC", "Machakos"],
+      "Bielky": ["Bielky Center", "Bulu"]
+    },
+    "Mayom": {
+      "Mayom Center": ["Mayom Town", "Mankien"],
+      "Riak": ["Riak Center", "Wangkei"]
+    },
+    "Guit": {
+      "Guit Center": ["Guit Town", "Bil"],
+      "Kuergueng": ["Kuergueng Center", "Kadet"]
+    },
+    "Koch": {
+      "Koch Center": ["Koch Town", "Mirmir"],
+      "Bieh": ["Bieh Center", "Kuachngan", "Boaw"]
+    },
+    "Leer": {
+      "Leer Center": ["Leer Town", "Thonyor", "Pilieny"],
+      "Adok Port": ["Adok Center", "Guat"]
+    },
+    "Mayendit": {
+      "Mayendit North": ["Mayendit Center", "Rubkuay"],
+      "Mayendit South": ["Dablual Center", "Bahr"]
+    },
+    "Panyijiar": {
+      "Ganyiel": ["Ganyiel Town", "Kol"],
+      "Nyal": ["Nyal Town", "Thornom", "Pachak"]
+    },
+    "Pariang": {
+      "Pariang Center": ["Pariang Town", "Alor"],
+      "Jamjang": ["Jamjang Center", "Yida Settlement", "Biemnom"]
+    }
+  },
+
+  "Upper Nile": {
+    "Malakal": {
+      "Malakal Town": ["Hai Malakal", "Malakal Central", "Assosa", "Mudiriya", "Jalaba", "Hai Salam"],
+      "Lelo": ["Lelo Center", "Wau Shilluk", "Makal"],
+      "Ogod": ["Ogod Center", "Detwok Junction"],
+      "Eastern Bank": ["Eastern Bank Center", "Doleib Hill"]
+    },
+    "Renk": {
+      "Renk Town": ["Renk Central", "Hai Shuk", "Falo", "Hai Jalaba"],
+      "Jalhak": ["Jalhak Center", "Wonthou Port"],
+      "Geiger": ["Geiger Center", "Abu Khadra"],
+      "Molbok": ["Molbok Center"]
+    },
+    "Melut": {
+      "Melut Town": ["Melut Central", "Paloch oilfield", "Paloich"],
+      "Paloch": ["Paloch Town", "Paloich Field"],
+      "Galdora": ["Galdora Center", "Thiang"],
+      "Panomdit": ["Panomdit Center"]
+    },
+    "Manyo": {
+      "Wadakona": ["Wadakona Center", "Kaka", "Jamam"],
+      "Kaka": ["Kaka Town", "Athidwoi"],
+      "Magenis": ["Magenis Border", "Debab"]
+    },
+    "Fashoda": {
+      "Kodok": ["Kodok Town", "Lul", "Fashoda Palace"],
+      "Detwok": ["Detwok Center", "Oriny"],
+      "Aburoc": ["Aburoc Center", "Padit"]
+    },
+    "Maban": {
+      "Bunj": ["Bunj Town", "Central Market"],
+      "Doro": ["Doro Refugee Camp", "Doro Village"],
+      "Gendrassa": ["Gendrassa Camp", "Gendrassa Center"],
+      "Batil": ["Yusuf Batil Camp", "Batil Center"],
+      "Jamam": ["Jamam Center", "Kaya"]
+    },
+    "Baliet": {
+      "Baliet Center": ["Baliet Town", "Riangnom"],
+      "Adong": ["Adong Center", "Nyongkwan"],
+      "Abwong": ["Abwong Center", "Gelachel"]
+    },
+    "Luakpiny/Nasir": {
+      "Nasir Town": ["Nasir Central", "Kiech Kuon", "Doma"],
+      "Mandeng": ["Mandeng Center", "Jikmir"],
+      "Maker": ["Maker Center", "Kuetkeer"],
+      "Koat": ["Koat Center", "Nordeng"]
+    },
+    "Maiwut": {
+      "Maiwut Town": ["Maiwut Center", "Uleng", "Olang"],
+      "Pagak": ["Pagak Center", "Pagak Border", "Jekow"],
+      "Jotome": ["Jotome Center", "Wunkir"],
+      "Turu": ["Turu Center", "Burebiey"]
+    },
+    "Ulang": {
+      "Ulang Center": ["Ulang Town", "Yomding"],
+      "Kurmuot": ["Kurmuot Center", "Nyangore"],
+      "Doma": ["Doma Center", "Rupbuot"],
+      "Banglei": ["Banglei Center", "Kuetrengke"]
+    },
+    "Longochuk": {
+      "Mathiang": ["Mathiang Center", "Boma Center"],
+      "Malual": ["Malual Center", "Dajo"],
+      "Pamath": ["Pamath Center", "Wudier"]
+    },
+    "Panyikang": {
+      "Tonga": ["Tonga Town", "Fangak Border"],
+      "Pakang": ["Pakang Center", "Owachi"],
+      "Nyilwak": ["Nyilwak Center", "Doleib Hill South"]
+    },
+    "Akoka": {
+      "Akoka Center": ["Akoka Town", "Baidit"],
+      "Bouny": ["Bouny Center", "Galdora Junction"],
+      "Yomding": ["Yomding Center", "Panthou"]
+    }
+  },
+
+  "Warrap": {
+    "Twic": {
+      "Mayen Abun": ["Mayen Abun Center", "Turalei", "Aweng"],
+      "Wunrok": ["Wunrok Center", "Akoc", "Panyok"]
+    },
+    "Gogrial West": {
+      "Kuajok Town": ["Kuajok Center", "Mayom Tot", "Nhomlau"],
+      "Alek": ["Alek Center", "Riau", "Gogrial Town"]
+    },
+    "Gogrial East": {
+      "Luanyaker": ["Luanyaker Center", "Pathuon"],
+      "Nyang Akok": ["Nyang Akok Center", "Lith"]
+    },
+    "Tonj North": {
+      "Warrap Town": ["Warrap Central", "Marial Lou"],
+      "Kirik": ["Kirik Center", "Pagol", "Alabek"]
+    },
+    "Tonj South": {
+      "Tonj Town": ["Tonj Central", "Manyangok", "Thiet"]
+    },
+    "Tonj East": {
+      "Ananatak": ["Ananatak Center", "Makuac"],
+      "Wunlit": ["Wunlit Center", "Pagol East"]
+    }
+  },
+
+  "Western Bahr el Ghazal": {
+    "Wau": {
+      "Wau Town": ["Hai Kosti", "Hai Nazareth", "Hai Dinka", "Hai Daraja", "Hai Lokoloko"],
+      "Bagari": ["Bagari Center", "Besselia", "Kpaile"]
+    },
+    "Jur River": {
+      "Kangi": ["Kangi Center", "Marial Bai", "Rocrocdong", "Kuajiena"],
+      "Udici": ["Udici Center", "Roc"]
+    },
+    "Raja": {
+      "Raja Town": ["Raja Central", "Deim Zubeir", "Boro Medina"],
+      "Ere": ["Ere Center", "Sopo"]
+    }
+  },
+
+  "Western Equatoria": {
+    "Yambio": {
+      "Yambio Town": ["Hai Kuzee", "Hai Kuba", "Hai Masia", "Hai Na-gbere", "Central Market"],
+      "Gangura": ["Gangura Center", "Sakure Junction"],
+      "Ri-Rangu": ["Ri-Rangu Center", "Akpa"],
+      "Bangasu": ["Bangasu Center", "Makpandu Refugee Settlement"]
+    },
+    "Nzara": {
+      "Nzara Town": ["Nzara Central", "Hai Tarik"],
+      "Ringasi": ["Ringasi Center", "Basukangbi"],
+      "Sakure": ["Sakure Center", "Yabua"]
+    },
+    "Maridi": {
+      "Maridi Center": ["Maridi Town", "Hai Mudir", "Manguo"],
+      "Kozi": ["Kozi Center", "Rastigi"]
+    },
+    "Ibba": {
+      "Ibba Town": ["Ibba Center", "Nabanga"],
+      "Madebe": ["Madebe Center", "Kaka"]
+    },
+    "Mundri West": {
+      "Mundri Town": ["Mundri Central", "Kotobi", "Amadi"]
+    },
+    "Mundri East": {
+      "Kediba": ["Kediba Center", "Lui", "Minga"]
+    },
+    "Mvolo": {
+      "Mvolo Center": ["Mvolo Town", "Bahr Grinty"],
+      "Yeri": ["Yeri Center", "Kokori"]
+    },
+    "Tambura": {
+      "Tambura Town": ["Tambura Center", "Hai Mupoi"],
+      "Source Yubu": ["Source Yubu Center", "Akpa"]
+    },
+    "Nagero": {
+      "Nagero Center": ["Nagero Town", "Duma", "Namutina"]
+    },
+    "Ezo": {
+      "Ezo Town": ["Ezo Central", "Bagidi"],
+      "Bariguna": ["Bariguna Center", "Naandi"]
+    }
+  },
+
+  "Administrative Areas": {
+    "Greater Pibor": {
+      "Pibor": ["Pibor Town", "Gumuruk", "Verteth", "Lekuangole"]
+    },
+    "Ruweng": {
+      "Parieng": ["Parieng Center", "Jamjang", "Yida Settlement"]
+    },
+    "Abyei Area": {
+      "Abyei": ["Abyei Town", "Alal", "Mijak", "Rumamer", "Agok"]
+    }
+  }
+}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Users,
+  UserCheck,
   FolderKanban,
   ShieldCheck,
   Settings,
@@ -32,6 +33,7 @@ export function AdminWebPortalLayout({
 }) {
   const { currentUser, logout } = useAuth();
   const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [pendingBeneficiaries, setPendingBeneficiaries] = useState(0);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -39,8 +41,12 @@ export function AdminWebPortalLayout({
 
   const loadPendingCount = async () => {
     try {
-      const apps = await db.getApprovals('ALL');
+      const [apps, bens] = await Promise.all([
+        db.getApprovals('ALL'),
+        db.getBeneficiaries()
+      ]);
       setPendingApprovals(apps.filter(a => a.status === 'Pending').length);
+      setPendingBeneficiaries(bens.filter(b => (b.verification_status || b.status) === 'Pending Verification').length);
     } catch (e) {
       console.error(e);
     }
@@ -95,9 +101,15 @@ export function AdminWebPortalLayout({
     {
       id: 'identity',
       name: 'Identity & Access',
-      icon: Users,
+      icon: UserCheck,
       badge: pendingApprovals > 0 ? pendingApprovals : null,
       desc: 'Users, Roles & Approvals'
+    },
+    {
+      id: 'beneficiaries',
+      name: 'Beneficiary Oversight',
+      icon: Users,
+      desc: 'Households & Verification'
     },
     {
       id: 'field',
@@ -138,7 +150,7 @@ export function AdminWebPortalLayout({
           </div>
         </div>
 
-        {/* 5 Primary Navigation Items */}
+        {/* 6 Primary Navigation Items */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Console Navigation
