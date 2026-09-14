@@ -126,7 +126,7 @@ export function FeedbackComplaintsView({ beneficiary }) {
         </div>
 
         {/* Safeguarding Notice */}
-        <div className="mt-5 pt-4 border-t border-emerald-100/80 flex items-start gap-3 text-xs text-emerald-900 bg-emerald-100/40 p-3 rounded-xl border border-emerald-200/60">
+        <div className="mt-5 flex items-start gap-3 text-xs text-emerald-900 bg-emerald-100/40 p-3 rounded-xl border border-emerald-200/60">
           <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
           <p className="text-[11px] leading-relaxed">
             <span className="font-bold">Zero-Retaliation Guarantee: </span>
@@ -209,7 +209,7 @@ export function FeedbackComplaintsView({ beneficiary }) {
 
                 {ticket.resolution_notes && (
                   <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
-                    <span className="font-bold text-slate-900 block flex items-center gap-1 mb-0.5">
+                    <span className="font-bold text-slate-900 flex items-center gap-1 mb-0.5">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
                       Investigator Finding & Action:
                     </span>
@@ -371,7 +371,7 @@ export function FeedbackComplaintsView({ beneficiary }) {
 
             {selectedTicket.resolution_notes && (
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
-                <span className="font-bold text-slate-900 block flex items-center gap-1.5">
+                <span className="font-bold text-slate-900 flex items-center gap-1.5">
                   <CheckCircle className="w-4 h-4 text-emerald-600" />
                   Investigation Report & Findings:
                 </span>
