@@ -55,7 +55,7 @@ export function AssistanceRequestView({
   const loadRequests = async () => {
     try {
       setLoading(true);
-      const data = await db.getAssistanceRequests(beneficiary?.id || 'b7');
+      const data = await db.getAssistanceRequests(beneficiary?.id || beneficiary?.beneficiary_code || 'b7');
       setRequests(data);
     } catch (e) {
       console.error(e);
@@ -99,9 +99,81 @@ export function AssistanceRequestView({
   };
 
   const filteredRequests = requests.filter(r => {
-    if (statusFilter === 'ALL') return true;
-    return r.status.toLowerCase() === statusFilter.toLowerCase();
+    if (!statusFilter || statusFilter === 'ALL') return true;
+    const filter = String(statusFilter).toLowerCase();
+    const reqStatus = String(r.status || '').toLowerCase();
+    const reqLabel = String(r.status_label || '').toLowerCase();
+
+    if (filter === 'pending' || filter === 'pending review') {
+      return (
+        reqStatus === 'submitted' ||
+        reqStatus.includes('pending') ||
+        reqStatus.includes('assessment') ||
+        reqStatus.includes('queue') ||
+        reqLabel.includes('pending') ||
+        reqLabel.includes('submitted') ||
+        r.status_stage === 1
+      );
+    }
+    if (filter === 'under review' || filter === 'review') {
+      return (
+        (reqStatus.includes('review') || reqLabel.includes('review')) &&
+        reqStatus !== 'pending' &&
+        reqStatus !== 'submitted' &&
+        !reqLabel.includes('pending')
+      );
+    }
+    if (filter === 'approved') {
+      return reqStatus.includes('approv') || reqLabel.includes('approv') || reqStatus.includes('assign');
+    }
+    if (filter === 'fulfilled' || filter === 'disbursed' || filter === 'completed') {
+      return reqStatus.includes('fulfill') || reqStatus.includes('disburs') || reqStatus.includes('complet');
+    }
+    if (filter === 'rejected' || filter === 'ineligible') {
+      return reqStatus.includes('reject') || reqStatus.includes('ineligib');
+    }
+    return reqStatus === filter || reqLabel === filter;
   });
+
+  const filterTabs = [
+    { id: 'ALL', label: 'All', count: requests.length },
+    {
+      id: 'Pending',
+      label: 'Pending Review',
+      count: requests.filter(r => {
+        const s = (r.status || '').toLowerCase();
+        const l = (r.status_label || '').toLowerCase();
+        return s === 'submitted' || s.includes('pending') || s.includes('assessment') || s.includes('queue') || l.includes('pending') || l.includes('submitted');
+      }).length
+    },
+    {
+      id: 'Under Review',
+      label: 'Under Review',
+      count: requests.filter(r => {
+        const s = (r.status || '').toLowerCase();
+        const l = (r.status_label || '').toLowerCase();
+        return (s.includes('review') || l.includes('review')) && !s.includes('pending') && s !== 'submitted' && !l.includes('pending');
+      }).length
+    },
+    {
+      id: 'Approved',
+      label: 'Approved',
+      count: requests.filter(r => {
+        const s = (r.status || '').toLowerCase();
+        const l = (r.status_label || '').toLowerCase();
+        return s.includes('approv') || s.includes('assign') || l.includes('approv');
+      }).length
+    },
+    {
+      id: 'Fulfilled',
+      label: 'Disbursed',
+      count: requests.filter(r => {
+        const s = (r.status || '').toLowerCase();
+        const l = (r.status_label || '').toLowerCase();
+        return s.includes('fulfill') || s.includes('disburs') || s.includes('complet');
+      }).length
+    }
+  ];
 
   const getStageNum = (req) => {
     if (req.status_stage) return req.status_stage;
@@ -152,25 +224,12 @@ export function AssistanceRequestView({
   return (
     <div className="space-y-4">
       {/* Clean Single Header */}
-      <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
+      <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-100">
         <div className="space-y-0.5 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
               My Assistance Requests
             </h2>
-            {statusFilter !== 'ALL' && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-50 text-[#006B56] border border-emerald-200/80 shadow-2xs">
-                <span>Filter: {statusFilter}</span>
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter('ALL')}
-                  className="hover:text-rose-600 cursor-pointer font-black text-xs leading-none"
-                  title="Clear filter (show all)"
-                >
-                  ×
-                </button>
-              </span>
-            )}
           </div>
           <p className="text-xs text-slate-500 font-medium truncate">
             {statusFilter === 'ALL'
@@ -187,6 +246,33 @@ export function AssistanceRequestView({
           <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
           <span>New Request</span>
         </button>
+      </div>
+
+      {/* Horizontal Filter Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {filterTabs.map(tab => {
+          const isSelected = (statusFilter === 'ALL' && tab.id === 'ALL') ||
+            (statusFilter !== 'ALL' && String(statusFilter).toLowerCase() === String(tab.id).toLowerCase());
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setStatusFilter(tab.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                isSelected
+                  ? 'bg-[#006B56] text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Requests List */}

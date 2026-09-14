@@ -91,7 +91,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
       setDistributions(allDistributions);
 
       if (found) {
-        const userReqs = await db.getAssistanceRequests(found.id);
+        const userReqs = await db.getAssistanceRequests(found.id || found.beneficiary_code);
         setRequests(userReqs);
 
         // Generate dynamic notifications based on real requests and status
@@ -217,24 +217,34 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
 
   const requestFilterCounts = {
     ALL: requests.length,
-    Pending: requests.filter(r => (r.status || '').toLowerCase().includes('pending')).length,
+    Pending: requests.filter(r => {
+      const s = (r.status || '').toLowerCase();
+      const l = (r.status_label || '').toLowerCase();
+      return s === 'submitted' || s.includes('pending') || s.includes('assessment') || s.includes('queue') || l.includes('pending') || l.includes('submitted');
+    }).length,
     'Under Review': requests.filter(r => {
       const s = (r.status || '').toLowerCase();
-      return s.includes('review') && !s.includes('pending');
+      const l = (r.status_label || '').toLowerCase();
+      return (s.includes('review') || l.includes('review')) && !s.includes('pending') && s !== 'submitted' && !l.includes('pending');
     }).length,
-    Approved: requests.filter(r => (r.status || '').toLowerCase().includes('approv')).length,
+    Approved: requests.filter(r => {
+      const s = (r.status || '').toLowerCase();
+      const l = (r.status_label || '').toLowerCase();
+      return s.includes('approv') || s.includes('assign') || l.includes('approv');
+    }).length,
     Fulfilled: requests.filter(r => {
       const s = (r.status || '').toLowerCase();
-      return s.includes('fulfill') || s.includes('disburs');
+      const l = (r.status_label || '').toLowerCase();
+      return s.includes('fulfill') || s.includes('disburs') || s.includes('complet') || l.includes('fulfill') || l.includes('disburs');
     }).length,
   };
 
   const requestSubFilters = [
     { id: 'ALL', label: 'All Requests', count: requestFilterCounts.ALL },
-    { id: 'Pending', label: 'Pending', count: requestFilterCounts.Pending },
+    { id: 'Pending', label: 'Pending Review', count: requestFilterCounts.Pending },
     { id: 'Under Review', label: 'Under Review', count: requestFilterCounts['Under Review'] },
     { id: 'Approved', label: 'Approved', count: requestFilterCounts.Approved },
-    { id: 'Fulfilled', label: 'Fulfilled', count: requestFilterCounts.Fulfilled },
+    { id: 'Fulfilled', label: 'Fulfilled / Disbursed', count: requestFilterCounts.Fulfilled },
   ];
 
   const handleNavClick = (tabId) => {
@@ -616,7 +626,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
                   beneficiary={beneficiary}
                   onCancel={() => setCurrentView('dashboard')}
                   onRequestSubmitted={(newReq) => {
-                    setRequests(prev => [newReq, ...prev]);
+                    setRequests(prev => [newReq, ...prev.filter(r => r.id !== newReq.id && r.request_code !== newReq.request_code)]);
                     const newNotif = {
                       id: `notif_${Date.now()}`,
                       title: 'Assistance Request Submitted',
@@ -625,6 +635,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
                       is_read: false
                     };
                     setNotifications(prev => [newNotif, ...prev]);
+                    setRequestStatusFilter('ALL');
                     setCurrentView('my_requests');
                   }}
                 />

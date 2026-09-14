@@ -1,28 +1,30 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  LayoutDashboard,
+  Home,
+  Briefcase,
+  HeartHandshake,
+  MapPin,
+  Package,
+  BarChart3,
+  Bell,
+  HelpCircle,
+  User,
+  LogOut,
+  ChevronDown,
+  ChevronRight,
+  Search,
+  CheckCircle2,
+  RefreshCw,
+  Menu,
+  X,
+  Layers,
   FileText,
   Users,
-  Layers,
   Activity,
   Truck,
   UserCheck,
-  Package,
-  BarChart3,
-  MessageSquare,
-  Bell,
-  User,
-  LogOut,
-  Menu,
-  X,
-  ChevronDown,
   ShieldCheck,
-  CheckCircle2,
-  RefreshCw,
-  Search,
-  Building,
-  MapPin,
-  ExternalLink
+  Sparkles
 } from 'lucide-react';
 import { db, normalizeAssistanceRequest } from '../../lib/supabase';
 import { PMOverviewView } from './components/PMOverviewView';
@@ -43,9 +45,25 @@ export function ProgrammeManagerDashboard({
   onLogout,
   onSwitchRole
 }) {
-  // Navigation State - 13 Sidebar Items
+  // Navigation State
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Expandable sections state for sidebar
+  const [expandedSections, setExpandedSections] = useState({
+    programmes: true,
+    assistance: true,
+    field: false,
+    resources: false
+  });
+
+  const toggleSection = (sectionKey) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
 
   // Scope filter: Programme Manager can filter all views by specific programme or 'ALL'
   const [selectedProgrammeScope, setSelectedProgrammeScope] = useState('ALL');
@@ -113,36 +131,44 @@ export function ProgrammeManagerDashboard({
       setResources(unpack(resRes));
       setFeedback(unpack(fbRes));
 
-      // Mock real notifications for PM
-      const pendingReqCount = normalizedRequests.filter(r => r.status === 'Submitted' || r.status === 'Under Review' || r.status === 'Pending').length;
-      const lowStockCount = unpack(resRes).filter(r => r.is_low_stock || r.status === 'Low Stock').length;
+      const pendingReqCount = normalizedRequests.filter(r => r.status === 'Submitted' || r.status === 'Under Review' || r.status === 'Pending' || r.status === 'Pending Review' || r.status === 'My Decision').length;
+      const lowStockCount = unpack(resRes).filter(r => r.is_low_stock || r.status === 'Low Stock' || r.status === 'Critical').length;
+      const recentActs = unpack(actsRes);
 
-      setNotifications([
-        {
+      const dynamicNotifs = [];
+      if (pendingReqCount > 0) {
+        dynamicNotifs.push({
           id: 'notif-1',
           title: 'Pending Assistance Requests Require Review',
-          message: `${pendingReqCount} aid requests are awaiting official Programme Manager review and supervisor task allocation.`,
+          message: `${pendingReqCount} aid request${pendingReqCount > 1 ? 's are' : ' is'} awaiting official Programme Manager decision and supervisor allocation.`,
           type: 'request',
           created_at: new Date().toISOString(),
           read: false
-        },
-        {
+        });
+      }
+      if (lowStockCount > 0) {
+        dynamicNotifs.push({
           id: 'notif-2',
           title: 'Warehouse Low-Stock Alert',
-          message: `${lowStockCount || 2} key humanitarian commodities are near depletion threshold in Kapoeta Depot.`,
+          message: `${lowStockCount} humanitarian commodit${lowStockCount > 1 ? 'ies are' : 'y is'} near depletion threshold in depot inventory.`,
           type: 'resource',
-          created_at: new Date(Date.now() - 3600000).toISOString(),
+          created_at: new Date().toISOString(),
           read: false
-        },
-        {
+        });
+      }
+      if (recentActs.length > 0) {
+        const topAct = recentActs[0];
+        dynamicNotifs.push({
           id: 'notif-3',
-          title: 'Field Verification Milestone Completed',
-          message: 'Supervisor David Deng completed 5 household verification visits in Kapoeta South.',
+          title: 'Recent Field Operation Milestone',
+          message: `${topAct.title || topAct.activity || 'Field verification activity'} recorded in ${topAct.location || 'field'}.`,
           type: 'activity',
-          created_at: new Date(Date.now() - 7200000).toISOString(),
+          created_at: topAct.created_at || new Date().toISOString(),
           read: true
-        }
-      ]);
+        });
+      }
+
+      setNotifications(dynamicNotifs);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       showToast('Failed to sync live records with database', 'error');
@@ -232,7 +258,7 @@ export function ProgrammeManagerDashboard({
     try {
       const res = await db.assignSupervisorToRequest(requestId, supervisorId, supervisorName, notes);
       if (res.error) throw res.error;
-      showToast(`Request #${requestId} assigned to Supervisor ${supervisorName}. Field implementation task created.`, 'success');
+      showToast(`Request #${requestId} assigned to Supervisor ${supervisorName}. Field task created.`, 'success');
       loadDashboardData();
     } catch (err) {
       console.error('Supervisor assignment failed:', err);
@@ -254,232 +280,538 @@ export function ProgrammeManagerDashboard({
     }
   };
 
-  // Nav helper for Overview Quick Actions
   const handleSelectRequestFromOverview = (req) => {
     setSelectedRequestToReview(req);
     setActiveTab('requests');
   };
 
-  // 13 Sidebar Navigation Items Configuration
-  const sidebarItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'requests', label: 'Assistance Requests', icon: FileText, badge: scopedRequests.filter(r => r.status === 'Submitted' || r.status === 'Under Review' || r.status === 'Pending').length },
-    { id: 'beneficiaries', label: 'Beneficiaries', icon: Users },
-    { id: 'programmes', label: 'Programmes', icon: Layers },
-    { id: 'activities', label: 'Field Activities', icon: Activity },
-    { id: 'distributions', label: 'Aid Distributions', icon: Truck },
-    { id: 'supervisors', label: 'Supervisors', icon: UserCheck },
-    { id: 'resources', label: 'Resources', icon: Package, badge: scopedResources.filter(r => r.is_low_stock).length ? 'Alert' : null, badgeAlert: true },
-    { id: 'reports', label: 'Reports', icon: BarChart3 },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare, badge: feedback.filter(f => f.status === 'Pending').length },
-    { id: 'notifications', label: 'Notifications', icon: Bell, badge: notifications.filter(n => !n.read).length },
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'logout', label: 'Logout', icon: LogOut, isDanger: true }
-  ];
-
-  const handleSidebarClick = (itemId) => {
-    if (itemId === 'logout') {
-      if (onLogout) onLogout();
-      return;
-    }
-    setActiveTab(itemId);
-    setIsMobileMenuOpen(false);
-  };
+  const pendingRequestsCount = scopedRequests.filter(
+    r => r.status === 'Submitted' || r.status === 'Under Review' || r.status === 'Pending' || r.status === 'Pending Review' || r.status === 'My Decision'
+  ).length;
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  // Sidebar navigation handler
+  const handleNavClick = (tabId) => {
+    setActiveTab(tabId);
+    setIsMobileDrawerOpen(false);
+  };
+
   return (
-    <div className="flex h-screen bg-slate-100 font-sans text-slate-800 antialiased overflow-hidden">
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-800 antialiased overflow-hidden">
       {/* Toast Alert Banner */}
       {toastMessage && (
-        <div className={`fixed top-4 right-4 z-70 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-200 ${
+        <div className={`fixed top-4 right-4 z-70 px-4 py-2.5 rounded-2xl shadow-xl border text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-200 max-w-sm ${
           toastMessage.type === 'error'
-            ? 'bg-rose-50 border-rose-200 text-rose-800'
+            ? 'bg-rose-900/95 border-rose-700 text-rose-100 backdrop-blur-md'
             : toastMessage.type === 'info'
-            ? 'bg-blue-50 border-blue-200 text-blue-800'
-            : 'bg-emerald-50 border-emerald-300 text-emerald-900'
+            ? 'bg-blue-900/95 border-blue-700 text-blue-100 backdrop-blur-md'
+            : 'bg-emerald-900/95 border-emerald-700 text-emerald-100 backdrop-blur-md'
         }`}>
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          {toastMessage.message}
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+          <span className="truncate">{toastMessage.message}</span>
         </div>
       )}
 
-      {/* LEFT SIDEBAR NAVIGATION */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 text-slate-800 flex flex-col justify-between transition-transform duration-200 md:static md:translate-x-0 shadow-xs ${
-        isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+      {/* MOBILE BACKDROP OVERLAY */}
+      {isMobileDrawerOpen && (
+        <div
+          onClick={() => setIsMobileDrawerOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs md:hidden"
+        />
+      )}
+
+      {/* FIXED LEFT SIDEBAR (260px wide, 100vh) */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-[260px] bg-white border-r border-slate-200 flex flex-col justify-between transition-transform duration-200 ease-in-out md:static md:translate-x-0 shadow-sm ${
+        isMobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
-        {/* Sidebar Header / ADRA Logo */}
         <div>
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white">
+          {/* Top Branding (ADRA South Sudan) */}
+          <div className="h-16 px-5 border-b border-slate-200 flex items-center justify-between bg-white">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#006B56] flex items-center justify-center font-black text-white tracking-wider text-base shadow-sm">
+              <div className="w-9 h-9 rounded-xl bg-[#006B56] text-white flex items-center justify-center font-black text-base shadow-sm">
                 A
               </div>
-              <div>
-                <h1 className="font-black text-sm tracking-tight text-slate-900 leading-none">
-                  ADRA South Sudan
-                </h1>
-                <span className="text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 font-bold tracking-wide uppercase px-2 py-0.5 rounded-full inline-block mt-1">
-                  Programme Manager
+              <div className="flex flex-col">
+                <span className="font-extrabold text-sm tracking-tight text-slate-900 leading-none">
+                  ADRA
+                </span>
+                <span className="text-[11px] text-[#006B56] font-bold mt-0.5">
+                  South Sudan
                 </span>
               </div>
             </div>
 
             <button
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => setIsMobileDrawerOpen(false)}
               className="md:hidden text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* User Brief Bar */}
-          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-3 text-xs">
-            <div className="w-8 h-8 rounded-full bg-[#006B56] text-white font-black flex items-center justify-center text-xs shadow-xs">
-              GO
+          {/* User Info Bar */}
+          <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200/80 flex items-center gap-3 text-xs">
+            <div className="w-8 h-8 rounded-full bg-[#006B56] text-white font-bold flex items-center justify-center text-xs shadow-2xs">
+              PD
             </div>
-            <div className="overflow-hidden">
-              <div className="font-extrabold text-slate-900 truncate text-xs">{currentUser?.name || 'Grace Ochieng'}</div>
-              <div className="text-[11px] text-[#006B56] font-bold truncate">Emergency Programs</div>
+            <div className="overflow-hidden min-w-0">
+              <div className="font-extrabold text-slate-900 truncate text-xs">Peter Deng</div>
+              <div className="text-[10px] text-[#006B56] font-semibold truncate">Program Manager</div>
             </div>
           </div>
 
-          {/* Navigation Links - 13 Items */}
-          <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-180px)]">
-            <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-              Programme Operations
-            </p>
-            {sidebarItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
+          {/* Main Navigation Items (High Contrast & Clear Active Visibility) */}
+          <nav className="p-3 space-y-1.5 overflow-y-auto max-h-[calc(100vh-250px)] text-xs">
+            
+            {/* 1. Dashboard */}
+            <button
+              onClick={() => handleNavClick('dashboard')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold transition-all text-left cursor-pointer ${
+                activeTab === 'dashboard'
+                  ? 'bg-[#006B56] text-white font-black shadow-sm ring-1 ring-[#006B56]'
+                  : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Home className={`w-4 h-4 ${activeTab === 'dashboard' ? 'text-white' : 'text-[#006B56]'}`} />
+                <span className={activeTab === 'dashboard' ? 'text-white font-black' : ''}>Dashboard</span>
+              </div>
+            </button>
 
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleSidebarClick(item.id)}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs transition-all text-left ${
-                    isActive
-                      ? 'bg-[#006B56] text-white font-extrabold shadow-sm'
-                      : item.isDanger
-                      ? 'text-rose-600 hover:bg-rose-50 hover:text-rose-700 font-bold mt-2 border-t border-slate-100 pt-3'
-                      : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100 font-bold'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : item.isDanger ? 'text-rose-500' : 'text-[#006B56]'}`} />
-                    <span className="truncate">{item.label}</span>
-                  </div>
+            {/* 2. Programmes (Expandable) */}
+            <div>
+              <button
+                onClick={() => toggleSection('programmes')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold transition-all text-left cursor-pointer ${
+                  activeTab === 'programmes' || activeTab === 'programmes_performance'
+                    ? 'text-[#006B56] bg-emerald-50 border border-emerald-300/90 font-black shadow-2xs'
+                    : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Briefcase className="w-4 h-4 text-[#006B56]" />
+                  <span>Programmes</span>
+                </div>
+                {expandedSections.programmes ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                )}
+              </button>
 
-                  {item.badge !== undefined && item.badge !== null && item.badge !== 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                      item.badgeAlert
-                        ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                        : isActive
-                        ? 'bg-white/25 text-white'
-                        : 'bg-slate-100 text-slate-700 border border-slate-200'
-                    }`}>
-                      {item.badge}
-                    </span>
+              {expandedSections.programmes && (
+                <div className="pl-4 pr-1 py-1 space-y-1 mt-1 border-l-2 border-emerald-400 ml-4">
+                  <button
+                    onClick={() => handleNavClick('programmes')}
+                    className={`w-full text-left py-2 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      activeTab === 'programmes'
+                        ? 'bg-[#006B56] text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                    }`}
+                  >
+                    Active Programmes
+                  </button>
+                  <button
+                    onClick={() => handleNavClick('programmes_performance')}
+                    className={`w-full text-left py-2 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      activeTab === 'programmes_performance'
+                        ? 'bg-[#006B56] text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                    }`}
+                  >
+                    Programme Performance
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 3. Assistance (Expandable) */}
+            <div>
+              <button
+                onClick={() => toggleSection('assistance')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold transition-all text-left cursor-pointer ${
+                  activeTab === 'requests'
+                    ? 'text-[#006B56] bg-emerald-50 border border-emerald-300/90 font-black shadow-2xs'
+                    : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <HeartHandshake className="w-4 h-4 text-[#006B56]" />
+                  <span>Assistance</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-500 text-white">
+                    {pendingRequestsCount}
+                  </span>
+                  {expandedSections.assistance ? (
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                   )}
-                </button>
-              );
-            })}
+                </div>
+              </button>
+
+              {expandedSections.assistance && (
+                <div className="pl-4 pr-1 py-1 space-y-1 mt-1 border-l-2 border-emerald-400 ml-4">
+                  <button
+                    onClick={() => handleNavClick('requests')}
+                    className={`w-full text-left py-2 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                      activeTab === 'requests'
+                        ? 'bg-[#006B56] text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>Assistance Requests</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                      activeTab === 'requests' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {pendingRequestsCount}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => handleNavClick('requests')}
+                    className="w-full text-left py-2 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-950 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Assessments
+                  </button>
+                  <button
+                    onClick={() => handleNavClick('requests')}
+                    className="w-full text-left py-2 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-950 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Approvals
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 4. Field Operations (Expandable) */}
+            <div>
+              <button
+                onClick={() => toggleSection('field')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold transition-all text-left cursor-pointer ${
+                  activeTab === 'activities' || activeTab === 'supervisors' || activeTab === 'beneficiaries'
+                    ? 'text-[#006B56] bg-emerald-50 border border-emerald-300/90 font-black shadow-2xs'
+                    : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <MapPin className="w-4 h-4 text-[#006B56]" />
+                  <span>Field Operations</span>
+                </div>
+                {expandedSections.field ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                )}
+              </button>
+
+              {expandedSections.field && (
+                <div className="pl-4 pr-1 py-1 space-y-1 mt-1 border-l-2 border-emerald-400 ml-4">
+                  <button
+                    onClick={() => handleNavClick('activities')}
+                    className={`w-full text-left py-2 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      activeTab === 'activities'
+                        ? 'bg-[#006B56] text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                    }`}
+                  >
+                    Field Activity
+                  </button>
+                  <button
+                    onClick={() => handleNavClick('supervisors')}
+                    className={`w-full text-left py-2 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      activeTab === 'supervisors'
+                        ? 'bg-[#006B56] text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                    }`}
+                  >
+                    Field Workers / Supervisors
+                  </button>
+                  <button
+                    onClick={() => handleNavClick('beneficiaries')}
+                    className={`w-full text-left py-2 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      activeTab === 'beneficiaries'
+                        ? 'bg-[#006B56] text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                    }`}
+                  >
+                    Beneficiary Registry
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 5. Resources (Expandable) */}
+            <div>
+              <button
+                onClick={() => toggleSection('resources')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold transition-all text-left cursor-pointer ${
+                  activeTab === 'resources'
+                    ? 'text-[#006B56] bg-emerald-50 border border-emerald-300/90 font-black shadow-2xs'
+                    : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Package className="w-4 h-4 text-[#006B56]" />
+                  <span>Resources</span>
+                </div>
+                {expandedSections.resources ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                )}
+              </button>
+
+              {expandedSections.resources && (
+                <div className="pl-4 pr-1 py-1 space-y-1 mt-1 border-l-2 border-emerald-400 ml-4">
+                  <button
+                    onClick={() => handleNavClick('resources')}
+                    className={`w-full text-left py-2 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      activeTab === 'resources'
+                        ? 'bg-[#006B56] text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                    }`}
+                  >
+                    Resource Allocation
+                  </button>
+                  <button
+                    onClick={() => handleNavClick('resources')}
+                    className="w-full text-left py-2 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-950 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Resource Utilization
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 6. Reports */}
+            <button
+              onClick={() => handleNavClick('reports')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold transition-all text-left cursor-pointer ${
+                activeTab === 'reports'
+                  ? 'bg-[#006B56] text-white font-black shadow-sm ring-1 ring-[#006B56]'
+                  : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <BarChart3 className={`w-4 h-4 ${activeTab === 'reports' ? 'text-white' : 'text-[#006B56]'}`} />
+                <span className={activeTab === 'reports' ? 'text-white font-black' : ''}>Reports</span>
+              </div>
+            </button>
+
+            {/* 7. Notifications (with Badge) */}
+            <button
+              onClick={() => handleNavClick('notifications')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-bold transition-all text-left cursor-pointer ${
+                activeTab === 'notifications'
+                  ? 'bg-[#006B56] text-white font-black shadow-sm ring-1 ring-[#006B56]'
+                  : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Bell className={`w-4 h-4 ${activeTab === 'notifications' ? 'text-white' : 'text-[#006B56]'}`} />
+                <span className={activeTab === 'notifications' ? 'text-white font-black' : ''}>Notifications</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                activeTab === 'notifications' ? 'bg-white/25 text-white' : 'bg-rose-500 text-white'
+              }`}>
+                {unreadCount}
+              </span>
+            </button>
           </nav>
         </div>
 
-        {/* Sidebar Footer */}
-        <div className="p-3 border-t border-slate-200 bg-slate-50 text-[11px] text-slate-500 font-semibold text-center">
-          <span>ADRA HMS v2.4 • South Sudan Mission</span>
+        {/* Bottom Navigation in Sidebar (Help & Support, Profile, Logout) */}
+        <div className="p-3 border-t border-slate-200 bg-slate-50 space-y-1 text-xs">
+          <button
+            onClick={() => handleNavClick('profile')}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-slate-700 hover:bg-white hover:text-slate-900 font-semibold transition cursor-pointer"
+          >
+            <HelpCircle className="w-4 h-4 text-slate-500" />
+            <span>Help & Support</span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick('profile')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl font-semibold transition cursor-pointer ${
+              activeTab === 'profile' ? 'bg-[#006B56] text-white font-bold shadow-xs' : 'text-slate-700 hover:bg-white hover:text-slate-900'
+            }`}
+          >
+            <User className={`w-4 h-4 ${activeTab === 'profile' ? 'text-white' : 'text-slate-500'}`} />
+            <span className={activeTab === 'profile' ? 'text-white font-bold' : ''}>Profile</span>
+          </button>
+
+          {onSwitchRole && (
+            <button
+              onClick={() => onSwitchRole('Administrator')}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-slate-700 hover:bg-white hover:text-slate-900 font-semibold transition"
+            >
+              <ShieldCheck className="w-4 h-4 text-[#006B56]" />
+              <span>Admin Mode</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => onLogout && onLogout()}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 font-bold transition"
+          >
+            <LogOut className="w-4 h-4 text-rose-500" />
+            <span>Logout</span>
+          </button>
         </div>
       </aside>
 
-      {/* Backdrop for mobile drawer */}
-      {isMobileMenuOpen && (
-        <div
-          onClick={() => setIsMobileMenuOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs md:hidden"
-        />
-      )}
-
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* TOP NAVIGATION BAR */}
-        <header className="bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between gap-4 shrink-0 shadow-xs">
-          {/* Left: Mobile Toggle & Programme Scope Switcher */}
-          <div className="flex items-center gap-3">
+        {/* TOP HEADER */}
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-4 shrink-0">
+          {/* MOBILE VIEW (<md): Organization Name + Hamburger */}
+          <div className="flex md:hidden items-center gap-2.5 min-w-0">
             <button
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="md:hidden p-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100"
+              onClick={() => setIsMobileDrawerOpen(true)}
+              className="p-2 -ml-1 text-slate-700 hover:text-slate-900 rounded-xl hover:bg-slate-100 active:scale-95 transition"
+              title="Open Navigation Menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Scope Filter Dropdown */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500 hidden sm:inline">Scope:</span>
-              <div className="relative">
-                <select
-                  value={selectedProgrammeScope}
-                  onChange={(e) => setSelectedProgrammeScope(e.target.value)}
-                  className="pl-3 pr-8 py-1.5 text-xs font-semibold text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#006B56] cursor-pointer appearance-none"
-                >
-                  <option value="ALL">All My Programmes ({programmes.length})</option>
-                  {programmes.map(p => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-[#006B56] text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
+                A
+              </div>
+              <div className="min-w-0">
+                <span className="font-black text-sm text-slate-900 tracking-tight leading-none block truncate">
+                  ADRA South Sudan
+                </span>
+                <span className="text-[10px] text-[#006B56] font-extrabold uppercase tracking-wider block mt-0.5">
+                  Program Manager
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Right: Quick Notifications Bell, Refresh, and User Identity */}
-          <div className="flex items-center gap-3">
+          {/* DESKTOP VIEW (>=md): Title & Welcome Greeting */}
+          <div className="hidden md:flex items-center gap-3 min-w-0">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                  Good morning, {currentUser?.full_name?.split(' ')[0] || currentUser?.name?.split(' ')[0] || 'Manager'}
+                </h1>
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Here's what's happening across your programmes in South Sudan.
+              </p>
+            </div>
+          </div>
+
+          {/* DESKTOP CONTROLS (>=md: Search, Scope, Refresh, Profile) */}
+          <div className="hidden md:flex items-center gap-3">
+            {/* Global Search Bar */}
+            <div className="relative w-48 sm:w-64">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search requests, programmes..."
+                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#006B56] transition font-medium"
+              />
+            </div>
+
+            {/* Scope Filter Pill */}
+            <div className="relative">
+              <select
+                value={selectedProgrammeScope}
+                onChange={(e) => setSelectedProgrammeScope(e.target.value)}
+                className="pl-2.5 pr-7 py-2 text-xs font-bold text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#006B56] cursor-pointer appearance-none max-w-[150px] truncate"
+              >
+                <option value="ALL">All Programmes</option>
+                {programmes.map(p => (
+                  <option key={p.id} value={p.name}>{p.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* Live Sync Refresh */}
             <button
               onClick={loadDashboardData}
               disabled={isLoading}
               title="Refresh Live Data"
-              className="p-2 text-slate-500 hover:text-[#006B56] hover:bg-slate-100 rounded-lg transition-colors"
+              className="p-2 text-slate-500 hover:text-[#006B56] hover:bg-slate-100 rounded-xl transition"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-[#006B56]' : ''}`} />
             </button>
 
-            {/* Notifications Bell */}
+            {/* Notification Button */}
             <button
-              onClick={() => setActiveTab('notifications')}
-              className="relative p-2 text-slate-600 hover:text-[#006B56] hover:bg-slate-100 rounded-lg transition-colors"
+              onClick={() => handleNavClick('notifications')}
+              className={`relative p-2 rounded-xl transition ${
+                activeTab === 'notifications' ? 'bg-[#006B56] text-white' : 'text-slate-600 hover:text-[#006B56] hover:bg-slate-100'
+              }`}
+              title="Notifications"
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center border-2 border-white">
+                  {unreadCount}
+                </span>
               )}
             </button>
 
-            {/* User Chip */}
+            {/* Profile Avatar Chip */}
             <div
-              onClick={() => setActiveTab('profile')}
-              className="flex items-center gap-2 pl-2 border-l border-slate-200 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => handleNavClick('profile')}
+              className="flex items-center gap-2 pl-2 border-l border-slate-200 cursor-pointer hover:opacity-80 transition"
             >
-              <div className="w-8 h-8 rounded-full bg-[#006B56] text-white font-bold flex items-center justify-center text-xs shadow-xs">
-                GO
+              <div className="w-8 h-8 rounded-full bg-[#006B56] text-white font-bold flex items-center justify-center text-xs">
+                {(currentUser?.full_name || currentUser?.name || 'PM')
+                  .split(' ')
+                  .map(n => n[0])
+                  .join('')
+                  .slice(0, 2)
+                  .toUpperCase()}
               </div>
               <div className="hidden lg:block text-left">
-                <div className="text-xs font-bold text-slate-800 leading-none">Grace Ochieng</div>
-                <div className="text-[10px] text-[#006B56] font-semibold mt-0.5">Programme Manager</div>
+                <div className="text-xs font-bold text-slate-900 leading-none">
+                  {currentUser?.full_name || currentUser?.name || currentUser?.email?.split('@')[0] || 'Program Manager'}
+                </div>
+                <div className="text-[10px] text-[#006B56] font-semibold mt-0.5">
+                  {currentUser?.role || 'Program Manager'}
+                </div>
               </div>
             </div>
           </div>
+
+          {/* MOBILE RIGHT CONTROLS (<md): Only Notification Icon */}
+          <div className="flex md:hidden items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => handleNavClick('notifications')}
+              className="relative p-2 text-slate-700 hover:text-[#006B56] hover:bg-slate-100 rounded-xl transition active:scale-95"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center border-2 border-white">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
         </header>
 
-        {/* DYNAMIC SUB-VIEW RENDERER */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        {/* SCROLLABLE MAIN CONTENT */}
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
           {isLoading ? (
-            <div className="h-full flex flex-col items-center justify-center py-20 text-slate-400">
+            <div className="py-24 flex flex-col items-center justify-center text-slate-400">
               <RefreshCw className="w-8 h-8 animate-spin text-[#006B56] mb-3" />
-              <p className="font-semibold text-sm text-slate-600">Syncing ADRA South Sudan Programme Records...</p>
+              <p className="font-bold text-xs text-slate-600">Loading ADRA South Sudan Programme Data...</p>
             </div>
           ) : (
             <>
+              {/* TAB 1: DASHBOARD COMMAND CENTER */}
               {activeTab === 'dashboard' && (
                 <PMOverviewView
                   requests={scopedRequests}
@@ -487,11 +819,13 @@ export function ProgrammeManagerDashboard({
                   beneficiaries={beneficiaries}
                   distributions={scopedDistributions}
                   activities={scopedActivities}
+                  resources={scopedResources}
                   onSelectRequest={handleSelectRequestFromOverview}
-                  onNavigateTab={(tab) => setActiveTab(tab)}
+                  onNavigateTab={(tab) => handleNavClick(tab)}
                 />
               )}
 
+              {/* TAB 2: ASSISTANCE REQUESTS */}
               {activeTab === 'requests' && (
                 <PMAssistanceRequestsView
                   requests={scopedRequests}
@@ -508,15 +842,7 @@ export function ProgrammeManagerDashboard({
                 />
               )}
 
-              {activeTab === 'beneficiaries' && (
-                <PMBeneficiariesView
-                  beneficiaries={beneficiaries}
-                  requests={requests}
-                  programmes={programmes}
-                  onSelectRequest={handleSelectRequestFromOverview}
-                />
-              )}
-
+              {/* TAB 3: ACTIVE PROGRAMMES & PERFORMANCE */}
               {activeTab === 'programmes' && (
                 <PMProgrammesView
                   programmes={programmes}
@@ -526,6 +852,25 @@ export function ProgrammeManagerDashboard({
                 />
               )}
 
+              {/* TAB 4: FIELD SUPERVISORS */}
+              {activeTab === 'supervisors' && (
+                <PMSupervisorsView
+                  supervisors={supervisors}
+                  programmes={programmes}
+                />
+              )}
+
+              {/* TAB 5: BENEFICIARY REGISTRY */}
+              {activeTab === 'beneficiaries' && (
+                <PMBeneficiariesView
+                  beneficiaries={beneficiaries}
+                  requests={requests}
+                  programmes={programmes}
+                  onSelectRequest={handleSelectRequestFromOverview}
+                />
+              )}
+
+              {/* TAB 6: FIELD ACTIVITIES */}
               {activeTab === 'activities' && (
                 <PMFieldActivitiesView
                   activities={scopedActivities}
@@ -534,6 +879,7 @@ export function ProgrammeManagerDashboard({
                 />
               )}
 
+              {/* TAB 7: AID DISTRIBUTIONS */}
               {activeTab === 'distributions' && (
                 <PMAidDistributionsView
                   distributions={scopedDistributions}
@@ -542,13 +888,7 @@ export function ProgrammeManagerDashboard({
                 />
               )}
 
-              {activeTab === 'supervisors' && (
-                <PMSupervisorsView
-                  supervisors={supervisors}
-                  programmes={programmes}
-                />
-              )}
-
+              {/* TAB 8: RESOURCES & WAREHOUSES */}
               {activeTab === 'resources' && (
                 <PMResourcesView
                   resources={scopedResources}
@@ -556,6 +896,7 @@ export function ProgrammeManagerDashboard({
                 />
               )}
 
+              {/* TAB 9: REPORTS & EXPORTS */}
               {activeTab === 'reports' && (
                 <PMReportsView
                   requests={scopedRequests}
@@ -569,23 +910,16 @@ export function ProgrammeManagerDashboard({
                 />
               )}
 
-              {activeTab === 'feedback' && (
-                <PMFeedbackView
-                  feedback={feedback}
-                  programmes={programmes}
-                  currentUser={currentUser}
-                  onRespondFeedback={handleRespondFeedback}
-                />
-              )}
-
+              {/* TAB 10: NOTIFICATIONS */}
               {activeTab === 'notifications' && (
                 <PMNotificationsView
                   notifications={notifications}
                   onMarkAllAsRead={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
-                  onNavigateTab={(tab) => setActiveTab(tab)}
+                  onNavigateTab={(tab) => handleNavClick(tab)}
                 />
               )}
 
+              {/* TAB 11: PROFILE & SETTINGS */}
               {activeTab === 'profile' && (
                 <PMProfileView
                   currentUser={currentUser}
@@ -599,3 +933,5 @@ export function ProgrammeManagerDashboard({
     </div>
   );
 }
+
+export default ProgrammeManagerDashboard;

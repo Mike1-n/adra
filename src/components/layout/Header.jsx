@@ -148,7 +148,7 @@ export function Header({
             {showRoleMenu && (
               <div className="absolute right-0 mt-2 w-52 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 p-2 animate-in fade-in zoom-in-95 duration-150">
                 <p className="text-[10px] uppercase font-bold text-slate-500 px-2 py-1">Role Switcher (Viva)</p>
-                {['Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer'].map(role => (
+                {['Administrator', 'Program Manager', 'Supervisor', 'Field Worker', 'Beneficiary', 'Project Officer', 'Finance Officer', 'M&E Officer'].map(role => (
                   <button
                     key={role}
                     onClick={() => {

@@ -349,3 +349,63 @@ CREATE POLICY "Allow authenticated read on documents" ON public.project_document
 DROP POLICY IF EXISTS "Allow authenticated write on documents" ON public.project_documents;
 CREATE POLICY "Allow authenticated write on documents" ON public.project_documents FOR ALL TO authenticated 
 USING (true) WITH CHECK (true);
+
+-- ----------------------------------------------------------------------------
+-- 13. ASSISTANCE REQUESTS TABLE (Beneficiary Portal & PM Authorization)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.assistance_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    request_code TEXT NOT NULL UNIQUE,
+    beneficiary_id UUID REFERENCES public.beneficiaries(id) ON DELETE SET NULL,
+    beneficiary_name TEXT NOT NULL,
+    beneficiary_code TEXT,
+    category TEXT NOT NULL,
+    assistance_type TEXT,
+    urgency TEXT DEFAULT 'Medium',
+    priority TEXT DEFAULT 'Medium',
+    status TEXT NOT NULL DEFAULT 'Submitted',
+    status_label TEXT DEFAULT 'Pending Review',
+    status_stage INT DEFAULT 1,
+    reason TEXT,
+    description TEXT,
+    state TEXT,
+    county TEXT,
+    payam TEXT,
+    boma TEXT,
+    village TEXT,
+    location TEXT,
+    program_id UUID REFERENCES public.projects(id) ON DELETE SET NULL,
+    program_name TEXT,
+    programme_name TEXT,
+    household_members INT DEFAULT 1,
+    preferred_depot TEXT,
+    eligibility TEXT DEFAULT 'Eligible',
+    eligibility_status TEXT DEFAULT 'Verified',
+    verification_status TEXT DEFAULT 'Verified Active',
+    is_duplicate BOOLEAN DEFAULT FALSE,
+    assigned_supervisor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    assigned_supervisor_name TEXT,
+    assigned_field_worker_name TEXT,
+    reviewed_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    review_notes TEXT,
+    expected_dispatch_date TEXT,
+    additional_info TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_assistance_requests_beneficiary ON public.assistance_requests(beneficiary_id);
+CREATE INDEX IF NOT EXISTS idx_assistance_requests_status ON public.assistance_requests(status);
+CREATE INDEX IF NOT EXISTS idx_assistance_requests_created_at ON public.assistance_requests(created_at DESC);
+
+ALTER TABLE public.assistance_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow authenticated read on assistance_requests" ON public.assistance_requests;
+CREATE POLICY "Allow authenticated read on assistance_requests" ON public.assistance_requests FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow authenticated insert on assistance_requests" ON public.assistance_requests;
+CREATE POLICY "Allow authenticated insert on assistance_requests" ON public.assistance_requests FOR INSERT TO authenticated WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow authenticated update on assistance_requests" ON public.assistance_requests;
+CREATE POLICY "Allow authenticated update on assistance_requests" ON public.assistance_requests FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+
