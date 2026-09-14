@@ -22,6 +22,7 @@ import { db, isSupabaseConfigured } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
 import { Modal } from '../common/Modal';
 import { GlobalSearchView } from '../../pages/admin/components/GlobalSearchView';
+import { UserProfileModal } from '../common/UserProfileModal';
 
 export function AdminWebPortalLayout({
   activeSection,
@@ -37,6 +38,7 @@ export function AdminWebPortalLayout({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const toast = useToast();
 
   const loadPendingCount = async () => {
@@ -265,6 +267,21 @@ export function AdminWebPortalLayout({
               <span className="hidden sm:inline text-white font-bold">Field App</span>
             </button>
 
+            {/* Admin Profile Icon Button */}
+            <button
+              type="button"
+              onClick={() => setIsProfileOpen(true)}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs text-slate-800 font-bold transition shadow-2xs cursor-pointer active:scale-95"
+              title="Administrator Profile & Account"
+            >
+              <img
+                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                alt={currentUser?.full_name || 'Admin'}
+                className="w-5 h-5 rounded-full object-cover border border-emerald-500/40 shrink-0"
+              />
+              <span className="hidden sm:inline font-bold">Profile</span>
+            </button>
+
             {/* Prominent Admin Logout Button */}
             <button
               onClick={logout}
@@ -376,6 +393,12 @@ export function AdminWebPortalLayout({
       >
         <GlobalSearchView onSelectEntity={() => setIsSearchOpen(false)} />
       </Modal>
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+      />
     </div>
   );
 }

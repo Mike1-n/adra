@@ -139,7 +139,11 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
             </button>
 
             {/* Quick Profile Pill */}
-            <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-200">
+            <div
+              onClick={() => setActiveTab('profile')}
+              className="hidden sm:flex items-center gap-2 pl-2 border-l border-slate-200 cursor-pointer hover:opacity-85 transition"
+              title="View Beneficiary Profile"
+            >
               <img
                 src={beneficiary?.avatar || currentUser?.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80'}
                 alt={beneficiary?.full_name || 'Beneficiary'}
@@ -154,6 +158,27 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
                 </span>
               </div>
             </div>
+
+            {/* Mobile Profile Icon Button */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('profile')}
+              className="sm:hidden p-2 rounded-xl text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-200 transition cursor-pointer"
+              title="My Profile"
+            >
+              <User className="w-4 h-4" />
+            </button>
+
+            {/* Header Logout Button */}
+            <button
+              type="button"
+              onClick={logout}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs cursor-pointer"
+              title="Logout of Client Portal"
+            >
+              <LogOut className="w-3.5 h-3.5 text-white" />
+              <span className="hidden sm:inline font-bold">Logout</span>
+            </button>
 
             {/* Switch to Field App (if Admin or Staff) */}
             {currentUser?.role === 'Administrator' && onSwitchToFieldApp && (

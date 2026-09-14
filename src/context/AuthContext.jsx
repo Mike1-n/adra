@@ -62,33 +62,134 @@ export function AuthProvider({ children }) {
   const login = async (identifier, password) => {
     setLoading(true);
     try {
-      if (isSupabaseConfigured && supabase) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email: identifier, password });
-        if (!error && data?.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
+      const cleanIdent = (identifier || '').trim();
+      const cleanLower = cleanIdent.toLowerCase();
 
-          const userObj = {
-            id: data.user.id,
-            email: data.user.email,
-            full_name: profile?.full_name || data.user.email,
-            role: profile?.role || 'Administrator',
-            department: profile?.department || 'Operations',
-            avatar: profile?.avatar_url || demoAccounts[0].avatar
-          };
+      // Resolve shortcuts or lookup user to find their registered email
+      const ROLE_SHORTCUT_EMAILS = {
+        admin: 'admin@adra.org',
+        administrator: 'admin@adra.org',
+        supervisor: 'supervisor@adra.org',
+        manager: 'program.manager@adra.org',
+        pm: 'program.manager@adra.org',
+        'program manager': 'program.manager@adra.org',
+        'programme manager': 'program.manager@adra.org',
+        officer: 'project.officer@adra.org',
+        po: 'project.officer@adra.org',
+        'project officer': 'project.officer@adra.org',
+        finance: 'finance.officer@adra.org',
+        fo: 'finance.officer@adra.org',
+        'finance officer': 'finance.officer@adra.org',
+        field: 'field.worker@adra.org',
+        worker: 'field.worker@adra.org',
+        'field worker': 'field.worker@adra.org',
+        beneficiary: 'mary.nyambura@adra.community'
+      };
 
-          setCurrentUser(userObj);
-          db.logAudit({ action: 'AUTH', module: 'Authentication', details: `User logged in: ${userObj.email}` });
-          toast.success(`Welcome back, ${userObj.full_name} (${userObj.role})!`);
-          return userObj;
+      let candidateEmail = cleanIdent.includes('@') ? cleanIdent : ROLE_SHORTCUT_EMAILS[cleanLower];
+
+      // If not a shortcut, try quick lookup in database users for matching phone/name/code
+      if (!candidateEmail) {
+        try {
+          const users = await db.getUsers();
+          const matched = users.find(u => {
+            const uUser = (u.email || '').split('@')[0].toLowerCase();
+            const uName = (u.full_name || '').toLowerCase();
+            const uNat = (u.national_id || u.id_number || '').toLowerCase();
+            const uPhone = (u.phone || u.phone_number || '').replace(/\D/g, '');
+            const idDigits = cleanIdent.replace(/\D/g, '');
+            return uUser === cleanLower ||
+                   uName === cleanLower ||
+                   uNat === cleanLower ||
+                   (idDigits.length >= 6 && uPhone.endsWith(idDigits));
+          });
+          if (matched?.email) {
+            candidateEmail = matched.email;
+          }
+        } catch (e) {
+          // Continue to normal auth
         }
       }
 
-      // Query ADRA database directly (adra_users / adra_beneficiaries)
-      const userObj = await db.authenticateUser(identifier, password);
+      // 1. Try Supabase Auth if configured and we have an email
+      if (isSupabaseConfigured && supabase && candidateEmail && candidateEmail.includes('@')) {
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: candidateEmail,
+            password
+          });
+
+          if (!error && data?.user) {
+            // Fetch profile
+            let profile = null;
+            try {
+              const { data: prof } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', data.user.id)
+                .maybeSingle();
+              profile = prof;
+            } catch (err) {
+              // fallback
+            }
+
+            if (!profile && data.user.email) {
+              try {
+                const { data: prof } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('email', data.user.email)
+                  .maybeSingle();
+                profile = prof;
+              } catch (err) {
+                // fallback
+              }
+            }
+
+            // Verify account status
+            if (profile && profile.role !== 'Administrator') {
+              const isPending = profile.status === 'Pending Verification' || profile.is_active === false;
+              if (isPending) {
+                await supabase.auth.signOut();
+                throw new Error('Account verification pending: As we await administrator verification, your account is in pending status. You will be able to log in once your account has been reviewed and approved.');
+              }
+              if (profile.status === 'Deactivated' || profile.status === 'Suspended') {
+                await supabase.auth.signOut();
+                throw new Error('This account has been deactivated. Please contact an ADRA Administrator.');
+              }
+            }
+
+            const userObj = {
+              id: data.user.id,
+              email: data.user.email,
+              full_name: profile?.full_name || data.user.email,
+              role: profile?.role || 'Administrator',
+              department: profile?.department || 'Operations',
+              avatar: profile?.avatar_url || demoAccounts[0].avatar,
+              phone: profile?.phone,
+              status: profile?.status || 'Active',
+              is_active: profile?.is_active ?? true
+            };
+
+            setCurrentUser(userObj);
+            await db.logAudit({
+              action: 'AUTH',
+              module: 'Authentication',
+              details: `User logged in via Supabase Auth: ${userObj.email} (${userObj.role})`
+            });
+            toast.success(`Welcome back, ${userObj.full_name} (${userObj.role})!`);
+            return userObj;
+          }
+        } catch (supabaseErr) {
+          if (supabaseErr.message && (supabaseErr.message.includes('pending') || supabaseErr.message.includes('deactivated'))) {
+            throw supabaseErr;
+          }
+          // If Supabase auth error is about wrong credentials or other issues, fall through to db.authenticateUser
+        }
+      }
+
+      // 2. Query ADRA database directly (profiles / beneficiaries / demoAccounts)
+      const userObj = await db.authenticateUser(cleanIdent, password);
       setCurrentUser(userObj);
       toast.success(`Welcome back, ${userObj.full_name} (${userObj.role})!`);
       return userObj;
@@ -105,8 +206,27 @@ export function AuthProvider({ children }) {
     try {
       if (signupData.accountType === 'Beneficiary') {
         const res = await db.registerBeneficiaryAccount(signupData);
-        const userObj = res.user || res.account;
-        toast.info(`Account verification pending: As we await administrator verification, ID ${res.beneficiary.beneficiary_code} has been registered.`);
+        const userObj = res.user || res.account || res;
+
+        // Optionally register with Supabase GoTrue
+        if (isSupabaseConfigured && supabase && res.beneficiary?.email && signupData.password) {
+          try {
+            await supabase.auth.signUp({
+              email: res.beneficiary.email,
+              password: signupData.password || 'Password123!',
+              options: {
+                data: {
+                  full_name: signupData.full_name,
+                  role: 'Beneficiary'
+                }
+              }
+            });
+          } catch (e) {
+            console.warn('Supabase auth signup notice:', e?.message);
+          }
+        }
+
+        toast.info(`Account verification pending: As we await administrator verification, ID ${res.beneficiary?.beneficiary_code || 'new ID'} has been registered.`);
         return { ...userObj, beneficiary: res.beneficiary };
       } else {
         const newUser = await db.createUser({
@@ -122,6 +242,25 @@ export function AuthProvider({ children }) {
           role: signupData.role || 'Project Officer',
           department: signupData.department || 'Field Operations'
         });
+
+        // Optionally register with Supabase GoTrue
+        if (isSupabaseConfigured && supabase && signupData.email && signupData.password) {
+          try {
+            await supabase.auth.signUp({
+              email: signupData.email,
+              password: signupData.password || 'Password123!',
+              options: {
+                data: {
+                  full_name: signupData.full_name,
+                  role: signupData.role || 'Project Officer'
+                }
+              }
+            });
+          } catch (e) {
+            console.warn('Supabase auth signup notice:', e?.message);
+          }
+        }
+
         toast.info(`Account verification pending: As we await administrator verification, account for ${newUser.full_name} is under review.`);
         return newUser;
       }

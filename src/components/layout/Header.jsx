@@ -10,11 +10,13 @@ import {
   Globe,
   ExternalLink,
   LogOut,
-  Menu
+  Menu,
+  User
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import { isNative } from '../../lib/capacitor';
+import { UserProfileModal } from '../common/UserProfileModal';
 
 export function Header({
   currentTab = 'dashboard',
@@ -26,6 +28,7 @@ export function Header({
   const { currentUser, quickSwitchRole, logout } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const notifications = [
     { id: 1, title: 'Seed Distribution Completed', time: '10 mins ago', desc: 'Project Officer completed activity ACT-2025-101.' },
@@ -167,6 +170,27 @@ export function Header({
             )}
           </div>
 
+          {/* Profile Icon Button */}
+          <button
+            type="button"
+            onClick={() => setIsProfileModalOpen(true)}
+            className="flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-semibold transition active:scale-95 cursor-pointer shadow-2xs"
+            title="My Profile & Account"
+          >
+            {currentUser?.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser?.full_name || 'Profile'}
+                className="w-5 h-5 rounded-full object-cover border border-emerald-500/40 shrink-0"
+              />
+            ) : (
+              <User className="w-4 h-4 text-emerald-700 shrink-0" />
+            )}
+            <span className="hidden md:inline max-w-[90px] truncate font-bold">
+              {currentUser?.full_name?.split(' ')[0] || 'Profile'}
+            </span>
+          </button>
+
           {/* Logout Button */}
           <button
             onClick={logout}
@@ -178,6 +202,12 @@ export function Header({
           </button>
         </div>
       </div>
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
     </header>
   );
 }

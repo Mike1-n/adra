@@ -697,22 +697,51 @@ export function SupervisorMobileApp({
           )}
         </div>
 
-        {/* Right: Notifications Bell Icon */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveSubview(activeSubview === 'notifications' ? null : 'notifications');
-          }}
-          className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center justify-center relative border border-slate-200/80 transition cursor-pointer shadow-2xs shrink-0"
-          title="Notifications"
-        >
-          <Bell className="w-4 h-4" />
-          {unreadNotifsCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-xs">
-              {unreadNotifsCount}
-            </span>
-          )}
-        </button>
+        {/* Right: Notifications Bell, Profile & Logout Icons */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSubview(activeSubview === 'notifications' ? null : 'notifications');
+            }}
+            className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center justify-center relative border border-slate-200/80 transition cursor-pointer shadow-2xs shrink-0"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadNotifsCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-xs">
+                {unreadNotifsCount}
+              </span>
+            )}
+          </button>
+
+          {/* Supervisor Profile Icon Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveSubview(activeSubview === 'profile' ? null : 'profile');
+            }}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0 border ${
+              activeSubview === 'profile' || activeTab === 'profile'
+                ? 'bg-[#006B56] text-white border-[#006B56]'
+                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
+            }`}
+            title="Supervisor Profile"
+          >
+            <User className="w-4 h-4" />
+          </button>
+
+          {/* Supervisor Logout Button */}
+          <button
+            type="button"
+            onClick={onLogout || logout}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs shrink-0 cursor-pointer"
+            title="Logout of ADRA"
+          >
+            <LogOut className="w-3.5 h-3.5 text-white" />
+            <span className="hidden sm:inline font-bold">Logout</span>
+          </button>
+        </div>
       </header>
 
       {/* Main Mobile Screen Body */}

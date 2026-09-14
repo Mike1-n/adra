@@ -545,7 +545,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
             </div>
           </div>
 
-          {/* Right Header: Notification Bell (Language selector removed) */}
+          {/* Right Header: Notification Bell, Profile & Logout */}
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
@@ -559,6 +559,40 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
                   {unreadCount}
                 </span>
               )}
+            </button>
+
+            {/* Beneficiary Profile Icon Button */}
+            <button
+              type="button"
+              onClick={() => setCurrentView('profile')}
+              className={`p-1.5 sm:p-2 rounded-xl text-white hover:bg-white/15 cursor-pointer transition flex items-center gap-1.5 ${
+                currentView === 'profile' ? 'bg-white/20 ring-1 ring-white/30' : ''
+              }`}
+              title="My Beneficiary Profile"
+            >
+              {beneficiary?.avatar || currentUser?.avatar ? (
+                <img
+                  src={beneficiary?.avatar || currentUser?.avatar}
+                  alt="Profile"
+                  className="w-5 h-5 rounded-full object-cover border border-white/40"
+                />
+              ) : (
+                <User className="w-5 h-5 text-white" />
+              )}
+              <span className="hidden md:inline text-xs font-bold text-white max-w-[80px] truncate">
+                {beneficiary?.full_name?.split(' ')[0] || 'Profile'}
+              </span>
+            </button>
+
+            {/* Beneficiary Header Logout Button */}
+            <button
+              type="button"
+              onClick={logout}
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs cursor-pointer"
+              title="Logout of Portal"
+            >
+              <LogOut className="w-3.5 h-3.5 text-white" />
+              <span className="hidden sm:inline font-bold">Logout</span>
             </button>
           </div>
         </header>

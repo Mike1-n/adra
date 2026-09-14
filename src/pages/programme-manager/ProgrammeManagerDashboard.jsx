@@ -27,6 +27,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { db, normalizeAssistanceRequest } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 import { PMOverviewView } from './components/PMOverviewView';
 import { PMAssistanceRequestsView } from './components/PMAssistanceRequestsView';
 import { PMBeneficiariesView } from './components/PMBeneficiariesView';
@@ -45,6 +46,9 @@ export function ProgrammeManagerDashboard({
   onLogout,
   onSwitchRole
 }) {
+  const { logout: authLogout } = useAuth();
+  const handleLogout = onLogout || authLogout;
+
   // Navigation State
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
@@ -765,6 +769,7 @@ export function ProgrammeManagerDashboard({
             <div
               onClick={() => handleNavClick('profile')}
               className="flex items-center gap-2 pl-2 border-l border-slate-200 cursor-pointer hover:opacity-80 transition"
+              title="View Programme Manager Profile"
             >
               <div className="w-8 h-8 rounded-full bg-[#006B56] text-white font-bold flex items-center justify-center text-xs">
                 {(currentUser?.full_name || currentUser?.name || 'PM')
@@ -783,9 +788,20 @@ export function ProgrammeManagerDashboard({
                 </div>
               </div>
             </div>
+
+            {/* Prominent Header Logout Button */}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs cursor-pointer ml-1"
+              title="Logout of ADRA"
+            >
+              <LogOut className="w-3.5 h-3.5 text-white" />
+              <span className="font-bold">Logout</span>
+            </button>
           </div>
 
-          {/* MOBILE RIGHT CONTROLS (<md): Only Notification Icon */}
+          {/* MOBILE RIGHT CONTROLS (<md): Notification, Profile & Logout Buttons */}
           <div className="flex md:hidden items-center gap-1.5 shrink-0">
             <button
               onClick={() => handleNavClick('notifications')}
@@ -798,6 +814,29 @@ export function ProgrammeManagerDashboard({
                   {unreadCount}
                 </span>
               )}
+            </button>
+
+            {/* Mobile Profile Icon Button */}
+            <button
+              type="button"
+              onClick={() => handleNavClick('profile')}
+              className={`p-2 rounded-xl transition active:scale-95 ${
+                activeTab === 'profile' ? 'bg-[#006B56] text-white' : 'text-slate-700 hover:text-[#006B56] hover:bg-slate-100'
+              }`}
+              title="My Profile"
+            >
+              <User className="w-5 h-5" />
+            </button>
+
+            {/* Mobile Logout Button */}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs cursor-pointer"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4 text-white" />
+              <span className="font-bold text-xs">Logout</span>
             </button>
           </div>
         </header>
