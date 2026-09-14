@@ -168,29 +168,32 @@ export function Sidebar({ currentTab, onSelectTab, onSwitchToAdminWeb, isMobile 
               key={item.id}
               onClick={() => handleNavClick(item.id)}
               className={cn(
-                'w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group text-left',
+                'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 group text-left cursor-pointer',
                 isActive
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-xs font-bold'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-transparent'
+                  ? 'bg-[#006B56] text-white shadow-sm font-black ring-1 ring-[#006B56]'
+                  : 'text-slate-700 hover:text-slate-950 hover:bg-slate-100 border border-transparent font-medium'
               )}
             >
               <div className="flex items-center gap-3 min-w-0">
                 <Icon
                   className={cn(
                     'w-4 h-4 transition-colors shrink-0',
-                    isActive ? 'text-emerald-700' : 'text-slate-500 group-hover:text-slate-900'
+                    isActive ? 'text-white stroke-[2.2]' : 'text-slate-500 group-hover:text-[#006B56]'
                   )}
                 />
-                <span className="truncate">{item.name}</span>
+                <span className={cn('truncate', isActive ? 'text-white font-black' : 'text-slate-700 group-hover:text-slate-900')}>{item.name}</span>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 {item.id === 'users' && pendingApprovals > 0 && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
+                  <span className={cn(
+                    'px-1.5 py-0.5 text-[10px] font-bold rounded-full',
+                    isActive ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
+                  )}>
                     {pendingApprovals}
                   </span>
                 )}
                 {isActive && (
-                  <ChevronRight className="w-3.5 h-3.5 text-emerald-700" />
+                  <ChevronRight className="w-3.5 h-3.5 text-white stroke-[2.5]" />
                 )}
               </div>
             </button>

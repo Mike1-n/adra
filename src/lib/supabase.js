@@ -47,7 +47,11 @@ const STORAGE_KEYS = {
   ADRA_CONTACTS: 'adra_contacts',
   SUPERVISORS: 'adra_supervisors',
   FIELD_ACTIVITIES: 'adra_field_activities',
-  PROGRAM_RESOURCES: 'adra_program_resources'
+  PROGRAM_RESOURCES: 'adra_program_resources',
+  FIELD_WORKERS: 'adra_field_workers',
+  FIELD_ASSESSMENTS: 'adra_field_assessments',
+  SUPERVISOR_NOTIFICATIONS: 'adra_supervisor_notifications',
+  SUPERVISOR_ACTIVITIES: 'adra_supervisor_activities'
 };
 
 function getLocalData(key, defaultData) {
@@ -613,39 +617,63 @@ export const db = {
 
   // --- BENEFICIARY PORTAL & ASSISTANCE REQUESTS ---
   async getAssistanceRequests(beneficiaryId = null) {
+    const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    let remoteData = null;
+
     if (isSupabaseConfigured) {
-      let query = supabase.from('assistance_requests').select('*').order('created_at', { ascending: false });
-      if (beneficiaryId) query = query.eq('beneficiary_id', beneficiaryId);
-      const { data, error } = await query;
-      if (!error && data) return data.map(normalizeAssistanceRequest);
-    }
-    const all = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, mock.initialAssistanceRequests || []);
-    
-    // Ensure the specific beneficiary request ADR-REQ-2026-00128 is present in all
-    const has00128 = all.some(r => r.request_code === 'ADR-REQ-2026-00128' || r.id === 'req-128' || (r.reason === 'dDFVDF' || r.description === 'dDFVDF'));
-    let combined = all;
-    if (!has00128 && mock.initialAssistanceRequests?.length > 0) {
-      const default00128 = mock.initialAssistanceRequests.find(r => r.request_code === 'ADR-REQ-2026-00128' || r.id === 'req-128');
-      if (default00128) {
-        combined = [default00128, ...all];
-        saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, combined);
+      try {
+        let query = supabase.from('assistance_requests').select('*').order('created_at', { ascending: false });
+        if (beneficiaryId) {
+          if (isUUID(beneficiaryId)) {
+            query = query.or(`beneficiary_id.eq.${beneficiaryId},beneficiary_code.eq.${beneficiaryId},beneficiary_name.ilike.%${beneficiaryId}%`);
+          } else {
+            query = query.or(`beneficiary_code.eq.${beneficiaryId},beneficiary_name.ilike.%${beneficiaryId}%`);
+          }
+        }
+        const { data, error } = await query;
+        if (!error && data) {
+          remoteData = data.map(normalizeAssistanceRequest);
+        } else if (error) {
+          console.warn('Supabase getAssistanceRequests warning:', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase getAssistanceRequests query error (falling back to local):', err?.message);
       }
     }
 
-    const normalized = combined.map(normalizeAssistanceRequest);
+    if (remoteData !== null) {
+      saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, remoteData);
+      return remoteData;
+    }
+
+    const rawLocal = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, []);
+    const isMock = (r) => (
+      r.id === 'req-128' || 
+      (typeof r.id === 'string' && r.id.startsWith('req-10')) ||
+      (typeof r.request_code === 'string' && (
+        r.request_code.startsWith('ADR-REQ-TEST') ||
+        r.request_code.startsWith('ADR-REQ-2026-0010') ||
+        r.request_code === 'ADR-REQ-2026-00128' ||
+        r.request_code === 'ADR-REQ-2026-00129'
+      ))
+    );
+    const cleanedLocal = (Array.isArray(rawLocal) ? rawLocal : []).filter(r => !isMock(r)).map(normalizeAssistanceRequest);
+    saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, cleanedLocal);
+
     if (beneficiaryId) {
-      return normalized.filter(r => 
-        r.beneficiary_id === beneficiaryId || 
-        r.beneficiary_code === beneficiaryId || 
-        r.beneficiary_name?.toLowerCase() === beneficiaryId?.toLowerCase()
+      const target = String(beneficiaryId).toLowerCase();
+      return cleanedLocal.filter(r => 
+        (r.beneficiary_id && String(r.beneficiary_id).toLowerCase() === target) || 
+        (r.beneficiary_code && String(r.beneficiary_code).toLowerCase() === target) || 
+        (r.beneficiary_name && String(r.beneficiary_name).toLowerCase().includes(target))
       );
     }
-    return normalized;
+    return cleanedLocal;
   },
 
   async createAssistanceRequest(requestData) {
-    const all = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, mock.initialAssistanceRequests || []);
-    const nextNum = (128 + all.length).toString().padStart(5, '0');
+    const all = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, []);
+    const nextNum = (140 + all.length).toString().padStart(5, '0');
     
     // Parse location parts if needed
     let state = requestData.state;
@@ -705,9 +733,60 @@ export const db = {
     });
 
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('assistance_requests').insert([newReq]).select().single();
-      if (!error && data) return normalizeAssistanceRequest(data);
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const ALLOWED_COLS = new Set([
+          'id', 'request_code', 'beneficiary_id', 'beneficiary_name', 'beneficiary_code',
+          'category', 'assistance_type', 'urgency', 'priority', 'status', 'status_label',
+          'status_stage', 'reason', 'description', 'state', 'county', 'payam', 'boma',
+          'village', 'location', 'program_id', 'program_name', 'programme_name',
+          'household_members', 'preferred_depot', 'eligibility', 'eligibility_status',
+          'verification_status', 'is_duplicate', 'assigned_supervisor_id',
+          'assigned_supervisor_name', 'assigned_field_worker_name', 'reviewed_by',
+          'review_notes', 'expected_dispatch_date', 'additional_info', 'created_at', 'updated_at'
+        ]);
+
+        const raw = {
+          ...newReq,
+          program_name: newReq.program_name || newReq.programme_name || requestData.project_name || 'Emergency Food Security & Livelihoods Resilience (EFSLR)',
+          programme_name: newReq.programme_name || newReq.program_name || requestData.project_name || 'Emergency Food Security & Livelihoods Resilience (EFSLR)',
+          village: newReq.village || requestData.village_area || 'Kapoeta Town',
+          reason: newReq.reason || newReq.description || requestData.reason,
+          description: newReq.description || newReq.reason || requestData.description
+        };
+
+        const supabasePayload = {};
+        for (const [k, v] of Object.entries(raw)) {
+          if (ALLOWED_COLS.has(k)) {
+            if (['id', 'beneficiary_id', 'program_id', 'assigned_supervisor_id', 'reviewed_by'].includes(k)) {
+              supabasePayload[k] = isUUID(v) ? v : null;
+            } else {
+              supabasePayload[k] = v;
+            }
+          }
+        }
+        if (!supabasePayload.id) delete supabasePayload.id;
+
+        const { data, error } = await supabase.from('assistance_requests').insert([supabasePayload]).select().single();
+        if (!error && data) {
+          const normalized = normalizeAssistanceRequest(data);
+          const updated = [normalized, ...all];
+          saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
+          db.logAudit({
+            action: 'CREATE',
+            module: 'Beneficiary Requests',
+            record_id: normalized.request_code,
+            details: `Assistance request submitted by ${normalized.beneficiary_name}: ${normalized.category} (${normalized.urgency})`
+          });
+          return normalized;
+        } else if (error) {
+          console.warn('Supabase assistance_requests insert warning (saving locally):', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase assistance_requests insert error (falling back to local):', err);
+      }
     }
+
     const updated = [newReq, ...all];
     saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
     db.logAudit({
@@ -731,7 +810,34 @@ export const db = {
       reviewed_at: new Date().toISOString()
     } : r);
     saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
-    return updated.find(r => r.id === id || r.request_code === id);
+    const target = updated.find(r => r.id === id || r.request_code === id);
+
+    if (isSupabaseConfigured && target) {
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        if (isUUID(target.id)) {
+          await supabase.from('assistance_requests').update({
+            status: target.status,
+            status_label: target.status_label,
+            status_stage: target.status_stage,
+            review_notes: target.review_notes,
+            updated_at: new Date().toISOString()
+          }).eq('id', target.id);
+        } else if (target.request_code) {
+          await supabase.from('assistance_requests').update({
+            status: target.status,
+            status_label: target.status_label,
+            status_stage: target.status_stage,
+            review_notes: target.review_notes,
+            updated_at: new Date().toISOString()
+          }).eq('request_code', target.request_code);
+        }
+      } catch (err) {
+        console.warn('Supabase status update error:', err?.message);
+      }
+    }
+
+    return target;
   },
 
   async approveAssistanceRequest(id, { managerName = 'Grace Ochieng', supervisorId = null, supervisorName = null, notes = '' } = {}) {
@@ -756,6 +862,30 @@ export const db = {
     } : r);
 
     saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
+    const finalTarget = updated.find(r => r.id === id || r.request_code === id || (target && r.id === target.id));
+
+    if (isSupabaseConfigured && finalTarget) {
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const updates = {
+          status: finalTarget.status,
+          status_label: finalTarget.status_label,
+          status_stage: 3,
+          review_notes: finalTarget.review_notes,
+          assigned_supervisor_id: isUUID(finalTarget.assigned_supervisor_id) ? finalTarget.assigned_supervisor_id : null,
+          assigned_supervisor_name: finalTarget.assigned_supervisor_name,
+          assigned_field_worker_name: finalTarget.assigned_field_worker_name,
+          updated_at: now
+        };
+        if (isUUID(finalTarget.id)) {
+          await supabase.from('assistance_requests').update(updates).eq('id', finalTarget.id);
+        } else if (finalTarget.request_code) {
+          await supabase.from('assistance_requests').update(updates).eq('request_code', finalTarget.request_code);
+        }
+      } catch (err) {
+        console.warn('Supabase approval update error:', err?.message);
+      }
+    }
 
     if (supervisorId) {
       await this.createFieldActivity({
@@ -783,7 +913,7 @@ export const db = {
       details: `Programme Manager ${managerName} approved assistance request ${target.request_code} for ${target.beneficiary_name} (${target.category})`
     });
 
-    return updated.find(r => r.id === id || r.request_code === id || (target && r.id === target.id));
+    return finalTarget;
   },
 
   async rejectAssistanceRequest(id, options = {}) {
@@ -806,6 +936,27 @@ export const db = {
     } : r);
 
     saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
+    const finalTarget = updated.find(r => r.id === id || r.request_code === id || (target && r.id === target.id));
+
+    if (isSupabaseConfigured && finalTarget) {
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const updates = {
+          status: 'Rejected',
+          status_label: 'Rejected',
+          status_stage: 6,
+          review_notes: `Rejected: ${reason}`,
+          updated_at: now
+        };
+        if (isUUID(finalTarget.id)) {
+          await supabase.from('assistance_requests').update(updates).eq('id', finalTarget.id);
+        } else if (finalTarget.request_code) {
+          await supabase.from('assistance_requests').update(updates).eq('request_code', finalTarget.request_code);
+        }
+      } catch (err) {
+        console.warn('Supabase rejection update error:', err?.message);
+      }
+    }
 
     await this.logAudit({
       action: 'REJECT',
@@ -814,7 +965,7 @@ export const db = {
       details: `Programme Manager ${managerName} rejected assistance request ${target.request_code}. Reason: ${reason}`
     });
 
-    return updated.find(r => r.id === id || r.request_code === id || (target && r.id === target.id));
+    return finalTarget;
   },
 
   async requestInfoAssistanceRequest(id, options = {}) {
@@ -848,9 +999,27 @@ export const db = {
   },
 
   async assignSupervisorToRequest(requestId, supervisorId, supervisorName, notes = '', managerName = 'Grace Ochieng') {
-    const all = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, mock.initialAssistanceRequests);
+    const all = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, []);
     const target = all.find(r => r.id === requestId || r.request_code === requestId);
-    if (!target) throw new Error('Request not found');
+    if (!target) {
+      // If not in local data, fetch live from Supabase
+      if (isSupabaseConfigured) {
+        const { data } = await supabase.from('assistance_requests').select('*').or(`id.eq.${requestId},request_code.eq.${requestId}`).single();
+        if (data) {
+          const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+          await supabase.from('assistance_requests').update({
+            status: 'Assigned to Supervisor',
+            status_label: 'Assigned to Supervisor',
+            status_stage: 3,
+            assigned_supervisor_id: isUUID(supervisorId) ? supervisorId : null,
+            assigned_supervisor_name: supervisorName,
+            assigned_field_worker_name: 'Pending Supervisor Assignment',
+            review_notes: notes || `Assigned to ${supervisorName}`,
+            updated_at: new Date().toISOString()
+          }).or(`id.eq.${requestId},request_code.eq.${requestId}`);
+        }
+      }
+    }
 
     const updated = all.map(r => (r.id === requestId || r.request_code === requestId || (target && r.id === target.id)) ? {
       ...r,
@@ -866,35 +1035,608 @@ export const db = {
 
     saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
 
-    await this.createFieldActivity({
-      request_id: target.id,
-      activity_code: `ACT-SS-${Date.now().toString().slice(-4)}`,
-      programme: target.programme_name || 'Emergency Food Security',
-      activity_type: `${target.category} Field Delivery & Verification`,
-      supervisor_id: supervisorId,
-      supervisor_name: supervisorName,
-      field_worker_name: 'Pending Supervisor Assignment',
-      location: target.location || `${target.county}, ${target.payam}`,
-      state: target.state || 'South Sudan',
-      county: target.county || 'South Sudan',
-      scheduled_date: new Date(Date.now() + 48 * 3600000).toISOString().split('T')[0],
-      status: 'Assigned',
-      progress_percentage: 25,
-      field_notes: `Assigned to Supervisor ${supervisorName} for field deployment.`
-    });
+    if (isSupabaseConfigured) {
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const updates = {
+          status: 'Assigned to Supervisor',
+          status_label: 'Assigned to Supervisor',
+          status_stage: 3,
+          assigned_supervisor_id: isUUID(supervisorId) ? supervisorId : null,
+          assigned_supervisor_name: supervisorName,
+          assigned_field_worker_name: 'Pending Supervisor Assignment',
+          review_notes: notes ? notes : `Assigned to ${supervisorName} for field delivery`,
+          updated_at: new Date().toISOString()
+        };
+        if (target && isUUID(target.id)) {
+          await supabase.from('assistance_requests').update(updates).eq('id', target.id);
+        } else if (target && target.request_code) {
+          await supabase.from('assistance_requests').update(updates).eq('request_code', target.request_code);
+        } else if (isUUID(requestId)) {
+          await supabase.from('assistance_requests').update(updates).eq('id', requestId);
+        } else {
+          await supabase.from('assistance_requests').update(updates).eq('request_code', requestId);
+        }
+      } catch (err) {
+        console.warn('Supabase supervisor assignment update error:', err?.message);
+      }
+    }
+
+    if (target) {
+      await this.createFieldActivity({
+        request_id: target.id,
+        activity_code: `ACT-SS-${Date.now().toString().slice(-4)}`,
+        programme: target.programme_name || 'Emergency Food Security',
+        activity_type: `${target.category} Field Delivery & Verification`,
+        supervisor_id: supervisorId,
+        supervisor_name: supervisorName,
+        field_worker_name: 'Pending Supervisor Assignment',
+        location: target.location || `${target.county}, ${target.payam}`,
+        state: target.state || 'South Sudan',
+        county: target.county || 'South Sudan',
+        scheduled_date: new Date(Date.now() + 48 * 3600000).toISOString().split('T')[0],
+        status: 'Assigned',
+        progress_percentage: 25,
+        field_notes: `Assigned to Supervisor ${supervisorName} for field deployment.`
+      });
+    }
 
     await this.logAudit({
       action: 'ASSIGN_SUPERVISOR',
       module: 'Programme Assistance',
-      record_id: target.request_code || requestId,
-      details: `Assigned Supervisor ${supervisorName} to request ${target.request_code}`
+      record_id: target?.request_code || requestId,
+      details: `Assigned Supervisor ${supervisorName} to request ${target?.request_code || requestId}`
     });
 
     return updated.find(r => r.id === requestId || r.request_code === requestId || (target && r.id === target.id));
   },
 
   async getSupervisors() {
-    return getLocalData(STORAGE_KEYS.SUPERVISORS, mock.initialSupervisors || []);
+    let dbSupervisors = [];
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('role', 'Supervisor')
+          .order('created_at', { ascending: true });
+        if (!error && data && data.length > 0) {
+          dbSupervisors = data;
+        }
+      } catch (err) {
+        console.warn('Failed to query profiles for supervisors:', err?.message);
+      }
+    }
+
+    const mockList = (mock.initialSupervisors && mock.initialSupervisors.length > 0) 
+      ? mock.initialSupervisors 
+      : [];
+
+    if (dbSupervisors.length > 0) {
+      // Merge DB supervisors with rich mock fields (state, county, active_tasks, etc.)
+      return dbSupervisors.map((p, idx) => {
+        const mockMatch = mockList.find(m => 
+          m.email?.toLowerCase() === p.email?.toLowerCase() || 
+          m.name?.toLowerCase() === p.full_name?.toLowerCase()
+        ) || mockList[idx] || {};
+
+        // Extract state from department if available e.g. "Field Operations & Supervisory (Central Equatoria State)"
+        let extractedState = mockMatch.state || '';
+        if (!extractedState && p.department) {
+          const match = p.department.match(/\((.*?)\s*State\)/i) || p.department.match(/\((.*?)\)/i);
+          if (match && match[1]) extractedState = match[1];
+        }
+
+        return {
+          id: p.id || mockMatch.id || `sup-${idx + 1}`,
+          name: p.full_name || mockMatch.name || 'Field Supervisor',
+          email: p.email,
+          phone: p.phone || mockMatch.phone || '+211-920-000003',
+          role: 'Supervisor',
+          state: extractedState || mockMatch.state || 'Eastern Equatoria',
+          county: mockMatch.county || 'Kapoeta South',
+          payam: mockMatch.payam || 'Town Centre',
+          boma: mockMatch.boma || 'Central',
+          assigned_area: mockMatch.assigned_area || p.department || `${extractedState || 'South Sudan'} Operational Area`,
+          active_tasks: mockMatch.active_tasks ?? 3,
+          completed_tasks: mockMatch.completed_tasks ?? 25,
+          pending_reports: mockMatch.pending_reports ?? 1,
+          approved_reports: mockMatch.approved_reports ?? 24,
+          workload_percentage: mockMatch.workload_percentage ?? 50,
+          status: p.status || 'Active',
+          managed_field_workers: mockMatch.managed_field_workers ?? 5,
+          avatar: p.avatar_url || mockMatch.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'
+        };
+      });
+    }
+
+    return mockList;
+  },
+
+  // --- SUPERVISOR MODULE: FIELD WORKERS ---
+  async getFieldWorkers(supervisorId = null) {
+    const allWorkers = getLocalData(STORAGE_KEYS.FIELD_WORKERS, mock.initialFieldWorkers || []);
+    if (supervisorId && supervisorId !== 'all') {
+      const cleanSup = String(supervisorId).toLowerCase().trim();
+      const filtered = allWorkers.filter(w => {
+        if (!w.supervisor_id) return true;
+        if (w.supervisor_id === supervisorId) return true;
+        if (w.supervisor_name && w.supervisor_name.toLowerCase().includes(cleanSup)) return true;
+        if (w.state && w.state.toLowerCase() === cleanSup) return true;
+        return false;
+      });
+      return filtered.length > 0 ? filtered : allWorkers.slice(0, 5);
+    }
+    return allWorkers;
+  },
+
+  async getFieldWorkerById(workerId) {
+    const allWorkers = await this.getFieldWorkers();
+    return allWorkers.find(w => w.id === workerId) || null;
+  },
+
+  async updateFieldWorkerStatus(workerId, newStatus) {
+    const allWorkers = getLocalData(STORAGE_KEYS.FIELD_WORKERS, mock.initialFieldWorkers || []);
+    const updated = allWorkers.map(w => w.id === workerId ? { ...w, current_status: newStatus } : w);
+    saveLocalData(STORAGE_KEYS.FIELD_WORKERS, updated);
+    return updated.find(w => w.id === workerId);
+  },
+
+  // --- SUPERVISOR MODULE: ASSIGNMENTS & DISPATCH ---
+  async getSupervisorAssignments(supervisorId = null) {
+    // 1. Fetch live assistance requests from database / local store
+    const allRequests = await this.getAssistanceRequests();
+
+    // 2. Filter requests assigned to supervisor or pending supervisor action
+    return allRequests.filter(r => {
+      if (!supervisorId || supervisorId === 'all') return true;
+      const matchSupId = r.assigned_supervisor_id === supervisorId;
+      const matchSupName = r.assigned_supervisor_name && supervisorId && (
+        r.assigned_supervisor_name.toLowerCase().includes(String(supervisorId).toLowerCase())
+      );
+      const isAssignedOrForwarded = [
+        'Assigned to Supervisor',
+        'Assigned to Field Worker',
+        'Assessment In Progress',
+        'Assessment Submitted',
+        'Correction Required',
+        'Awaiting Program Manager Decision',
+        'Approved',
+        'Distributed',
+        'Completed'
+      ].includes(r.status);
+
+      return (matchSupId || matchSupName || isAssignedOrForwarded);
+    });
+  },
+
+  async assignFieldWorkerToRequest(requestId, fieldWorkerId, fieldWorkerName, notes = '', dueDate = null, supervisorName = 'Emmanuel Adeyemi') {
+    const allRequests = await this.getAssistanceRequests();
+    const target = allRequests.find(r => r.id === requestId || r.request_code === requestId);
+    if (!target) throw new Error('Assistance request not found');
+
+    const calculatedDueDate = dueDate || new Date(Date.now() + 48 * 3600000).toISOString().split('T')[0];
+    const now = new Date().toISOString();
+
+    const updated = allRequests.map(r => (r.id === requestId || r.request_code === requestId || (target && r.id === target.id)) ? {
+      ...r,
+      status: 'Assigned to Field Worker',
+      status_label: 'Assigned to Field Worker',
+      status_stage: 3,
+      assigned_field_worker_id: fieldWorkerId,
+      assigned_field_worker_name: fieldWorkerName,
+      due_date: calculatedDueDate,
+      field_worker_assigned_at: now,
+      review_notes: notes ? `${r.review_notes ? r.review_notes + ' | ' : ''}Assigned to Field Worker ${fieldWorkerName}: ${notes}` : r.review_notes
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
+
+    // Sync to Supabase PostgreSQL
+    if (isSupabaseConfigured) {
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const updates = {
+          status: 'Assigned to Field Worker',
+          status_label: 'Assigned to Field Worker',
+          status_stage: 3,
+          assigned_field_worker_name: fieldWorkerName,
+          review_notes: notes ? `Assigned to ${fieldWorkerName}: ${notes}` : `Assigned to ${fieldWorkerName}`,
+          updated_at: now
+        };
+        if (target && isUUID(target.id)) {
+          await supabase.from('assistance_requests').update(updates).eq('id', target.id);
+        } else if (target && target.request_code) {
+          await supabase.from('assistance_requests').update(updates).eq('request_code', target.request_code);
+        }
+      } catch (err) {
+        console.warn('Supabase worker assignment update warning:', err?.message);
+      }
+    }
+
+    // Update Field Worker workload in state
+    const allWorkers = getLocalData(STORAGE_KEYS.FIELD_WORKERS, mock.initialFieldWorkers || []);
+    const updatedWorkers = allWorkers.map(w => w.id === fieldWorkerId ? {
+      ...w,
+      active_assignments: (w.active_assignments || 0) + 1,
+      current_status: (w.active_assignments || 0) >= 2 ? 'Busy' : 'On Assignment',
+      last_activity: `Assigned to request ${target.request_code} (Just now)`
+    } : w);
+    saveLocalData(STORAGE_KEYS.FIELD_WORKERS, updatedWorkers);
+
+    // Create field activity record
+    await this.createFieldActivity({
+      request_id: target.id,
+      activity_code: `ACT-SS-${Date.now().toString().slice(-4)}`,
+      programme: target.programme_name || 'Emergency Food Security',
+      activity_type: `${target.category} Field Verification`,
+      supervisor_id: target.assigned_supervisor_id || 'sup-1',
+      supervisor_name: supervisorName,
+      field_worker_name: fieldWorkerName,
+      location: target.location || `${target.county}, ${target.payam}`,
+      state: target.state || 'Eastern Equatoria',
+      county: target.county || 'Kapoeta South',
+      scheduled_date: calculatedDueDate,
+      status: 'Assigned',
+      progress_percentage: 30,
+      field_notes: notes || `Assigned to ${fieldWorkerName} for field assessment and household verification.`
+    });
+
+    // Create supervisor activity log
+    await this.logSupervisorActivity({
+      user_name: supervisorName,
+      role: 'Supervisor',
+      action: 'ASSIGN_WORKER',
+      details: `You assigned request ${target.request_code} to ${fieldWorkerName}.`
+    });
+
+    // Create notification for Field Worker
+    const currentNotifs = getLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, mock.initialSupervisorNotifications || []);
+    const newNotif = {
+      id: `snotif-${Date.now().toString().slice(-4)}`,
+      title: 'Field Worker Dispatched',
+      message: `Assignment for request ${target.request_code} was successfully dispatched to ${fieldWorkerName}.`,
+      type: 'assignment',
+      created_at: new Date().toISOString(),
+      is_read: false,
+      link_id: target.request_code
+    };
+    saveLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, [newNotif, ...currentNotifs]);
+
+    // Audit log
+    await this.logAudit({
+      action: 'ASSIGN_FIELD_WORKER',
+      module: 'Supervisor Field Dispatch',
+      record_id: target.request_code,
+      details: `Supervisor ${supervisorName} assigned request ${target.request_code} to Field Worker ${fieldWorkerName}. Due date: ${calculatedDueDate}`
+    });
+
+    return updated.find(r => r.id === requestId || r.request_code === requestId);
+  },
+
+  async reassignFieldWorker(requestId, newFieldWorkerId, newFieldWorkerName, reason = '', supervisorName = 'Emmanuel Adeyemi') {
+    const allRequests = await this.getAssistanceRequests();
+    const target = allRequests.find(r => r.id === requestId || r.request_code === requestId);
+    if (!target) throw new Error('Assistance request not found');
+
+    const previousWorker = target.assigned_field_worker_name || 'Previous Worker';
+    const now = new Date().toISOString();
+
+    const updated = allRequests.map(r => (r.id === requestId || r.request_code === requestId) ? {
+      ...r,
+      assigned_field_worker_id: newFieldWorkerId,
+      assigned_field_worker_name: newFieldWorkerName,
+      reassignment_reason: reason,
+      review_notes: `${r.review_notes ? r.review_notes + ' | ' : ''}Reassigned from ${previousWorker} to ${newFieldWorkerName}. Reason: ${reason}`
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
+
+    // Sync to Supabase
+    if (isSupabaseConfigured) {
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const updates = {
+          assigned_field_worker_name: newFieldWorkerName,
+          review_notes: `Reassigned from ${previousWorker} to ${newFieldWorkerName}. Reason: ${reason}`,
+          updated_at: now
+        };
+        if (target && isUUID(target.id)) {
+          await supabase.from('assistance_requests').update(updates).eq('id', target.id);
+        } else if (target && target.request_code) {
+          await supabase.from('assistance_requests').update(updates).eq('request_code', target.request_code);
+        }
+      } catch (err) {}
+    }
+
+    await this.logSupervisorActivity({
+      user_name: supervisorName,
+      role: 'Supervisor',
+      action: 'REASSIGN_WORKER',
+      details: `You reassigned request ${target.request_code} from ${previousWorker} to ${newFieldWorkerName}. Reason: ${reason}`
+    });
+
+    await this.logAudit({
+      action: 'REASSIGN_FIELD_WORKER',
+      module: 'Supervisor Field Dispatch',
+      record_id: target.request_code,
+      details: `Supervisor ${supervisorName} reassigned request ${target.request_code} to ${newFieldWorkerName}. Reason: ${reason}`
+    });
+
+    return updated.find(r => r.id === requestId || r.request_code === requestId);
+  },
+
+  // --- SUPERVISOR MODULE: FIELD ASSESSMENTS & REPORT REVIEW ---
+  async getFieldAssessments(supervisorId = null) {
+    const all = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
+    if (supervisorId) {
+      return all.filter(a => !a.supervisor_id || a.supervisor_id === supervisorId || supervisorId === 'all');
+    }
+    return all;
+  },
+
+  async getAssessmentById(assessmentId) {
+    const all = await this.getFieldAssessments();
+    return all.find(a => a.id === assessmentId || a.assessment_code === assessmentId) || null;
+  },
+
+  async submitAssessmentReport(reportData) {
+    const all = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
+    const nextNum = (895 + all.length).toString().padStart(5, '0');
+    const newReport = {
+      id: `ass-${Date.now().toString().slice(-4)}`,
+      assessment_code: `FA-${nextNum}`,
+      submission_date: new Date().toISOString(),
+      status: 'Under Supervisor Review',
+      ...reportData
+    };
+
+    const updated = [newReport, ...all];
+    saveLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, updated);
+
+    // Update linked assistance request status to 'Assessment Submitted'
+    if (newReport.request_id || newReport.request_code) {
+      const allReqs = await this.getAssistanceRequests();
+      const updatedReqs = allReqs.map(r => (r.id === newReport.request_id || r.request_code === newReport.request_code) ? {
+        ...r,
+        status: 'Assessment Submitted',
+        status_label: 'Assessment Submitted',
+        status_stage: 3,
+        review_notes: `Field assessment ${newReport.assessment_code} submitted by ${newReport.field_worker_name}. Awaiting Supervisor review.`
+      } : r);
+      saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedReqs);
+    }
+
+    // Add notification for supervisor
+    const notifs = getLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, mock.initialSupervisorNotifications || []);
+    const newNotif = {
+      id: `snotif-${Date.now().toString().slice(-4)}`,
+      title: 'Assessment Report Submitted',
+      message: `${newReport.field_worker_name || 'Field Worker'} submitted assessment ${newReport.assessment_code} for ${newReport.beneficiary_name}.`,
+      type: 'report_submitted',
+      created_at: new Date().toISOString(),
+      is_read: false,
+      link_id: newReport.assessment_code
+    };
+    saveLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, [newNotif, ...notifs]);
+
+    return newReport;
+  },
+
+  async forwardAssessmentToPM(assessmentId, requestId, notes = '', supervisorName = 'Emmanuel Adeyemi') {
+    const allAssessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
+    const targetAss = allAssessments.find(a => a.id === assessmentId || a.assessment_code === assessmentId);
+    
+    const now = new Date().toISOString();
+
+    const updatedAssessments = allAssessments.map(a => (a.id === assessmentId || a.assessment_code === assessmentId) ? {
+      ...a,
+      status: 'Forwarded to Program Manager',
+      supervisor_notes: notes || `Verified by Supervisor ${supervisorName}. Forwarded to Program Manager Grace Ochieng for final assistance decision.`,
+      forwarded_at: now,
+      forwarded_by: supervisorName
+    } : a);
+
+    saveLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, updatedAssessments);
+
+    // Update assistance request status to 'Awaiting Program Manager Decision'
+    const allRequests = await this.getAssistanceRequests();
+    const updatedRequests = allRequests.map(r => (r.id === requestId || r.request_code === requestId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code))) ? {
+      ...r,
+      status: 'Awaiting Program Manager Decision',
+      status_label: 'Awaiting PM Decision',
+      status_stage: 4,
+      review_notes: notes ? `Supervisor ${supervisorName} verified & forwarded: ${notes}` : `Supervisor ${supervisorName} verified & forwarded for final approval.`,
+      updated_at: now
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedRequests);
+
+    // Sync to Supabase
+    if (isSupabaseConfigured) {
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const reqTarget = updatedRequests.find(r => r.id === requestId || r.request_code === requestId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code)));
+        if (reqTarget) {
+          const updates = {
+            status: 'Awaiting Program Manager Decision',
+            status_label: 'Awaiting PM Decision',
+            status_stage: 4,
+            review_notes: notes || `Supervisor ${supervisorName} verified and forwarded.`,
+            updated_at: now
+          };
+          if (isUUID(reqTarget.id)) {
+            await supabase.from('assistance_requests').update(updates).eq('id', reqTarget.id);
+          } else if (reqTarget.request_code) {
+            await supabase.from('assistance_requests').update(updates).eq('request_code', reqTarget.request_code);
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase forward to PM error:', err?.message);
+      }
+    }
+
+    // Activity log
+    await this.logSupervisorActivity({
+      user_name: supervisorName,
+      role: 'Supervisor',
+      action: 'FORWARD_REPORT',
+      details: `You forwarded assessment ${targetAss?.assessment_code || assessmentId} for ${targetAss?.beneficiary_name || 'beneficiary'} to Program Manager Grace Ochieng.`
+    });
+
+    // Audit log
+    await this.logAudit({
+      action: 'FORWARD_ASSESSMENT_TO_PM',
+      module: 'Supervisor Quality & Compliance',
+      record_id: targetAss?.assessment_code || assessmentId,
+      details: `Supervisor ${supervisorName} verified assessment ${targetAss?.assessment_code || assessmentId} and forwarded to Program Manager Grace Ochieng for final decision.`
+    });
+
+    return updatedAssessments.find(a => a.id === assessmentId || a.assessment_code === assessmentId);
+  },
+
+  async requestAssessmentCorrection(assessmentId, requestId, reason, supervisorName = 'Emmanuel Adeyemi') {
+    if (!reason || !reason.trim()) {
+      throw new Error('Please enter a specific reason for the correction request.');
+    }
+
+    const allAssessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
+    const targetAss = allAssessments.find(a => a.id === assessmentId || a.assessment_code === assessmentId);
+    const now = new Date().toISOString();
+
+    const updatedAssessments = allAssessments.map(a => (a.id === assessmentId || a.assessment_code === assessmentId) ? {
+      ...a,
+      status: 'Correction Required',
+      correction_reason: reason,
+      supervisor_notes: `Correction Requested by ${supervisorName}: ${reason}`,
+      returned_at: now
+    } : a);
+
+    saveLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, updatedAssessments);
+
+    // Update assistance request status
+    const allRequests = await this.getAssistanceRequests();
+    const updatedRequests = allRequests.map(r => (r.id === requestId || r.request_code === requestId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code))) ? {
+      ...r,
+      status: 'Correction Required',
+      status_label: 'Correction Required',
+      status_stage: 3,
+      review_notes: `Supervisor ${supervisorName} requested assessment correction: ${reason}`,
+      updated_at: now
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedRequests);
+
+    // Sync to Supabase
+    if (isSupabaseConfigured) {
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const reqTarget = updatedRequests.find(r => r.id === requestId || r.request_code === requestId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code)));
+        if (reqTarget) {
+          const updates = {
+            status: 'Correction Required',
+            status_label: 'Correction Required',
+            status_stage: 3,
+            review_notes: `Supervisor requested correction: ${reason}`,
+            updated_at: now
+          };
+          if (isUUID(reqTarget.id)) {
+            await supabase.from('assistance_requests').update(updates).eq('id', reqTarget.id);
+          } else if (reqTarget.request_code) {
+            await supabase.from('assistance_requests').update(updates).eq('request_code', reqTarget.request_code);
+          }
+        }
+      } catch (err) {}
+    }
+
+    // Activity log
+    await this.logSupervisorActivity({
+      user_name: supervisorName,
+      role: 'Supervisor',
+      action: 'REQUEST_CORRECTION',
+      details: `You requested correction for assessment ${targetAss?.assessment_code || assessmentId} from ${targetAss?.field_worker_name || 'Field Worker'}. Reason: ${reason}`
+    });
+
+    // Audit log
+    await this.logAudit({
+      action: 'REQUEST_ASSESSMENT_CORRECTION',
+      module: 'Supervisor Quality & Compliance',
+      record_id: targetAss?.assessment_code || assessmentId,
+      details: `Supervisor ${supervisorName} returned assessment ${targetAss?.assessment_code || assessmentId} for correction. Reason: ${reason}`
+    });
+
+    return updatedAssessments.find(a => a.id === assessmentId || a.assessment_code === assessmentId);
+  },
+
+  async addAssessmentComment(assessmentId, comment, authorName = 'Emmanuel Adeyemi') {
+    const allAssessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
+    const updated = allAssessments.map(a => (a.id === assessmentId || a.assessment_code === assessmentId) ? {
+      ...a,
+      supervisor_notes: a.supervisor_notes ? `${a.supervisor_notes} | ${authorName}: ${comment}` : `${authorName}: ${comment}`
+    } : a);
+    saveLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, updated);
+    return updated.find(a => a.id === assessmentId || a.assessment_code === assessmentId);
+  },
+
+  // --- SUPERVISOR NOTIFICATIONS ---
+  async getSupervisorNotifications(supervisorId = null) {
+    return getLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, mock.initialSupervisorNotifications || []);
+  },
+
+  async markSupervisorNotificationAsRead(notifId) {
+    const all = getLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, mock.initialSupervisorNotifications || []);
+    const updated = all.map(n => n.id === notifId ? { ...n, is_read: true } : n);
+    saveLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, updated);
+    return true;
+  },
+
+  async markAllSupervisorNotificationsAsRead(supervisorId = null) {
+    const all = getLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, mock.initialSupervisorNotifications || []);
+    const updated = all.map(n => ({ ...n, is_read: true }));
+    saveLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, updated);
+    return true;
+  },
+
+  // --- SUPERVISOR ACTIVITY HISTORY ---
+  async getSupervisorActivityHistory(supervisorId = null) {
+    return getLocalData(STORAGE_KEYS.SUPERVISOR_ACTIVITIES, mock.initialSupervisorActivities || []);
+  },
+
+  async logSupervisorActivity({ user_name = 'Emmanuel Adeyemi', role = 'Supervisor', action, details }) {
+    const all = getLocalData(STORAGE_KEYS.SUPERVISOR_ACTIVITIES, mock.initialSupervisorActivities || []);
+    const newAct = {
+      id: `sact-${Date.now()}`,
+      user_name,
+      role,
+      action,
+      details,
+      created_at: new Date().toISOString()
+    };
+    const updated = [newAct, ...all].slice(0, 100);
+    saveLocalData(STORAGE_KEYS.SUPERVISOR_ACTIVITIES, updated);
+    return newAct;
+  },
+
+  // --- SUPERVISOR PROFILE ---
+  async updateSupervisorProfile(supervisorId, profileData) {
+    // Prevent changing role
+    const safeData = { ...profileData };
+    delete safeData.role;
+
+    const users = await this.getUsers();
+    const updated = users.map(u => (u.id === supervisorId || u.email === profileData.email || u.role === 'Supervisor') ? {
+      ...u,
+      ...safeData
+    } : u);
+    saveLocalData(STORAGE_KEYS.USERS, updated);
+
+    if (isSupabaseConfigured && profileData.email) {
+      try {
+        await supabase.from('profiles').update(safeData).eq('email', profileData.email);
+      } catch (e) {}
+    }
+
+    return updated.find(u => u.id === supervisorId || u.email === profileData.email || u.role === 'Supervisor');
   },
 
   async getProgramResources() {

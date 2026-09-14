@@ -28,6 +28,9 @@ import { BeneficiaryMobileApp } from './pages/beneficiary/BeneficiaryMobileApp';
 // Dedicated Programme Manager Dashboard
 import { ProgrammeManagerDashboard } from './pages/programme-manager/ProgrammeManagerDashboard';
 
+// Specialized Supervisor Mobile Application
+import { SupervisorMobileApp } from './pages/supervisor/SupervisorMobileApp';
+
 export function App() {
   const { currentUser, logout, quickSwitchRole } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -82,6 +85,12 @@ export function App() {
       return;
     }
 
+    if (currentUser.role === 'Supervisor') {
+      setCurrentTab('supervisor');
+      setAppMode('supervisor_mobile');
+      return;
+    }
+
     // Field staff role routes
     if (currentUser.role === 'Finance Officer') {
       setCurrentTab('finance');
@@ -125,19 +134,33 @@ export function App() {
     );
   }
 
+  // If Supervisor logs in or switches to Supervisor mode:
+  if (currentUser.role === 'Supervisor' || appMode === 'supervisor_mobile' || currentTab === 'supervisor') {
+    return (
+      <SupervisorMobileApp
+        currentUser={currentUser}
+        onLogout={logout}
+        onSwitchRole={quickSwitchRole}
+        onBackToFieldApp={() => setAppMode('field_app')}
+      />
+    );
+  }
+
   // If Programme Manager logs in or switches to Programme Manager mode:
-  if (currentUser.role === 'Program Manager' || currentUser.role === 'Programme Manager' || appMode === 'programme_manager') {
+  if (currentUser.role === 'Program Manager' || currentUser.role === 'Programme Manager' || appMode === 'programme_manager' || currentTab === 'programs') {
     return (
       <ProgrammeManagerDashboard
         currentUser={currentUser}
         onLogout={logout}
         onSwitchRole={quickSwitchRole}
+        onBackToFieldApp={() => setCurrentTab('dashboard')}
       />
     );
   }
 
   const tabTitles = {
     dashboard: 'Field Operations Dashboard',
+    supervisor: 'Supervisor Mobile App',
     programs: 'Programme Manager Dashboard',
     projects: 'Project Portfolio',
     beneficiaries: 'Beneficiary Management',
@@ -156,6 +179,15 @@ export function App() {
     switch (currentTab) {
       case 'beneficiary_portal':
         return <BeneficiaryMobileApp onSwitchToFieldApp={() => setCurrentTab('dashboard')} />;
+      case 'supervisor':
+        return (
+          <SupervisorMobileApp
+            currentUser={currentUser}
+            onLogout={logout}
+            onSwitchRole={quickSwitchRole}
+            onBackToFieldApp={() => setCurrentTab('dashboard')}
+          />
+        );
       case 'dashboard':
         return <Dashboard onNavigate={setCurrentTab} />;
       case 'programs':

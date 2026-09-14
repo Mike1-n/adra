@@ -7,11 +7,12 @@ import {
   Clock,
   AlertCircle,
   FileCheck,
-  Lock,
+  Phone,
   Layers,
   Activity,
   Briefcase,
-  Users
+  Users,
+  X
 } from 'lucide-react';
 
 export function PMSupervisorsView({
@@ -26,7 +27,7 @@ export function PMSupervisorsView({
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
         const matchesName = (s.name || '').toLowerCase().includes(q);
-        const matchesArea = (s.assigned_area || '').toLowerCase().includes(q);
+        const matchesArea = (s.assigned_area || s.location || s.state || '').toLowerCase().includes(q);
         if (!matchesName && !matchesArea) return false;
       }
       if (filterProgramme !== 'ALL' && s.program_name !== filterProgramme) return false;
@@ -35,134 +36,107 @@ export function PMSupervisorsView({
   }, [supervisors, searchTerm, filterProgramme]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <UserCheck className="w-6 h-6 text-[#006B56]" />
-            Field Supervisors Monitoring & Workload
-          </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Monitor supervisory coverage across South Sudan counties, active implementation tasks, workload bandwidth, and field report turnaround.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600">
-            <Lock className="w-3.5 h-3.5 text-slate-400" />
-            Account Management Restricted (Admin Only)
-          </div>
-          <span className="text-xs font-semibold text-slate-700 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
-            <strong>{filteredSupervisors.length}</strong> Deployed Supervisors
-          </span>
-        </div>
-      </div>
-
-      {/* Filter / Search Bar */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+    <div className="space-y-3.5">
+      {/* Search & Programme Filter */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by Supervisor Name or Assigned Area..."
-            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#006B56] outline-none"
+            placeholder="Search field supervisor name, area..."
+            className="w-full pl-9 pr-8 py-2.5 text-xs bg-white border border-slate-200/90 rounded-2xl focus:ring-2 focus:ring-[#006B56] outline-none shadow-xs font-semibold"
           />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
-        <div>
-          <select
-            value={filterProgramme}
-            onChange={(e) => setFilterProgramme(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#006B56] outline-none bg-white text-slate-700"
-          >
-            <option value="ALL">All Programmes</option>
-            {programmes.map(p => (
-              <option key={p.id} value={p.name}>{p.name}</option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={filterProgramme}
+          onChange={(e) => setFilterProgramme(e.target.value)}
+          className="px-3 py-2.5 text-xs border border-slate-200/90 rounded-2xl bg-white font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#006B56] shadow-xs"
+        >
+          <option value="ALL">All Sectors</option>
+          {programmes.map(p => (
+            <option key={p.id} value={p.name}>{p.name}</option>
+          ))}
+        </select>
       </div>
 
-      {/* Supervisors Performance Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {filteredSupervisors.map(sup => {
-          const workload = sup.current_workload_pct || 45;
-          const isHighWorkload = workload > 75;
+      {/* Supervisors Mobile List */}
+      <div className="space-y-2.5">
+        {filteredSupervisors.length === 0 ? (
+          <div className="py-12 text-center bg-white rounded-3xl border border-slate-200/90 p-6 text-slate-400">
+            <UserCheck className="w-8 h-8 mx-auto text-slate-300 mb-1.5" />
+            <p className="font-bold text-xs text-slate-600">No field supervisors match search</p>
+          </div>
+        ) : (
+          filteredSupervisors.map(sup => {
+            const workload = sup.current_workload_pct || 40;
+            const isHighWorkload = workload > 70;
 
-          return (
-            <div
-              key={sup.id}
-              className="bg-white rounded-xl border border-slate-200 hover:border-[#006B56]/50 shadow-sm p-5 space-y-4 transition-all"
-            >
-              {/* Top Row: Name, Status, Area */}
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-slate-900 text-base">{sup.name}</h3>
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                      {sup.status || 'Active'}
-                    </span>
+            return (
+              <div
+                key={sup.id}
+                className="p-4 bg-white rounded-3xl border border-slate-200/90 shadow-xs hover:border-emerald-300 transition space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-2xl bg-[#006B56] text-white font-black flex items-center justify-center text-xs shrink-0 shadow-xs">
+                      {(sup.name || 'David Deng').split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-black text-sm text-slate-900 truncate">
+                        {sup.name}
+                      </h4>
+                      <div className="text-[11px] text-slate-500 font-semibold flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span className="truncate">{sup.assigned_area || sup.location || 'Kapoeta South, Eastern Equatoria'}</span>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-1">
-                    <Layers className="w-3.5 h-3.5 text-[#006B56]" />
-                    {sup.program_name}
-                  </p>
-                  <p className="text-xs text-slate-600 mt-1 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    Assigned Area: <strong className="text-slate-800">{sup.assigned_area}</strong>
-                  </p>
-                </div>
 
-                <div className="text-right">
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
-                    isHighWorkload ? 'bg-rose-100 text-rose-800' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                    isHighWorkload
+                      ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                      : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
                   }`}>
-                    {workload}% Capacity
+                    {isHighWorkload ? 'Busy' : 'Available'}
                   </span>
                 </div>
-              </div>
 
-              {/* Workload Progress Bar */}
-              <div>
-                <div className="flex justify-between text-xs text-slate-500 mb-1">
-                  <span>Task Allocation Workload:</span>
-                  <span className="font-semibold text-slate-700">{sup.active_tasks || 3} Concurrent Tasks</span>
-                </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      workload > 80 ? 'bg-rose-500' : workload > 60 ? 'bg-amber-500' : 'bg-[#006B56]'
-                    }`}
-                    style={{ width: `${workload}%` }}
-                  />
-                </div>
-              </div>
+                {/* Workload Indicator */}
+                <div className="p-3 bg-slate-50 rounded-2xl text-xs space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 font-semibold">Active Humanitarian Tasks:</span>
+                    <span className="font-black text-slate-900">{sup.active_tasks || 3} Tasks Assigned</span>
+                  </div>
 
-              {/* Performance Metrics Grid */}
-              <div className="grid grid-cols-4 gap-2 pt-3 border-t border-slate-100 text-center text-xs">
-                <div className="bg-slate-50 p-2 rounded-lg">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Active Tasks</span>
-                  <span className="text-sm font-bold text-slate-800">{sup.active_tasks || 3}</span>
-                </div>
-                <div className="bg-slate-50 p-2 rounded-lg">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Completed</span>
-                  <span className="text-sm font-bold text-emerald-700">{sup.completed_tasks || 28}</span>
-                </div>
-                <div className="bg-slate-50 p-2 rounded-lg">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Pending Rpts</span>
-                  <span className="text-sm font-bold text-amber-600">{sup.pending_reports || 2}</span>
-                </div>
-                <div className="bg-slate-50 p-2 rounded-lg">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Approved</span>
-                  <span className="text-sm font-bold text-teal-700">{sup.approved_reports || 26}</span>
+                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/80">
+                    <span className="text-slate-500 font-semibold">Phone Contact:</span>
+                    <a
+                      href={`tel:${sup.phone || '+211-920-000003'}`}
+                      className="font-bold text-[#006B56] hover:underline flex items-center gap-1"
+                    >
+                      <Phone className="w-3 h-3" />
+                      <span>{sup.phone || '+211 92 000 0003'}</span>
+                    </a>
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   );
 }
+
+export default PMSupervisorsView;
