@@ -248,25 +248,24 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
                 {/* Status & Actions */}
                 <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto justify-between sm:justify-end pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-200">
                   <span
-                    className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                    className={`text-xs px-3 py-1 rounded-md border font-bold ${
                       isApproved
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30 font-bold'
+                        ? 'bg-emerald-100 text-emerald-950 border-emerald-400'
                         : isPending
-                        ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
-                        : 'bg-rose-50 text-rose-800 border-rose-300 font-bold'
+                        ? 'bg-amber-100 text-amber-950 border-amber-400'
+                        : 'bg-rose-100 text-rose-950 border-rose-400'
                     }`}
                   >
                     {app.status}
                   </span>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <button
                     onClick={() => handleOpenReview(app)}
-                    icon={Eye}
+                    className="px-3 py-1.5 text-xs rounded-lg font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition flex items-center gap-1.5 shadow-sm border border-emerald-700 cursor-pointer"
                   >
+                    <Eye className="w-3.5 h-3.5 text-white" />
                     Review
-                  </Button>
+                  </button>
                 </div>
               </Card>
             );

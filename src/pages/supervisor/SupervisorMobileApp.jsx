@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -47,6 +47,10 @@ export function SupervisorMobileApp({
   // Navigation states: 'dashboard' | 'assignments' | 'team' | 'reports' | 'beneficiaries' | 'activities' | 'profile'
   const [activeTab, setActiveTab] = useState('dashboard');
   
+  // Assignments sub-status filter: 'pending' | 'assigned' | 'in_progress' | 'completed'
+  const [assignmentsStatusTab, setAssignmentsStatusTab] = useState('pending');
+  const [isAssignmentsExpanded, setIsAssignmentsExpanded] = useState(true);
+
   // Auxiliary subview state: null | 'assignment_details' | 'worker_details' | 'report_review' | 'notifications' | 'profile'
   const [activeSubview, setActiveSubview] = useState(null);
 
@@ -130,7 +134,7 @@ export function SupervisorMobileApp({
 
   // Handler: Assign Field Worker to Request
   const handleAssignFieldWorker = async (requestId, fieldWorkerId, fieldWorkerName, notes, dueDate) => {
-    await db.assignFieldWorkerToRequest(
+    const updated = await db.assignFieldWorkerToRequest(
       requestId,
       fieldWorkerId,
       fieldWorkerName,
@@ -138,18 +142,24 @@ export function SupervisorMobileApp({
       dueDate,
       activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi'
     );
+    if (updated && selectedAssignment && (selectedAssignment.id === requestId || selectedAssignment.request_code === requestId)) {
+      setSelectedAssignment(updated);
+    }
     await loadData(activeSupervisor);
   };
 
   // Handler: Reassign Field Worker
   const handleReassignWorker = async (requestId, newWorkerId, newWorkerName, reason) => {
-    await db.reassignFieldWorker(
+    const updated = await db.reassignFieldWorker(
       requestId,
       newWorkerId,
       newWorkerName,
       reason,
       activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi'
     );
+    if (updated && selectedAssignment && (selectedAssignment.id === requestId || selectedAssignment.request_code === requestId)) {
+      setSelectedAssignment(updated);
+    }
     await loadData(activeSupervisor);
   };
 
@@ -193,11 +203,31 @@ export function SupervisorMobileApp({
 
   // Unread notifications count
   const unreadNotifsCount = notifications.filter(n => !n.is_read).length;
-  const pendingAssignmentsCount = assignments.filter(
-    a => !a.assigned_field_worker_name || 
-         a.assigned_field_worker_name.includes('Pending') || 
-         a.status === 'Assigned to Supervisor'
-  ).length;
+  
+  // Dynamic Assignment Counts for Sidebar Sub-navigation
+  const assignmentCounts = useMemo(() => {
+    const counts = { total: assignments.length, pending: 0, assigned: 0, in_progress: 0, completed: 0, overdue: 0 };
+    assignments.forEach(item => {
+      const status = item.status || 'Submitted';
+      const isUnassigned = !item.assigned_field_worker_name || 
+                           item.assigned_field_worker_name.includes('Pending') || 
+                           item.assigned_field_worker_name.includes('Unassigned') || 
+                           status === 'Assigned to Supervisor' || 
+                           status === 'Submitted';
+      
+      if (isUnassigned) counts.pending++;
+      else if (status === 'Assigned to Field Worker') counts.assigned++;
+      else if (status === 'Assessment In Progress' || status === 'Correction Required') counts.in_progress++;
+      else if (status === 'Completed' || status === 'Distributed' || status === 'Assessment Submitted' || status === 'Awaiting Program Manager Decision' || status === 'Approved') counts.completed++;
+
+      if (item.is_overdue || (item.due_date && new Date(item.due_date) < new Date() && status !== 'Completed' && status !== 'Distributed')) {
+        counts.overdue++;
+      }
+    });
+    return counts;
+  }, [assignments]);
+
+  const pendingAssignmentsCount = assignmentCounts.pending;
   const pendingReportsCount = assessments.filter(
     a => a.status === 'Under Supervisor Review' || a.status === 'Submitted'
   ).length;
@@ -223,8 +253,8 @@ export function SupervisorMobileApp({
             onBack={() => setActiveSubview(null)}
             onAssignWorker={handleAssignFieldWorker}
             onReassignWorker={handleReassignWorker}
-            onOpenReport={(item) => {
-              const ass = assessments.find(a => a.request_id === item.id || a.request_code === item.request_code);
+            onOpenReport={() => {
+              const ass = assessments.find(a => a.request_id === selectedAssignment.id || a.request_code === selectedAssignment.request_code);
               if (ass) {
                 setSelectedAssessment(ass);
                 setActiveSubview('report_review');
@@ -242,9 +272,9 @@ export function SupervisorMobileApp({
             worker={selectedWorker}
             assignments={assignments.filter(a => a.assigned_field_worker_id === selectedWorker.id || a.assigned_field_worker_name === selectedWorker.name)}
             onBack={() => setActiveSubview(null)}
-            onStatusChange={async (workerId, newStatus) => {
-              await db.updateFieldWorkerStatus(workerId, newStatus);
-              await loadData(activeSupervisor);
+            onSelectAssignment={(item) => {
+              setSelectedAssignment(item);
+              setActiveSubview('assignment_details');
             }}
           />
         </div>
@@ -347,6 +377,8 @@ export function SupervisorMobileApp({
             <SupervisorAssignmentsView
               assignments={assignments}
               fieldWorkers={fieldWorkers}
+              initialStatusTab={assignmentsStatusTab}
+              onStatusTabChange={setAssignmentsStatusTab}
               onSelectAssignment={(item) => {
                 setSelectedAssignment(item);
                 setActiveSubview('assignment_details');
@@ -541,6 +573,162 @@ export function SupervisorMobileApp({
               {sidebarNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = !activeSubview && activeTab === item.id;
+
+                if (item.id === 'assignments') {
+                  return (
+                    <div key={item.id} className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAssignmentsExpanded(!isAssignmentsExpanded);
+                          if (activeTab !== 'assignments' || activeSubview) {
+                            setActiveSubview(null);
+                            setActiveTab('assignments');
+                          }
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          !activeSubview && activeTab === 'assignments'
+                            ? 'bg-emerald-50 text-[#006B56] border border-emerald-300/80 font-black shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <Icon className={`w-4 h-4 ${!activeSubview && activeTab === 'assignments' ? 'text-[#006B56]' : 'text-slate-400'}`} />
+                          <span>{item.label}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {assignmentCounts.pending > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500 text-white">
+                              {assignmentCounts.pending}
+                            </span>
+                          )}
+                          {isAssignmentsExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                          )}
+                        </div>
+                      </button>
+
+                      {isAssignmentsExpanded && (
+                        <div className="pl-3 pr-1 py-1 space-y-1 mt-0.5 border-l-2 border-emerald-400 ml-4">
+                          {/* Pending */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('assignments');
+                              setAssignmentsStatusTab('pending');
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'pending'
+                                ? 'bg-amber-600 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'pending' ? 'bg-white' : 'bg-amber-500'}`} />
+                              <span>Pending</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'pending'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {assignmentCounts.pending}
+                            </span>
+                          </button>
+
+                          {/* Assigned */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('assignments');
+                              setAssignmentsStatusTab('assigned');
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'assigned'
+                                ? 'bg-blue-600 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'assigned' ? 'bg-white' : 'bg-blue-500'}`} />
+                              <span>Assigned</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'assigned'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {assignmentCounts.assigned}
+                            </span>
+                          </button>
+
+                          {/* In Progress */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('assignments');
+                              setAssignmentsStatusTab('in_progress');
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'in_progress'
+                                ? 'bg-purple-600 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'in_progress' ? 'bg-white' : 'bg-purple-500'}`} />
+                              <span>In Progress</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'in_progress'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-purple-100 text-purple-800'
+                            }`}>
+                              {assignmentCounts.in_progress}
+                            </span>
+                          </button>
+
+                          {/* Completed */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('assignments');
+                              setAssignmentsStatusTab('completed');
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'completed'
+                                ? 'bg-emerald-600 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'completed' ? 'bg-white' : 'bg-emerald-500'}`} />
+                              <span>Completed</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'completed'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {assignmentCounts.completed}
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
 
                 return (
                   <button

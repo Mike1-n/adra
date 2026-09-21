@@ -72,6 +72,9 @@ export function ProgrammeManagerDashboard({
   // Scope filter: Programme Manager can filter all views by specific programme or 'ALL'
   const [selectedProgrammeScope, setSelectedProgrammeScope] = useState('ALL');
 
+  // Request Status Filter: Synchronized with Assistance module sidebar tabs
+  const [requestStatusFilter, setRequestStatusFilter] = useState('Pending Review');
+
   // Direct Review State (if navigated from Dashboard Recent Requests)
   const [selectedRequestToReview, setSelectedRequestToReview] = useState(null);
 
@@ -289,15 +292,34 @@ export function ProgrammeManagerDashboard({
     setActiveTab('requests');
   };
 
-  const pendingRequestsCount = scopedRequests.filter(
-    r => r.status === 'Submitted' || r.status === 'Under Review' || r.status === 'Pending' || r.status === 'Pending Review' || r.status === 'My Decision'
-  ).length;
+  const statusCounts = useMemo(() => {
+    return {
+      all: scopedRequests.length,
+      pending: scopedRequests.filter(r => r.status === 'Submitted' || r.status === 'Under Review' || r.status === 'Pending' || r.status === 'Pending Review' || r.status === 'My Decision').length,
+      approved: scopedRequests.filter(r => r.status === 'Approved' || r.status === 'Assigned to Supervisor').length,
+      inField: scopedRequests.filter(r => r.status === 'In Progress' || r.status === 'In Field').length,
+      completed: scopedRequests.filter(r => r.status === 'Completed' || r.status === 'Fulfilled').length,
+      rejected: scopedRequests.filter(r => r.status === 'Rejected').length,
+    };
+  }, [scopedRequests]);
 
+  const pendingRequestsCount = statusCounts.pending;
   const unreadCount = notifications.filter(n => !n.read).length;
 
   // Sidebar navigation handler
   const handleNavClick = (tabId) => {
     setActiveTab(tabId);
+    if (tabId !== 'requests') {
+      setSelectedRequestToReview(null);
+    }
+    setIsMobileDrawerOpen(false);
+  };
+
+  // Dedicated Assistance module status navigation
+  const handleAssistanceNavClick = (statusFilter = 'ALL') => {
+    setActiveTab('requests');
+    setRequestStatusFilter(statusFilter);
+    setSelectedRequestToReview(null);
     setIsMobileDrawerOpen(false);
   };
 
@@ -457,33 +479,115 @@ export function ProgrammeManagerDashboard({
               </button>
 
               {expandedSections.assistance && (
-                <div className="pl-4 pr-1 py-1 space-y-1 mt-1 border-l-2 border-emerald-400 ml-4">
+                <div className="pl-3 pr-1 py-1 space-y-1 mt-1 border-l-2 border-emerald-400 ml-4">
+                  {/* Pending Review */}
                   <button
-                    onClick={() => handleNavClick('requests')}
-                    className={`w-full text-left py-2 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
-                      activeTab === 'requests'
+                    onClick={() => handleAssistanceNavClick('Pending Review')}
+                    className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                      activeTab === 'requests' && (requestStatusFilter === 'Pending Review' || requestStatusFilter === 'Pending')
+                        ? 'bg-amber-600 text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'requests' && (requestStatusFilter === 'Pending Review' || requestStatusFilter === 'Pending') ? 'bg-white' : 'bg-amber-500'}`} />
+                      <span>Pending Review</span>
+                    </span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                      activeTab === 'requests' && (requestStatusFilter === 'Pending Review' || requestStatusFilter === 'Pending')
+                        ? 'bg-white/20 text-white'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {statusCounts.pending}
+                    </span>
+                  </button>
+
+                  {/* Approved */}
+                  <button
+                    onClick={() => handleAssistanceNavClick('Approved')}
+                    className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                      activeTab === 'requests' && requestStatusFilter === 'Approved'
                         ? 'bg-[#006B56] text-white font-black shadow-xs'
                         : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
                     }`}
                   >
-                    <span>Assistance Requests</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'requests' && requestStatusFilter === 'Approved' ? 'bg-white' : 'bg-emerald-500'}`} />
+                      <span>Approved</span>
+                    </span>
                     <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                      activeTab === 'requests' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                      activeTab === 'requests' && requestStatusFilter === 'Approved'
+                        ? 'bg-white/20 text-white'
+                        : 'bg-emerald-100 text-emerald-800'
                     }`}>
-                      {pendingRequestsCount}
+                      {statusCounts.approved}
                     </span>
                   </button>
+
+                  {/* In Field */}
                   <button
-                    onClick={() => handleNavClick('requests')}
-                    className="w-full text-left py-2 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-950 hover:bg-slate-100 transition cursor-pointer"
+                    onClick={() => handleAssistanceNavClick('In Field')}
+                    className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                      activeTab === 'requests' && (requestStatusFilter === 'In Field' || requestStatusFilter === 'In Progress')
+                        ? 'bg-blue-600 text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                    }`}
                   >
-                    Assessments
+                    <span className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'requests' && (requestStatusFilter === 'In Field' || requestStatusFilter === 'In Progress') ? 'bg-white' : 'bg-blue-500'}`} />
+                      <span>In Field</span>
+                    </span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                      activeTab === 'requests' && (requestStatusFilter === 'In Field' || requestStatusFilter === 'In Progress')
+                        ? 'bg-white/20 text-white'
+                        : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {statusCounts.inField}
+                    </span>
                   </button>
+
+                  {/* Completed */}
                   <button
-                    onClick={() => handleNavClick('requests')}
-                    className="w-full text-left py-2 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-950 hover:bg-slate-100 transition cursor-pointer"
+                    onClick={() => handleAssistanceNavClick('Completed')}
+                    className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                      activeTab === 'requests' && requestStatusFilter === 'Completed'
+                        ? 'bg-slate-800 text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                    }`}
                   >
-                    Approvals
+                    <span className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'requests' && requestStatusFilter === 'Completed' ? 'bg-white' : 'bg-slate-400'}`} />
+                      <span>Completed</span>
+                    </span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                      activeTab === 'requests' && requestStatusFilter === 'Completed'
+                        ? 'bg-white/20 text-white'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {statusCounts.completed}
+                    </span>
+                  </button>
+
+                  {/* Rejected */}
+                  <button
+                    onClick={() => handleAssistanceNavClick('Rejected')}
+                    className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                      activeTab === 'requests' && requestStatusFilter === 'Rejected'
+                        ? 'bg-rose-700 text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'requests' && requestStatusFilter === 'Rejected' ? 'bg-white' : 'bg-rose-500'}`} />
+                      <span>Rejected</span>
+                    </span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                      activeTab === 'requests' && requestStatusFilter === 'Rejected'
+                        ? 'bg-white/20 text-white'
+                        : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {statusCounts.rejected}
+                    </span>
                   </button>
                 </div>
               )}
@@ -878,6 +982,8 @@ export function ProgrammeManagerDashboard({
                   onAssignSupervisor={handleAssignSupervisor}
                   selectedRequestToReview={selectedRequestToReview}
                   onClearSelectedRequest={() => setSelectedRequestToReview(null)}
+                  initialStatusFilter={requestStatusFilter}
+                  onStatusFilterChange={(newStatus) => setRequestStatusFilter(newStatus)}
                 />
               )}
 

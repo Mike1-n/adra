@@ -22,13 +22,22 @@ export function SupervisorAssignmentsView({
   fieldWorkers = [],
   onSelectAssignment,
   onAssignFieldWorker,
-  onOpenReport
+  onOpenReport,
+  initialStatusTab = 'pending',
+  onStatusTabChange
 }) {
-  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'assigned' | 'in_progress' | 'completed' | 'overdue'
+  const [activeTab, setActiveTab] = useState(initialStatusTab); // 'pending' | 'assigned' | 'in_progress' | 'completed' | 'overdue'
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
   const [countyFilter, setCountyFilter] = useState('ALL');
   const [assignModalRequest, setAssignModalRequest] = useState(null);
+
+  // Sync initialStatusTab when changed via sidebar sub-item
+  React.useEffect(() => {
+    if (initialStatusTab) {
+      setActiveTab(initialStatusTab);
+    }
+  }, [initialStatusTab]);
 
   // Filter assignments by active tab, search query, priority, and county
   const filteredAssignments = useMemo(() => {
@@ -36,7 +45,9 @@ export function SupervisorAssignmentsView({
       const status = item.status || 'Submitted';
       
       // Tab matching logic
-      if (activeTab === 'pending') {
+      if (activeTab === 'all') {
+        // match all
+      } else if (activeTab === 'pending') {
         const isPending = status === 'Assigned to Supervisor' || 
                           status === 'Submitted' || 
                           status === 'Pending' || 
@@ -90,7 +101,7 @@ export function SupervisorAssignmentsView({
 
   // Tab counts
   const tabCounts = useMemo(() => {
-    const counts = { pending: 0, assigned: 0, in_progress: 0, completed: 0, overdue: 0 };
+    const counts = { total: assignments.length, pending: 0, assigned: 0, in_progress: 0, completed: 0, overdue: 0 };
     assignments.forEach(item => {
       const status = item.status || 'Submitted';
       const isUnassigned = !item.assigned_field_worker_name || item.assigned_field_worker_name.includes('Pending') || item.assigned_field_worker_name.includes('Unassigned') || status === 'Assigned to Supervisor' || status === 'Submitted';
@@ -110,48 +121,56 @@ export function SupervisorAssignmentsView({
   return (
     <div className="space-y-3 pb-24">
       
-      {/* Title & Stats Ribbon */}
-      <div className="bg-white p-4 rounded-2xl shadow-xs border border-slate-200/80 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">Field Assignments Hub</h2>
-            <p className="text-xs text-slate-500">Coordinate and dispatch field verification assessments</p>
-          </div>
-          <span className="text-xs font-bold px-2.5 py-1 bg-[#006B56]/10 text-[#006B56] rounded-xl border border-[#006B56]/20">
-            {assignments.length} Total Cases
-          </span>
-        </div>
+      {/* Horizontal Status Queue Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {[
+          { id: 'all', label: 'All Cases', count: assignments.length },
+          { id: 'pending', label: 'Pending', count: tabCounts.pending },
+          { id: 'assigned', label: 'Assigned', count: tabCounts.assigned },
+          { id: 'in_progress', label: 'In Progress', count: tabCounts.in_progress },
+          { id: 'completed', label: 'Completed', count: tabCounts.completed }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => {
+              setActiveTab(tab.id);
+              if (onStatusTabChange) onStatusTabChange(tab.id);
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
+              activeTab === tab.id
+                ? 'bg-[#006B56] text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+            }`}
+          >
+            <span>{tab.label}</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+              activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+            }`}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
 
-        {/* Horizontal Navigation Tabs */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-1">
-          {[
-            { id: 'pending', label: 'Pending', count: tabCounts.pending, color: 'text-amber-700 bg-amber-50 border-amber-200' },
-            { id: 'assigned', label: 'Assigned', count: tabCounts.assigned, color: 'text-blue-700 bg-blue-50 border-blue-200' },
-            { id: 'in_progress', label: 'In Progress', count: tabCounts.in_progress, color: 'text-purple-700 bg-purple-50 border-purple-200' },
-            { id: 'completed', label: 'Completed', count: tabCounts.completed, color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
-            { id: 'overdue', label: 'Overdue', count: tabCounts.overdue, color: 'text-red-700 bg-red-50 border-red-200' }
-          ].map(tab => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap flex items-center space-x-1.5 transition-all shrink-0 ${
-                  isActive
-                    ? 'bg-[#006B56] text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <span>{tab.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-white text-slate-700'
-                }`}>
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
+      {/* Active Queue Status Bar */}
+      <div className="bg-white p-3.5 rounded-2xl shadow-xs border border-slate-200/80 flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-extrabold text-slate-900 capitalize">
+            {activeTab === 'all' ? 'All Humanitarian Cases' : `${activeTab.replace('_', ' ')} Cases`}
+          </h2>
+          <p className="text-[11px] text-slate-500">
+            {activeTab === 'all' && 'All dispatched and pending verification requests across state'}
+            {activeTab === 'pending' && 'Awaiting field worker assignment'}
+            {activeTab === 'assigned' && 'Assigned to field workers for verification'}
+            {activeTab === 'in_progress' && 'Field verification currently in progress'}
+            {activeTab === 'completed' && 'Field assessments completed & approved'}
+            {activeTab === 'overdue' && 'Overdue field assessments'}
+          </p>
         </div>
+        <span className="text-xs font-black px-2.5 py-1 bg-emerald-50 text-[#006B56] rounded-xl border border-emerald-200">
+          {filteredAssignments.length} {filteredAssignments.length === 1 ? 'case' : 'cases'}
+        </span>
       </div>
 
       {/* Search & Filter Controls */}
@@ -198,12 +217,33 @@ export function SupervisorAssignmentsView({
       {/* Assignment Cards List */}
       <div className="space-y-3">
         {filteredAssignments.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 text-center border border-slate-200/80 space-y-2">
+          <div className="bg-white rounded-2xl p-8 text-center border border-slate-200/80 space-y-3">
             <Inbox className="w-10 h-10 text-slate-300 mx-auto" />
-            <p className="text-sm font-bold text-slate-700">No Assignments Found</p>
-            <p className="text-xs text-slate-400">
-              There are no assistance requests matching the active tab and search filters.
-            </p>
+            <div>
+              <p className="text-sm font-bold text-slate-800">
+                {activeTab === 'pending'
+                  ? 'No Pending Unassigned Cases'
+                  : `No ${activeTab.replace('_', ' ')} Cases Found`}
+              </p>
+              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+                {activeTab === 'pending' && tabCounts.assigned > 0
+                  ? `You have ${tabCounts.assigned} case(s) successfully assigned to field officers in the 'Assigned' queue.`
+                  : 'There are no requests matching the selected filter criteria.'}
+              </p>
+            </div>
+            {activeTab === 'pending' && tabCounts.assigned > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('assigned');
+                  if (onStatusTabChange) onStatusTabChange('assigned');
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#006B56] text-white text-xs font-bold rounded-xl shadow-xs hover:bg-[#005544] transition cursor-pointer"
+              >
+                <span>View Assigned Cases ({tabCounts.assigned})</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         ) : (
           filteredAssignments.map((item) => {

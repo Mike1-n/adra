@@ -15,7 +15,8 @@ import {
   X,
   Sparkles,
   Database,
-  Bell
+  Bell,
+  Activity
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db, isSupabaseConfigured } from '../../lib/supabase';
@@ -101,9 +102,15 @@ export function AdminWebPortalLayout({
       desc: 'System Telemetry & KPIs'
     },
     {
+      id: 'lifecycle',
+      name: 'Project & Aid Lifecycle',
+      icon: Activity,
+      desc: 'Assistance Pipeline & Progress'
+    },
+    {
       id: 'identity',
-      name: 'Identity & Access',
-      icon: UserCheck,
+      name: 'Users',
+      icon: Users,
       badge: pendingApprovals > 0 ? pendingApprovals : null,
       desc: 'Users, Roles & Approvals'
     },

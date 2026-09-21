@@ -15,7 +15,11 @@ import {
   Radio,
   FileCheck2,
   Lock,
-  Search
+  Search,
+  Activity,
+  ChevronRight,
+  MapPin,
+  Sparkles
 } from 'lucide-react';
 import { Card, CardHeader } from '../../../components/common/Card';
 import { StatCard } from '../../../components/common/StatCard';
@@ -23,22 +27,26 @@ import { Button } from '../../../components/common/Button';
 import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
 import { db, isSupabaseConfigured } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
+import { LIFECYCLE_STAGES, determineStage } from './ProjectLifecycleTrackerView';
 
 export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
   const [stats, setStats] = useState(null);
   const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [recentRequests, setRecentRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [adminStats, approvals] = await Promise.all([
+      const [adminStats, approvals, reqs] = await Promise.all([
         db.getAdminStats(),
-        db.getApprovals('ALL')
+        db.getApprovals('ALL'),
+        db.getAssistanceRequests()
       ]);
       setStats(adminStats);
       setPendingApprovals(approvals.filter(a => a.status === 'Pending').slice(0, 4));
+      setRecentRequests((reqs || []).slice(0, 3));
     } catch (err) {
       toast.error('Failed to load live metrics.');
     } finally {
@@ -159,6 +167,115 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
           </div>
         </div>
       </div>
+
+      {/* FEATURED: Live Beneficiary Assistance & Aid Delivery Progress Pipeline */}
+      <Card className="bg-gradient-to-br from-white via-slate-50/50 to-emerald-50/20 border-emerald-500/20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-[#006B56] flex items-center justify-center font-bold">
+              <Activity className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                Beneficiary Assistance & Project Progress Tracker
+                <span className="text-[10px] font-extrabold bg-[#006B56] text-white px-2 py-0.5 rounded-full">
+                  Live Telemetry
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Full 7-phase tracking from household request submission to verified aid receipt
+              </p>
+            </div>
+          </div>
+
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => onNavigateTab('lifecycle')}
+            icon={ArrowRight}
+          >
+            Open Full Lifecycle Pipeline
+          </Button>
+        </div>
+
+        {recentRequests.length === 0 ? (
+          <div className="py-6 text-center text-slate-500 text-xs">
+            <Activity className="w-6 h-6 text-slate-300 mx-auto mb-1" />
+            <p className="font-semibold text-slate-700">No active assistance cases in queue</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">All beneficiary assistance requests will be tracked in real-time here.</p>
+          </div>
+        ) : (
+          <div className="space-y-3 pt-3">
+            {recentRequests.map((req) => {
+              const currentStageNum = determineStage(req);
+              const currentStageObj = LIFECYCLE_STAGES.find(s => s.stage === currentStageNum) || LIFECYCLE_STAGES[0];
+
+              return (
+                <div
+                  key={req.id}
+                  onClick={() => onNavigateTab('lifecycle')}
+                  className="p-3.5 rounded-xl bg-white border border-slate-200/80 hover:border-emerald-400 shadow-2xs hover:shadow-sm transition-all cursor-pointer space-y-2.5"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                        #{req.request_code}
+                      </span>
+                      <strong className="text-slate-900 font-extrabold">{req.beneficiary_name}</strong>
+                      <span className="text-slate-400">•</span>
+                      <span className="text-slate-600 font-medium">{req.category || 'Food & Water Aid'}</span>
+                      <span className="text-slate-400">•</span>
+                      <span className="text-slate-500 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-emerald-600" />
+                        {req.location || 'Central Equatoria'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start sm:self-center">
+                      <span className="font-extrabold text-[#006B56] text-[11px] bg-emerald-50 border border-emerald-300/60 px-2 py-0.5 rounded-md">
+                        {currentStageObj.shortName} ({currentStageObj.percentage}%)
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </div>
+                  </div>
+
+                  {/* 7-Segment Progress Bar */}
+                  <div className="grid grid-cols-7 gap-1">
+                    {LIFECYCLE_STAGES.map((st) => {
+                      const isCompleted = currentStageNum > st.stage;
+                      const isCurrent = currentStageNum === st.stage;
+                      return (
+                        <div key={st.stage} className="space-y-0.5">
+                          <div
+                            className={`h-1.5 rounded-full transition-all ${
+                              isCompleted
+                                ? 'bg-[#006B56]'
+                                : isCurrent
+                                ? 'bg-emerald-500 animate-pulse ring-1 ring-emerald-400'
+                                : 'bg-slate-200'
+                            }`}
+                          />
+                          <span
+                            className={`block text-[8px] text-center truncate ${
+                              isCurrent
+                                ? 'font-black text-[#006B56]'
+                                : isCompleted
+                                ? 'font-semibold text-slate-600'
+                                : 'text-slate-300'
+                            }`}
+                          >
+                            {st.shortName}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
 
       {/* Two Column Grid: Pending Approvals & System Governance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -21,6 +21,7 @@ import { AdminWebPortalLayout } from '../../components/layout/AdminWebPortalLayo
 
 // Sub-views
 import { AdminDashboardView } from './components/AdminDashboardView';
+import { ProjectLifecycleTrackerView } from './components/ProjectLifecycleTrackerView';
 import { UserRoleManagementView } from './components/UserRoleManagementView';
 import { PermissionMatrixView } from './components/PermissionMatrixView';
 import { ApprovalManagementView } from './components/ApprovalManagementView';
@@ -31,7 +32,7 @@ import { NotificationsBroadcastView } from './components/NotificationsBroadcastV
 import { DataSettingsSupportView } from './components/DataSettingsSupportView';
 
 export function AdminWebPortalPage({ onSwitchToFieldApp }) {
-  // 6 Primary Sections: 'overview', 'identity', 'beneficiaries', 'field', 'security', 'system'
+  // Primary Sections: 'overview', 'lifecycle', 'identity', 'beneficiaries', 'field', 'security', 'system'
   const [activeSection, setActiveSection] = useState('overview');
 
   // Sub-tabs for each section
@@ -49,6 +50,9 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
   // Callback from overview dashboard quick action buttons
   const handleOverviewNavigate = (target) => {
     switch (target) {
+      case 'lifecycle':
+        setActiveSection('lifecycle');
+        break;
       case 'users':
         setActiveSection('identity');
         setSectionSubTab('identity', 'users');
@@ -101,7 +105,14 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
         <AdminDashboardView onNavigateTab={handleOverviewNavigate} />
       )}
 
-      {/* 2. IDENTITY & ACCESS */}
+      {/* 2. PROJECT & AID LIFECYCLE TRACKER */}
+      {activeSection === 'lifecycle' && (
+        <div className="space-y-6">
+          <ProjectLifecycleTrackerView onNavigateTab={handleOverviewNavigate} />
+        </div>
+      )}
+
+      {/* 3. USERS */}
       {activeSection === 'identity' && (
         <div className="space-y-6">
           {/* Clean Segmented Tab Control */}

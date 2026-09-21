@@ -51,7 +51,10 @@ const STORAGE_KEYS = {
   FIELD_WORKERS: 'adra_field_workers',
   FIELD_ASSESSMENTS: 'adra_field_assessments',
   SUPERVISOR_NOTIFICATIONS: 'adra_supervisor_notifications',
-  SUPERVISOR_ACTIVITIES: 'adra_supervisor_activities'
+  SUPERVISOR_ACTIVITIES: 'adra_supervisor_activities',
+  FIELD_WORKER_ACTIVITIES: 'adra_field_worker_activities',
+  FIELD_WORKER_NOTIFICATIONS: 'adra_field_worker_notifications',
+  FIELD_FUNDING_REQUESTS: 'adra_field_funding_requests'
 };
 
 function getLocalData(key, defaultData) {
@@ -108,11 +111,19 @@ export function normalizeAssistanceRequest(r) {
   const program_name = r.program_name || r.programme_name || r.project_name || 'Emergency Food Security & Livelihoods Resilience (EFSLR)';
   const program_id = r.program_id || r.project_id || 'prg1';
 
+  const rawWorker = r.assigned_field_worker_name || r.field_worker_name || '';
+  const isPendingWorker = !rawWorker || 
+    rawWorker === 'Unassigned' || 
+    rawWorker.toLowerCase().includes('pending') || 
+    rawWorker.toLowerCase().includes('awaiting');
+  const assigned_field_worker_name = isPendingWorker ? null : rawWorker;
+  const assigned_field_worker_id = isPendingWorker ? null : (r.assigned_field_worker_id || r.field_worker_id || null);
+
   return {
     ...r,
     id,
     request_code,
-    status,
+    status: (status === 'Assigned to Field Worker' && !assigned_field_worker_name) ? 'Assigned to Supervisor' : status,
     status_label: r.status_label || (status === 'Submitted' ? 'Pending Review' : status),
     status_stage: r.status_stage || (status === 'Submitted' ? 1 : (status === 'Under Review' ? 2 : 3)),
     category,
@@ -121,25 +132,31 @@ export function normalizeAssistanceRequest(r) {
     priority,
     reason,
     description,
-    state: state || 'Eastern Equatoria',
-    county: county || 'Kapoeta South',
-    payam: payam || 'Kapoeta Town',
-    boma: boma || 'nn',
-    village: village || 'jkkfg',
-    location: r.location || `${state || 'Eastern Equatoria'}, ${county || 'Kapoeta South'}, ${payam || 'Kapoeta Town'}`,
+    state: state || r.state || '',
+    county: county || r.county || '',
+    payam: payam || r.payam || '',
+    boma: boma || r.boma || '',
+    village: village || r.village || '',
+    location: r.location || [state, county, payam, boma, village].filter(Boolean).join(', ') || 'Field Location',
     program_name,
     programme_name: program_name,
     program_id,
     household_members: Number(r.household_members) || 1,
     quantity_requested: r.quantity_requested || (category.includes('Food') ? 'Household Food Rations' : '1 Relief Pack'),
-    beneficiary_name: r.beneficiary_name || 'Mary Nyambura',
-    beneficiary_id: r.beneficiary_id || 'b7',
-    beneficiary_code: r.beneficiary_code || 'ADRA-SS-000125',
+    beneficiary_name: r.beneficiary_name || r.full_name || r.name || 'Registered Beneficiary',
+    beneficiary_id: r.beneficiary_id || r.id || 'ben-1',
+    beneficiary_code: r.beneficiary_code || r.code || 'ADRA-SS-000101',
     eligibility: r.eligibility || 'Eligible (High Vulnerability)',
     eligibility_status: r.eligibility_status || 'Verified',
     verification_status: r.verification_status || 'Verified Active',
     duplicate_detected: Boolean(r.duplicate_detected || r.is_duplicate),
-    is_duplicate: Boolean(r.is_duplicate || r.duplicate_detected)
+    is_duplicate: Boolean(r.is_duplicate || r.duplicate_detected),
+    assigned_field_worker_name,
+    assigned_field_worker_id,
+    assigned_supervisor_name: r.assigned_supervisor_name || r.supervisor_name || null,
+    assigned_supervisor_id: r.assigned_supervisor_id || r.supervisor_id || null,
+    field_worker_name: assigned_field_worker_name,
+    field_worker_id: assigned_field_worker_id
   };
 }
 
@@ -151,7 +168,13 @@ export const db = {
       const { data, error } = await supabase.from('programs').select('*').order('created_at', { ascending: false });
       if (!error && data && data.length > 0) return data;
     }
-    return getLocalData(STORAGE_KEYS.PROGRAMS, mock.initialPrograms);
+    const SEEDED_PROGRAM_CODES = ['PRG-SS-001', 'PRG-SS-002', 'PRG-SS-003', 'PRG-SS-004', 'PRG-SS-005'];
+    const current = getLocalData(STORAGE_KEYS.PROGRAMS, mock.initialPrograms || []);
+    const clean = current.filter(p => !SEEDED_PROGRAM_CODES.includes(p.program_code) && !p.id?.startsWith('prg'));
+    if (clean.length !== current.length) {
+      saveLocalData(STORAGE_KEYS.PROGRAMS, clean);
+    }
+    return clean;
   },
 
   async createProgram(program) {
@@ -215,9 +238,15 @@ export const db = {
   async getProjects() {
     if (isSupabaseConfigured) {
       const { data, error } = await supabase.from('projects').select('*, donors(donor_name), partners(partner_name), profiles(full_name)').order('created_at', { ascending: false });
-      if (!error && data) return data;
+      if (!error && data && data.length > 0) return data;
     }
-    return getLocalData(STORAGE_KEYS.PROJECTS, mock.initialProjects);
+    const SEEDED_PROJECT_CODES = ['PRJ-2025-001', 'PRJ-2025-002', 'PRJ-2025-003', 'PRJ-2024-004', 'PRJ-2026-005'];
+    const current = getLocalData(STORAGE_KEYS.PROJECTS, mock.initialProjects || []);
+    const clean = current.filter(p => !SEEDED_PROJECT_CODES.includes(p.project_code) && !p.id?.startsWith('pr') && p.project_name !== 'Drought Resilience & Climate-Smart Agriculture');
+    if (clean.length !== current.length) {
+      saveLocalData(STORAGE_KEYS.PROJECTS, clean);
+    }
+    return clean;
   },
 
   async createProject(project) {
@@ -282,11 +311,26 @@ export const db = {
 
   // --- BENEFICIARIES ---
   async getBeneficiaries() {
+    const seededCodes = [
+      'BEN-2025-001', 'BEN-2025-002', 'BEN-2025-003',
+      'BEN-2025-004', 'BEN-2025-005', 'BEN-2025-006',
+      'ADRA-SS-000125', 'ADRA-SS-000126', 'ADRA-SS-000127'
+    ];
+    let remoteData = null;
     if (isSupabaseConfigured) {
       const { data, error } = await supabase.from('beneficiaries').select('*, projects(project_name)').order('created_at', { ascending: false });
-      if (!error && data) return data;
+      if (!error && data) {
+        remoteData = data.filter(b => !seededCodes.includes(b.beneficiary_code));
+      }
     }
-    return getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
+    if (remoteData !== null) {
+      saveLocalData(STORAGE_KEYS.BENEFICIARIES, remoteData);
+      return remoteData;
+    }
+    const current = getLocalData(STORAGE_KEYS.BENEFICIARIES, []);
+    const cleaned = (Array.isArray(current) ? current : []).filter(b => !seededCodes.includes(b.beneficiary_code));
+    saveLocalData(STORAGE_KEYS.BENEFICIARIES, cleaned);
+    return cleaned;
   },
 
   async createBeneficiary(beneficiary) {
@@ -1217,18 +1261,28 @@ export const db = {
 
     const calculatedDueDate = dueDate || new Date(Date.now() + 48 * 3600000).toISOString().split('T')[0];
     const now = new Date().toISOString();
+    const newNote = notes ? `Assigned to ${fieldWorkerName}: ${notes}` : `Assigned to ${fieldWorkerName}`;
 
-    const updated = allRequests.map(r => (r.id === requestId || r.request_code === requestId || (target && r.id === target.id)) ? {
-      ...r,
-      status: 'Assigned to Field Worker',
-      status_label: 'Assigned to Field Worker',
-      status_stage: 3,
-      assigned_field_worker_id: fieldWorkerId,
-      assigned_field_worker_name: fieldWorkerName,
-      due_date: calculatedDueDate,
-      field_worker_assigned_at: now,
-      review_notes: notes ? `${r.review_notes ? r.review_notes + ' | ' : ''}Assigned to Field Worker ${fieldWorkerName}: ${notes}` : r.review_notes
-    } : r);
+    const updated = allRequests.map(r => {
+      if (r.id === requestId || r.request_code === requestId || (target && r.id === target.id)) {
+        const prevNotes = r.review_notes ? r.review_notes.split(' | ').map(s => s.trim()).filter(Boolean) : [];
+        const cleanedPrev = prevNotes.filter(n => !n.includes('Previous Worker') && n !== newNote);
+        const combinedNotes = Array.from(new Set([...cleanedPrev, newNote])).join(' | ');
+
+        return {
+          ...r,
+          status: 'Assigned to Field Worker',
+          status_label: 'Assigned to Field Worker',
+          status_stage: 3,
+          assigned_field_worker_id: fieldWorkerId,
+          assigned_field_worker_name: fieldWorkerName,
+          due_date: calculatedDueDate,
+          field_worker_assigned_at: now,
+          review_notes: combinedNotes
+        };
+      }
+      return r;
+    });
 
     saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
 
@@ -1240,8 +1294,11 @@ export const db = {
           status: 'Assigned to Field Worker',
           status_label: 'Assigned to Field Worker',
           status_stage: 3,
+          assigned_field_worker_id: fieldWorkerId,
           assigned_field_worker_name: fieldWorkerName,
-          review_notes: notes ? `Assigned to ${fieldWorkerName}: ${notes}` : `Assigned to ${fieldWorkerName}`,
+          due_date: calculatedDueDate,
+          field_worker_assigned_at: now,
+          review_notes: newNote,
           updated_at: now
         };
         if (target && isUUID(target.id)) {
@@ -1319,26 +1376,51 @@ export const db = {
     const target = allRequests.find(r => r.id === requestId || r.request_code === requestId);
     if (!target) throw new Error('Assistance request not found');
 
-    const previousWorker = target.assigned_field_worker_name || 'Previous Worker';
+    const previousWorker = target.assigned_field_worker_name;
+    const hasRealPrev = previousWorker && 
+      previousWorker !== 'Previous Worker' && 
+      previousWorker !== 'Unassigned' && 
+      !previousWorker.toLowerCase().includes('pending');
+    
+    const newNote = hasRealPrev
+      ? `Reassigned from ${previousWorker} to ${newFieldWorkerName}${reason ? `. Reason: ${reason}` : ''}`
+      : `Assigned to ${newFieldWorkerName}${reason ? `. Reason: ${reason}` : ''}`;
+    
     const now = new Date().toISOString();
 
-    const updated = allRequests.map(r => (r.id === requestId || r.request_code === requestId) ? {
-      ...r,
-      assigned_field_worker_id: newFieldWorkerId,
-      assigned_field_worker_name: newFieldWorkerName,
-      reassignment_reason: reason,
-      review_notes: `${r.review_notes ? r.review_notes + ' | ' : ''}Reassigned from ${previousWorker} to ${newFieldWorkerName}. Reason: ${reason}`
-    } : r);
+    const updated = allRequests.map(r => {
+      if (r.id === requestId || r.request_code === requestId) {
+        const prevNotes = r.review_notes ? r.review_notes.split(' | ').map(s => s.trim()).filter(Boolean) : [];
+        const cleanedPrev = prevNotes.filter(n => !n.includes('Previous Worker') && n !== newNote);
+        const combinedNotes = Array.from(new Set([...cleanedPrev, newNote])).join(' | ');
+
+        return {
+          ...r,
+          assigned_field_worker_id: newFieldWorkerId,
+          assigned_field_worker_name: newFieldWorkerName,
+          status: 'Assigned to Field Worker',
+          status_label: 'Assigned to Field Worker',
+          status_stage: 3,
+          reassignment_reason: reason,
+          review_notes: combinedNotes
+        };
+      }
+      return r;
+    });
 
     saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
 
     // Sync to Supabase
     if (isSupabaseConfigured) {
       try {
-        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
         const updates = {
+          assigned_field_worker_id: newFieldWorkerId,
           assigned_field_worker_name: newFieldWorkerName,
-          review_notes: `Reassigned from ${previousWorker} to ${newFieldWorkerName}. Reason: ${reason}`,
+          status: 'Assigned to Field Worker',
+          status_label: 'Assigned to Field Worker',
+          status_stage: 3,
+          review_notes: newNote,
           updated_at: now
         };
         if (target && isUUID(target.id)) {
@@ -1346,7 +1428,9 @@ export const db = {
         } else if (target && target.request_code) {
           await supabase.from('assistance_requests').update(updates).eq('request_code', target.request_code);
         }
-      } catch (err) {}
+      } catch (err) {
+        console.warn('Supabase reassign worker update warning:', err?.message);
+      }
     }
 
     await this.logSupervisorActivity({
@@ -1366,13 +1450,69 @@ export const db = {
     return updated.find(r => r.id === requestId || r.request_code === requestId);
   },
 
-  // --- SUPERVISOR MODULE: FIELD ASSESSMENTS & REPORT REVIEW ---
-  async getFieldAssessments(supervisorId = null) {
-    const all = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
-    if (supervisorId) {
-      return all.filter(a => !a.supervisor_id || a.supervisor_id === supervisorId || supervisorId === 'all');
+  async resetAllFieldWorkerAssignments() {
+    // 1. Reset local assistance requests
+    const allRequests = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, []);
+    const cleanedRequests = (Array.isArray(allRequests) ? allRequests : []).map(r => ({
+      ...r,
+      assigned_field_worker_id: null,
+      assigned_field_worker_name: null,
+      field_worker_id: null,
+      field_worker_name: null,
+      field_worker_assigned_at: null,
+      status: r.status === 'Assigned to Field Worker' ? 'Assigned to Supervisor' : r.status,
+      status_label: r.status === 'Assigned to Field Worker' ? 'Pending Field Officer Allocation' : r.status_label
+    }));
+    saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, cleanedRequests);
+
+    // 2. Reset local field workers
+    const allWorkers = getLocalData(STORAGE_KEYS.FIELD_WORKERS, mock.initialFieldWorkers || []);
+    const resetWorkers = (Array.isArray(allWorkers) ? allWorkers : []).map(w => ({
+      ...w,
+      active_assignments: 0,
+      pending_reports: 0,
+      overdue_assessments: 0,
+      current_status: 'Available'
+    }));
+    saveLocalData(STORAGE_KEYS.FIELD_WORKERS, resetWorkers);
+
+    // 3. If Supabase configured, update remote assistance_requests
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('assistance_requests')
+          .update({
+            assigned_field_worker_name: null,
+            status: 'Assigned to Supervisor',
+            status_label: 'Pending Field Officer Allocation'
+          })
+          .not('id', 'is', null);
+      } catch (err) {
+        console.warn('Supabase reset worker assignments warning:', err?.message);
+      }
     }
-    return all;
+    return { success: true };
+  },
+
+  // --- SUPERVISOR MODULE: FIELD ASSESSMENTS & REPORT REVIEW ---
+  async getFieldAssessments(supervisorId = null, workerId = null, workerName = null) {
+    const raw = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
+    // Clean any legacy mock entries with static mock IDs
+    const all = raw.filter(a => !['ass-892', 'ass-890', 'ass-885'].includes(a.id));
+    let filtered = all;
+    if (supervisorId && supervisorId !== 'all') {
+      const cleanSupId = String(supervisorId).toLowerCase();
+      filtered = filtered.filter(a => !a.supervisor_id || a.supervisor_id.toLowerCase() === cleanSupId);
+    }
+    if (workerId || workerName) {
+      const cleanWorkerId = workerId ? String(workerId).toLowerCase() : '';
+      const cleanWorkerName = workerName ? String(workerName).toLowerCase() : '';
+      filtered = filtered.filter(a => 
+        (cleanWorkerId && a.field_worker_id && String(a.field_worker_id).toLowerCase() === cleanWorkerId) ||
+        (cleanWorkerName && a.field_worker_name && a.field_worker_name.toLowerCase().includes(cleanWorkerName))
+      );
+    }
+    return filtered;
   },
 
   async getAssessmentById(assessmentId) {
@@ -1637,6 +1777,608 @@ export const db = {
     }
 
     return updated.find(u => u.id === supervisorId || u.email === profileData.email || u.role === 'Supervisor');
+  },
+
+  // --- FIELD WORKER MODULE METHODS ---
+  async getFieldWorkerAssignedRequests(workerId = null, workerName = null) {
+    const allRequests = await this.getAssistanceRequests();
+    return allRequests.filter(r => {
+      if (!workerId && !workerName) return true;
+      const cleanName = workerName ? String(workerName).toLowerCase().trim() : '';
+      const cleanId = workerId ? String(workerId).toLowerCase().trim() : '';
+
+      const matchWorkerId = r.assigned_field_worker_id && String(r.assigned_field_worker_id).toLowerCase() === cleanId;
+      const matchWorkerName = r.assigned_field_worker_name && cleanName && (
+        r.assigned_field_worker_name.toLowerCase().includes(cleanName) ||
+        cleanName.includes(r.assigned_field_worker_name.toLowerCase())
+      );
+
+      // If this request specifically matches this worker
+      if (matchWorkerId || matchWorkerName) return true;
+
+      // Also fallback if request is in field-worker active pipeline states
+      const isFieldStage = [
+        'Assigned to Field Worker',
+        'Assessment In Progress',
+        'Assessment Submitted',
+        'Correction Required'
+      ].includes(r.status);
+
+      return false;
+    });
+  },
+
+  async submitFieldAssessment(assessmentData) {
+    const allAssessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
+    const nextNum = (895 + allAssessments.length).toString().padStart(5, '0');
+    const now = new Date().toISOString();
+
+    const newAssessment = {
+      id: `ass-${Date.now().toString().slice(-4)}`,
+      assessment_code: assessmentData.assessment_code || `FA-${nextNum}`,
+      submission_date: now,
+      status: 'Under Supervisor Review',
+      vulnerability_score: assessmentData.vulnerability_score || 85,
+      urgency_level: assessmentData.urgency_level || 'High',
+      family_size: Number(assessmentData.family_size) || 6,
+      disability_count: Number(assessmentData.disability_count) || 0,
+      elderly_count: Number(assessmentData.elderly_count) || 0,
+      pregnant_lactating_count: Number(assessmentData.pregnant_lactating_count) || 0,
+      id_verified: Boolean(assessmentData.id_verified ?? true),
+      gps_coordinates: assessmentData.gps_coordinates || '4.8516° N, 31.5825° E',
+      audit_findings: assessmentData.audit_findings || assessmentData.notes || 'Household verified in dire need of emergency assistance.',
+      recommended_aid: assessmentData.recommended_aid || 'Immediate Food & Non-Food Relief Package',
+      ...assessmentData
+    };
+
+    const updatedAssessments = [newAssessment, ...allAssessments];
+    saveLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, updatedAssessments);
+
+    // Update the linked assistance request
+    if (newAssessment.request_id || newAssessment.request_code) {
+      const allRequests = await this.getAssistanceRequests();
+      const updatedRequests = allRequests.map(r => (r.id === newAssessment.request_id || r.request_code === newAssessment.request_code) ? {
+        ...r,
+        status: 'Assessment Submitted',
+        status_label: 'Assessment Submitted',
+        status_stage: 4,
+        vulnerability_score: newAssessment.vulnerability_score,
+        assessment_code: newAssessment.assessment_code,
+        review_notes: `Field assessment ${newAssessment.assessment_code} submitted by ${newAssessment.field_worker_name || 'Field Worker'}. Awaiting Supervisor review.`,
+        updated_at: now
+      } : r);
+      saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedRequests);
+
+      if (isSupabaseConfigured) {
+        try {
+          const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+          const reqTarget = updatedRequests.find(r => r.id === newAssessment.request_id || r.request_code === newAssessment.request_code);
+          if (reqTarget) {
+            const updates = {
+              status: 'Assessment Submitted',
+              status_label: 'Assessment Submitted',
+              status_stage: 4,
+              review_notes: `Field assessment submitted by ${newAssessment.field_worker_name || 'Field Worker'}.`,
+              updated_at: now
+            };
+            if (isUUID(reqTarget.id)) {
+              await supabase.from('assistance_requests').update(updates).eq('id', reqTarget.id);
+            } else if (reqTarget.request_code) {
+              await supabase.from('assistance_requests').update(updates).eq('request_code', reqTarget.request_code);
+            }
+          }
+        } catch (err) {
+          console.warn('Supabase assessment update error:', err?.message);
+        }
+      }
+    }
+
+    // Update field worker statistics
+    if (newAssessment.field_worker_id || newAssessment.field_worker_name) {
+      const allWorkers = getLocalData(STORAGE_KEYS.FIELD_WORKERS, mock.initialFieldWorkers || []);
+      const updatedWorkers = allWorkers.map(w => (w.id === newAssessment.field_worker_id || w.name === newAssessment.field_worker_name) ? {
+        ...w,
+        reports_submitted: (w.reports_submitted || 0) + 1,
+        active_assignments: Math.max(0, (w.active_assignments || 1) - 1),
+        current_status: (w.active_assignments || 0) <= 1 ? 'Available' : w.current_status,
+        last_activity: `Submitted assessment ${newAssessment.assessment_code} (Just now)`
+      } : w);
+      saveLocalData(STORAGE_KEYS.FIELD_WORKERS, updatedWorkers);
+    }
+
+    // Notify supervisor
+    const supervisorNotifs = getLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, mock.initialSupervisorNotifications || []);
+    const newNotif = {
+      id: `snotif-${Date.now().toString().slice(-4)}`,
+      title: 'New Assessment Report Submitted',
+      message: `${newAssessment.field_worker_name || 'Field Worker'} uploaded assessment ${newAssessment.assessment_code} for ${newAssessment.beneficiary_name}.`,
+      type: 'report_submitted',
+      created_at: now,
+      is_read: false,
+      link_id: newAssessment.assessment_code
+    };
+    saveLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, [newNotif, ...supervisorNotifs]);
+
+    // Log Activity & Audit
+    await this.createFieldWorkerActivity({
+      worker_id: newAssessment.field_worker_id,
+      worker_name: newAssessment.field_worker_name || 'John Deng',
+      activity_type: 'Assessment Submitted',
+      title: `Household Audit Completed: ${newAssessment.beneficiary_name}`,
+      details: `Completed in-person audit for ${newAssessment.beneficiary_name} (${newAssessment.beneficiary_code || 'Household'}). Score: ${newAssessment.vulnerability_score}/100.`
+    });
+
+    await this.logAudit({
+      action: 'SUBMIT_FIELD_ASSESSMENT',
+      module: 'Field Worker Operations',
+      record_id: newAssessment.assessment_code,
+      details: `Field Worker ${newAssessment.field_worker_name || 'Field Officer'} submitted assessment ${newAssessment.assessment_code} for ${newAssessment.beneficiary_name}`
+    });
+
+    return newAssessment;
+  },
+
+  async confirmAidDistribution({ requestId, requestCode, qrToken, notes, workerName = 'John Deng', workerId = 'fw-1', itemsDistributed = 'Emergency Food Basket & Water Purification Kits' }) {
+    const allRequests = await this.getAssistanceRequests();
+    const now = new Date().toISOString();
+    const target = allRequests.find(r => 
+      (requestId && r.id === requestId) || 
+      (requestCode && r.request_code === requestCode) ||
+      (qrToken && (r.qr_code === qrToken || r.request_code === qrToken || r.beneficiary_code === qrToken))
+    );
+
+    if (!target) {
+      throw new Error(`No pending assistance request found matching token / code "${qrToken || requestCode || requestId}"`);
+    }
+
+    const updatedRequests = allRequests.map(r => (r.id === target.id || r.request_code === target.request_code) ? {
+      ...r,
+      status: 'Completed',
+      status_label: 'Aid Received',
+      status_stage: 7,
+      distributed_at: now,
+      distributed_by: workerName,
+      distribution_notes: notes || `Aid package physically disbursed and verified by Field Worker ${workerName}.`,
+      review_notes: `Aid successfully received by beneficiary on ${now.split('T')[0]}. Verified via Field QR Scanner.`,
+      updated_at: now
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedRequests);
+
+    // Create record in interventions/distributions
+    const allInterventions = getLocalData(STORAGE_KEYS.INTERVENTIONS, mock.initialInterventions || []);
+    const newIntervention = {
+      id: `int_${Date.now()}`,
+      intervention_code: `INT-SS-${Date.now().toString().slice(-4)}`,
+      project_id: target.program_id || 'prg1',
+      project_name: target.program_name || target.programme_name || 'Emergency Food Security & Livelihoods Resilience',
+      beneficiary_id: target.beneficiary_id || 'ben-1',
+      beneficiary_name: target.beneficiary_name,
+      beneficiary_code: target.beneficiary_code,
+      intervention_type: target.category || 'Emergency Food Relief',
+      date: now.split('T')[0],
+      quantity: 1,
+      unit: 'Package',
+      status: 'Delivered',
+      location: target.location || `${target.state}, ${target.county}`,
+      disbursed_by: workerName,
+      details: notes || `Delivered ${itemsDistributed} to ${target.beneficiary_name} (${target.beneficiary_code})`
+    };
+    saveLocalData(STORAGE_KEYS.INTERVENTIONS, [newIntervention, ...allInterventions]);
+
+    // Create field activity log
+    await this.createFieldWorkerActivity({
+      worker_id: workerId,
+      worker_name: workerName,
+      activity_type: 'Aid Distribution',
+      title: `Disbursement Verified: ${target.beneficiary_name}`,
+      details: `Physically disbursed aid (${target.category}) to ${target.beneficiary_name} (${target.beneficiary_code}) via token verification.`
+    });
+
+    await this.logAudit({
+      action: 'DISBURSE_AID',
+      module: 'Field Distribution',
+      record_id: target.request_code,
+      details: `Field Worker ${workerName} completed on-site aid distribution for ${target.beneficiary_name} (${target.request_code})`
+    });
+
+    return { success: true, request: target, intervention: newIntervention };
+  },
+
+  async getFieldWorkerActivities(workerId = null, workerName = null) {
+    const customActs = getLocalData(STORAGE_KEYS.FIELD_WORKER_ACTIVITIES, []);
+    const assessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
+    const interventions = getLocalData(STORAGE_KEYS.INTERVENTIONS, mock.initialInterventions || []);
+    const fundingReqs = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+
+    const dynamicActs = [];
+
+    // Derive from assessments
+    assessments.forEach(ass => {
+      const isAssigned = (!workerId && !workerName) || 
+        (workerId && ass.field_worker_id === workerId) || 
+        (workerName && ass.field_worker_name?.toLowerCase().includes(workerName.toLowerCase()));
+
+      if (isAssigned && ass.submission_date) {
+        dynamicActs.push({
+          id: `act-ass-${ass.id || ass.assessment_code}`,
+          worker_id: ass.field_worker_id || workerId,
+          worker_name: ass.field_worker_name || workerName || 'Field Officer',
+          activity_type: 'Household Audit',
+          title: `Household Audit: ${ass.beneficiary_name || 'Vulnerable Household'}`,
+          details: ass.audit_findings || (ass.vulnerability_score ? `Completed vulnerability audit. Score: ${ass.vulnerability_score}/100.` : `Completed on-site vulnerability verification (${ass.assessment_code}).`),
+          created_at: ass.submission_date,
+          location: ass.payam ? `${ass.county || ''}, ${ass.payam}` : (ass.location || 'Field Territory')
+        });
+      }
+    });
+
+    // Derive from distributions
+    interventions.forEach(int => {
+      const isDisbursed = (!workerId && !workerName) || 
+        (workerName && int.disbursed_by?.toLowerCase().includes(workerName.toLowerCase()));
+
+      if (isDisbursed) {
+        dynamicActs.push({
+          id: `act-int-${int.id}`,
+          worker_id: workerId,
+          worker_name: int.disbursed_by || workerName || 'Field Officer',
+          activity_type: 'Aid Distribution',
+          title: `Disbursement: ${int.beneficiary_name || 'Beneficiary'}`,
+          details: int.details || `Disbursed ${int.intervention_type} (${int.quantity || 1} ${int.unit || 'unit'}) to ${int.beneficiary_name}.`,
+          created_at: int.date ? `${int.date}T10:00:00.000Z` : new Date().toISOString(),
+          location: int.location || 'Distribution Point'
+        });
+      }
+    });
+
+    // Derive from funding requisitions
+    fundingReqs.forEach(f => {
+      const isRequester = (!workerId && !workerName) ||
+        (workerId && f.field_worker_id === workerId) ||
+        (workerName && f.field_worker_name?.toLowerCase().includes(workerName.toLowerCase()));
+
+      if (isRequester) {
+        dynamicActs.push({
+          id: `act-fnd-${f.id || f.request_code}`,
+          worker_id: f.field_worker_id || workerId,
+          worker_name: f.field_worker_name || workerName || 'Field Officer',
+          activity_type: 'Cash Requisition',
+          title: `Requisition: ${f.request_code} ($${f.amount})`,
+          details: `Requested $${f.amount} for ${f.category}. Status: ${f.status}`,
+          created_at: f.created_at || new Date().toISOString(),
+          location: f.payam ? `${f.county || ''}, ${f.payam}` : 'Operational Zone'
+        });
+      }
+    });
+
+    // Deduplicate by ID and sort newest first
+    const seen = new Set();
+    const all = [...customActs, ...dynamicActs].filter(act => {
+      if (!act.id || seen.has(act.id)) return false;
+      seen.add(act.id);
+      return true;
+    }).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+    if (workerId || workerName) {
+      const cleanId = workerId ? String(workerId).toLowerCase() : '';
+      const cleanName = workerName ? String(workerName).toLowerCase() : '';
+      return all.filter(a => 
+        (cleanId && a.worker_id && String(a.worker_id).toLowerCase() === cleanId) ||
+        (cleanName && a.worker_name && a.worker_name.toLowerCase().includes(cleanName)) ||
+        !a.worker_id
+      );
+    }
+    return all;
+  },
+
+  async createFieldWorkerActivity(actData) {
+    const all = getLocalData(STORAGE_KEYS.FIELD_WORKER_ACTIVITIES, []);
+    const newAct = {
+      id: `fwa-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      ...actData
+    };
+    const updated = [newAct, ...all].slice(0, 100);
+    saveLocalData(STORAGE_KEYS.FIELD_WORKER_ACTIVITIES, updated);
+    return newAct;
+  },
+
+  async updateFieldWorkerDutyStatus(workerId, newStatus) {
+    const allWorkers = getLocalData(STORAGE_KEYS.FIELD_WORKERS, mock.initialFieldWorkers || []);
+    const updated = allWorkers.map(w => (w.id === workerId || w.name?.toLowerCase() === String(workerId).toLowerCase()) ? {
+      ...w,
+      current_status: newStatus,
+      last_activity: `Status set to ${newStatus} (Just now)`
+    } : w);
+    saveLocalData(STORAGE_KEYS.FIELD_WORKERS, updated);
+
+    // Also update current active user if field worker
+    const users = await this.getUsers();
+    const updatedUsers = users.map(u => (u.id === workerId || u.role === 'Field Worker') ? {
+      ...u,
+      duty_status: newStatus
+    } : u);
+    saveLocalData(STORAGE_KEYS.USERS, updatedUsers);
+
+    return updated.find(w => w.id === workerId || w.name?.toLowerCase() === String(workerId).toLowerCase());
+  },
+
+  // --- FIELD WORKER OPERATIONAL FUNDING REQUISITIONS (3-TIER APPROVAL) ---
+  async getFieldFundingRequests(workerId = null, supervisorId = null) {
+    const raw = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+    // Clean any legacy mock entries with static mock IDs
+    const all = raw.filter(r => !['fnd-1', 'fnd-2', 'fnd-3', 'fnd-4'].includes(r.id));
+    if (workerId) {
+      const cleanId = String(workerId).toLowerCase().trim();
+      return all.filter(r => r.field_worker_id && String(r.field_worker_id).toLowerCase() === cleanId);
+    }
+    if (supervisorId && supervisorId !== 'all') {
+      const cleanSupId = String(supervisorId).toLowerCase().trim();
+      return all.filter(r => r.supervisor_id && String(r.supervisor_id).toLowerCase() === cleanSupId);
+    }
+    return all;
+  },
+
+  async createFieldFundingRequest(fundingData) {
+    const all = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+    const nextNum = (all.length + 1).toString().padStart(3, '0');
+    const now = new Date().toISOString();
+
+    const newRequest = {
+      id: `fnd-${Date.now()}`,
+      request_code: fundingData.request_code || `REQ-FND-2026-${nextNum}`,
+      field_worker_id: fundingData.field_worker_id || 'fw-1',
+      field_worker_name: fundingData.field_worker_name || 'Field Officer',
+      field_worker_email: fundingData.field_worker_email || 'field.worker@adra.org',
+      field_worker_phone: fundingData.field_worker_phone || '+211-921-000000',
+      supervisor_id: fundingData.supervisor_id || 'sup-1',
+      supervisor_name: fundingData.supervisor_name || 'Emmanuel Adeyemi',
+      program_manager_name: fundingData.program_manager_name || 'Grace Ochieng',
+      finance_officer_name: 'Finance Department',
+      payam: fundingData.payam || 'Field Location',
+      county: fundingData.county || 'Operational County',
+      state: fundingData.state || 'Eastern Equatoria',
+      project_id: fundingData.project_id || 'prg1',
+      project_name: fundingData.project_name || 'Emergency Relief & Resilience',
+      category: fundingData.category || 'Transport & Vehicle Fuel',
+      amount: Number(fundingData.amount) || 0,
+      currency: fundingData.currency || 'SSP',
+      purpose: fundingData.purpose || 'Field operational requisition',
+      breakdown: fundingData.breakdown || [],
+      urgency: fundingData.urgency || 'Standard SLA (48h)',
+      preferred_payout: fundingData.preferred_payout || 'm-Gurush Mobile Money',
+      payout_phone: fundingData.payout_phone || fundingData.field_worker_phone || '+211-921-000000',
+      status: 'Pending Supervisor Approval',
+      stage: 1, // 1: Submitted, 2: Supervisor Approved (Pending PM), 3: PM Approved (Pending Finance), 4: Disbursed
+      created_at: now,
+      supervisor_review: {
+        status: 'Pending',
+        reviewed_by: null,
+        reviewed_at: null,
+        notes: null
+      },
+      pm_review: {
+        status: 'Pending',
+        reviewed_by: null,
+        reviewed_at: null,
+        notes: null
+      },
+      finance_disbursement: {
+        status: 'Pending',
+        disbursed_by: null,
+        disbursed_at: null,
+        payment_method: null,
+        voucher_reference: null,
+        transaction_ref: null,
+        notes: null
+      }
+    };
+
+    const updated = [newRequest, ...all];
+    saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
+
+    // Notify Supervisor
+    const supervisorNotifs = getLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, mock.initialSupervisorNotifications || []);
+    const newNotif = {
+      id: `snotif-${Date.now().toString().slice(-4)}`,
+      title: 'New Field Funding Requisition',
+      message: `${newRequest.field_worker_name} submitted a funding request of $${newRequest.amount} for "${newRequest.category}". Review required.`,
+      type: 'funding_request',
+      created_at: now,
+      is_read: false,
+      link_id: newRequest.request_code
+    };
+    saveLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, [newNotif, ...supervisorNotifs]);
+
+    // Create Field Worker Activity Log
+    await this.createFieldWorkerActivity({
+      worker_id: newRequest.field_worker_id,
+      worker_name: newRequest.field_worker_name,
+      activity_type: 'Funding Requisition',
+      title: `Funding Requisition: $${newRequest.amount}`,
+      details: `Submitted requisition ${newRequest.request_code} ($${newRequest.amount}) for ${newRequest.category}. Pending Supervisor endorsement.`
+    });
+
+    // Audit Log
+    await this.logAudit({
+      action: 'CREATE_FUNDING_REQUEST',
+      module: 'Field Finance Requisitions',
+      record_id: newRequest.request_code,
+      details: `Field Worker ${newRequest.field_worker_name} requested $${newRequest.amount} USD (${newRequest.category}) for ${newRequest.payam}. Requiring Supervisor & PM approvals.`
+    });
+
+    return newRequest;
+  },
+
+  async approveFieldFundingBySupervisor(requestId, supervisorName = 'Emmanuel Adeyemi', notes = '') {
+    const all = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+    const now = new Date().toISOString();
+
+    const updated = all.map(r => (r.id === requestId || r.request_code === requestId) ? {
+      ...r,
+      status: 'Pending Program Manager Approval',
+      stage: 2,
+      supervisor_review: {
+        status: 'Approved',
+        reviewed_by: supervisorName,
+        reviewed_at: now,
+        notes: notes || 'Endorsed by Supervisor. Sent to Program Manager for approval.'
+      }
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
+    const target = updated.find(r => r.id === requestId || r.request_code === requestId);
+
+    await this.logAudit({
+      action: 'SUPERVISOR_APPROVE_FUNDING',
+      module: 'Field Finance Requisitions',
+      record_id: target?.request_code || requestId,
+      details: `Supervisor ${supervisorName} endorsed funding request ${target?.request_code} ($${target?.amount}). Escalated to Program Manager Grace Ochieng.`
+    });
+
+    return target;
+  },
+
+  async rejectFieldFundingBySupervisor(requestId, supervisorName = 'Emmanuel Adeyemi', reason = '') {
+    const all = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+    const now = new Date().toISOString();
+
+    const updated = all.map(r => (r.id === requestId || r.request_code === requestId) ? {
+      ...r,
+      status: 'Rejected by Supervisor',
+      stage: 1,
+      supervisor_review: {
+        status: 'Rejected',
+        reviewed_by: supervisorName,
+        reviewed_at: now,
+        notes: reason || 'Requisition declined by Supervisor. Budget revision required.'
+      }
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
+    const target = updated.find(r => r.id === requestId || r.request_code === requestId);
+
+    await this.logAudit({
+      action: 'SUPERVISOR_REJECT_FUNDING',
+      module: 'Field Finance Requisitions',
+      record_id: target?.request_code || requestId,
+      details: `Supervisor ${supervisorName} rejected funding request ${target?.request_code}. Reason: ${reason}`
+    });
+
+    return target;
+  },
+
+  async approveFieldFundingByPM(requestId, pmName = 'Grace Ochieng', notes = '') {
+    const all = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+    const now = new Date().toISOString();
+
+    const updated = all.map(r => (r.id === requestId || r.request_code === requestId) ? {
+      ...r,
+      status: 'Approved (Pending Finance Disbursement)',
+      stage: 3,
+      pm_review: {
+        status: 'Approved',
+        reviewed_by: pmName,
+        reviewed_at: now,
+        notes: notes || 'Authorized by Program Manager. Approved for Finance Officer disbursement.'
+      }
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
+    const target = updated.find(r => r.id === requestId || r.request_code === requestId);
+
+    await this.logAudit({
+      action: 'PM_APPROVE_FUNDING',
+      module: 'Field Finance Requisitions',
+      record_id: target?.request_code || requestId,
+      details: `Program Manager ${pmName} authorized funding request ${target?.request_code} ($${target?.amount}). Ready for Finance Officer payout.`
+    });
+
+    return target;
+  },
+
+  async rejectFieldFundingByPM(requestId, pmName = 'Grace Ochieng', reason = '') {
+    const all = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+    const now = new Date().toISOString();
+
+    const updated = all.map(r => (r.id === requestId || r.request_code === requestId) ? {
+      ...r,
+      status: 'Rejected by Program Manager',
+      stage: 2,
+      pm_review: {
+        status: 'Rejected',
+        reviewed_by: pmName,
+        reviewed_at: now,
+        notes: reason || 'Requisition declined by Program Manager.'
+      }
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
+    const target = updated.find(r => r.id === requestId || r.request_code === requestId);
+
+    await this.logAudit({
+      action: 'PM_REJECT_FUNDING',
+      module: 'Field Finance Requisitions',
+      record_id: target?.request_code || requestId,
+      details: `Program Manager ${pmName} rejected funding request ${target?.request_code}. Reason: ${reason}`
+    });
+
+    return target;
+  },
+
+  async disburseFieldFundingByFinance(requestId, financeName = 'Mark Ladu (Finance Officer)', disbursementData = {}) {
+    const all = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+    const now = new Date().toISOString();
+    const voucherRef = disbursementData.voucher_reference || `PV-2026-${Date.now().toString().slice(-4)}`;
+    const txnRef = disbursementData.transaction_ref || `TXN-MG-${Math.floor(1000000 + Math.random() * 9000000)}`;
+
+    const updated = all.map(r => (r.id === requestId || r.request_code === requestId) ? {
+      ...r,
+      status: 'Disbursed',
+      stage: 4,
+      finance_disbursement: {
+        status: 'Disbursed',
+        disbursed_by: financeName,
+        disbursed_at: now,
+        payment_method: disbursementData.payment_method || r.preferred_payout || 'm-Gurush Mobile Money',
+        voucher_reference: voucherRef,
+        transaction_ref: txnRef,
+        notes: disbursementData.notes || `Disbursed $${r.amount} USD to ${r.field_worker_name} (${r.payout_phone || r.field_worker_phone}). Payment voucher generated.`
+      }
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
+    const target = updated.find(r => r.id === requestId || r.request_code === requestId);
+
+    // Also record in expenditures ledger
+    if (target) {
+      await this.createExpenditure({
+        expenditure_code: `EXP-${voucherRef}`,
+        project_id: target.project_id || 'prg1',
+        category: 'Travel & Transport',
+        description: `Field Cash Requisition (${target.category}) for ${target.field_worker_name} (${target.request_code}) - Voucher ${voucherRef}`,
+        amount: target.amount,
+        expenditure_date: now.split('T')[0],
+        receipt_url: `https://adra-docs.internal/vouchers/${voucherRef}.pdf`
+      });
+    }
+
+    await this.logAudit({
+      action: 'FINANCE_DISBURSE_FUNDING',
+      module: 'Field Finance Requisitions',
+      record_id: target?.request_code || requestId,
+      details: `Finance Officer ${financeName} disbursed $${target?.amount} USD for ${target?.request_code} to ${target?.field_worker_name}. Voucher: ${voucherRef}`
+    });
+
+    return target;
+  },
+
+  async deleteFieldFundingRequest(requestId) {
+    const all = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+    const updated = all.filter(r => r.id !== requestId && r.request_code !== requestId);
+    saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
+    return true;
   },
 
   async getProgramResources() {
@@ -2173,35 +2915,25 @@ export const db = {
 
   // --- USERS & IAM ---
   async getUsers() {
-    let dbUsers = [];
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
-        if (!error && data) dbUsers = data;
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (!error && data && data.length > 0) {
+          saveLocalData(STORAGE_KEYS.USERS, data);
+          return data;
+        }
       } catch (e) {
         console.warn('Could not fetch profiles from Supabase:', e);
       }
     }
-    const stored = getLocalData(STORAGE_KEYS.USERS, null) || [];
-    const merged = [...dbUsers];
-
-    // Always merge in demoAccounts and stored local users so all standard accounts are present
-    const allCandidates = [...(mock.demoAccounts || []), ...stored];
-    allCandidates.forEach(demo => {
-      const idx = merged.findIndex(u => 
-        (demo.id && u.id === demo.id) || 
-        (demo.email && u.email?.toLowerCase().trim() === demo.email?.toLowerCase().trim())
-      );
-      if (idx === -1) {
-        merged.push(demo);
-      } else {
-        // Overlay demo details such as password / avatar if missing in database profile
-        merged[idx] = { ...demo, ...merged[idx] };
-      }
-    });
-
-    saveLocalData(STORAGE_KEYS.USERS, merged);
-    return merged;
+    const stored = getLocalData(STORAGE_KEYS.USERS, null);
+    if (stored && Array.isArray(stored) && stored.length > 0) {
+      return stored;
+    }
+    return mock.demoAccounts || [];
   },
 
   async authenticateUser(identifier, password) {
@@ -2453,9 +3185,38 @@ export const db = {
 
   // --- APPROVALS MANAGEMENT ---
   async getApprovals(categoryFilter) {
-    const current = getLocalData(STORAGE_KEYS.APPROVALS, mock.initialApprovals);
-    if (!categoryFilter || categoryFilter === 'ALL') return current;
-    return current.filter(a => a.category === categoryFilter);
+    const stored = getLocalData(STORAGE_KEYS.APPROVALS, []) || [];
+    
+    // Automatically synthesize approval records for any real pending staff or beneficiaries in database
+    try {
+      const users = await this.getUsers();
+      const pendingUsers = users.filter(u => u.status === 'Pending Verification' || u.is_active === false);
+      
+      pendingUsers.forEach(u => {
+        const appId = `app-usr-${(u.id || '').slice(0, 8)}`;
+        const exists = stored.some(a => a.user_id === u.id || a.requester_email?.toLowerCase() === (u.email || '').toLowerCase());
+        if (!exists) {
+          stored.push({
+            id: appId,
+            category: u.role === 'Beneficiary' ? 'Beneficiary Verification' : 'User Registration',
+            requester_name: u.full_name || 'Self-Registered User',
+            requester_email: u.email || 'N/A',
+            role_requested: u.role || 'Field Worker',
+            department: u.department || 'Operations',
+            details: `${u.role || 'Staff'} registration for ${u.full_name || 'User'} (${u.email || 'N/A'}). Awaiting administrator compliance & role approval.`,
+            status: 'Pending',
+            date: u.created_at || new Date().toISOString(),
+            priority: 'High',
+            user_id: u.id
+          });
+        }
+      });
+    } catch (e) {
+      console.warn('Could not sync pending user approvals:', e);
+    }
+
+    if (!categoryFilter || categoryFilter === 'ALL') return stored;
+    return stored.filter(a => a.category === categoryFilter);
   },
 
   async updateApprovalStatus(id, status, notes = '') {
@@ -2549,7 +3310,7 @@ export const db = {
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBens);
 
     // Update any matching pending approval
-    const currentApprovals = getLocalData(STORAGE_KEYS.APPROVALS, mock.initialApprovals);
+    const currentApprovals = getLocalData(STORAGE_KEYS.APPROVALS, []);
     const updatedApprovals = currentApprovals.map(a => {
       if (a.user_id === userId || (target?.email && a.requester_email?.toLowerCase() === target.email.toLowerCase())) {
         return { ...a, status: 'Approved', reviewed_at: new Date().toISOString() };
@@ -2569,7 +3330,7 @@ export const db = {
       status: 'Pending',
       date: new Date().toISOString()
     };
-    const current = getLocalData(STORAGE_KEYS.APPROVALS, mock.initialApprovals);
+    const current = getLocalData(STORAGE_KEYS.APPROVALS, []);
     const updated = [newApproval, ...current];
     saveLocalData(STORAGE_KEYS.APPROVALS, updated);
     await this.logAudit({ action: 'CREATE', module: 'Approval Management', record_id: newApproval.id, details: `Submitted new ${newApproval.category} approval request` });
@@ -2578,7 +3339,14 @@ export const db = {
 
   // --- LOCATIONS MANAGEMENT ---
   async getLocations() {
-    return getLocalData(STORAGE_KEYS.LOCATIONS, mock.initialLocations);
+    const SEEDED_LOC_IDS = ['loc-1', 'loc-2', 'loc-3', 'loc-4', 'loc-5'];
+    const SEEDED_LOC_NAMES = ['Turkana County Office', 'Garissa Sub-Office', 'Marsabit Logistics Hub', 'Nairobi Regional Headquarters', 'Mandera Outreach Post'];
+    const current = getLocalData(STORAGE_KEYS.LOCATIONS, mock.initialLocations || []);
+    const clean = current.filter(l => !SEEDED_LOC_IDS.includes(l.id) && !SEEDED_LOC_NAMES.includes(l.name));
+    if (clean.length !== current.length) {
+      saveLocalData(STORAGE_KEYS.LOCATIONS, clean);
+    }
+    return clean;
   },
 
   async createLocation(locationData) {

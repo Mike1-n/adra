@@ -194,7 +194,7 @@ export function AdminConsolePage() {
     },
     {
       id: 'identity',
-      name: 'Identity & Access',
+      name: 'Users',
       icon: Users,
       badge: pendingApprovalsCount > 0 ? `${pendingApprovalsCount} pending` : null,
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
@@ -397,7 +397,7 @@ export function AdminConsolePage() {
           </div>
         )}
 
-        {/* Hub 2: Identity & Access */}
+        {/* Hub 2: Users */}
         {activeHub === 'identity' && (activeFunction === 'users' || activeFunction === 'roles') && (
           <UserRoleManagementView />
         )}

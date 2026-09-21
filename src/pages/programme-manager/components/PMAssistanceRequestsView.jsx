@@ -44,7 +44,9 @@ export function PMAssistanceRequestsView({
   onRequestInfo,
   onAssignSupervisor,
   selectedRequestToReview,
-  onClearSelectedRequest
+  onClearSelectedRequest,
+  initialStatusFilter = 'ALL',
+  onStatusFilterChange
 }) {
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,10 +56,26 @@ export function PMAssistanceRequestsView({
   const [filterPayam, setFilterPayam] = useState('ALL');
   const [filterBoma, setFilterBoma] = useState('ALL');
   const [filterVillage, setFilterVillage] = useState('ALL');
-  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState(initialStatusFilter);
   const [filterPriority, setFilterPriority] = useState('ALL');
   const [filterAssistanceType, setFilterAssistanceType] = useState('ALL');
   const [filterDate, setFilterDate] = useState('');
+
+  // Sync initialStatusFilter from props (e.g. when selected in PM sidebar)
+  React.useEffect(() => {
+    if (initialStatusFilter !== undefined) {
+      setFilterStatus(initialStatusFilter);
+      setCurrentPage(1);
+    }
+  }, [initialStatusFilter]);
+
+  const handleStatusChange = (newStatus) => {
+    setFilterStatus(newStatus);
+    setCurrentPage(1);
+    if (onStatusFilterChange) {
+      onStatusFilterChange(newStatus);
+    }
+  };
 
   // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState(1);
@@ -142,10 +160,16 @@ export function PMAssistanceRequestsView({
 
       // Status
       if (filterStatus !== 'ALL') {
-        if (filterStatus === 'Pending Review') {
-          if (r.status !== 'Submitted' && r.status !== 'Under Review' && r.status !== 'Pending' && r.status !== 'Pending Review') return false;
+        if (filterStatus === 'Pending Review' || filterStatus === 'Pending') {
+          if (r.status !== 'Submitted' && r.status !== 'Under Review' && r.status !== 'Pending' && r.status !== 'Pending Review' && r.status !== 'My Decision') return false;
         } else if (filterStatus === 'Approved') {
           if (r.status !== 'Approved' && r.status !== 'Assigned to Supervisor') return false;
+        } else if (filterStatus === 'In Field' || filterStatus === 'In Progress') {
+          if (r.status !== 'In Progress' && r.status !== 'In Field') return false;
+        } else if (filterStatus === 'Completed') {
+          if (r.status !== 'Completed' && r.status !== 'Fulfilled') return false;
+        } else if (filterStatus === 'Rejected') {
+          if (r.status !== 'Rejected') return false;
         } else if (r.status !== filterStatus) {
           return false;
         }
@@ -776,15 +800,6 @@ export function PMAssistanceRequestsView({
     );
   }
 
-  const statusPills = [
-    { id: 'ALL', label: 'All Requests', count: requests.length },
-    { id: 'Pending Review', label: 'Pending Review', count: requests.filter(r => r.status === 'Submitted' || r.status === 'Under Review' || r.status === 'Pending').length },
-    { id: 'Approved', label: 'Approved', count: requests.filter(r => r.status === 'Approved' || r.status === 'Assigned to Supervisor').length },
-    { id: 'In Progress', label: 'In Field', count: requests.filter(r => r.status === 'In Progress').length },
-    { id: 'Completed', label: 'Completed', count: requests.filter(r => r.status === 'Completed' || r.status === 'Fulfilled').length },
-    { id: 'Rejected', label: 'Rejected', count: requests.filter(r => r.status === 'Rejected').length },
-  ];
-
   return (
     <div className="space-y-3.5">
       {/* 1. SEARCH BAR & QUICK FILTERS BUTTON */}
@@ -823,30 +838,16 @@ export function PMAssistanceRequestsView({
         </button>
       </div>
 
-      {/* 2. HORIZONTAL SCROLLABLE STATUS FILTER CHIPS */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-        {statusPills.map(pill => {
-          const isSelected = filterStatus === pill.id;
-          return (
-            <button
-              key={pill.id}
-              type="button"
-              onClick={() => { setFilterStatus(pill.id); setCurrentPage(1); }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition active:scale-95 shrink-0 flex items-center gap-1.5 ${
-                isSelected
-                  ? 'bg-[#006B56] text-white shadow-xs'
-                  : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
-              }`}
-            >
-              <span>{pill.label}</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-              }`}>
-                {pill.count}
-              </span>
-            </button>
-          );
-        })}
+      {/* 2. ACTIVE QUEUE STATUS INDICATOR */}
+      <div className="flex items-center justify-between px-1 py-0.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-black text-slate-800 tracking-tight">
+            {filterStatus === 'ALL' ? 'All Requests' : `${filterStatus} Requests`}
+          </span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+            {filteredRequests.length} {filteredRequests.length === 1 ? 'record' : 'records'}
+          </span>
+        </div>
       </div>
 
       {/* 3. EXPANDABLE ADVANCED FILTER SHEET / DRAWER */}

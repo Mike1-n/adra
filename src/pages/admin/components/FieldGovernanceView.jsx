@@ -222,97 +222,127 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
       </div>
 
       {/* --- SUBTAB 1: PROGRAMME MANAGEMENT (Function 7) --- */}
-      {activeSubTab === 'programmes' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search programmes by name, code..."
-                className="adra-input pl-10 text-xs sm:text-sm"
-              />
+      {activeSubTab === 'programmes' && (() => {
+        const filteredProgs = programmes.filter(p => {
+          const matchSearch = !search || 
+            (p.project_name || '').toLowerCase().includes(search.toLowerCase()) || 
+            (p.project_code || '').toLowerCase().includes(search.toLowerCase()) ||
+            (p.location || '').toLowerCase().includes(search.toLowerCase());
+          return matchSearch;
+        });
+
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search programmes by name, code..."
+                  className="adra-input pl-10 text-xs sm:text-sm"
+                />
+              </div>
+
+              <Button
+                variant="primary"
+                onClick={handleOpenCreateProg}
+                icon={Plus}
+              >
+                Configure Programme
+              </Button>
             </div>
 
-            <Button
-              variant="primary"
-              onClick={handleOpenCreateProg}
-              icon={Plus}
-            >
-              Configure Programme
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {programmes.map((p) => (
-              <Card key={p.id} className="adra-card-hover flex flex-col justify-between">
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/30 px-2 py-0.5 rounded">
-                      {p.project_code}
-                    </span>
-                    <span
-                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
-                        p.status === 'Active'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30 font-bold'
-                          : p.status === 'Completed'
-                          ? 'bg-blue-50 text-blue-800 border-blue-300 font-bold'
-                          : 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
-                      }`}
-                    >
-                      {p.status}
-                    </span>
-                  </div>
-
-                  <h3 className="text-sm font-bold text-slate-900 line-clamp-1">{p.project_name}</h3>
-                  <p className="text-xs text-slate-600 mt-1 line-clamp-2 leading-relaxed font-medium">
-                    {p.description || 'No description provided.'}
-                  </p>
-
-                  <div className="space-y-1.5 mt-3 pt-3 border-t border-slate-200 text-xs text-slate-700">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-[11px] flex items-center gap-1">
-                        <User className="w-3 h-3 text-emerald-600" /> Responsible Manager:
-                      </span>
-                      <span className="font-bold text-slate-900">{p.manager_name || 'Unassigned'}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-[11px] flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-slate-400" /> Operational Zone:
-                      </span>
-                      <span className="truncate max-w-[170px] text-slate-800 font-medium">{p.location}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-[11px] flex items-center gap-1">
-                        <DollarSign className="w-3 h-3 text-amber-600" /> Budget Allocation:
-                      </span>
-                      <span className="font-bold text-emerald-800">{formatCurrency(p.budget)}</span>
-                    </div>
-                  </div>
+            {filteredProgs.length === 0 ? (
+              <div className="p-8 text-center bg-white rounded-2xl border border-dashed border-slate-300">
+                <div className="w-12 h-12 mx-auto rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
+                  <FolderKanban className="w-6 h-6" />
                 </div>
+                <h3 className="text-sm font-bold text-slate-900">No Programmes Configured</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
+                  {search ? 'No programmes match your search query.' : 'Initialize and configure your first field humanitarian programme.'}
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleOpenCreateProg}
+                  icon={Plus}
+                >
+                  Configure New Programme
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredProgs.map((p) => (
+                  <Card key={p.id} className="adra-card-hover flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/30 px-2 py-0.5 rounded">
+                          {p.project_code}
+                        </span>
+                        <span
+                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                            p.status === 'Active'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30 font-bold'
+                              : p.status === 'Completed'
+                              ? 'bg-blue-50 text-blue-800 border-blue-300 font-bold'
+                              : 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
+                          }`}
+                        >
+                          {p.status}
+                        </span>
+                      </div>
 
-                <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-200">
-                  <span className="text-[10px] text-slate-500">
-                    {formatDate(p.start_date)} — {formatDate(p.end_date)}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleOpenEditProg(p)}
-                    icon={Edit2}
-                  >
-                    Configure
-                  </Button>
-                </div>
-              </Card>
-            ))}
+                      <h3 className="text-sm font-bold text-slate-900 line-clamp-1">{p.project_name}</h3>
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-2 leading-relaxed font-medium">
+                        {p.description || 'No description provided.'}
+                      </p>
+
+                      <div className="space-y-1.5 mt-3 pt-3 border-t border-slate-200 text-xs text-slate-700">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 text-[11px] flex items-center gap-1">
+                            <User className="w-3 h-3 text-emerald-600" /> Responsible Manager:
+                          </span>
+                          <span className="font-bold text-slate-900">{p.manager_name || 'Unassigned'}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 text-[11px] flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-slate-400" /> Operational Zone:
+                          </span>
+                          <span className="truncate max-w-[170px] text-slate-800 font-medium">{p.location || 'Unspecified'}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 text-[11px] flex items-center gap-1">
+                            <DollarSign className="w-3 h-3 text-amber-600" /> Budget Allocation:
+                          </span>
+                          <span className="font-bold text-emerald-800">{formatCurrency(p.budget)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-200">
+                      <span className="text-[10px] text-slate-500">
+                        {formatDate(p.start_date)} — {formatDate(p.end_date)}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenEditProg(p)}
+                        icon={Edit2}
+                      >
+                        Configure
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* --- SUBTAB 2: LOCATION MANAGEMENT (Function 8) --- */}
       {activeSubTab === 'locations' && (
@@ -346,35 +376,45 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-slate-800">
-                  {locations.map((loc) => (
-                    <tr key={loc.id} className="hover:bg-slate-50 transition">
-                      <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        {loc.name}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-800 border border-slate-200 font-semibold">
-                          {loc.type}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-800">{loc.state}</td>
-                      <td className="py-3.5 px-4 text-slate-800">{loc.county} / {loc.district}</td>
-                      <td className="py-3.5 px-4 text-slate-600">{loc.community}</td>
-                      <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600">{loc.contact || 'N/A'}</td>
-                      <td className="py-3.5 px-4 text-right">
-                        <button
-                          onClick={() => {
-                            setSelectedLoc(loc);
-                            setIsDeleteLocOpen(true);
-                          }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                          title="Delete Location"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                  {locations.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-500">
+                        <MapPin className="w-6 h-6 mx-auto mb-2 text-slate-300" />
+                        <p className="font-semibold text-xs">No Operational Locations Registered</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Click 'Add Location' to register a state, county, or camp zone.</p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    locations.map((loc) => (
+                      <tr key={loc.id} className="hover:bg-slate-50 transition">
+                        <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          {loc.name}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-800 border border-slate-200 font-semibold">
+                            {loc.type}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-800">{loc.state}</td>
+                        <td className="py-3.5 px-4 text-slate-800">{loc.county} / {loc.district}</td>
+                        <td className="py-3.5 px-4 text-slate-600">{loc.community}</td>
+                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600">{loc.contact || 'N/A'}</td>
+                        <td className="py-3.5 px-4 text-right">
+                          <button
+                            onClick={() => {
+                              setSelectedLoc(loc);
+                              setIsDeleteLocOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                            title="Delete Location"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

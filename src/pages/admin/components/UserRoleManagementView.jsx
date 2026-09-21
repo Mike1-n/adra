@@ -12,9 +12,16 @@ import {
   CheckCircle2,
   AlertCircle,
   Search,
-  Filter
+  Filter,
+  Users,
+  Clock,
+  UserX,
+  ChevronLeft,
+  ChevronRight,
+  Phone,
+  Calendar
 } from 'lucide-react';
-import { Card, CardHeader } from '../../../components/common/Card';
+import { Card } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
 import { Modal } from '../../../components/common/Modal';
 import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
@@ -28,7 +35,24 @@ export function UserRoleManagementView() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [stateFilter, setStateFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const toast = useToast();
+
+  const southSudanStates = [
+    'Central Equatoria',
+    'Eastern Equatoria',
+    'Western Equatoria',
+    'Jonglei',
+    'Unity',
+    'Upper Nile',
+    'Lakes',
+    'Warrap',
+    'Northern Bahr el Ghazal',
+    'Western Bahr el Ghazal',
+    'Administrative Areas'
+  ];
 
   // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -44,13 +68,15 @@ export function UserRoleManagementView() {
     password: '',
     role: 'Field Worker',
     department: 'Humanitarian Operations',
+    phone: '',
     avatar: ''
   });
 
   const [editFormData, setEditFormData] = useState({
     full_name: '',
     email: '',
-    department: ''
+    department: '',
+    phone: ''
   });
 
   const [assignedRole, setAssignedRole] = useState('Field Worker');
@@ -62,8 +88,8 @@ export function UserRoleManagementView() {
         db.getUsers(),
         db.getRoles()
       ]);
-      setUsers(uList);
-      setRoles(rList);
+      setUsers(uList || []);
+      setRoles(rList || []);
     } catch (err) {
       toast.error('Failed to load user accounts.');
     } finally {
@@ -75,13 +101,19 @@ export function UserRoleManagementView() {
     loadData();
   }, []);
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, roleFilter, statusFilter, stateFilter, itemsPerPage]);
+
   const handleOpenCreate = () => {
     setFormData({
       full_name: '',
       email: '',
       password: '',
       role: roles[0] || 'Field Worker',
-      department: '',
+      department: 'Field Operations',
+      phone: '',
       avatar: ''
     });
     setIsCreateOpen(true);
@@ -102,9 +134,10 @@ export function UserRoleManagementView() {
   const handleOpenEdit = (user) => {
     setSelectedUser(user);
     setEditFormData({
-      full_name: user.full_name,
-      email: user.email,
-      department: user.department || ''
+      full_name: user.full_name || '',
+      email: user.email || '',
+      department: user.department || '',
+      phone: user.phone || ''
     });
     setIsEditOpen(true);
   };
@@ -124,7 +157,7 @@ export function UserRoleManagementView() {
 
   const handleOpenRoleModal = (user) => {
     setSelectedUser(user);
-    setAssignedRole(user.role);
+    setAssignedRole(user.role || 'Field Worker');
     setIsRoleModalOpen(true);
   };
 
@@ -175,47 +208,67 @@ export function UserRoleManagementView() {
   };
 
   const filteredUsers = users.filter((u) => {
+    const term = search.toLowerCase();
     const matchesSearch =
-      u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-      u.email?.toLowerCase().includes(search.toLowerCase()) ||
-      u.department?.toLowerCase().includes(search.toLowerCase());
+      (u.full_name || '').toLowerCase().includes(term) ||
+      (u.email || '').toLowerCase().includes(term) ||
+      (u.department || '').toLowerCase().includes(term) ||
+      (u.phone || '').toLowerCase().includes(term);
     const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
     const matchesStatus =
       statusFilter === 'ALL' ||
       (statusFilter === 'Pending Verification'
         ? (u.status === 'Pending Verification' || u.is_active === false)
         : (u.status || 'Active') === statusFilter);
-    return matchesSearch && matchesRole && matchesStatus;
+    const matchesState =
+      stateFilter === 'ALL' ||
+      ((u.state || '').toLowerCase() === stateFilter.toLowerCase()) ||
+      ((u.location || '').toLowerCase().includes(stateFilter.toLowerCase())) ||
+      ((u.department || '').toLowerCase().includes(stateFilter.toLowerCase())) ||
+      ((u.assigned_area || '').toLowerCase().includes(stateFilter.toLowerCase()));
+
+    return matchesSearch && matchesRole && matchesStatus && matchesState;
   });
+
+  // Calculate pagination
+  const totalItems = filteredUsers.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedUsers = filteredUsers.slice(startIndex, startIndex + itemsPerPage);
+
+  // Stats
+  const activeCount = users.filter(u => (u.status || 'Active') === 'Active' && u.is_active !== false).length;
+  const pendingCount = users.filter(u => u.status === 'Pending Verification' || u.is_active === false).length;
+  const deactivatedCount = users.filter(u => u.status === 'Deactivated' || u.status === 'Suspended').length;
 
   const getRoleBadgeStyle = (role) => {
     switch (role) {
       case 'Administrator':
-        return 'bg-emerald-50 text-emerald-800 border-emerald-500/30';
+        return 'bg-emerald-100 text-emerald-950 border-emerald-400 font-bold';
       case 'Program Manager':
-        return 'bg-blue-50 text-blue-800 border-blue-300';
+        return 'bg-blue-100 text-blue-950 border-blue-400 font-bold';
       case 'Supervisor':
-        return 'bg-indigo-50 text-indigo-800 border-indigo-300';
+        return 'bg-indigo-100 text-indigo-950 border-indigo-400 font-bold';
       case 'Finance Officer':
-        return 'bg-amber-50 text-amber-900 border-amber-300';
+        return 'bg-amber-100 text-amber-950 border-amber-400 font-bold';
       case 'Project Officer':
-        return 'bg-cyan-50 text-cyan-900 border-cyan-300';
+        return 'bg-cyan-100 text-cyan-950 border-cyan-400 font-bold';
       case 'Field Worker':
-        return 'bg-teal-50 text-teal-900 border-teal-300';
+        return 'bg-teal-100 text-teal-950 border-teal-400 font-bold';
       case 'Supplier':
-        return 'bg-purple-50 text-purple-900 border-purple-300';
+        return 'bg-purple-100 text-purple-950 border-purple-400 font-bold';
       case 'Donor':
-        return 'bg-rose-50 text-rose-900 border-rose-300';
+        return 'bg-rose-100 text-rose-950 border-rose-400 font-bold';
       case 'Beneficiary':
-        return 'bg-slate-100 text-slate-800 border-slate-300';
+        return 'bg-slate-200 text-slate-950 border-slate-400 font-bold';
       default:
-        return 'bg-slate-100 text-slate-800 border-slate-300';
+        return 'bg-slate-200 text-slate-950 border-slate-400 font-bold';
     }
   };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Header & Controls */}
+      {/* Header & Primary Action */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -223,7 +276,7 @@ export function UserRoleManagementView() {
             User & Role Management
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Create, view, edit, deactivate, reactivate, and assign roles for all 8 system stakeholders.
+            Create, view, edit, deactivate, and assign role-based access for system stakeholders.
           </p>
         </div>
 
@@ -236,162 +289,326 @@ export function UserRoleManagementView() {
         </Button>
       </div>
 
-      {/* Search & Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, email, department..."
-            className="adra-input pl-10 text-xs sm:text-sm"
-          />
+      {/* KPI Overview Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+            <Users className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Users</p>
+            <p className="text-xl font-bold text-slate-900">{users.length}</p>
+          </div>
         </div>
 
-        <select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
-          className="adra-select text-xs sm:text-sm"
-        >
-          <option value="ALL">All System Roles ({roles.length})</option>
-          {roles.map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Active</p>
+            <p className="text-xl font-bold text-emerald-700">{activeCount}</p>
+          </div>
+        </div>
 
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="adra-select text-xs sm:text-sm"
-        >
-          <option value="ALL">All Statuses</option>
-          <option value="Active">Active Accounts</option>
-          <option value="Pending Verification">Account Verification Pending (New)</option>
-          <option value="Deactivated">Deactivated Accounts</option>
-          <option value="Suspended">Suspended Accounts</option>
-        </select>
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending Verification</p>
+            <p className="text-xl font-bold text-amber-700">{pendingCount}</p>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
+            <UserX className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Deactivated</p>
+            <p className="text-xl font-bold text-rose-700">{deactivatedCount}</p>
+          </div>
+        </div>
       </div>
 
+      {/* Filter & Search Toolbar */}
+      <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
+          {/* Search Query */}
+          <div className="sm:col-span-2 lg:col-span-4 relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, email, department, phone..."
+              className="adra-input pl-10 text-xs sm:text-sm w-full"
+            />
+          </div>
+
+          {/* Role Filter */}
+          <div className="sm:col-span-1 lg:col-span-2">
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="adra-select text-xs sm:text-sm w-full"
+            >
+              <option value="ALL">All Roles ({roles.length})</option>
+              {roles.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Location / State Filter */}
+          <div className="sm:col-span-1 lg:col-span-2">
+            <select
+              value={stateFilter}
+              onChange={(e) => setStateFilter(e.target.value)}
+              className="adra-select text-xs sm:text-sm w-full font-medium"
+            >
+              <option value="ALL">All Locations / States</option>
+              {southSudanStates.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div className="sm:col-span-1 lg:col-span-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="adra-select text-xs sm:text-sm w-full"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="Active">Active Accounts</option>
+              <option value="Pending Verification">Pending Verification</option>
+              <option value="Deactivated">Deactivated</option>
+            </select>
+          </div>
+
+          {/* Items Per Page */}
+          <div className="sm:col-span-1 lg:col-span-2">
+            <select
+              value={itemsPerPage}
+              onChange={(e) => setItemsPerPage(Number(e.target.value))}
+              className="adra-select text-xs sm:text-sm w-full"
+            >
+              <option value={10}>10 per page</option>
+              <option value={20}>20 per page</option>
+              <option value={50}>50 per page</option>
+              <option value={100}>100 per page</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Table Container */}
       {loading ? (
         <LoadingSpinner text="Retrieving registered system users..." />
       ) : filteredUsers.length === 0 ? (
-        <div className="p-12 text-center bg-slate-50 border border-slate-200 rounded-2xl">
-          <p className="text-sm font-semibold text-slate-800">No users match criteria</p>
-          <p className="text-xs text-slate-500 mt-1">Try broadening your search or register a new user account.</p>
+        <div className="p-12 text-center bg-white border border-slate-200 rounded-xl">
+          <UserX className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-slate-800">No users match your criteria</p>
+          <p className="text-xs text-slate-500 mt-1">Try clearing your search query or role/status filters.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredUsers.map((u) => {
-            const isActive = (u.status || 'Active') === 'Active';
-            return (
-              <Card
-                key={u.id}
-                className="flex flex-col justify-between adra-card-hover relative"
+        <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                  <th className="py-3.5 px-4">User Profile</th>
+                  <th className="py-3.5 px-3">System Role</th>
+                  <th className="py-3.5 px-3">Department / Location</th>
+                  <th className="py-3.5 px-3">Account Status</th>
+                  <th className="py-3.5 px-3">Joined / Created</th>
+                  <th className="py-3.5 px-3 text-right w-44 whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paginatedUsers.map((u) => {
+                  const isActive = (u.status || 'Active') === 'Active' && u.is_active !== false;
+                  const isPending = u.status === 'Pending Verification' || u.is_active === false;
+
+                  return (
+                    <tr
+                      key={u.id}
+                      className="hover:bg-slate-50/80 transition-colors group"
+                    >
+                      {/* User Profile */}
+                      <td className="py-2.5 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={u.avatar || u.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                            alt={u.full_name}
+                            className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0 bg-slate-100"
+                            onError={(e) => {
+                              e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150';
+                            }}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 truncate">
+                              {u.full_name}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
+                              <span className="flex items-center gap-1 truncate">
+                                <Mail className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                                {u.email}
+                              </span>
+                              {u.phone && (
+                                <span className="flex items-center gap-1 text-slate-400">
+                                  • <Phone className="w-2 h-2 shrink-0" />
+                                  {u.phone}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* System Role */}
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[10px] font-bold ${getRoleBadgeStyle(u.role)}`}>
+                          {u.role || 'Field Worker'}
+                        </span>
+                      </td>
+
+                      {/* Department */}
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-1.5 text-slate-700 font-medium text-xs">
+                          <Building className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="truncate max-w-[180px]">
+                            {u.department || 'Operations'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Account Status */}
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        {isPending ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
+                            Pending Verification
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                            isActive
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : 'bg-rose-50 text-rose-800 border-rose-200'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-600' : 'bg-rose-600'}`} />
+                            {u.status || (isActive ? 'Active' : 'Deactivated')}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Joined Date */}
+                      <td className="py-2.5 px-3 whitespace-nowrap text-slate-500 text-[10px]">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                          {u.created_at ? new Date(u.created_at).toLocaleDateString('en-GB') : 'Default'}
+                        </span>
+                      </td>
+
+                      {/* Actions (Compact & High Contrast) */}
+                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          {isPending ? (
+                            <button
+                              onClick={() => handleVerifyUser(u)}
+                              className="px-2 py-1 text-[11px] rounded-md bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold transition flex items-center gap-1 shadow-2xs border border-emerald-700 cursor-pointer"
+                              title="Verify & Activate Account"
+                            >
+                              <CheckCircle2 className="w-3 h-3 text-white" />
+                              Verify
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenRoleModal(u)}
+                              className="px-2 py-1 text-[11px] rounded-md font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition flex items-center gap-1 shadow-2xs border border-emerald-700 cursor-pointer"
+                              title="Change System Role"
+                            >
+                              <Shield className="w-3 h-3 text-white" />
+                              Role
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleOpenEdit(u)}
+                            title="Edit User Profile"
+                            className="p-1 rounded-md text-white bg-slate-700 hover:bg-slate-800 transition cursor-pointer shadow-2xs border border-slate-800"
+                          >
+                            <Edit2 className="w-3 h-3 text-white" />
+                          </button>
+
+                          <button
+                            onClick={() => handleToggleStatus(u)}
+                            title={isActive ? 'Deactivate Account' : 'Reactivate Account'}
+                            className={`p-1 rounded-md text-white transition cursor-pointer shadow-2xs ${
+                              isActive
+                                ? 'bg-amber-600 hover:bg-amber-700 border border-amber-700'
+                                : 'bg-teal-600 hover:bg-teal-700 border border-teal-700'
+                            }`}
+                          >
+                            <Power className="w-3 h-3 text-white" />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setSelectedUser(u);
+                              setIsDeleteOpen(true);
+                            }}
+                            title="Delete User Account"
+                            className="p-1 rounded-md text-white bg-red-600 hover:bg-red-700 active:bg-red-800 transition cursor-pointer shadow-2xs border border-red-700"
+                          >
+                            <Trash2 className="w-3 h-3 text-white" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Table Footer with Pagination */}
+          <div className="py-3 px-4 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+            <p>
+              Showing <span className="font-semibold text-slate-900">{startIndex + 1}</span> to{' '}
+              <span className="font-semibold text-slate-900">
+                {Math.min(startIndex + itemsPerPage, totalItems)}
+              </span>{' '}
+              of <span className="font-semibold text-slate-900">{totalItems}</span> users
+            </p>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                title="Previous Page"
               >
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                        alt={u.full_name}
-                        className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-bold text-slate-900 truncate">
-                          {u.full_name}
-                        </h3>
-                        <p className="text-xs text-slate-500 truncate flex items-center gap-1 mt-0.5">
-                          <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                          <span className="truncate">{u.email}</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                <ChevronLeft className="w-4 h-4" />
+              </button>
 
-                  <div className="space-y-1.5 pt-2 border-t border-slate-200 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-[11px]">System Role:</span>
-                      <span className={`px-2 py-0.5 rounded-md border text-[11px] font-semibold ${getRoleBadgeStyle(u.role)}`}>
-                        {u.role}
-                      </span>
-                    </div>
+              <span className="px-3 py-1 font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg">
+                {currentPage} / {totalPages}
+              </span>
 
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-[11px]">Department:</span>
-                      <span className="text-slate-800 font-medium text-[11px] truncate max-w-[160px]">
-                        {u.department || 'Operations'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-[11px]">Account Status:</span>
-                      {u.status === 'Pending Verification' || u.is_active === false ? (
-                        <span className="text-[11px] font-bold flex items-center gap-1 text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
-                          Account Verification Pending
-                        </span>
-                      ) : (
-                        <span className={`text-[11px] font-medium flex items-center gap-1 ${isActive ? 'text-emerald-700 font-semibold' : 'text-rose-700 font-semibold'}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-600' : 'bg-rose-600'}`} />
-                          {u.status || 'Active'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Action Toolbar */}
-                <div className="flex items-center justify-between gap-1.5 pt-3 mt-4 border-t border-slate-200">
-                  {u.status === 'Pending Verification' || u.is_active === false ? (
-                    <button
-                      onClick={() => handleVerifyUser(u)}
-                      className="px-3 py-1 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                      Verify & Activate
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleOpenRoleModal(u)}
-                      className="px-2.5 py-1 text-xs rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-500/30 font-semibold transition cursor-pointer"
-                    >
-                      Change Role
-                    </button>
-                  )}
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleOpenEdit(u)}
-                      title="Edit Profile"
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={() => handleToggleStatus(u)}
-                      title={isActive ? 'Deactivate Account' : 'Reactivate Account'}
-                      className={`p-1.5 rounded-lg transition ${isActive ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
-                    >
-                      <Power className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setSelectedUser(u);
-                        setIsDeleteOpen(true);
-                      }}
-                      title="Delete User Account"
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                title="Next Page"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -457,10 +674,21 @@ export function UserRoleManagementView() {
                 type="text"
                 value={formData.department}
                 onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                placeholder="e.g. Drought Relief Command"
+                placeholder="e.g. Humanitarian Operations"
                 className="adra-input text-xs sm:text-sm"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">Phone Number (Optional)</label>
+            <input
+              type="text"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              placeholder="+211-920-000000"
+              className="adra-input text-xs sm:text-sm"
+            />
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
@@ -504,14 +732,25 @@ export function UserRoleManagementView() {
               />
             </div>
 
-            <div>
-              <label className="block font-semibold text-slate-800 mb-1">Department</label>
-              <input
-                type="text"
-                value={editFormData.department}
-                onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
-                className="adra-input text-xs sm:text-sm"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">Department</label>
+                <input
+                  type="text"
+                  value={editFormData.department}
+                  onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                  className="adra-input text-xs sm:text-sm"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">Phone</label>
+                <input
+                  type="text"
+                  value={editFormData.phone}
+                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                  className="adra-input text-xs sm:text-sm"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
@@ -538,7 +777,7 @@ export function UserRoleManagementView() {
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
               <p className="font-bold text-slate-900">{selectedUser.full_name}</p>
               <p className="text-slate-500">{selectedUser.email}</p>
-              <p className="text-emerald-700 font-semibold mt-1 text-[11px]">Current: {selectedUser.role}</p>
+              <p className="text-emerald-700 font-semibold mt-1 text-[11px]">Current Role: {selectedUser.role}</p>
             </div>
 
             <div>
@@ -548,7 +787,7 @@ export function UserRoleManagementView() {
               <select
                 value={assignedRole}
                 onChange={(e) => setAssignedRole(e.target.value)}
-                className="adra-select text-xs sm:text-sm font-medium"
+                className="adra-select text-xs sm:text-sm font-medium w-full"
               >
                 {roles.map((r) => (
                   <option key={r} value={r}>{r}</option>
@@ -582,7 +821,7 @@ export function UserRoleManagementView() {
               <div>
                 <p className="font-bold text-rose-900">Irreversible Action</p>
                 <p className="text-rose-800 mt-0.5 leading-relaxed">
-                  Are you sure you want to permanently delete the user account for <strong>{selectedUser.full_name}</strong> ({selectedUser.email})? This action will be audited in the security logs.
+                  Are you sure you want to permanently delete the user account for <strong>{selectedUser.full_name}</strong> ({selectedUser.email})?
                 </p>
               </div>
             </div>

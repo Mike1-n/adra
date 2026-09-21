@@ -42,9 +42,10 @@ export function FinancePage() {
   const [budgets, setBudgets] = useState([]);
   const [expenditures, setExpenditures] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [fieldFundingRequests, setFieldFundingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState('expenditures'); // 'expenditures' | 'budgets'
+  const [activeTab, setActiveTab] = useState('expenditures'); // 'expenditures' | 'budgets' | 'field_funding'
   const [search, setSearch] = useState('');
   const [projectFilter, setProjectFilter] = useState('ALL');
 
@@ -74,14 +75,16 @@ export function FinancePage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [bgList, expList, projList] = await Promise.all([
+      const [bgList, expList, projList, fundingList] = await Promise.all([
         db.getBudgets(),
         db.getExpenditures(),
         db.getProjects(),
+        db.getFieldFundingRequests ? db.getFieldFundingRequests() : []
       ]);
       setBudgets(bgList);
       setExpenditures(expList);
       setProjects(projList);
+      setFieldFundingRequests(fundingList || []);
     } catch (err) {
       toast.error('Failed to load finance ledger.');
     } finally {
@@ -277,6 +280,19 @@ export function FinancePage() {
           >
             Budget Allocations ({budgets.length})
           </button>
+          <button
+            onClick={() => setActiveTab('field_funding')}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 ${
+              activeTab === 'field_funding'
+                ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span>Field Cash Requisitions</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+              {fieldFundingRequests.length}
+            </span>
+          </button>
         </div>
 
         {/* Project Selector Filter */}
@@ -363,7 +379,7 @@ export function FinancePage() {
             </div>
           </Card>
         )
-      ) : (
+      ) : activeTab === 'budgets' ? (
         /* Budgets Table */
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
@@ -391,6 +407,93 @@ export function FinancePage() {
                     </td>
                     <td className="py-3.5 px-4 font-bold text-emerald-400">
                       {formatCurrency(bg.allocated_amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : (
+        /* Field Cash Requisitions Table */
+        <Card className="p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-950/80 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="py-3.5 px-4">Requisition</th>
+                  <th className="py-3.5 px-4">Field Worker & Route</th>
+                  <th className="py-3.5 px-4">Category & Purpose</th>
+                  <th className="py-3.5 px-4">Amount</th>
+                  <th className="py-3.5 px-4">Approval Chain</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Finance Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                {fieldFundingRequests.map((req) => (
+                  <tr key={req.id} className="hover:bg-slate-900/60 transition">
+                    <td className="py-3.5 px-4">
+                      <span className="font-mono font-bold text-emerald-400 block">{req.request_code}</span>
+                      <span className="text-[10px] text-slate-500">{formatDate(req.created_at)}</span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-bold text-slate-100 block">{req.field_worker_name}</span>
+                      <span className="text-[10px] text-slate-400">{req.payam}, {req.county}</span>
+                    </td>
+                    <td className="py-3.5 px-4 max-w-xs">
+                      <span className="font-semibold text-slate-200 block">{req.category}</span>
+                      <span className="text-[11px] text-slate-400 line-clamp-1">{req.purpose}</span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="font-bold text-emerald-400 text-sm">{formatCurrency(req.amount)}</span>
+                      <span className="text-[10px] text-slate-400 block">{req.preferred_payout}</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-[10px] space-y-0.5">
+                      <div className="flex items-center gap-1">
+                        <span className={req.supervisor_review?.status === 'Approved' ? 'text-emerald-400 font-bold' : 'text-slate-500'}>
+                          Sup: {req.supervisor_review?.status || 'Pending'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className={req.pm_review?.status === 'Approved' ? 'text-blue-400 font-bold' : 'text-slate-500'}>
+                          PM: {req.pm_review?.status || 'Pending'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        req.status === 'Disbursed' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                        req.status === 'Approved (Pending Finance Disbursement)' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                        'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      }`}>
+                        {req.status}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      {req.status === 'Approved (Pending Finance Disbursement)' && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={async () => {
+                            await db.disburseFieldFundingByFinance(req.id, 'Mark Ladu (Finance Officer)');
+                            toast.success(`Disbursed $${req.amount} USD to ${req.field_worker_name}. Payment voucher issued.`);
+                            loadData();
+                          }}
+                        >
+                          Disburse Funds
+                        </Button>
+                      )}
+                      {req.status === 'Disbursed' && (
+                        <span className="font-mono text-[10px] text-slate-400">
+                          {req.finance_disbursement?.voucher_reference || 'Paid'}
+                        </span>
+                      )}
+                      {(req.status === 'Pending Supervisor Approval' || req.status === 'Pending Program Manager Approval') && (
+                        <span className="text-[10px] text-slate-500 italic">
+                          Awaiting Approvals
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

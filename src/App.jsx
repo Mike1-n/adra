@@ -31,6 +31,9 @@ import { ProgrammeManagerDashboard } from './pages/programme-manager/ProgrammeMa
 // Specialized Supervisor Mobile Application
 import { SupervisorMobileApp } from './pages/supervisor/SupervisorMobileApp';
 
+// Specialized Field Worker Mobile Application
+import { FieldWorkerApp } from './pages/field-worker/FieldWorkerApp';
+
 export function App() {
   const { currentUser, logout, quickSwitchRole } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -91,6 +94,12 @@ export function App() {
       return;
     }
 
+    if (currentUser.role === 'Field Worker') {
+      setCurrentTab('field_worker');
+      setAppMode('field_worker_mobile');
+      return;
+    }
+
     // Field staff role routes
     if (currentUser.role === 'Finance Officer') {
       setCurrentTab('finance');
@@ -103,9 +112,6 @@ export function App() {
       setAppMode('field_app');
     } else if (currentUser.role === 'Project Officer') {
       setCurrentTab('projects');
-      setAppMode('field_app');
-    } else if (currentUser.role === 'Field Worker') {
-      setCurrentTab('beneficiaries');
       setAppMode('field_app');
     } else if (currentUser.role === 'Donor') {
       setCurrentTab('reports');
@@ -146,6 +152,18 @@ export function App() {
     );
   }
 
+  // If Field Worker logs in or switches to Field Worker mode:
+  if (currentUser.role === 'Field Worker' || appMode === 'field_worker_mobile' || currentTab === 'field_worker') {
+    return (
+      <FieldWorkerApp
+        currentUser={currentUser}
+        onLogout={logout}
+        onSwitchRole={quickSwitchRole}
+        onBackToFieldApp={() => setAppMode('field_app')}
+      />
+    );
+  }
+
   // If Programme Manager logs in or switches to Programme Manager mode:
   if (currentUser.role === 'Program Manager' || currentUser.role === 'Programme Manager' || appMode === 'programme_manager' || currentTab === 'programs') {
     return (
@@ -161,6 +179,7 @@ export function App() {
   const tabTitles = {
     dashboard: 'Field Operations Dashboard',
     supervisor: 'Supervisor Mobile App',
+    field_worker: 'Field Worker Application',
     programs: 'Programme Manager Dashboard',
     projects: 'Project Portfolio',
     beneficiaries: 'Beneficiary Management',
@@ -179,6 +198,15 @@ export function App() {
     switch (currentTab) {
       case 'beneficiary_portal':
         return <BeneficiaryMobileApp onSwitchToFieldApp={() => setCurrentTab('dashboard')} />;
+      case 'field_worker':
+        return (
+          <FieldWorkerApp
+            currentUser={currentUser}
+            onLogout={logout}
+            onSwitchRole={quickSwitchRole}
+            onBackToFieldApp={() => setCurrentTab('dashboard')}
+          />
+        );
       case 'supervisor':
         return (
           <SupervisorMobileApp
