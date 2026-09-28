@@ -86,8 +86,7 @@ export function FieldFundingListView({
   // Breakdown & Form state
   const [revisingReq, setRevisingReq] = useState(null);
   const [breakdown, setBreakdown] = useState([
-    { item: 'Fuel / Motorbike transport for Boma visit', amount: 150000 },
-    { item: 'Local guide allowance & logistics', amount: 80000 }
+    { item: '', amount: '' }
   ]);
   const [justificationNote, setJustificationNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -124,7 +123,10 @@ export function FieldFundingListView({
       const taskId = initialTask.id || initialTask.request_code;
       setActiveFormTaskId(taskId);
       setView('request');
-      setJustificationNote(`Field operational facilitation & transport for conducting household vulnerability audit for ${initialTask.beneficiary_name} in ${initialTask.payam || worker.payam || 'assigned territory'}.`);
+      if (!revisingReq) {
+        setBreakdown([{ item: '', amount: '' }]);
+        setJustificationNote('');
+      }
     }
   }, [initialTask]);
 
@@ -133,9 +135,14 @@ export function FieldFundingListView({
     if (activeFormTaskId === tId) {
       setActiveFormTaskId(null);
       setRevisingReq(null);
+      setBreakdown([{ item: '', amount: '' }]);
+      setJustificationNote('');
     } else {
       setActiveFormTaskId(tId);
-      setJustificationNote(`Field operational facilitation & transport for conducting household vulnerability audit for ${task.beneficiary_name} in ${task.payam || worker.payam || 'assigned territory'}.`);
+      if (!revisingReq) {
+        setBreakdown([{ item: '', amount: '' }]);
+        setJustificationNote('');
+      }
     }
   };
 
@@ -152,32 +159,41 @@ export function FieldFundingListView({
         .filter(b => b.item && Number(b.amount) > 0)
         .map(b => ({ item: b.item.trim(), amount: Number(b.amount) }));
 
+      const effectiveSupId = revisingReq?.supervisor_id || task?.assigned_supervisor_id || task?.supervisor_id || worker.supervisor_id || 'sup-2';
+      const effectiveSupName = revisingReq?.supervisor_name || task?.assigned_supervisor_name || task?.supervisor_name || worker.supervisor_name || 'Mary Akech';
+      const effectiveState = task?.state || revisingReq?.state || worker.state || 'Central Equatoria';
+      const effectiveCounty = task?.county || revisingReq?.county || worker.county || 'Juba';
+      const effectivePayam = task?.payam || revisingReq?.payam || worker.payam || 'Munuki';
+
       const payload = {
         id: revisingReq?.id,
         request_code: revisingReq?.request_code,
-        field_worker_id: worker.id || 'fw-1',
-        field_worker_name: worker.name || 'John Deng',
-        field_worker_email: worker.email || 'john.deng@adra.org',
-        field_worker_phone: worker.phone || '+211-921-550101',
-        supervisor_id: worker.supervisor_id || 'sup-1',
-        supervisor_name: worker.supervisor_name || 'Emmanuel Adeyemi',
+        field_worker_id: worker.id || revisingReq?.field_worker_id || 'fw-7',
+        field_worker_name: worker.name || revisingReq?.field_worker_name || 'Rose Poni',
+        field_worker_email: worker.email || revisingReq?.field_worker_email || 'rose.poni@adra.org',
+        field_worker_phone: worker.phone || revisingReq?.field_worker_phone || '+211-922-550202',
+        supervisor_id: effectiveSupId,
+        supervisor_name: effectiveSupName,
         linked_request_code: task?.request_code || revisingReq?.linked_request_code || 'GEN-OPS',
-        linked_beneficiary_name: task?.beneficiary_name || revisingReq?.linked_beneficiary_name || `${worker.payam || 'Kapoeta Town'} Field Case`,
-        linked_location: task?.payam || worker.payam || 'Kapoeta Town',
-        payam: task?.payam || worker.payam || 'Kapoeta Town',
-        county: task?.county || worker.county || 'Kapoeta South',
-        state: worker.state || 'Eastern Equatoria',
-        project_name: task?.program_name || task?.project_name || 'Emergency Food Security & Livelihoods (EFSLR)',
+        linked_beneficiary_name: task?.beneficiary_name || revisingReq?.linked_beneficiary_name || `${effectivePayam} Field Case`,
+        linked_location: task?.payam || task?.location || revisingReq?.linked_location || effectivePayam,
+        payam: effectivePayam,
+        county: effectiveCounty,
+        state: effectiveState,
+        project_name: task?.program_name || task?.project_name || revisingReq?.project_name || 'Emergency Food Security & Livelihoods (EFSLR)',
         category: 'Field Operational Facilitation',
-        urgency: 'Standard SLA (48h)',
+        urgency: task?.urgency || revisingReq?.urgency || 'Standard SLA (48h)',
         preferred_payout: 'm-Gurush Mobile Money',
-        payout_phone: worker.phone || '+211-921-550101',
+        payout_phone: worker.phone || revisingReq?.field_worker_phone || '+211-922-550202',
         amount: totalAmount,
         currency: 'SSP',
-        purpose: justificationNote?.trim() || `Field operational facilitation for ${task?.beneficiary_name || 'Assigned Case'}`,
+        purpose: justificationNote?.trim() || `Field operational facilitation for ${task?.beneficiary_name || revisingReq?.linked_beneficiary_name || 'Assigned Case'}`,
         breakdown: validBreakdown.length > 0 ? validBreakdown : [
           { item: 'Field Operational Facilitation', amount: totalAmount }
-        ]
+        ],
+        status: 'Pending Supervisor Approval',
+        stage: 1,
+        returned_to_worker: false
       };
 
       if (onSubmitFundingRequest) {
@@ -186,7 +202,7 @@ export function FieldFundingListView({
         await db.createFieldFundingRequest(payload);
       }
 
-      toast.success(`Facilitation of ${totalAmount.toLocaleString()} SSP submitted for ${task?.beneficiary_name || 'Case'}.`);
+      toast.success(`Facilitation of ${totalAmount.toLocaleString()} SSP submitted for ${task?.beneficiary_name || revisingReq?.linked_beneficiary_name || 'Case'}.`);
       setRevisingReq(null);
       setActiveFormTaskId(null);
       if (onRefresh) onRefresh();
@@ -266,76 +282,7 @@ export function FieldFundingListView({
   return (
     <div className="space-y-3.5 pb-12 animate-in fade-in duration-200">
       
-      {/* 1. FLAT TAB BAR (Request, Pending, Approved, Rejected) */}
-      <div className="flex items-center justify-around border-b border-slate-200 px-0.5">
-        <button
-          type="button"
-          onClick={() => setView('request')}
-          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer ${
-            currentView === 'request'
-              ? 'border-[#006B56] text-[#006B56]'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>Request</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            currentView === 'request' ? 'bg-emerald-100 text-[#006B56]' : 'bg-slate-100 text-slate-500'
-          }`}>
-            {tasks.length}
-          </span>
-        </button>
 
-        <button
-          type="button"
-          onClick={() => setView('pending')}
-          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer ${
-            currentView === 'pending'
-              ? 'border-amber-600 text-amber-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>Pending</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            currentView === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'
-          }`}>
-            {pendingRequests.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setView('approved')}
-          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer ${
-            currentView === 'approved'
-              ? 'border-emerald-700 text-emerald-800'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>Approved</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            currentView === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
-          }`}>
-            {approvedRequests.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setView('rejected')}
-          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer ${
-            currentView === 'rejected'
-              ? 'border-rose-600 text-rose-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>Rejected</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            currentView === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-500'
-          }`}>
-            {rejectedRequests.length}
-          </span>
-        </button>
-      </div>
 
       {/* ========================================================================= */}
       {/* VIEW 1: REQUEST FACILITATION (LIST OF ASSIGNED CASES)                     */}
@@ -385,8 +332,13 @@ export function FieldFundingListView({
                 // Find any funding requests already made for this specific task
                 const taskRequests = requests.filter(r => 
                   (r.linked_task_id && r.linked_task_id === taskId) ||
-                  (r.linked_request_code && r.linked_request_code === task.request_code)
+                  (r.linked_request_code && r.linked_request_code === task.request_code) ||
+                  (r.linked_beneficiary_name && r.linked_beneficiary_name === task.beneficiary_name)
                 );
+
+                const activeDisbursedReq = taskRequests.find(r => r.status === 'Disbursed' || r.stage === 4 || r.status === 'Disbursed / Paid');
+                const activePendingReq = taskRequests.find(r => !r.status?.includes('Rejected') && r.stage !== -1 && r.status !== 'Disbursed' && r.stage !== 4);
+                const activeRejectedReq = taskRequests.find(r => r.status?.includes('Rejected') || r.stage === -1 || r.returned_to_worker);
 
                 return (
                   <div
@@ -409,6 +361,24 @@ export function FieldFundingListView({
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
                               {task.urgency || task.priority || 'Standard'}
                             </span>
+                            {activeDisbursedReq && (
+                              <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-300 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Disbursed ({Number(activeDisbursedReq.amount).toLocaleString()} SSP)</span>
+                              </span>
+                            )}
+                            {activePendingReq && !activeDisbursedReq && (
+                              <span className="text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                <span>Under Review ({Number(activePendingReq.amount).toLocaleString()} SSP)</span>
+                              </span>
+                            )}
+                            {activeRejectedReq && !activeDisbursedReq && !activePendingReq && (
+                              <span className="text-[10px] font-black bg-rose-100 text-rose-900 px-2 py-0.5 rounded-md border border-rose-300 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                <span>Returned</span>
+                              </span>
+                            )}
                           </div>
                           <h3 className="text-sm font-black text-slate-900 mt-1 truncate">
                             {task.beneficiary_name}
@@ -421,44 +391,137 @@ export function FieldFundingListView({
                           </p>
                         </div>
 
-                        {/* Action button & Chevron to open/collapse facilitation request form */}
+                        {/* Action button & Chevron */}
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSelectTaskForForm(task);
-                            }}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                              isFormOpen
-                                ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                : 'bg-[#006B56] hover:bg-[#005a48] text-white shadow-xs active:scale-95'
-                            }`}
-                          >
-                            <Banknote className="w-3.5 h-3.5" />
-                            <span>{isFormOpen ? 'Collapse' : 'Request'}</span>
-                          </button>
+                          {activeDisbursedReq ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedVoucher(activeDisbursedReq);
+                              }}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-emerald-50 text-[#006B56] hover:bg-emerald-100 border border-emerald-300 shadow-2xs cursor-pointer"
+                            >
+                              <Receipt className="w-3.5 h-3.5" />
+                              <span>View Receipt</span>
+                            </button>
+                          ) : activePendingReq ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setView('pending');
+                              }}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300 shadow-2xs cursor-pointer"
+                            >
+                              <Clock className="w-3.5 h-3.5 text-amber-700" />
+                              <span>Under Review</span>
+                            </button>
+                          ) : activeRejectedReq ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReviseRequest(activeRejectedReq);
+                              }}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-300 shadow-2xs cursor-pointer"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Revise</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectTaskForForm(task);
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                isFormOpen
+                                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                  : 'bg-[#006B56] hover:bg-[#005a48] text-white shadow-xs active:scale-95'
+                              }`}
+                            >
+                              <Banknote className="w-3.5 h-3.5" />
+                              <span>{isFormOpen ? 'Collapse' : 'Request'}</span>
+                            </button>
+                          )}
                           <div className="p-1 text-slate-400">
                             {isFormOpen ? <ChevronUp className="w-4 h-4 text-[#006B56]" /> : <ChevronDown className="w-4 h-4" />}
                           </div>
                         </div>
                       </div>
-
-                      {/* Existing Facilitation Status badges if already requested for this task */}
-                      {taskRequests.length > 0 && !isFormOpen && (
-                        <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                          <span className="text-[10px] font-bold text-slate-500">
-                            Facilitation Status:
-                          </span>
-                          <span className="text-[10px] font-black text-[#006B56] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                            ● {taskRequests[0].status} ({Number(taskRequests[0].amount).toLocaleString()} SSP)
-                          </span>
-                        </div>
-                      )}
                     </div>
 
-                    {/* INLINE FACILITATION REQUISITION FORM (CLEAN BREAKDOWN + JUSTIFICATION + TOTAL) */}
-                    {isFormOpen && (
+                    {/* ALREADY DISBURSED STATE BANNER */}
+                    {isFormOpen && activeDisbursedReq && (
+                      <div className="p-3.5 bg-emerald-50/70 border-t border-emerald-100 space-y-3 text-xs animate-in fade-in duration-150">
+                        <div className="flex items-start gap-2.5">
+                          <CheckCircle2 className="w-5 h-5 text-[#006B56] shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <h4 className="font-bold text-emerald-950">
+                              Facilitation Disbursed ({Number(activeDisbursedReq.amount).toLocaleString()} SSP)
+                            </h4>
+                            <p className="text-[11px] text-emerald-900 leading-relaxed">
+                              Funds have already been disbursed via {activeDisbursedReq.finance_disbursement?.payment_method || activeDisbursedReq.preferred_payout}. You are fully funded to conduct the on-ground vulnerability assessment for {task.beneficiary_name}.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1 border-t border-emerald-200/60">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedVoucher(activeDisbursedReq)}
+                            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                            <span>View Payment Receipt</span>
+                          </button>
+
+                          {onStartAssessment && (
+                            <button
+                              type="button"
+                              onClick={() => onStartAssessment(task)}
+                              className="flex-1 py-2 px-3 bg-[#006B56] hover:bg-[#005a48] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                            >
+                              <FileCheck className="w-3.5 h-3.5" />
+                              <span>Conduct Field Audit</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ALREADY PENDING STATE BANNER */}
+                    {isFormOpen && activePendingReq && !activeDisbursedReq && (
+                      <div className="p-3.5 bg-amber-50/70 border-t border-amber-100 space-y-3 text-xs animate-in fade-in duration-150">
+                        <div className="flex items-start gap-2.5">
+                          <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <h4 className="font-bold text-amber-950">
+                              Requisition Under Review ({Number(activePendingReq.amount).toLocaleString()} SSP)
+                            </h4>
+                            <p className="text-[11px] text-amber-900 leading-relaxed">
+                              Your facilitation request for {task.beneficiary_name} is currently in the approval workflow ({activePendingReq.status}). You cannot submit a duplicate request while this is pending.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="pt-1 border-t border-amber-200/60">
+                          <button
+                            type="button"
+                            onClick={() => setView('pending')}
+                            className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                          >
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Track in Pending Requisitions</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* INLINE FACILITATION REQUISITION FORM (ONLY WHEN NOT ALREADY DISBURSED/PENDING) */}
+                    {isFormOpen && !activeDisbursedReq && !activePendingReq && (
                       <div className="p-3.5 bg-slate-50/90 border-t border-slate-100 space-y-3 text-xs animate-in fade-in duration-150">
                         
                         {/* 1. Itemized Breakdown (SSP) */}
@@ -470,9 +533,9 @@ export function FieldFundingListView({
                             <button
                               type="button"
                               onClick={handleAddBreakdownLine}
-                              className="text-[11px] font-bold text-[#006B56] hover:text-[#005a48] flex items-center gap-1 cursor-pointer"
+                              className="px-2.5 py-1 bg-[#006B56] hover:bg-[#005a48] text-white text-[11px] font-bold rounded-lg shadow-xs flex items-center gap-1 transition active:scale-95 cursor-pointer"
                             >
-                              <Plus className="w-3 h-3" />
+                              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                               <span>Add Line</span>
                             </button>
                           </div>

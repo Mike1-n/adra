@@ -129,15 +129,33 @@ export function FieldWorkerApp({
       setActivities(actData || []);
       
       const allBens = benData || [];
+      const assignedReqList = Array.isArray(assignedTasks) ? assignedTasks : [];
+      const assignedTaskBenCodes = new Set(
+        assignedReqList.map(t => t.beneficiary_code || t.beneficiary_id).filter(Boolean)
+      );
+      const assignedTaskBenNames = new Set(
+        assignedReqList.map(t => (t.beneficiary_name || '').toLowerCase().trim()).filter(Boolean)
+      );
+
       const territoryBens = allBens.filter(b => {
         if (!current) return true;
-        const matchPayam = current.payam && b.payam && b.payam.toLowerCase().trim() === current.payam.toLowerCase().trim();
-        const matchCounty = current.county && b.county && b.county.toLowerCase().trim() === current.county.toLowerCase().trim();
-        const matchLocation = (current.payam && b.location && b.location.toLowerCase().includes(current.payam.toLowerCase())) ||
-                              (current.county && b.location && b.location.toLowerCase().includes(current.county.toLowerCase()));
-        const matchRegistrar = (current.name && b.registered_by?.toLowerCase() === current.name.toLowerCase()) ||
+        // 1. Registered by this field worker
+        const matchRegistrar = (current.name && b.registered_by?.toLowerCase().includes(current.name.toLowerCase())) ||
                                (current.id && b.registered_by_id === current.id);
-        return matchPayam || matchCounty || matchLocation || matchRegistrar;
+        if (matchRegistrar) return true;
+
+        // 2. Explicitly assigned to this field worker on beneficiary record
+        const matchAssignedWorker = (current.id && b.assigned_field_worker_id === current.id) ||
+                                    (current.name && b.assigned_field_worker_name?.toLowerCase().includes(current.name.toLowerCase()));
+        if (matchAssignedWorker) return true;
+
+        // 3. Part of active assigned field cases/audits for this worker
+        const matchTaskBen = (b.beneficiary_code && assignedTaskBenCodes.has(b.beneficiary_code)) ||
+                             (b.id && assignedTaskBenCodes.has(b.id)) ||
+                             (b.full_name && assignedTaskBenNames.has(b.full_name.toLowerCase().trim()));
+        if (matchTaskBen) return true;
+
+        return false;
       });
       setBeneficiaries(territoryBens);
       setFundingRequests(fundData || []);

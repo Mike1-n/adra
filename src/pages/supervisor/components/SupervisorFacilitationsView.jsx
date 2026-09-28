@@ -26,13 +26,21 @@ import { db } from '../../../lib/supabase';
 export function SupervisorFacilitationsView({
   requests = [],
   supervisorName = 'Emmanuel Adeyemi',
+  initialStatusTab = 'pending',
+  onStatusTabChange,
   onRefresh,
   onBack
 }) {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'in_progress' | 'disbursed' | 'all'
+  const [activeTab, setActiveTab] = useState(initialStatusTab || 'pending'); // 'pending' | 'in_progress' | 'disbursed' | 'rejected' | 'all'
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState(null);
+
+  React.useEffect(() => {
+    if (initialStatusTab) {
+      setActiveTab(initialStatusTab);
+    }
+  }, [initialStatusTab]);
 
   // Review action modal / inline state
   const [reviewingReq, setReviewingReq] = useState(null);
@@ -54,9 +62,15 @@ export function SupervisorFacilitationsView({
       if (!matchesSearch) return false;
 
       if (activeTab === 'pending') {
+        if (r.status?.includes('Rejected') || r.stage === -1 || r.returned_to_worker || r.supervisor_review?.status === 'Rejected') {
+          return false;
+        }
         return r.status === 'Pending Supervisor Approval' || r.stage === 1;
       }
       if (activeTab === 'in_progress') {
+        if (r.status?.includes('Rejected') || r.stage === -1 || r.returned_to_worker || r.supervisor_review?.status === 'Rejected') {
+          return false;
+        }
         return (
           r.status === 'Endorsed by Supervisor' ||
           r.status === 'Approved by Program Manager' ||
@@ -70,7 +84,7 @@ export function SupervisorFacilitationsView({
         return r.status === 'Disbursed / Paid' || r.status === 'Disbursed' || r.stage === 4;
       }
       if (activeTab === 'rejected') {
-        return r.status?.includes('Rejected') || r.stage === -1 || r.returned_to_worker;
+        return r.status?.includes('Rejected') || r.stage === -1 || r.returned_to_worker || r.supervisor_review?.status === 'Rejected';
       }
       return true;
     });
@@ -79,18 +93,28 @@ export function SupervisorFacilitationsView({
   // Counts
   const counts = useMemo(() => {
     return {
-      pending: requests.filter(r => r.status === 'Pending Supervisor Approval' || r.stage === 1).length,
+      pending: requests.filter(r =>
+        !r.status?.includes('Rejected') &&
+        r.stage !== -1 &&
+        !r.returned_to_worker &&
+        r.supervisor_review?.status !== 'Rejected' &&
+        (r.status === 'Pending Supervisor Approval' || r.stage === 1)
+      ).length,
       in_progress: requests.filter(
         r =>
-          r.status === 'Endorsed by Supervisor' ||
-          r.status === 'Approved by Program Manager' ||
-          r.status === 'Approved (Pending Finance Disbursement)' ||
-          r.status === 'Pending Finance Disbursement' ||
-          r.stage === 2 ||
-          r.stage === 3
+          !r.status?.includes('Rejected') &&
+          r.stage !== -1 &&
+          !r.returned_to_worker &&
+          r.supervisor_review?.status !== 'Rejected' &&
+          (r.status === 'Endorsed by Supervisor' ||
+           r.status === 'Approved by Program Manager' ||
+           r.status === 'Approved (Pending Finance Disbursement)' ||
+           r.status === 'Pending Finance Disbursement' ||
+           r.stage === 2 ||
+           r.stage === 3)
       ).length,
       disbursed: requests.filter(r => r.status === 'Disbursed / Paid' || r.status === 'Disbursed' || r.stage === 4).length,
-      rejected: requests.filter(r => r.status?.includes('Rejected') || r.stage === -1 || r.returned_to_worker).length,
+      rejected: requests.filter(r => r.status?.includes('Rejected') || r.stage === -1 || r.returned_to_worker || r.supervisor_review?.status === 'Rejected').length,
       all: requests.length
     };
   }, [requests]);
@@ -151,131 +175,21 @@ export function SupervisorFacilitationsView({
 
   return (
     <div className="space-y-3.5 pb-12 animate-in fade-in duration-200">
-      {/* Header Banner */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
-              <Banknote className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-black text-slate-900 tracking-tight leading-tight">
-                Facilitation Approvals
-              </h2>
-              <p className="text-[11px] text-slate-500">
-                Endorse field officer cash requisitions before PM sign-off
-              </p>
-            </div>
-          </div>
-
-          <span className="text-xs font-black bg-amber-100 text-amber-900 px-2.5 py-1 rounded-full border border-amber-300 shrink-0">
-            {counts.pending} Action Needed
-          </span>
+      {/* Search Filter & Case Count */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by worker, case code, boma..."
+            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:ring-1 focus:ring-amber-500 outline-none shadow-2xs"
+          />
         </div>
-
-        {/* Workflow Chain Explanation Banner */}
-        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[10px] text-slate-600 flex items-center justify-between gap-1">
-          <div className="flex items-center gap-1 font-bold text-slate-700">
-            <span>1. Field Worker</span>
-            <ArrowRight className="w-3 h-3 text-[#006B56]" />
-            <span className="text-[#006B56] font-black underline decoration-2">2. Supervisor (You)</span>
-            <ArrowRight className="w-3 h-3 text-purple-600" />
-            <span>3. PM Grace</span>
-            <ArrowRight className="w-3 h-3 text-blue-600" />
-            <span>4. Finance</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center justify-between overflow-x-auto no-scrollbar border-b border-slate-200 px-1 gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab('pending')}
-          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer whitespace-nowrap ${
-            activeTab === 'pending'
-              ? 'border-amber-600 text-amber-700 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>Pending</span>
-          <span
-            className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-              activeTab === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'
-            }`}
-          >
-            {counts.pending}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('in_progress')}
-          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer whitespace-nowrap ${
-            activeTab === 'in_progress'
-              ? 'border-purple-600 text-purple-700 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>With PM / Finance</span>
-          <span
-            className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-              activeTab === 'in_progress' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-500'
-            }`}
-          >
-            {counts.in_progress}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('disbursed')}
-          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer whitespace-nowrap ${
-            activeTab === 'disbursed'
-              ? 'border-[#006B56] text-[#006B56] font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>Disbursed</span>
-          <span
-            className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-              activeTab === 'disbursed' ? 'bg-emerald-100 text-[#006B56]' : 'bg-slate-100 text-slate-500'
-            }`}
-          >
-            {counts.disbursed}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('rejected')}
-          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer whitespace-nowrap ${
-            activeTab === 'rejected'
-              ? 'border-rose-600 text-rose-700 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>Returned / Rejected</span>
-          <span
-            className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-              activeTab === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-500'
-            }`}
-          >
-            {counts.rejected}
-          </span>
-        </button>
-      </div>
-
-      {/* Search Filter */}
-      <div className="relative">
-        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by worker, case code, boma..."
-          className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:ring-1 focus:ring-amber-500 outline-none shadow-2xs"
-        />
+        <span className="text-[11px] font-bold text-slate-500 bg-white border border-slate-200 px-3 py-2 rounded-xl shrink-0 shadow-2xs">
+          {filteredRequests.length} {filteredRequests.length === 1 ? 'case' : 'cases'}
+        </span>
       </div>
 
       {/* List */}

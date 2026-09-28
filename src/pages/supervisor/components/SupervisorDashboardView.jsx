@@ -39,7 +39,7 @@ export function SupervisorDashboardView({
   );
 
   const pendingFacilitations = facilitations.filter(
-    f => f.status === 'Pending Supervisor Approval' || f.stage === 1 || f.status === 'Submitted' || f.status === 'Pending'
+    f => !f.status?.includes('Rejected') && f.stage !== -1 && !f.returned_to_worker && f.supervisor_review?.status !== 'Rejected' && (f.status === 'Pending Supervisor Approval' || f.stage === 1 || f.status === 'Submitted' || f.status === 'Pending')
   );
 
   const overdueCount = assignments.filter(

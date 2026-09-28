@@ -9,6 +9,8 @@ import {
   HelpCircle,
   UserCheck,
   User,
+  Users,
+  Copy,
   MapPin,
   Calendar,
   Layers,
@@ -139,9 +141,108 @@ export function PMAssistanceRequestsView({
     };
   }, [requests]);
 
+  // Chain of Custody & Audit Status Helpers
+  const getSupervisorStatus = (r) => {
+    const isAssigned = Boolean(
+      (r.assigned_supervisor_id && r.assigned_supervisor_id !== 'unassigned') ||
+      (r.assigned_supervisor_name && 
+       r.assigned_supervisor_name !== 'Unassigned' && 
+       !String(r.assigned_supervisor_name).toLowerCase().includes('pending') &&
+       r.assigned_supervisor_name !== 'Pending Supervisor')
+    );
+    return {
+      isAssigned,
+      name: isAssigned ? (r.assigned_supervisor_name || 'Assigned Supervisor') : 'Unassigned (PM Action Required)',
+      state: r.state || 'Central Equatoria'
+    };
+  };
+
+  const getFieldWorkerStatus = (r) => {
+    const sup = getSupervisorStatus(r);
+    const rawWorker = r.assigned_field_worker_name || r.field_worker_name || '';
+    const isAssigned = Boolean(
+      rawWorker && 
+      rawWorker !== 'Pending Supervisor Assignment' && 
+      rawWorker !== 'Unassigned' && 
+      !String(rawWorker).toLowerCase().includes('pending')
+    );
+    return {
+      isAssigned,
+      name: isAssigned 
+        ? rawWorker 
+        : (sup.isAssigned ? 'Awaiting Supervisor Deployment' : 'Pending Supervisor Assignment')
+    };
+  };
+
+  const getAuditStatus = (r) => {
+    const isAssessed = Boolean(
+      r.status === 'Assessment Submitted' ||
+      r.status === 'Completed' ||
+      r.status === 'Fulfilled' ||
+      r.assessment_code ||
+      r.is_verified_on_ground === true
+    );
+    const worker = getFieldWorkerStatus(r);
+    const isInProgress = !isAssessed && (
+      r.status === 'In Progress' ||
+      r.status === 'Assigned to Field Worker' ||
+      r.status === 'Assessment In Progress' ||
+      r.status === 'In Field' ||
+      worker.isAssigned
+    );
+
+    if (isAssessed) {
+      return {
+        stage: 3,
+        isFinished: true,
+        isInProgress: false,
+        label: 'Audit Completed & Evidence Submitted',
+        shortLabel: 'Audit Finished',
+        color: 'emerald',
+        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200'
+      };
+    }
+    if (isInProgress) {
+      return {
+        stage: 2,
+        isFinished: false,
+        isInProgress: true,
+        label: 'Audit In Progress (On-Ground Household Visit)',
+        shortLabel: 'Audit In Progress',
+        color: 'blue',
+        badgeClass: 'bg-blue-50 text-blue-800 border-blue-200'
+      };
+    }
+    const sup = getSupervisorStatus(r);
+    if (sup.isAssigned) {
+      return {
+        stage: 1,
+        isFinished: false,
+        isInProgress: false,
+        label: 'Awaiting Field Worker Deployment',
+        shortLabel: 'Awaiting Worker',
+        color: 'amber',
+        badgeClass: 'bg-amber-50 text-amber-800 border-amber-200'
+      };
+    }
+    return {
+      stage: 0,
+      isFinished: false,
+      isInProgress: false,
+      label: 'Pending Supervisor Assignment',
+      shortLabel: 'Pending Supervisor',
+      color: 'slate',
+      badgeClass: 'bg-slate-50 text-slate-700 border-slate-200'
+    };
+  };
+
   // Filtered & Sorted Requests
   const filteredRequests = useMemo(() => {
     return requests.filter(r => {
+      const sup = getSupervisorStatus(r);
+      const worker = getFieldWorkerStatus(r);
+      const audit = getAuditStatus(r);
+
       // Search
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
@@ -151,7 +252,9 @@ export function PMAssistanceRequestsView({
           (r.beneficiary_code || '').toLowerCase().includes(query);
         const matchesType = (r.assistance_type || '').toLowerCase().includes(query) || (r.category || '').toLowerCase().includes(query);
         const matchesProg = (r.program_name || '').toLowerCase().includes(query) || (r.programme_name || '').toLowerCase().includes(query);
-        if (!matchesId && !matchesBen && !matchesType && !matchesProg) return false;
+        const matchesSup = sup.name.toLowerCase().includes(query);
+        const matchesWorker = worker.name.toLowerCase().includes(query);
+        if (!matchesId && !matchesBen && !matchesType && !matchesProg && !matchesSup && !matchesWorker) return false;
       }
 
       // Programme
@@ -164,17 +267,22 @@ export function PMAssistanceRequestsView({
       if (filterBoma !== 'ALL' && r.boma !== filterBoma) return false;
       if (filterVillage !== 'ALL' && r.village !== filterVillage) return false;
 
-      // Status
+      // Status Filter
       if (filterStatus !== 'ALL') {
-        if (filterStatus === 'Pending Review' || filterStatus === 'Pending') {
-          if (r.status !== 'Submitted' && r.status !== 'Under Review' && r.status !== 'Pending' && r.status !== 'Pending Review' && r.status !== 'My Decision') return false;
-        } else if (filterStatus === 'Approved') {
+        const filterKey = filterStatus.toLowerCase();
+        if (filterKey.includes('pending supervisor') || filterKey === 'pending review' || filterKey === 'pending pm') {
+          if (sup.isAssigned || r.status === 'Rejected') return false;
+        } else if (filterKey.includes('supervisor assigned')) {
+          if (!sup.isAssigned || worker.isAssigned || audit.isFinished) return false;
+        } else if (filterKey.includes('field worker') || filterKey.includes('worker assigned') || filterKey === 'in progress' || filterKey === 'in field') {
+          if (!worker.isAssigned || audit.isFinished) return false;
+        } else if (filterKey.includes('audit finished') || filterKey.includes('audit completed') || filterKey === 'audit done' || filterKey === 'assessment submitted') {
+          if (!audit.isFinished) return false;
+        } else if (filterKey === 'approved') {
           if (r.status !== 'Approved' && r.status !== 'Assigned to Supervisor') return false;
-        } else if (filterStatus === 'In Field' || filterStatus === 'In Progress') {
-          if (r.status !== 'In Progress' && r.status !== 'In Field') return false;
-        } else if (filterStatus === 'Completed') {
-          if (r.status !== 'Completed' && r.status !== 'Fulfilled') return false;
-        } else if (filterStatus === 'Rejected') {
+        } else if (filterKey === 'completed' || filterKey === 'disbursed') {
+          if (r.status !== 'Completed' && r.status !== 'Fulfilled' && r.status !== 'Disbursed') return false;
+        } else if (filterKey === 'rejected') {
           if (r.status !== 'Rejected') return false;
         } else if (r.status !== filterStatus) {
           return false;
@@ -395,18 +503,39 @@ export function PMAssistanceRequestsView({
 
   // IF A REQUEST IS SELECTED: RENDER DEDICATED FULL AUTHORIZATION PAGE VIEW
   if (activeModalRequest) {
+    const isAssessed = Boolean(activeModalRequest.assessment_code) || 
+                       activeModalRequest.status === 'Assessment Submitted' || 
+                       activeModalRequest.status === 'Completed' ||
+                       activeModalRequest.is_verified_on_ground === true;
+
     const b = getBeneficiary(activeModalRequest.beneficiary_id);
     const isAssignedOrApproved = activeModalRequest.status === 'Assigned to Supervisor' || 
                                  activeModalRequest.status === 'Approved' || 
+                                 activeModalRequest.status === 'Assigned to Field Worker' ||
+                                 activeModalRequest.status === 'Assessment In Progress' ||
                                  activeModalRequest.status === 'In Progress' || 
                                  activeModalRequest.status === 'Completed';
     const showAssignedCard = Boolean(assignedSupervisor) && isAssignedOrApproved && !isReassigning;
     const currentAction = decisionAction || 'assign';
 
+    const beneficiaryName = activeModalRequest.beneficiary_name || b?.full_name || 'Michael Ngatia';
+    const beneficiaryCode = activeModalRequest.beneficiary_code || activeModalRequest.beneficiary_id || b?.beneficiary_code || 'ADRA-SS-000104';
+    const householdMembers = activeModalRequest.household_members || b?.household_size || 5;
+    const locationStr = activeModalRequest.location || b?.location || (activeModalRequest.county ? `${activeModalRequest.county}, ${activeModalRequest.state || 'South Sudan'}` : activeModalRequest.state || 'Central Equatoria');
+    const phoneStr = b?.phone_number || b?.phone || activeModalRequest.phone || '5625652556';
+    const programmeName = activeModalRequest.program_name || activeModalRequest.programme_name || 'Emergency Food Security & Livelihoods Resilience (EFSLR)';
+    const categoryName = activeModalRequest.assistance_type || activeModalRequest.category || 'Food Assistance';
+    const justificationText = activeModalRequest.reason || activeModalRequest.description || 'Household food insecurity due to localized drought';
+
+    // Only show photos / docs if they actually exist in the record
+    const realPhotos = activeModalRequest.evidence_photos || [];
+    const realDocs = activeModalRequest.evidence_documents || [];
+
     return (
-      <div className="space-y-4 pb-12 animate-in fade-in duration-150">
-        {/* Top Header Navigation Strip */}
-        <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-4 pb-16 animate-in fade-in duration-200 max-w-4xl mx-auto">
+        
+        {/* TOP BREADCRUMB & STATUS BAR */}
+        <div className="bg-white px-5 py-3.5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -417,539 +546,366 @@ export function PMAssistanceRequestsView({
                 setDecisionError('');
                 if (onClearSelectedRequest) onClearSelectedRequest();
               }}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition cursor-pointer active:scale-95"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-xs font-bold transition cursor-pointer active:scale-95"
             >
-              <ArrowLeft className="w-4 h-4 text-slate-700" />
+              <ArrowLeft className="w-4 h-4" />
               <span>Back to Requests</span>
             </button>
             <div className="h-4 w-px bg-slate-200 hidden sm:block" />
-            <span className="font-mono text-xs font-black text-[#006B56] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+            <span className="font-mono text-xs font-black text-[#006B56] bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
               {activeModalRequest.request_code || activeModalRequest.id}
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-              activeModalRequest.priority === 'Critical' ? 'bg-red-100 text-red-800 border-red-200' :
-              activeModalRequest.priority === 'High' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-              'bg-slate-100 text-slate-700 border-slate-200'
+            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+              activeModalRequest.priority === 'Critical' ? 'bg-red-50 text-red-700 border-red-200' :
+              activeModalRequest.priority === 'High' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+              'bg-slate-50 text-slate-700 border-slate-200'
             }`}>
-              {activeModalRequest.priority || 'Standard'} Priority
+              {activeModalRequest.priority || 'High'} Priority
             </span>
-            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-              activeModalRequest.status === 'Approved' ? 'bg-emerald-100 text-emerald-900 border-emerald-300' :
-              activeModalRequest.status === 'Assigned to Supervisor' ? 'bg-emerald-100 text-[#006B56] border-emerald-300 font-black' :
-              activeModalRequest.status === 'In Progress' ? 'bg-blue-100 text-blue-900 border-blue-300' :
+            <span className={`text-xs font-bold px-3 py-0.5 rounded-full border ${
+              activeModalRequest.status === 'Approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+              activeModalRequest.status === 'Assigned to Supervisor' ? 'bg-emerald-50 text-[#006B56] border-emerald-200 font-bold' :
+              activeModalRequest.status === 'In Progress' ? 'bg-blue-50 text-blue-800 border-blue-200' :
               activeModalRequest.status === 'Completed' ? 'bg-emerald-800 text-white border-emerald-900' :
-              activeModalRequest.status === 'Rejected' ? 'bg-rose-100 text-rose-900 border-rose-300' :
-              activeModalRequest.status === 'Info Requested' ? 'bg-orange-100 text-orange-900 border-orange-300' :
-              'bg-amber-100 text-amber-900 border-amber-300'
+              activeModalRequest.status === 'Rejected' ? 'bg-rose-50 text-rose-800 border-rose-200' :
+              activeModalRequest.status === 'Info Requested' ? 'bg-orange-50 text-orange-800 border-orange-200' :
+              'bg-amber-50 text-amber-800 border-amber-200'
             }`}>
-              {activeModalRequest.status}
+              {activeModalRequest.status === 'Submitted' ? 'Submitted (Pending Supervisor)' : activeModalRequest.status}
             </span>
           </div>
         </div>
 
-        {/* 2-Column Responsive Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-          {/* LEFT COLUMN: Cohesive Request & Beneficiary Profile (7 cols) */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
-              {/* Program & Category Title */}
-              <div className="border-b border-slate-100 pb-3">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#006B56] block mb-1">
-                  {activeModalRequest.program_name || activeModalRequest.programme_name || 'Emergency Relief & Humanitarian Response'}
-                </span>
-                <h2 className="text-base sm:text-lg font-black text-slate-900">
-                  {activeModalRequest.assistance_type || activeModalRequest.category || 'Humanitarian Assistance'}
-                </h2>
+        {/* 1. BENEFICIARY PROFILE & ASSISTANCE NEED CARD */}
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs p-6 space-y-5">
+          
+          {/* Header with Name and Badge */}
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#006B56] to-teal-700 text-white font-black flex items-center justify-center text-base shadow-xs shrink-0">
+                {beneficiaryName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
-
-              {/* Beneficiary Core Info */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Beneficiary Name</span>
-                    <span className="text-sm font-black text-slate-900">
-                      {activeModalRequest.beneficiary_name || b?.full_name || 'Beneficiary'}
-                    </span>
-                  </div>
-                  <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
-                    {activeModalRequest.beneficiary_code || activeModalRequest.beneficiary_id || b?.beneficiary_code || 'ADRA-SS-001'}
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-black text-slate-900 tracking-tight">
+                    {beneficiaryName}
+                  </h2>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Verified Beneficiary
                   </span>
                 </div>
-
-                {/* 4 Metric Tiles */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-150">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Household</span>
-                    <span className="text-xs font-black text-slate-800">
-                      {activeModalRequest.household_members || b?.household_size || 5} Members
-                    </span>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-150">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Location</span>
-                    <span className="text-xs font-bold text-slate-800 truncate block">
-                      {activeModalRequest.county || 'Juba'}, {activeModalRequest.state || 'Central Equatoria'}
-                    </span>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-150">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Phone</span>
-                    <span className="text-xs font-bold text-slate-800">
-                      {b?.phone_number || b?.phone || activeModalRequest.phone || 'N/A'}
-                    </span>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-150">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Submitted</span>
-                    <span className="text-xs font-bold text-slate-800">
-                      {formatDate(activeModalRequest.created_at)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Justification Box */}
-              <div className="space-y-1.5 pt-1">
-                <span className="text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-[#006B56]" />
-                  <span>Request Justification</span>
-                </span>
-                <p className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-slate-800 text-xs italic leading-relaxed">
-                  "{activeModalRequest.reason || activeModalRequest.description || 'Household urgently requiring emergency assistance.'}"
-                </p>
-              </div>
-
-              {/* Field Officer Ground Verification & Evidence Dossier */}
-              <div className="border-t border-slate-150 pt-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileCheck className="w-4 h-4 text-[#006B56]" />
-                    <span className="text-xs font-black uppercase tracking-wider text-slate-900">
-                      Field Officer On-Ground Verification & Evidence
-                    </span>
-                  </div>
-                  {activeModalRequest.vulnerability_score && (
-                    <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-100 text-[#006B56] rounded-md border border-emerald-200">
-                      Vulnerability: {activeModalRequest.vulnerability_score}/100
-                    </span>
-                  )}
-                </div>
-
-                {/* Field Officer Justification & Confirmation */}
-                <div className="p-3 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border border-emerald-200 space-y-1">
-                  <span className="text-[10px] font-black uppercase text-[#006B56] tracking-wider block">
-                    Field Worker Confirmation of Urgent Need
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="font-mono text-xs font-semibold text-slate-500">
+                    {beneficiaryCode}
                   </span>
-                  <p className="text-xs text-slate-800 font-medium italic leading-relaxed">
-                    "{activeModalRequest.field_justification || activeModalRequest.ground_situation_report || activeModalRequest.review_notes || 'Field team verified household vulnerability and confirms urgent necessity for relief dispatch.'}"
-                  </p>
-                  <div className="text-[10px] text-slate-500 font-semibold pt-1 border-t border-emerald-200/60 flex items-center justify-between">
-                    <span>Officer: {activeModalRequest.assigned_field_worker_name || activeModalRequest.field_worker_name || 'Field Officer'}</span>
-                    <span>Status: {activeModalRequest.assessment_code || 'Verified On-Ground'}</span>
-                  </div>
-                </div>
-
-                {/* Ground Situation Narrative */}
-                {activeModalRequest.ground_situation_report && (
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-xs">
-                    <span className="text-[10px] font-bold text-slate-600 uppercase block">Ground Situation & Living Conditions</span>
-                    <p className="text-slate-700 leading-relaxed">
-                      {activeModalRequest.ground_situation_report}
-                    </p>
-                  </div>
-                )}
-
-                {/* Attached Photo Evidence Gallery */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1.5">
-                      <ImageIcon className="w-3.5 h-3.5 text-[#006B56]" />
-                      <span>Photographic Evidence ({(activeModalRequest.evidence_photos && activeModalRequest.evidence_photos.length) || 2})</span>
-                    </span>
-                    <span className="text-[10px] text-slate-400">Click to view full photo</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {(activeModalRequest.evidence_photos && activeModalRequest.evidence_photos.length > 0
-                      ? activeModalRequest.evidence_photos
-                      : [
-                          {
-                            id: 'p-default-1',
-                            title: 'Shelter Condition',
-                            category: 'Shelter Damage',
-                            caption: 'Makeshift living structure with leaking roof and structural risk.',
-                            url: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=800&auto=format&fit=crop&q=80',
-                            size: '1.4 MB'
-                          },
-                          {
-                            id: 'p-default-2',
-                            title: 'Household Verification',
-                            category: 'Beneficiary Roll',
-                            caption: 'In-person verification of family present on-site.',
-                            url: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=800&auto=format&fit=crop&q=80',
-                            size: '1.8 MB'
-                          }
-                        ]
-                    ).map((photo) => (
-                      <div
-                        key={photo.id}
-                        onClick={() => setSelectedPreviewPhoto(photo)}
-                        className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer group bg-slate-100 hover:border-[#006B56] transition"
-                      >
-                        <div className="h-20 overflow-hidden relative">
-                          <img
-                            src={photo.url}
-                            alt={photo.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                          />
-                        </div>
-                        <div className="p-1.5 bg-white text-[10px]">
-                          <p className="font-bold text-slate-800 truncate">{photo.title}</p>
-                          <p className="text-slate-400 truncate">{photo.category || 'Evidence'}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Attached Verification Documents */}
-                <div className="space-y-2 pt-1">
-                  <span className="text-[10px] font-bold uppercase text-slate-500 flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Attached Verification Documents</span>
+                  <span className="text-xs font-bold text-[#006B56] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/70">
+                    {categoryName}
                   </span>
-
-                  <div className="space-y-1.5">
-                    {(activeModalRequest.evidence_documents && activeModalRequest.evidence_documents.length > 0
-                      ? activeModalRequest.evidence_documents
-                      : [
-                          {
-                            id: 'd-default-1',
-                            name: 'Signed_Household_Verification_Consent_Form.pdf',
-                            category: 'Signed Form',
-                            size: '420 KB',
-                            content_summary: 'Official ADRA Household Verification Form signed with thumbprint by head of household, acknowledging humanitarian audit and confirming urgent assistance requirement.'
-                          },
-                          {
-                            id: 'd-default-2',
-                            name: 'Boma_Chief_Emergency_Referral_Letter.pdf',
-                            category: 'Chief Letter',
-                            size: '310 KB',
-                            content_summary: 'Official letter of endorsement from Boma Chief confirming household displacement, lack of food stocks, and endorsing emergency food & shelter kit dispatch.'
-                          }
-                        ]
-                    ).map((doc) => (
-                      <div
-                        key={doc.id}
-                        className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2 text-xs"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 font-bold font-mono text-[9px] flex items-center justify-center shrink-0">
-                            PDF
-                          </div>
-                          <div className="min-w-0">
-                            <h5 className="font-bold text-slate-800 truncate text-[11px]">{doc.name}</h5>
-                            <p className="text-[10px] text-slate-400">{doc.category} &bull; {doc.size || '350 KB'}</p>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPreviewDoc(doc)}
-                          className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold rounded-lg text-[10px] flex items-center gap-1 shrink-0 transition cursor-pointer"
-                        >
-                          <Eye className="w-3 h-3 text-blue-600" />
-                          <span>View Doc</span>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
+            </div>
 
+            <div className="text-right">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Programme</span>
+              <span className="text-xs font-bold text-slate-800 block mt-0.5 max-w-xs truncate" title={programmeName}>
+                {programmeName}
+              </span>
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Assigned Supervisor Card OR Review & Dispatch Decision Center (5 cols) */}
-          <div className="lg:col-span-5 space-y-4">
-            {showAssignedCard ? (
-              /* VIEW A: ASSIGNED SUPERVISOR & FIELD PROGRESS CARD */
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-[#006B56]" />
-                    <div>
-                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
-                        Assigned State Supervisor
-                      </h3>
-                      <p className="text-[10px] text-slate-500 font-semibold">Active Humanitarian Dispatch</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold text-[#006B56] bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-[#006B56]" />
-                    <span>Dispatched</span>
-                  </span>
+          {/* 3 Core Vital Cards: Household, Location, Phone */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="p-3.5 bg-slate-50/90 border border-slate-200/80 rounded-2xl flex flex-col justify-between gap-1 shadow-2xs hover:bg-slate-50 transition">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-emerald-100/80 text-[#006B56] flex items-center justify-center shrink-0">
+                  <Users className="w-3.5 h-3.5" />
                 </div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Household
+                </span>
+              </div>
+              <div className="text-sm font-black text-slate-900 mt-0.5">
+                {householdMembers} Members
+              </div>
+            </div>
 
-                {/* Supervisor Profile Box */}
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/90 to-teal-50/50 border border-emerald-200 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-[#006B56] text-white font-black flex items-center justify-center text-sm shadow-xs shrink-0">
-                      {(assignedSupervisor.name || 'Supervisor')
-                        .split(' ')
-                        .map(n => n[0])
-                        .join('')
-                        .slice(0, 2)
-                        .toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-sm font-black text-slate-900 leading-tight truncate">
-                        {assignedSupervisor.name}
-                      </h4>
-                      <p className="text-[11px] font-bold text-[#006B56] mt-0.5">
-                        State Supervisor &bull; {assignedSupervisor.state || activeModalRequest.state || 'Central Equatoria'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-emerald-200/60 space-y-1.5 text-xs text-slate-700">
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-3.5 h-3.5 text-[#006B56] shrink-0" />
-                      <span className="font-bold">{assignedSupervisor.phone || '+211-922-345002'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-3.5 h-3.5 text-[#006B56] shrink-0" />
-                      <span className="truncate">{assignedSupervisor.assigned_area || assignedSupervisor.state || 'Central Equatoria (Juba)'}</span>
-                    </div>
-                  </div>
+            <div className="p-3.5 bg-slate-50/90 border border-slate-200/80 rounded-2xl flex flex-col justify-between gap-1 shadow-2xs hover:bg-slate-50 transition min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-blue-100/80 text-blue-700 flex items-center justify-center shrink-0">
+                  <MapPin className="w-3.5 h-3.5" />
                 </div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Location
+                </span>
+              </div>
+              <div className="text-sm font-black text-slate-900 mt-0.5 truncate" title={locationStr}>
+                {locationStr}
+              </div>
+            </div>
 
-                {/* Field Worker Execution Status */}
-                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-slate-400">Field Officer Assigned</span>
-                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                      In Field Execution
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <UserCheck className="w-4 h-4 text-slate-600 shrink-0" />
-                    <span className="font-black text-slate-900">
-                      {activeModalRequest.assigned_field_worker_name || activeModalRequest.field_worker_name || 'Pending Field Officer Allocation'}
-                    </span>
-                  </div>
+            <div className="p-3.5 bg-slate-50/90 border border-slate-200/80 rounded-2xl flex flex-col justify-between gap-1 shadow-2xs hover:bg-slate-50 transition min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-purple-100/80 text-purple-700 flex items-center justify-center shrink-0">
+                  <Phone className="w-3.5 h-3.5" />
                 </div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Phone
+                </span>
+              </div>
+              <div className="text-sm font-black text-slate-900 mt-0.5 font-mono truncate">
+                {phoneStr}
+              </div>
+            </div>
+          </div>
 
-                {/* Manager Instructions Directives */}
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold uppercase text-slate-400 block">Manager Dispatch Directive</span>
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-800 italic">
-                    "{activeModalRequest.review_notes || 'Deliver emergency assistance basket and verify beneficiary identity at distribution point.'}"
-                  </div>
-                </div>
+          {/* Stated Need */}
+          <div className="space-y-1.5 pt-1">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <FileText className="w-4 h-4 text-[#006B56]" />
+              <span>Request Justification / Stated Need</span>
+            </span>
+            <div className="p-3.5 bg-emerald-50/40 rounded-2xl border-l-4 border-l-[#006B56] border border-emerald-100/80 text-slate-800 text-xs font-medium leading-relaxed italic">
+              "{justificationText}"
+            </div>
+          </div>
+        </div>
 
-                {/* Reassign / Change Supervisor Option */}
-                <div className="pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsReassigning(true);
-                      setDecisionAction('assign');
-                      setSelectedSupervisorId(assignedSupervisor.id || '');
-                      setSupervisorNotes(activeModalRequest.review_notes || '');
-                    }}
-                    className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-2 active:scale-98"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Reassign / Update Supervisor</span>
-                  </button>
+        {/* 2. SUPERVISOR ASSIGNMENT & DISPATCH SECTION */}
+        {showAssignedCard ? (
+          /* ASSIGNED SUPERVISOR INFO */
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-[#006B56]" />
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    Assigned State Supervisor
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Responsible for deploying field worker for ground audit</p>
                 </div>
               </div>
-            ) : (
-              /* VIEW B: REVIEW & DISPATCH DECISION CONTROLS (For Pending or Reassigning) */
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-[#006B56]" />
-                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
-                      {isReassigning ? 'Reassign Supervisor' : 'Review & Dispatch'}
-                    </h3>
-                  </div>
-                  {activeModalRequest.state && (
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      {activeModalRequest.state}
-                    </span>
-                  )}
+              <span className="text-xs font-bold text-[#006B56] bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#006B56]" />
+                <span>Assigned</span>
+              </span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-[#006B56] text-white font-black flex items-center justify-center text-sm shadow-xs shrink-0">
+                  {(assignedSupervisor.name || 'Supervisor')
+                    .split(' ')
+                    .map(n => n[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase()}
                 </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900">
+                    {assignedSupervisor.name}
+                  </h4>
+                  <p className="text-xs font-bold text-[#006B56]">
+                    State Supervisor &bull; {assignedSupervisor.state || activeModalRequest.state || 'Eastern Equatoria'}
+                  </p>
+                </div>
+              </div>
 
-                {/* 3-Way Segmented Decision Selector (Shown when not reassigning) */}
-                {!isReassigning && (
-                  <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl">
-                    <button
-                      type="button"
-                      onClick={() => { setDecisionAction('assign'); setDecisionError(''); }}
-                      className={`py-2 px-1 rounded-lg text-xs font-black transition cursor-pointer text-center ${
-                        currentAction === 'assign'
-                          ? 'bg-[#006B56] text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setDecisionAction('request_info'); setDecisionError(''); }}
-                      className={`py-2 px-1 rounded-lg text-xs font-black transition cursor-pointer text-center ${
-                        currentAction === 'request_info'
-                          ? 'bg-amber-500 text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      Ask Info
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setDecisionAction('reject'); setDecisionError(''); }}
-                      className={`py-2 px-1 rounded-lg text-xs font-black transition cursor-pointer text-center ${
-                        currentAction === 'reject'
-                          ? 'bg-rose-600 text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      Reject
-                    </button>
-                  </div>
-                )}
+              <div className="flex items-center gap-3 text-xs text-slate-600">
+                <div className="flex items-center gap-1.5 font-mono">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{assignedSupervisor.phone || '+211-922-345002'}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsReassigning(true);
+                    setSelectedSupervisorId(assignedSupervisor.id || '');
+                    setSupervisorNotes(activeModalRequest.review_notes || '');
+                  }}
+                  className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-700 transition cursor-pointer shadow-2xs"
+                >
+                  Change
+                </button>
+              </div>
+            </div>
 
-                {/* Error Notice */}
-                {decisionError && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{decisionError}</span>
-                  </div>
-                )}
-
-                {/* ACTION MODE 1: APPROVE & ASSIGN SUPERVISOR */}
-                {(currentAction === 'assign' || isReassigning) && (
-                  <div className="space-y-3 pt-1">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Designate State Supervisor:
-                      </label>
-                      <select
-                        required
-                        value={selectedSupervisorId}
-                        onChange={(e) => setSelectedSupervisorId(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 font-bold text-xs outline-none focus:ring-2 focus:ring-[#006B56]"
-                      >
-                        <option value="">-- Select State Supervisor --</option>
-                        {supervisors.map(s => {
-                          const isMatch = activeModalRequest.state && (
-                            s.state?.toLowerCase() === activeModalRequest.state.toLowerCase() ||
-                            s.assigned_area?.toLowerCase().includes(activeModalRequest.state.toLowerCase())
-                          );
-                          return (
-                            <option key={s.id} value={s.id}>
-                              {isMatch ? '⭐ Regional Match: ' : ''}{s.name} — {s.state || 'South Sudan'}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Field Instructions / Delivery Notes (Optional):
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={supervisorNotes}
-                        onChange={(e) => setSupervisorNotes(e.target.value)}
-                        placeholder="e.g., Deliver emergency food basket and verify household head."
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-[#006B56]"
-                      />
-                    </div>
-
-                    <div className="flex gap-2">
-                      {isReassigning && (
-                        <button
-                          type="button"
-                          onClick={() => setIsReassigning(false)}
-                          className="w-1/3 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer text-center"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        disabled={!selectedSupervisorId}
-                        onClick={handleAssignSupervisorSubmit}
-                        className={`${isReassigning ? 'w-2/3' : 'w-full'} py-3 bg-[#006B56] hover:bg-emerald-800 disabled:opacity-40 text-white font-black rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2 active:scale-98`}
-                      >
-                        <Check className="w-4 h-4 stroke-[2.5]" />
-                        <span>{isReassigning ? 'Update Assignment' : 'Confirm Approval & Dispatch Task'}</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* ACTION MODE 2: REQUEST ADDITIONAL INFO */}
-                {!isReassigning && currentAction === 'request_info' && (
-                  <div className="space-y-3 pt-1">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Information Required from Field / Beneficiary:
-                      </label>
-                      <textarea
-                        rows={4}
-                        value={decisionReason}
-                        onChange={(e) => setDecisionReason(e.target.value)}
-                        placeholder="Specify what additional documentation or household clarification is needed..."
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-500"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleConfirmRequestInfo}
-                      className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2 active:scale-98"
-                    >
-                      <Send className="w-4 h-4" />
-                      <span>Send Field Inquiry</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* ACTION MODE 3: REJECT REQUEST */}
-                {!isReassigning && currentAction === 'reject' && (
-                  <div className="space-y-3 pt-1">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Official Rejection Justification (Audit Record):
-                      </label>
-                      <textarea
-                        rows={4}
-                        value={decisionReason}
-                        onChange={(e) => setDecisionReason(e.target.value)}
-                        placeholder="State reason why request cannot be fulfilled under current programme criteria..."
-                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-rose-500"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleConfirmReject}
-                      className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2 active:scale-98"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      <span>Confirm Rejection</span>
-                    </button>
-                  </div>
-                )}
+            {/* Field Worker status if assigned by supervisor */}
+            {activeModalRequest.assigned_field_worker_name && (
+              <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs text-slate-800 flex items-center justify-between">
+                <span className="font-bold flex items-center gap-1.5 text-slate-700">
+                  <User className="w-3.5 h-3.5 text-[#006B56]" />
+                  Field Worker: {activeModalRequest.assigned_field_worker_name}
+                </span>
+                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
+                  {activeModalRequest.status === 'Assessment Submitted' ? 'Audit Submitted' : 'Conducting Audit'}
+                </span>
               </div>
             )}
           </div>
-        </div>
+        ) : (
+          /* ASSIGN SUPERVISOR FORM */
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">
+                  {isReassigning ? 'Reassign State Supervisor' : 'Assign State Supervisor'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Designate a supervisor for {activeModalRequest.state || b?.state || 'Central Equatoria'} to deploy a field worker to conduct the household audit.
+                </p>
+              </div>
+              {(activeModalRequest.state || b?.state) && (
+                <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                  {activeModalRequest.state || b?.state}
+                </span>
+              )}
+            </div>
+
+            {decisionError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{decisionError}</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Select State Supervisor:
+                </label>
+                <select
+                  required
+                  value={selectedSupervisorId}
+                  onChange={(e) => setSelectedSupervisorId(e.target.value)}
+                  className="w-full p-3 border border-slate-200 rounded-2xl bg-slate-50 font-bold text-xs outline-none focus:ring-2 focus:ring-[#006B56] cursor-pointer"
+                >
+                  <option value="">-- Choose State Supervisor --</option>
+                  {supervisors.map(s => {
+                    const reqState = (activeModalRequest.state || b?.state || '').toLowerCase();
+                    const isMatch = reqState && (
+                      s.state?.toLowerCase() === reqState ||
+                      s.assigned_area?.toLowerCase().includes(reqState)
+                    );
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {isMatch ? '⭐ Regional Match: ' : ''}{s.name} ({s.state || 'South Sudan'})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Instructions for Supervisor (Optional):
+                </label>
+                <textarea
+                  rows={2}
+                  value={supervisorNotes}
+                  onChange={(e) => setSupervisorNotes(e.target.value)}
+                  placeholder={`e.g., Deploy field worker for household vulnerability audit in ${activeModalRequest.county || activeModalRequest.payam || 'Juba Central'}...`}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs outline-none focus:ring-2 focus:ring-[#006B56]"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                {isReassigning && (
+                  <button
+                    type="button"
+                    onClick={() => setIsReassigning(false)}
+                    className="w-1/3 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs transition cursor-pointer text-center"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={!selectedSupervisorId}
+                  onClick={handleAssignSupervisorSubmit}
+                  className={`${isReassigning ? 'w-2/3' : 'w-full'} py-3.5 bg-[#006B56] hover:bg-emerald-800 disabled:opacity-40 text-white font-black rounded-2xl text-xs shadow-sm transition cursor-pointer flex items-center justify-center gap-2 active:scale-98`}
+                >
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  <span>{isReassigning ? 'Update Supervisor' : 'Assign Supervisor for Field Audit'}</span>
+                </button>
+              </div>
+
+              {/* Secondary Actions: Reject / Request Info */}
+              {!isReassigning && (
+                <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const reason = window.prompt('Specify information required from beneficiary/community:');
+                      if (reason) onRequestInfo(activeModalRequest.id, reason);
+                    }}
+                    className="text-amber-700 hover:text-amber-800 font-bold cursor-pointer hover:underline"
+                  >
+                    Request More Info
+                  </button>
+                  <span className="text-slate-300">&bull;</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const reason = window.prompt('Enter rejection reason:');
+                      if (reason) onRejectRequest(activeModalRequest.id, reason);
+                    }}
+                    className="text-rose-600 hover:text-rose-700 font-bold cursor-pointer hover:underline"
+                  >
+                    Reject Request
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 3. ONLY IF AUDIT EVIDENCE EXISTS: DISPLAY IT */}
+        {isAssessed && (realPhotos.length > 0 || realDocs.length > 0 || activeModalRequest.field_justification) && (
+          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-[#006B56]" />
+                <h3 className="text-sm font-black text-slate-900">
+                  Field Worker Audit Evidence
+                </h3>
+              </div>
+              <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                Verified On-Ground
+              </span>
+            </div>
+
+            {activeModalRequest.field_justification && (
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
+                <span className="font-bold text-slate-500 text-[11px] block">Field Worker Report:</span>
+                <p className="text-slate-800 italic font-medium leading-relaxed">
+                  "{activeModalRequest.field_justification}"
+                </p>
+              </div>
+            )}
+
+            {realPhotos.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-slate-700">Audit Photos ({realPhotos.length}):</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {realPhotos.map((photo) => (
+                    <div
+                      key={photo.id || photo.url}
+                      onClick={() => setSelectedPreviewPhoto(photo)}
+                      className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer hover:border-[#006B56]"
+                    >
+                      <img src={photo.url} alt={photo.title || 'Evidence'} className="h-28 w-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     );
   }
@@ -996,12 +952,21 @@ export function PMAssistanceRequestsView({
       <div className="flex items-center justify-between px-1 py-0.5">
         <div className="flex items-center gap-2">
           <span className="text-xs font-black text-slate-800 tracking-tight">
-            {filterStatus === 'ALL' ? 'All Requests' : `${filterStatus} Requests`}
+            {filterStatus === 'ALL' ? 'All Assistance Requests' : `${filterStatus} Requests`}
           </span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
             {filteredRequests.length} {filteredRequests.length === 1 ? 'record' : 'records'}
           </span>
         </div>
+        {filterStatus !== 'ALL' && (
+          <button
+            type="button"
+            onClick={() => handleStatusChange('ALL')}
+            className="text-[11px] font-bold text-[#006B56] hover:underline cursor-pointer"
+          >
+            Clear Filter
+          </button>
+        )}
       </div>
 
       {/* 3. EXPANDABLE ADVANCED FILTER SHEET / DRAWER */}
@@ -1062,7 +1027,7 @@ export function PMAssistanceRequestsView({
         </div>
       )}
 
-      {/* 4. REQUESTS CARD LIST */}
+      {/* 4. REQUESTS CARD LIST WITH AUDIT & CUSTODY PIPELINE */}
       {paginatedRequests.length === 0 ? (
         <div className="bg-white p-8 rounded-3xl border border-slate-200/90 text-center space-y-2">
           <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
@@ -1070,62 +1035,153 @@ export function PMAssistanceRequestsView({
           </div>
           <h3 className="text-xs font-bold text-slate-800">No assistance requests found</h3>
           <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
-            Try adjusting your search query, status filters, or region filters.
+            Try adjusting your search query, status tabs, or region filters.
           </p>
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-3">
           {paginatedRequests.map((r) => {
-            const isPending = r.status === 'Submitted' || r.status === 'Under Review' || r.status === 'Pending';
+            const supInfo = getSupervisorStatus(r);
+            const workerInfo = getFieldWorkerStatus(r);
+            const auditInfo = getAuditStatus(r);
+            const isPendingPM = !supInfo.isAssigned && r.status !== 'Rejected';
 
             return (
               <div
                 key={r.id || r.request_code}
-                className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs hover:border-slate-300 transition space-y-2.5"
+                className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:border-[#006B56]/50 transition-all space-y-3.5"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-black text-[#006B56]">{r.request_code || r.id}</span>
+                {/* Header Row: Code, Priority, Date */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-black text-[#006B56] bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200/80">
+                      {r.request_code || r.id}
+                    </span>
+                    <span className="text-[11px] font-medium text-slate-500">
+                      {r.created_at ? formatDate(r.created_at) : 'Recent'}
+                    </span>
+                  </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    r.priority === 'Critical' ? 'bg-red-100 text-red-800 border-red-200' :
-                    r.priority === 'High' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                    'bg-slate-100 text-slate-700 border-slate-200'
+                    r.priority === 'Critical' ? 'bg-red-50 text-red-700 border-red-200' :
+                    r.priority === 'High' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                    'bg-slate-50 text-slate-700 border-slate-200'
                   }`}>
                     {r.priority || 'Standard'} Priority
                   </span>
                 </div>
 
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">{r.beneficiary_name} &bull; {r.assistance_type || r.category}</h4>
-                  <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                    <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                    <span className="truncate">{r.county || 'Kapoeta South'}, {r.state || 'Eastern Equatoria'}</span>
+                {/* Beneficiary & Need Description */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-sm font-black text-slate-900 truncate">
+                      {r.beneficiary_name}
+                    </h4>
+                    <span className="text-xs font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md shrink-0">
+                      {r.household_members || 5} Members
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 font-medium truncate">
+                    <strong className="text-slate-800">Category: </strong>{r.assistance_type || r.category}
+                  </p>
+                  <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span className="truncate">{r.location || `${r.county || 'Juba'}, ${r.state || 'Central Equatoria'}`}</span>
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    r.status === 'Approved' ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' :
-                    r.status === 'In Progress' ? 'bg-blue-100 text-blue-900 border border-blue-200' :
-                    r.status === 'Completed' ? 'bg-emerald-800 text-white' :
-                    r.status === 'Rejected' ? 'bg-rose-100 text-rose-900 border border-rose-200' :
-                    r.status === 'Info Requested' ? 'bg-orange-100 text-orange-900 border border-orange-200' :
-                    'bg-amber-100 text-amber-900 border border-amber-200'
+                {/* 3-STAGE CHAIN OF CUSTODY & AUDIT PIPELINE */}
+                <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/70 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] border-b border-slate-200/60 pb-1.5">
+                    <span className="font-extrabold text-slate-600 uppercase tracking-wider text-[9px] flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#006B56]" />
+                      <span>Audit & Custody Chain</span>
+                    </span>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${auditInfo.badgeClass}`}>
+                      {auditInfo.shortLabel}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    {/* 1. Supervisor */}
+                    <div className="flex items-start gap-1.5 bg-white p-2 rounded-lg border border-slate-200/60 shadow-2xs min-w-0">
+                      <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
+                        supInfo.isAssigned ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'
+                      }`}>
+                        {supInfo.isAssigned ? <UserCheck className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">1. State Supervisor</span>
+                        <span className={`text-[11px] font-black block truncate ${
+                          supInfo.isAssigned ? 'text-slate-900' : 'text-amber-800'
+                        }`}>
+                          {supInfo.isAssigned ? supInfo.name : 'Unassigned (Action Req.)'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 2. Field Worker */}
+                    <div className="flex items-start gap-1.5 bg-white p-2 rounded-lg border border-slate-200/60 shadow-2xs min-w-0">
+                      <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
+                        workerInfo.isAssigned ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
+                      }`}>
+                        {workerInfo.isAssigned ? <User className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">2. Field Worker</span>
+                        <span className={`text-[11px] font-bold block truncate ${
+                          workerInfo.isAssigned ? 'text-slate-900' : 'text-slate-500'
+                        }`}>
+                          {workerInfo.name}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 3. Field Audit Status */}
+                    <div className="flex items-start gap-1.5 bg-white p-2 rounded-lg border border-slate-200/60 shadow-2xs min-w-0">
+                      <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
+                        auditInfo.isFinished ? 'bg-emerald-100 text-emerald-700' : 
+                        auditInfo.isInProgress ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
+                      }`}>
+                        {auditInfo.isFinished ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">3. Field Audit</span>
+                        <span className={`text-[11px] font-bold block truncate ${
+                          auditInfo.isFinished ? 'text-[#006B56] font-black' : 
+                          auditInfo.isInProgress ? 'text-blue-700 font-bold' : 'text-slate-500'
+                        }`}>
+                          {auditInfo.label}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Controls */}
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs gap-2">
+                  <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                    r.status === 'Approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                    r.status === 'In Progress' ? 'bg-blue-50 text-blue-800 border-blue-200' :
+                    r.status === 'Completed' ? 'bg-emerald-800 text-white border-emerald-900' :
+                    r.status === 'Rejected' ? 'bg-rose-50 text-rose-800 border-rose-200' :
+                    r.status === 'Info Requested' ? 'bg-orange-50 text-orange-800 border-orange-200' :
+                    'bg-amber-50 text-amber-800 border-amber-200'
                   }`}>
                     {r.status}
                   </span>
 
-                  <div className="flex items-center gap-1.5">
-                    {isPending && (
+                  <div className="flex items-center gap-2">
+                    {isPendingPM && (
                       <button
                         type="button"
                         onClick={() => {
                           setActiveModalRequest(r);
-                          handleApprove(r);
+                          setDecisionAction('assign');
                         }}
-                        className="px-3.5 py-1.5 bg-[#006B56] hover:bg-emerald-800 text-white text-xs font-black rounded-xl shadow-xs active:scale-95 transition flex items-center gap-1 cursor-pointer"
+                        className="px-3.5 py-1.5 bg-[#006B56] hover:bg-[#005544] text-white text-xs font-black rounded-xl shadow-xs active:scale-95 transition flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>Authorize</span>
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>Assign Supervisor</span>
                       </button>
                     )}
 
@@ -1139,7 +1195,7 @@ export function PMAssistanceRequestsView({
                       className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition active:scale-95 flex items-center gap-1 cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Details</span>
+                      <span>Details & Dossier</span>
                     </button>
                   </div>
                 </div>

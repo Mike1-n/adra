@@ -67,8 +67,7 @@ export function FieldFundingRequestModal({
   
   // Itemized line items (in South Sudanese Pound - SSP)
   const [breakdown, setBreakdown] = useState([
-    { item: 'Fuel / Motorbike transport for Boma visit', amount: 150000 },
-    { item: 'Local guide allowance & logistics', amount: 80000 }
+    { item: '', amount: '' }
   ]);
 
   const selectedTask = React.useMemo(() => {
@@ -82,7 +81,6 @@ export function FieldFundingRequestModal({
       if (initialTask.program_name || initialTask.project_name) {
         setProjectName(initialTask.program_name || initialTask.project_name);
       }
-      setPurpose(`Field operational facilitation & transport for conducting household vulnerability audit for ${initialTask.beneficiary_name} (${initialTask.request_code}) in ${initialTask.payam || worker.payam || 'Kapoeta Town'}.`);
     } else if (tasks.length > 0 && !selectedTaskId) {
       setSelectedTaskId(tasks[0].id || tasks[0].request_code);
     }
@@ -125,20 +123,20 @@ export function FieldFundingRequestModal({
       const targetTask = selectedTask || tasks.find(t => t.id === selectedTaskId || t.request_code === selectedTaskId);
 
       const payload = {
-        field_worker_id: worker.id || 'fw-1',
-        field_worker_name: worker.name || 'John Deng',
-        field_worker_email: worker.email || 'john.deng@adra.org',
+        field_worker_id: worker.id || 'fw-7',
+        field_worker_name: worker.name || 'Rose Poni',
+        field_worker_email: worker.email || 'rose.poni@adra.org',
         field_worker_phone: worker.phone || payoutPhone,
-        supervisor_id: worker.supervisor_id || 'sup-1',
-        supervisor_name: worker.supervisor_name || 'Emmanuel Adeyemi',
+        supervisor_id: targetTask?.assigned_supervisor_id || targetTask?.supervisor_id || worker.supervisor_id || 'sup-2',
+        supervisor_name: targetTask?.assigned_supervisor_name || targetTask?.supervisor_name || worker.supervisor_name || 'Mary Akech',
         program_manager_name: 'Grace Ochieng',
         linked_task_id: targetTask?.id || selectedTaskId || null,
         linked_request_code: targetTask?.request_code || (selectedTaskId === 'general-territory-ops' ? 'GEN-TERRITORY-OPS' : 'ADR-REQ-GEN'),
-        linked_beneficiary_name: targetTask?.beneficiary_name || `${worker.payam || 'Kapoeta Town'} Community Verification`,
-        linked_location: targetTask?.payam || worker.payam || 'Kapoeta Town',
-        payam: targetTask?.payam || worker.payam || 'Kapoeta Town',
-        county: targetTask?.county || worker.county || 'Kapoeta South',
-        state: targetTask?.state || worker.state || 'Eastern Equatoria',
+        linked_beneficiary_name: targetTask?.beneficiary_name || `${worker.payam || 'Munuki'} Community Verification`,
+        linked_location: targetTask?.payam || targetTask?.location || worker.payam || 'Munuki',
+        payam: targetTask?.payam || worker.payam || 'Munuki',
+        county: targetTask?.county || worker.county || 'Juba',
+        state: targetTask?.state || worker.state || 'Central Equatoria',
         project_name: projectName,
         category,
         amount: totalAmount,
@@ -216,7 +214,6 @@ export function FieldFundingRequestModal({
                   const found = tasks.find(t => t.id === newId || t.request_code === newId);
                   if (found) {
                     setProjectName(found.program_name || found.project_name || projectName);
-                    setPurpose(`Field operational facilitation & transport for conducting household vulnerability audit for ${found.beneficiary_name} (${found.request_code}) in ${found.payam || worker.payam || 'Kapoeta Town'}.`);
                   }
                 }}
                 className="w-full text-xs font-bold p-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-1 focus:ring-[#006B56] focus:bg-white outline-none text-slate-900 transition"
@@ -284,7 +281,7 @@ export function FieldFundingRequestModal({
                 className="px-2.5 py-1 bg-[#006B56] hover:bg-[#005a48] text-white text-[11px] font-bold rounded-lg shadow-xs flex items-center gap-1 transition active:scale-95 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Add Item</span>
+                <span>Add Line</span>
               </button>
             </div>
 

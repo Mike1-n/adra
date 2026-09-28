@@ -53,6 +53,10 @@ export function SupervisorMobileApp({
   const [assignmentsStatusTab, setAssignmentsStatusTab] = useState('pending');
   const [isAssignmentsExpanded, setIsAssignmentsExpanded] = useState(true);
 
+  // Facilitations sub-status filter: 'pending' | 'in_progress' | 'disbursed' | 'rejected' | 'all'
+  const [facilitationsStatusTab, setFacilitationsStatusTab] = useState('pending');
+  const [isFacilitationsExpanded, setIsFacilitationsExpanded] = useState(true);
+
   // Auxiliary subview state: null | 'assignment_details' | 'worker_details' | 'report_review' | 'notifications' | 'profile'
   const [activeSubview, setActiveSubview] = useState(null);
 
@@ -237,9 +241,36 @@ export function SupervisorMobileApp({
   const pendingReportsCount = assessments.filter(
     a => a.status === 'Under Supervisor Review' || a.status === 'Submitted'
   ).length;
-  const pendingFacilitationsCount = facilitations.filter(
-    f => f.status === 'Pending Supervisor Approval' || f.stage === 1
-  ).length;
+
+  const facilitationCounts = useMemo(() => {
+    return {
+      pending: facilitations.filter(r =>
+        !r.status?.includes('Rejected') &&
+        r.stage !== -1 &&
+        !r.returned_to_worker &&
+        r.supervisor_review?.status !== 'Rejected' &&
+        (r.status === 'Pending Supervisor Approval' || r.stage === 1)
+      ).length,
+      in_progress: facilitations.filter(
+        r =>
+          !r.status?.includes('Rejected') &&
+          r.stage !== -1 &&
+          !r.returned_to_worker &&
+          r.supervisor_review?.status !== 'Rejected' &&
+          (r.status === 'Endorsed by Supervisor' ||
+           r.status === 'Approved by Program Manager' ||
+           r.status === 'Approved (Pending Finance Disbursement)' ||
+           r.status === 'Pending Finance Disbursement' ||
+           r.stage === 2 ||
+           r.stage === 3)
+      ).length,
+      disbursed: facilitations.filter(r => r.status === 'Disbursed / Paid' || r.status === 'Disbursed' || r.stage === 4).length,
+      rejected: facilitations.filter(r => r.status?.includes('Rejected') || r.stage === -1 || r.returned_to_worker || r.supervisor_review?.status === 'Rejected').length,
+      all: facilitations.length
+    };
+  }, [facilitations]);
+
+  const pendingFacilitationsCount = facilitationCounts.pending;
 
   // Render Subview or Tab Content
   const renderContent = () => {
@@ -386,7 +417,9 @@ export function SupervisorMobileApp({
           <div className="p-4">
             <SupervisorFacilitationsView
               requests={facilitations}
-              supervisorName={activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi'}
+              supervisorName={activeSupervisor?.name || currentUser?.full_name || 'Mary Akech'}
+              initialStatusTab={facilitationsStatusTab}
+              onStatusTabChange={setFacilitationsStatusTab}
               onRefresh={() => loadData(activeSupervisor)}
               onBack={() => setActiveTab('dashboard')}
             />
@@ -745,6 +778,190 @@ export function SupervisorMobileApp({
                                 : 'bg-emerald-100 text-emerald-800'
                             }`}>
                               {assignmentCounts.completed}
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                if (item.id === 'facilitations') {
+                  return (
+                    <div key={item.id} className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsFacilitationsExpanded(!isFacilitationsExpanded);
+                          if (activeTab !== 'facilitations' || activeSubview) {
+                            setActiveSubview(null);
+                            setActiveTab('facilitations');
+                          }
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          !activeSubview && activeTab === 'facilitations'
+                            ? 'bg-amber-50 text-amber-900 border border-amber-300/80 font-black shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <Icon className={`w-4 h-4 ${!activeSubview && activeTab === 'facilitations' ? 'text-amber-700' : 'text-slate-400'}`} />
+                          <span>{item.label}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {facilitationCounts.pending > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500 text-white">
+                              {facilitationCounts.pending}
+                            </span>
+                          )}
+                          {isFacilitationsExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                          )}
+                        </div>
+                      </button>
+
+                      {isFacilitationsExpanded && (
+                        <div className="pl-3 pr-1 py-1 space-y-1 mt-0.5 border-l-2 border-amber-400 ml-4">
+                          {/* Pending */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('facilitations');
+                              setFacilitationsStatusTab('pending');
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'pending'
+                                ? 'bg-amber-600 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'pending' ? 'bg-white' : 'bg-amber-500'}`} />
+                              <span>Pending</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'pending'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {facilitationCounts.pending}
+                            </span>
+                          </button>
+
+                          {/* With PM / Finance */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('facilitations');
+                              setFacilitationsStatusTab('in_progress');
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'in_progress'
+                                ? 'bg-purple-600 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'in_progress' ? 'bg-white' : 'bg-purple-500'}`} />
+                              <span>With PM / Finance</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'in_progress'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-purple-100 text-purple-800'
+                            }`}>
+                              {facilitationCounts.in_progress}
+                            </span>
+                          </button>
+
+                          {/* Disbursed */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('facilitations');
+                              setFacilitationsStatusTab('disbursed');
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'disbursed'
+                                ? 'bg-[#006B56] text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'disbursed' ? 'bg-white' : 'bg-emerald-500'}`} />
+                              <span>Disbursed</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'disbursed'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-emerald-100 text-[#006B56]'
+                            }`}>
+                              {facilitationCounts.disbursed}
+                            </span>
+                          </button>
+
+                          {/* Returned / Rejected */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('facilitations');
+                              setFacilitationsStatusTab('rejected');
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'rejected'
+                                ? 'bg-rose-600 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'rejected' ? 'bg-white' : 'bg-rose-500'}`} />
+                              <span>Returned / Rejected</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'rejected'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}>
+                              {facilitationCounts.rejected}
+                            </span>
+                          </button>
+
+                          {/* All Facilitations */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('facilitations');
+                              setFacilitationsStatusTab('all');
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'all'
+                                ? 'bg-slate-800 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'all' ? 'bg-white' : 'bg-slate-400'}`} />
+                              <span>All Facilitations</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'all'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {facilitationCounts.all}
                             </span>
                           </button>
                         </div>

@@ -74,6 +74,12 @@ export function SupervisorAssignWorkerModal({
     });
   }, [fieldWorkers, request]);
 
+  const isReassign = Boolean(
+    request?.assigned_field_worker_name &&
+    !request.assigned_field_worker_name.includes('Pending') &&
+    !request.assigned_field_worker_name.includes('Unassigned')
+  );
+
   if (!isOpen || !request) return null;
 
   const selectedWorker = fieldWorkers.find(w => w.id === selectedWorkerId);
@@ -87,7 +93,7 @@ export function SupervisorAssignWorkerModal({
     setIsSubmitting(true);
     try {
       await onAssignSuccess(request.id || request.request_code, selectedWorker.id, selectedWorker.name, assignmentNotes, dueDate);
-      toast.success(`Assignment successfully sent to ${selectedWorker.name}.`);
+      toast.success(isReassign ? `Case successfully reassigned to ${selectedWorker.name}.` : `Assignment successfully sent to ${selectedWorker.name}.`);
       onClose();
     } catch (err) {
       toast.error(err.message || 'Failed to dispatch assignment.');
@@ -108,7 +114,9 @@ export function SupervisorAssignWorkerModal({
               <UserCheck className="w-5 h-5 text-emerald-300" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold">Assign Field Worker</h2>
+              <h2 className="text-base sm:text-lg font-bold">
+                {isReassign ? 'Change Field Worker' : 'Assign Field Worker'}
+              </h2>
               <p className="text-xs text-emerald-100/90 font-mono">
                 {request.request_code || request.id} &bull; {request.beneficiary_name}
               </p>
@@ -116,7 +124,7 @@ export function SupervisorAssignWorkerModal({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -125,6 +133,19 @@ export function SupervisorAssignWorkerModal({
         {/* Scrollable Body */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
+          {/* Currently Assigned Worker Banner (if changing) */}
+          {isReassign && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-900">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Currently Assigned: <strong>{request.assigned_field_worker_name}</strong></span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded">
+                Changing Worker
+              </span>
+            </div>
+          )}
+
           {/* Target Request Summary Card */}
           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
             <div className="flex items-center justify-between text-xs">
@@ -243,9 +264,9 @@ export function SupervisorAssignWorkerModal({
             <div className="flex items-start space-x-3">
               <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="text-xs text-amber-900">
-                <p className="font-bold">Confirm Field Worker Assignment</p>
+                <p className="font-bold">{isReassign ? 'Confirm Field Worker Reassignment' : 'Confirm Field Worker Assignment'}</p>
                 <p className="mt-0.5">
-                  Are you sure you want to assign <strong>{request.request_code}</strong> ({request.beneficiary_name}) to <strong>{selectedWorker?.name}</strong>?
+                  Are you sure you want to {isReassign ? 'reassign' : 'assign'} <strong>{request.request_code || request.id}</strong> ({request.beneficiary_name}) to <strong>{selectedWorker?.name}</strong>?
                 </p>
               </div>
             </div>
@@ -253,7 +274,7 @@ export function SupervisorAssignWorkerModal({
               <button
                 type="button"
                 onClick={() => setShowConfirm(false)}
-                className="flex-1 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100"
+                className="flex-1 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 cursor-pointer"
               >
                 Cancel
               </button>
@@ -261,13 +282,13 @@ export function SupervisorAssignWorkerModal({
                 type="button"
                 onClick={handleExecuteAssignment}
                 disabled={isSubmitting}
-                className="flex-1 py-2 text-xs font-bold text-white bg-[#006B56] hover:bg-[#005544] rounded-xl shadow-sm flex items-center justify-center space-x-1.5"
+                className="flex-1 py-2 text-xs font-bold text-white bg-[#006B56] hover:bg-[#005544] rounded-xl shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer"
               >
                 {isSubmitting ? (
                   <span>Dispatching...</span>
                 ) : (
                   <>
-                    <span>Confirm & Dispatch</span>
+                    <span>{isReassign ? 'Confirm & Reassign' : 'Confirm & Dispatch'}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </>
                 )}
@@ -282,7 +303,7 @@ export function SupervisorAssignWorkerModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100"
+              className="flex-1 py-2.5 text-xs font-bold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 cursor-pointer"
             >
               Cancel
             </button>
@@ -295,10 +316,10 @@ export function SupervisorAssignWorkerModal({
                 }
                 setShowConfirm(true);
               }}
-              className="flex-1 py-2.5 text-xs font-bold text-white bg-[#006B56] hover:bg-[#005544] rounded-xl shadow-md flex items-center justify-center space-x-1.5 transition-colors"
+              className="flex-1 py-2.5 text-xs font-bold text-white bg-[#006B56] hover:bg-[#005544] rounded-xl shadow-md flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
             >
               <UserCheck className="w-4 h-4" />
-              <span>Assign Worker</span>
+              <span>{isReassign ? 'Change Worker' : 'Assign Worker'}</span>
             </button>
           </div>
         )}

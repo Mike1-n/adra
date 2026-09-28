@@ -55,7 +55,12 @@ export function AssistanceRequestView({
   const loadRequests = async () => {
     try {
       setLoading(true);
-      const data = await db.getAssistanceRequests(beneficiary?.id || beneficiary?.beneficiary_code || 'b7');
+      const queryId = beneficiary?.id || beneficiary?.beneficiary_code || beneficiary?.full_name;
+      if (!queryId) {
+        setRequests([]);
+        return;
+      }
+      const data = await db.getAssistanceRequests(queryId);
       setRequests(data);
     } catch (e) {
       console.error(e);
@@ -78,9 +83,9 @@ export function AssistanceRequestView({
 
     try {
       await db.createAssistanceRequest({
-        beneficiary_id: beneficiary?.id || 'b7',
-        beneficiary_name: beneficiary?.full_name || 'Mary Nyambura',
-        beneficiary_code: beneficiary?.beneficiary_code || 'BEN-2025-007',
+        beneficiary_id: beneficiary?.id,
+        beneficiary_name: beneficiary?.full_name || 'Beneficiary',
+        beneficiary_code: beneficiary?.beneficiary_code || 'ADRA-SS-PENDING',
         ...formData
       });
       toast.success('Assistance request submitted successfully!');

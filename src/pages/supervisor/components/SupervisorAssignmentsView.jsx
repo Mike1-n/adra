@@ -14,7 +14,8 @@ import {
   Sparkles,
   Inbox,
   User,
-  FileCheck
+  FileCheck,
+  RefreshCw
 } from 'lucide-react';
 import { SupervisorAssignWorkerModal } from './SupervisorAssignWorkerModal';
 
@@ -259,6 +260,10 @@ export function SupervisorAssignmentsView({
               'Low': 'bg-slate-100 text-slate-700 border-slate-200'
             };
 
+            const displayStatus = !isUnassigned && (item.status === 'Assigned to Supervisor' || item.status === 'Submitted')
+              ? 'Assigned to Field Worker'
+              : (item.status_label || item.status);
+
             return (
               <div
                 key={item.id || item.request_code}
@@ -279,8 +284,12 @@ export function SupervisorAssignmentsView({
                     <p className="text-[11px] text-slate-400 font-mono">Beneficiary ID: {item.beneficiary_code || item.beneficiary_id || 'ADRA-SS-000125'}</p>
                   </div>
 
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                    {item.status_label || item.status}
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md border ${
+                    !isUnassigned
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}>
+                    {displayStatus}
                   </span>
                 </div>
 
@@ -311,11 +320,20 @@ export function SupervisorAssignmentsView({
 
                 {/* Assigned Field Worker & Date */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                  <div className="flex items-center space-x-1.5 text-slate-600">
-                    <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="font-medium truncate max-w-[150px]">
-                      {item.assigned_field_worker_name || 'Pending Assignment'}
-                    </span>
+                  <div className="flex items-center space-x-1.5">
+                    {!isUnassigned ? (
+                      <div className="flex items-center space-x-1.5 text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="font-bold text-xs truncate max-w-[170px]">
+                          {item.assigned_field_worker_name}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-1.5 text-slate-500">
+                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="font-medium text-xs">Pending Assignment</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center space-x-1 text-slate-400 font-mono text-[11px]">
@@ -344,11 +362,11 @@ export function SupervisorAssignmentsView({
                     </button>
                   ) : (
                     <button
-                      onClick={() => onSelectAssignment(item)}
-                      className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer"
+                      onClick={() => setAssignModalRequest(item)}
+                      className="flex-1 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
                     >
-                      <span>View Case Details</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Change Field Worker</span>
                     </button>
                   )}
 

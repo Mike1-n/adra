@@ -67,10 +67,14 @@ export function ProgrammeManagerDashboard({
   const [selectedProgrammeScope, setSelectedProgrammeScope] = useState('ALL');
 
   // Request Status Filter: Synchronized with Assistance module sidebar tabs
-  const [requestStatusFilter, setRequestStatusFilter] = useState('Pending Review');
+  const [requestStatusFilter, setRequestStatusFilter] = useState('ALL');
 
   // Facilitation Status Filter: Synchronized with Facilitation sidebar sub-tabs
   const [facilitationStatusFilter, setFacilitationStatusFilter] = useState('pending_pm');
+
+  // Collapsible Accordion States for Sidebar Drawer Sub-menus
+  const [isRequestsExpanded, setIsRequestsExpanded] = useState(true);
+  const [isFacilitationsExpanded, setIsFacilitationsExpanded] = useState(false);
 
   // Direct Review State (if navigated from Dashboard Recent Requests)
   const [selectedRequestToReview, setSelectedRequestToReview] = useState(null);
@@ -291,14 +295,51 @@ export function ProgrammeManagerDashboard({
     setActiveTab('requests');
   };
 
-  const statusCounts = useMemo(() => {
+  const getSupervisorStatus = (r) => {
+    return Boolean(
+      (r.assigned_supervisor_id && r.assigned_supervisor_id !== 'unassigned') ||
+      (r.assigned_supervisor_name && 
+       r.assigned_supervisor_name !== 'Unassigned' && 
+       !String(r.assigned_supervisor_name).toLowerCase().includes('pending') &&
+       r.assigned_supervisor_name !== 'Pending Supervisor')
+    );
+  };
+
+  const getFieldWorkerStatus = (r) => {
+    const rawWorker = r.assigned_field_worker_name || r.field_worker_name || '';
+    return Boolean(
+      rawWorker && 
+      rawWorker !== 'Pending Supervisor Assignment' && 
+      rawWorker !== 'Unassigned' && 
+      !String(rawWorker).toLowerCase().includes('pending')
+    );
+  };
+
+  const getAuditFinishedStatus = (r) => {
+    return Boolean(
+      r.status === 'Assessment Submitted' ||
+      r.status === 'Completed' ||
+      r.status === 'Fulfilled' ||
+      r.assessment_code ||
+      r.is_verified_on_ground === true
+    );
+  };
+
+  const requestPipelineCounts = useMemo(() => {
+    const all = scopedRequests.length;
+    const pendingSupervisor = scopedRequests.filter(r => !getSupervisorStatus(r) && r.status !== 'Rejected').length;
+    const supervisorAssigned = scopedRequests.filter(r => getSupervisorStatus(r) && !getFieldWorkerStatus(r) && !getAuditFinishedStatus(r)).length;
+    const workerInField = scopedRequests.filter(r => getFieldWorkerStatus(r) && !getAuditFinishedStatus(r)).length;
+    const auditFinished = scopedRequests.filter(r => getAuditFinishedStatus(r)).length;
+    const disbursed = scopedRequests.filter(r => r.status === 'Completed' || r.status === 'Fulfilled' || r.status === 'Disbursed').length;
+
     return {
-      all: scopedRequests.length,
-      pending: scopedRequests.filter(r => r.status === 'Submitted' || r.status === 'Under Review' || r.status === 'Pending' || r.status === 'Pending Review' || r.status === 'My Decision').length,
-      approved: scopedRequests.filter(r => r.status === 'Approved' || r.status === 'Assigned to Supervisor').length,
-      inField: scopedRequests.filter(r => r.status === 'In Progress' || r.status === 'In Field').length,
-      completed: scopedRequests.filter(r => r.status === 'Completed' || r.status === 'Fulfilled').length,
-      rejected: scopedRequests.filter(r => r.status === 'Rejected').length,
+      all,
+      pendingSupervisor,
+      supervisorAssigned,
+      workerInField,
+      auditFinished,
+      disbursed
     };
   }, [scopedRequests]);
 
@@ -320,7 +361,7 @@ export function ProgrammeManagerDashboard({
     };
   }, [facilitations]);
 
-  const pendingRequestsCount = statusCounts.pending;
+  const pendingRequestsCount = requestPipelineCounts.pendingSupervisor;
   const pendingPMFacilitationsCount = facilitationCounts.pending_pm;
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -437,13 +478,13 @@ export function ProgrammeManagerDashboard({
             </div>
           </div>
 
-          {/* 3. Navigation List */}
+          {/* 3. Navigation List (Streamlined Essential Views) */}
           <div className="flex-1 overflow-y-auto p-2.5 space-y-1 text-xs font-semibold">
             {/* Overview / Dashboard */}
             <button
               type="button"
               onClick={() => handleNavClick('dashboard')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
                 activeTab === 'dashboard'
                   ? 'bg-[#006B56] text-white font-bold shadow-xs'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
@@ -455,94 +496,186 @@ export function ProgrammeManagerDashboard({
               </div>
             </button>
 
-            {/* Facilitations Sign-Off */}
+            {/* Assistance Requests with Collapsible Pipeline Sub-Filters */}
             <div className="space-y-0.5">
-              <button
-                type="button"
-                onClick={() => handleNavClick('facilitations')}
+              <div
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
+                  activeTab === 'requests'
+                    ? 'bg-[#006B56] text-white font-bold shadow-xs'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <div
+                  onClick={() => {
+                    setRequestStatusFilter('ALL');
+                    handleNavClick('requests');
+                    setIsRequestsExpanded(true);
+                  }}
+                  className="flex items-center space-x-2.5 flex-1 min-w-0"
+                >
+                  <HeartHandshake className={`w-4 h-4 ${activeTab === 'requests' ? 'text-white' : 'text-[#006B56]'}`} />
+                  <span className="truncate">Assistance Requests</span>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {pendingRequestsCount > 0 && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                      activeTab === 'requests' ? 'bg-white text-[#006B56]' : 'bg-rose-600 text-white shadow-2xs'
+                    }`}>
+                      {pendingRequestsCount}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsRequestsExpanded(prev => !prev);
+                    }}
+                    className={`p-1 rounded-lg transition hover:bg-black/10 cursor-pointer ${
+                      activeTab === 'requests' ? 'text-white' : 'text-slate-400'
+                    }`}
+                    title={isRequestsExpanded ? 'Collapse sub-filters' : 'Expand sub-filters'}
+                  >
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isRequestsExpanded ? 'rotate-180' : ''
+                    }`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Collapsible Assistance Request Sub-Filters */}
+              {isRequestsExpanded && (
+                <div className="pl-6 pr-1 py-1 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                  {[
+                    { id: 'ALL', label: 'All Requests', count: requestPipelineCounts.all, color: 'text-slate-800 bg-slate-100' },
+                    { id: 'Pending Supervisor', label: 'Pending Supervisor', count: requestPipelineCounts.pendingSupervisor, color: 'text-rose-800 bg-rose-100' },
+                    { id: 'Supervisor Assigned', label: 'Supervisor Assigned', count: requestPipelineCounts.supervisorAssigned, color: 'text-amber-800 bg-amber-100' },
+                    { id: 'Field Worker Assigned', label: 'Worker in Field', count: requestPipelineCounts.workerInField, color: 'text-blue-800 bg-blue-100' },
+                    { id: 'Audit Completed', label: 'Audit Finished', count: requestPipelineCounts.auditFinished, color: 'text-emerald-800 bg-emerald-100' },
+                    { id: 'Disbursed', label: 'Disbursed / Done', count: requestPipelineCounts.disbursed, color: 'text-teal-800 bg-teal-100' }
+                  ].map(sub => {
+                    const isSubActive = activeTab === 'requests' && (
+                      (requestStatusFilter === 'ALL' && sub.id === 'ALL') ||
+                      (requestStatusFilter !== 'ALL' && String(requestStatusFilter).toLowerCase() === String(sub.id).toLowerCase())
+                    );
+                    return (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => {
+                          setRequestStatusFilter(sub.id);
+                          setActiveTab('requests');
+                          setIsSidebarOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                          isSubActive
+                            ? 'bg-emerald-50 text-[#006B56] font-bold border border-emerald-200 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="truncate">{sub.label}</span>
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-black shrink-0 ${
+                          isSubActive ? 'bg-emerald-200/80 text-emerald-950' : sub.color
+                        }`}>
+                          {sub.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Facilitations Sign-Off with Collapsible Sub-Filters */}
+            <div className="space-y-0.5">
+              <div
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
                   activeTab === 'facilitations'
                     ? 'bg-[#006B56] text-white font-bold shadow-xs'
                     : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
-                <div className="flex items-center space-x-2.5">
+                <div
+                  onClick={() => {
+                    setFacilitationStatusFilter('pending_pm');
+                    handleNavClick('facilitations');
+                    setIsFacilitationsExpanded(true);
+                  }}
+                  className="flex items-center space-x-2.5 flex-1 min-w-0"
+                >
                   <Banknote className={`w-4 h-4 ${activeTab === 'facilitations' ? 'text-white' : 'text-amber-600'}`} />
-                  <span>Facilitation Sign-Off</span>
+                  <span className="truncate">Facilitation Sign-Off</span>
                 </div>
-                {facilitationCounts.pending_pm > 0 && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
-                    activeTab === 'facilitations' ? 'bg-white text-[#006B56]' : 'bg-amber-500 text-slate-900 animate-pulse'
-                  }`}>
-                    {facilitationCounts.pending_pm} Auth
-                  </span>
-                )}
-              </button>
 
-              {/* Facilitation Sub-Filter Menu inside Sidebar */}
-              <div className="pl-6 pr-1 py-1 space-y-1">
-                {[
-                  { id: 'pending_pm', label: 'Pending Review', count: facilitationCounts.pending_pm, color: 'text-amber-800 bg-amber-100' },
-                  { id: 'approved_pm', label: 'Authorized', count: facilitationCounts.approved_pm, color: 'text-blue-800 bg-blue-100' },
-                  { id: 'disbursed', label: 'Disbursed', count: facilitationCounts.disbursed, color: 'text-emerald-800 bg-emerald-100' },
-                  { id: 'all', label: 'All Facilitations', count: facilitationCounts.all, color: 'text-slate-800 bg-slate-100' }
-                ].map(sub => {
-                  const isSubActive = activeTab === 'facilitations' && facilitationStatusFilter === sub.id;
-                  return (
-                    <button
-                      key={sub.id}
-                      type="button"
-                      onClick={() => {
-                        setFacilitationStatusFilter(sub.id);
-                        setActiveTab('facilitations');
-                        setIsSidebarOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
-                        isSubActive
-                          ? 'bg-emerald-50 text-[#006B56] font-bold border border-emerald-200 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                      }`}
-                    >
-                      <span>{sub.label}</span>
-                      <span className={`px-1.5 py-0.2 rounded text-[10px] font-black ${
-                        isSubActive ? 'bg-emerald-200/80 text-emerald-950' : sub.color
-                      }`}>
-                        {sub.count}
-                      </span>
-                    </button>
-                  );
-                })}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {facilitationCounts.pending_pm > 0 && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                      activeTab === 'facilitations' ? 'bg-white text-[#006B56]' : 'bg-amber-500 text-slate-950 shadow-2xs'
+                    }`}>
+                      {facilitationCounts.pending_pm}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsFacilitationsExpanded(prev => !prev);
+                    }}
+                    className={`p-1 rounded-lg transition hover:bg-black/10 cursor-pointer ${
+                      activeTab === 'facilitations' ? 'text-white' : 'text-slate-400'
+                    }`}
+                    title={isFacilitationsExpanded ? 'Collapse sub-filters' : 'Expand sub-filters'}
+                  >
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isFacilitationsExpanded ? 'rotate-180' : ''
+                    }`} />
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* Assistance Requests */}
-            <button
-              type="button"
-              onClick={() => handleNavClick('requests')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
-                activeTab === 'requests'
-                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <HeartHandshake className={`w-4 h-4 ${activeTab === 'requests' ? 'text-white' : 'text-[#006B56]'}`} />
-                <span>Assistance Requests</span>
-              </div>
-              {pendingRequestsCount > 0 && (
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
-                  activeTab === 'requests' ? 'bg-white text-[#006B56]' : 'bg-rose-600 text-white'
-                }`}>
-                  {pendingRequestsCount}
-                </span>
+              {/* Collapsible Facilitation Sub-Filters */}
+              {isFacilitationsExpanded && (
+                <div className="pl-6 pr-1 py-1 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                  {[
+                    { id: 'pending_pm', label: 'Pending Review', count: facilitationCounts.pending_pm, color: 'text-amber-800 bg-amber-100' },
+                    { id: 'approved_pm', label: 'Authorized', count: facilitationCounts.approved_pm, color: 'text-blue-800 bg-blue-100' },
+                    { id: 'disbursed', label: 'Disbursed', count: facilitationCounts.disbursed, color: 'text-emerald-800 bg-emerald-100' },
+                    { id: 'all', label: 'All Facilitations', count: facilitationCounts.all, color: 'text-slate-800 bg-slate-100' }
+                  ].map(sub => {
+                    const isSubActive = activeTab === 'facilitations' && facilitationStatusFilter === sub.id;
+                    return (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => {
+                          setFacilitationStatusFilter(sub.id);
+                          setActiveTab('facilitations');
+                          setIsSidebarOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                          isSubActive
+                            ? 'bg-emerald-50 text-[#006B56] font-bold border border-emerald-200 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="truncate">{sub.label}</span>
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-black shrink-0 ${
+                          isSubActive ? 'bg-emerald-200/80 text-emerald-950' : sub.color
+                        }`}>
+                          {sub.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
-            </button>
+            </div>
 
             {/* Active Programmes */}
             <button
               type="button"
               onClick={() => handleNavClick('programmes')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
                 activeTab === 'programmes'
                   ? 'bg-[#006B56] text-white font-bold shadow-xs'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
@@ -552,7 +685,7 @@ export function ProgrammeManagerDashboard({
                 <Briefcase className={`w-4 h-4 ${activeTab === 'programmes' ? 'text-white' : 'text-slate-500'}`} />
                 <span>Programmes Portfolio</span>
               </div>
-              <span className="text-[10px] text-slate-400 font-bold">
+              <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded-md">
                 {programmes.length}
               </span>
             </button>
@@ -561,7 +694,7 @@ export function ProgrammeManagerDashboard({
             <button
               type="button"
               onClick={() => handleNavClick('supervisors')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
                 activeTab === 'supervisors'
                   ? 'bg-[#006B56] text-white font-bold shadow-xs'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
@@ -571,92 +704,16 @@ export function ProgrammeManagerDashboard({
                 <Users className={`w-4 h-4 ${activeTab === 'supervisors' ? 'text-white' : 'text-slate-500'}`} />
                 <span>Field Supervisors</span>
               </div>
-              <span className="text-[10px] text-slate-400 font-bold">
+              <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded-md">
                 {supervisors.length}
               </span>
             </button>
 
-            {/* Beneficiary Registry */}
-            <button
-              type="button"
-              onClick={() => handleNavClick('beneficiaries')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
-                activeTab === 'beneficiaries'
-                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <UserCheck className={`w-4 h-4 ${activeTab === 'beneficiaries' ? 'text-white' : 'text-slate-500'}`} />
-                <span>Household Registry</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-bold">
-                {beneficiaries.length}
-              </span>
-            </button>
-
-            {/* Field Activities */}
-            <button
-              type="button"
-              onClick={() => handleNavClick('activities')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
-                activeTab === 'activities'
-                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <Activity className={`w-4 h-4 ${activeTab === 'activities' ? 'text-white' : 'text-slate-500'}`} />
-                <span>Field Activity Logs</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-bold">
-                {activities.length}
-              </span>
-            </button>
-
-            {/* Aid Distributions */}
-            <button
-              type="button"
-              onClick={() => handleNavClick('distributions')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
-                activeTab === 'distributions'
-                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <Truck className={`w-4 h-4 ${activeTab === 'distributions' ? 'text-white' : 'text-slate-500'}`} />
-                <span>Aid Distributions</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-bold">
-                {distributions.length}
-              </span>
-            </button>
-
-            {/* Resources & Depots */}
-            <button
-              type="button"
-              onClick={() => handleNavClick('resources')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
-                activeTab === 'resources'
-                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <Boxes className={`w-4 h-4 ${activeTab === 'resources' ? 'text-white' : 'text-slate-500'}`} />
-                <span>Resources & Depots</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-bold">
-                {resources.length}
-              </span>
-            </button>
-
-            {/* Reports & Analytics */}
+            {/* Reports & Analytics (Consolidated Operations Hub) */}
             <button
               type="button"
               onClick={() => handleNavClick('reports')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
                 activeTab === 'reports'
                   ? 'bg-[#006B56] text-white font-bold shadow-xs'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
@@ -667,6 +724,8 @@ export function ProgrammeManagerDashboard({
                 <span>Reports & Analytics</span>
               </div>
             </button>
+
+            <div className="pt-2 pb-1 border-t border-slate-100 my-1" />
 
             {/* Notifications */}
             <button
@@ -683,7 +742,7 @@ export function ProgrammeManagerDashboard({
                 <span>Notifications</span>
               </div>
               {unreadCount > 0 && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-rose-500 text-white">
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-rose-500 text-white shadow-2xs">
                   {unreadCount}
                 </span>
               )}

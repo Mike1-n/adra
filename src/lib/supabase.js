@@ -750,21 +750,35 @@ export const db = {
   // --- BENEFICIARY PORTAL & ASSISTANCE REQUESTS ---
   async getAssistanceRequests(beneficiaryId = null) {
     const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    const isTestOrMock = (r) => (
+      !r ||
+      r.id === 'req-128' || 
+      (typeof r.id === 'string' && (r.id.startsWith('req-10') || r.id.startsWith('TEST-REQ-') || r.id.startsWith('test-'))) ||
+      (typeof r.request_code === 'string' && (
+        r.request_code.startsWith('TEST-REQ-') ||
+        r.request_code.startsWith('ADR-REQ-TEST') ||
+        r.request_code.startsWith('ADR-REQ-2026-0010') ||
+        r.request_code === 'ADR-REQ-2026-00128' ||
+        r.request_code === 'ADR-REQ-2026-00129'
+      ))
+    );
+
     let remoteData = null;
 
     if (isSupabaseConfigured) {
       try {
         let query = supabase.from('assistance_requests').select('*').order('created_at', { ascending: false });
         if (beneficiaryId) {
-          if (isUUID(beneficiaryId)) {
-            query = query.or(`beneficiary_id.eq.${beneficiaryId},beneficiary_code.eq.${beneficiaryId},beneficiary_name.ilike.%${beneficiaryId}%`);
+          const cleanId = String(beneficiaryId).trim();
+          if (isUUID(cleanId)) {
+            query = query.or(`beneficiary_id.eq.${cleanId},beneficiary_code.eq.${cleanId},beneficiary_name.ilike.%${cleanId}%`);
           } else {
-            query = query.or(`beneficiary_code.eq.${beneficiaryId},beneficiary_name.ilike.%${beneficiaryId}%`);
+            query = query.or(`beneficiary_code.eq.${cleanId},beneficiary_name.ilike.%${cleanId}%`);
           }
         }
         const { data, error } = await query;
         if (!error && data) {
-          remoteData = data.map(normalizeAssistanceRequest);
+          remoteData = data.filter(r => !isTestOrMock(r)).map(normalizeAssistanceRequest);
         } else if (error) {
           console.warn('Supabase getAssistanceRequests warning:', error.message);
         }
@@ -774,26 +788,32 @@ export const db = {
     }
 
     if (remoteData !== null) {
-      saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, remoteData);
-      return remoteData;
+      const rawLocal = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, []);
+      const merged = [...remoteData];
+      for (const loc of (Array.isArray(rawLocal) ? rawLocal : [])) {
+        if (!isTestOrMock(loc) && !merged.some(r => r.id === loc.id || r.request_code === loc.request_code)) {
+          merged.push(normalizeAssistanceRequest(loc));
+        }
+      }
+      saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, merged);
+
+      if (beneficiaryId) {
+        const target = String(beneficiaryId).toLowerCase().trim();
+        return merged.filter(r => 
+          (r.beneficiary_id && String(r.beneficiary_id).toLowerCase() === target) || 
+          (r.beneficiary_code && String(r.beneficiary_code).toLowerCase() === target) || 
+          (r.beneficiary_name && String(r.beneficiary_name).toLowerCase().includes(target))
+        );
+      }
+      return merged;
     }
 
     const rawLocal = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, []);
-    const isMock = (r) => (
-      r.id === 'req-128' || 
-      (typeof r.id === 'string' && r.id.startsWith('req-10')) ||
-      (typeof r.request_code === 'string' && (
-        r.request_code.startsWith('ADR-REQ-TEST') ||
-        r.request_code.startsWith('ADR-REQ-2026-0010') ||
-        r.request_code === 'ADR-REQ-2026-00128' ||
-        r.request_code === 'ADR-REQ-2026-00129'
-      ))
-    );
-    const cleanedLocal = (Array.isArray(rawLocal) ? rawLocal : []).filter(r => !isMock(r)).map(normalizeAssistanceRequest);
+    const cleanedLocal = (Array.isArray(rawLocal) ? rawLocal : []).filter(r => !isTestOrMock(r)).map(normalizeAssistanceRequest);
     saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, cleanedLocal);
 
     if (beneficiaryId) {
-      const target = String(beneficiaryId).toLowerCase();
+      const target = String(beneficiaryId).toLowerCase().trim();
       return cleanedLocal.filter(r => 
         (r.beneficiary_id && String(r.beneficiary_id).toLowerCase() === target) || 
         (r.beneficiary_code && String(r.beneficiary_code).toLowerCase() === target) || 
@@ -804,31 +824,99 @@ export const db = {
   },
 
   async createAssistanceRequest(requestData) {
+    const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     const all = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, []);
-    const nextNum = (140 + all.length).toString().padStart(5, '0');
     
-    // Parse location parts if needed
+    // 1. Calculate guaranteed collision-free request code
+    let maxNum = 140;
+    for (const r of all) {
+      const match = (r.request_code || '').match(/(\d+)$/);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > maxNum && n < 99999) maxNum = n;
+      }
+    }
+
+    let candidateCode = requestData.request_code;
+    if (!candidateCode || candidateCode === 'ADR-REQ-2026-00140') {
+      candidateCode = `ADR-REQ-2026-${String(maxNum + 1).padStart(5, '0')}`;
+    }
+
+    // Parse location parts and resolve real state/county
     let state = requestData.state;
     let county = requestData.county;
     let payam = requestData.payam;
     let boma = requestData.boma;
     let village = requestData.village || requestData.village_area;
-    if (requestData.location && (!state || !county)) {
-      const parts = requestData.location.split(',').map(s => s.trim());
-      if (parts[0] && !state) state = parts[0];
-      if (parts[1] && !county) county = parts[1];
-      if (parts[2] && !payam) payam = parts[2];
-      if (parts[3] && !boma) boma = parts[3];
-      if (parts[4] && !village) village = parts[4];
+    let location = requestData.location;
+
+    // If state/location not fully provided, check registered beneficiary record
+    if (!state || !location) {
+      const allBens = getLocalData(STORAGE_KEYS.BENEFICIARIES, []);
+      const benMatch = allBens.find(b => 
+        (requestData.beneficiary_id && (b.id === requestData.beneficiary_id || b.beneficiary_code === requestData.beneficiary_id)) ||
+        (requestData.beneficiary_code && b.beneficiary_code === requestData.beneficiary_code) ||
+        (requestData.beneficiary_name && b.full_name && b.full_name.toLowerCase() === requestData.beneficiary_name.toLowerCase())
+      );
+      if (benMatch) {
+        if (!state) state = benMatch.state;
+        if (!county) county = benMatch.county;
+        if (!payam) payam = benMatch.payam;
+        if (!location) location = benMatch.location;
+      }
     }
 
-    const category = requestData.category || requestData.categories?.join(', ') || 'Food, Water';
+    // Infer state from text if missing or if county/location mentions known South Sudan regions
+    const locText = `${location || ''} ${county || ''} ${requestData.preferred_depot || ''}`.toLowerCase();
+    if (!state || state.toLowerCase() === 'south sudan') {
+      if (locText.includes('juba') || locText.includes('central equatoria') || locText.includes('kator') || locText.includes('munuki')) {
+        state = 'Central Equatoria';
+        if (!county) county = 'Juba';
+        if (!payam) payam = 'Juba Central';
+      } else if (locText.includes('kapoeta') || locText.includes('torit') || locText.includes('magwi') || locText.includes('eastern equatoria')) {
+        state = 'Eastern Equatoria';
+        if (!county) county = locText.includes('torit') ? 'Torit' : locText.includes('magwi') ? 'Magwi' : 'Kapoeta South';
+      } else if (locText.includes('bor') || locText.includes('jonglei')) {
+        state = 'Jonglei';
+        if (!county) county = 'Bor';
+      } else if (locText.includes('malakal') || locText.includes('upper nile')) {
+        state = 'Upper Nile';
+        if (!county) county = 'Malakal';
+      } else if (locText.includes('wau') || locText.includes('western bahr')) {
+        state = 'Western Bahr el Ghazal';
+        if (!county) county = 'Wau';
+      } else if (locText.includes('aweil') || locText.includes('northern bahr')) {
+        state = 'Northern Bahr el Ghazal';
+        if (!county) county = 'Aweil Centre';
+      } else if (locText.includes('yambio') || locText.includes('western equatoria')) {
+        state = 'Western Equatoria';
+        if (!county) county = 'Yambio';
+      } else if (locText.includes('bentiu') || locText.includes('unity')) {
+        state = 'Unity';
+        if (!county) county = 'Rubkona';
+      } else if (locText.includes('rumbek') || locText.includes('lakes')) {
+        state = 'Lakes';
+        if (!county) county = 'Rumbek Central';
+      } else if (locText.includes('kuajok') || locText.includes('warrap')) {
+        state = 'Warrap';
+        if (!county) county = 'Gogrial West';
+      } else {
+        state = 'Central Equatoria';
+        county = county || 'Juba';
+      }
+    }
+
+    if (!location) {
+      location = [state, county, payam, boma, village].filter(Boolean).join(', ') || `${state}, ${county || 'Central'}`;
+    }
+
+    const category = requestData.category || requestData.categories?.join(', ') || 'Food Assistance';
     const urgency = requestData.urgency || requestData.priority || 'High';
     const reason = requestData.reason || requestData.description || 'Beneficiary assistance request';
 
     const newReq = normalizeAssistanceRequest({
       id: isSupabaseConfigured ? undefined : `req_${Date.now()}`,
-      request_code: requestData.request_code || `ADR-REQ-2026-${nextNum}`,
+      request_code: candidateCode,
       status: 'Submitted',
       status_label: 'Pending Review',
       status_stage: 1,
@@ -842,17 +930,17 @@ export const db = {
       priority: urgency,
       reason,
       description: reason,
-      state: state || 'Eastern Equatoria',
-      county: county || 'Kapoeta South',
-      payam: payam || 'Kapoeta Town',
-      boma: boma || 'nn',
-      village: village || 'jkkfg',
-      location: requestData.location || `${state || 'Eastern Equatoria'}, ${county || 'Kapoeta South'}, ${payam || 'Kapoeta Town'}`,
+      state: state || 'Central Equatoria',
+      county: county || 'Juba',
+      payam: payam || 'Juba Central',
+      boma: boma || 'Central',
+      village: village || 'Juba Central',
+      location: location,
       program_name: requestData.program_name || requestData.project_name || 'Emergency Food Security & Livelihoods Resilience (EFSLR)',
       programme_name: requestData.programme_name || requestData.program_name || requestData.project_name || 'Emergency Food Security & Livelihoods Resilience (EFSLR)',
-      program_id: requestData.program_id || requestData.project_id || 'prg1',
+      program_id: requestData.program_id || requestData.project_id || null,
       household_members: Number(requestData.household_members) || 1,
-      preferred_depot: requestData.preferred_depot || `${county || 'Kapoeta South'} Distribution Depot`,
+      preferred_depot: requestData.preferred_depot || `${county || 'Juba'} Distribution Depot`,
       eligibility: 'Eligible (High Vulnerability)',
       eligibility_status: 'Verified',
       verification_status: 'Verified Active',
@@ -861,12 +949,12 @@ export const db = {
       assigned_supervisor_id: null,
       assigned_supervisor_name: 'Unassigned',
       assigned_field_worker_name: 'Pending Supervisor Assignment',
-      ...requestData
+      ...requestData,
+      request_code: candidateCode
     });
 
     if (isSupabaseConfigured) {
       try {
-        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
         const ALLOWED_COLS = new Set([
           'id', 'request_code', 'beneficiary_id', 'beneficiary_name', 'beneficiary_code',
           'category', 'assistance_type', 'urgency', 'priority', 'status', 'status_label',
@@ -878,8 +966,48 @@ export const db = {
           'review_notes', 'expected_dispatch_date', 'additional_info', 'created_at', 'updated_at'
         ]);
 
+        // Auto-resolve beneficiary_id to Supabase UUID if mock ID was passed
+        let resolvedBeneficiaryId = isUUID(newReq.beneficiary_id) ? newReq.beneficiary_id : null;
+        if (!resolvedBeneficiaryId && (newReq.beneficiary_code || newReq.beneficiary_name)) {
+          try {
+            const benCode = newReq.beneficiary_code;
+            const benName = newReq.beneficiary_name;
+            let bQuery = supabase.from('beneficiaries').select('id, full_name, beneficiary_code');
+            if (benCode && benName) {
+              bQuery = bQuery.or(`beneficiary_code.eq.${benCode},full_name.ilike.%${benName}%`);
+            } else if (benCode) {
+              bQuery = bQuery.eq('beneficiary_code', benCode);
+            } else if (benName) {
+              bQuery = bQuery.ilike('full_name', `%${benName}%`);
+            }
+            const { data: bMatch } = await bQuery.limit(1).maybeSingle();
+            if (bMatch?.id) {
+              resolvedBeneficiaryId = bMatch.id;
+              if (!newReq.beneficiary_name && bMatch.full_name) newReq.beneficiary_name = bMatch.full_name;
+              if (!newReq.beneficiary_code && bMatch.beneficiary_code) newReq.beneficiary_code = bMatch.beneficiary_code;
+            }
+          } catch (_) {}
+        }
+
+        // Query remote database max request code
+        try {
+          const { data: remoteCodes } = await supabase.from('assistance_requests').select('request_code').order('created_at', { ascending: false }).limit(50);
+          if (remoteCodes && remoteCodes.length > 0) {
+            for (const item of remoteCodes) {
+              const m = (item.request_code || '').match(/(\d+)$/);
+              if (m) {
+                const val = parseInt(m[1], 10);
+                if (val >= maxNum && val < 99999) maxNum = val;
+              }
+            }
+            candidateCode = `ADR-REQ-2026-${String(maxNum + 1).padStart(5, '0')}`;
+            newReq.request_code = candidateCode;
+          }
+        } catch (_) {}
+
         const raw = {
           ...newReq,
+          beneficiary_id: resolvedBeneficiaryId,
           program_name: newReq.program_name || newReq.programme_name || requestData.project_name || 'Emergency Food Security & Livelihoods Resilience (EFSLR)',
           programme_name: newReq.programme_name || newReq.program_name || requestData.project_name || 'Emergency Food Security & Livelihoods Resilience (EFSLR)',
           village: newReq.village || requestData.village_area || 'Kapoeta Town',
@@ -899,10 +1027,20 @@ export const db = {
         }
         if (!supabasePayload.id) delete supabasePayload.id;
 
-        const { data, error } = await supabase.from('assistance_requests').insert([supabasePayload]).select().single();
+        let { data, error } = await supabase.from('assistance_requests').insert([supabasePayload]).select().single();
+        
+        // If unique code collision occurs, retry with a fresh timestamp-based code
+        if (error && (error.code === '23505' || String(error.message).includes('unique'))) {
+          const retryCode = `ADR-REQ-2026-${String(Date.now()).slice(-5)}`;
+          supabasePayload.request_code = retryCode;
+          const retryRes = await supabase.from('assistance_requests').insert([supabasePayload]).select().single();
+          data = retryRes.data;
+          error = retryRes.error;
+        }
+
         if (!error && data) {
           const normalized = normalizeAssistanceRequest(data);
-          const updated = [normalized, ...all];
+          const updated = [normalized, ...all.filter(r => r.id !== normalized.id && r.request_code !== normalized.request_code)];
           saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
           db.logAudit({
             action: 'CREATE',
@@ -912,10 +1050,10 @@ export const db = {
           });
           return normalized;
         } else if (error) {
-          console.warn('Supabase assistance_requests insert warning (saving locally):', error.message);
+          console.warn('Supabase assistance_requests insert error:', error.message);
         }
       } catch (err) {
-        console.warn('Supabase assistance_requests insert error (falling back to local):', err);
+        console.warn('Supabase assistance_requests insert error:', err);
       }
     }
 
@@ -1287,19 +1425,103 @@ export const db = {
 
   // --- SUPERVISOR MODULE: FIELD WORKERS ---
   async getFieldWorkers(supervisorId = null) {
-    const allWorkers = getLocalData(STORAGE_KEYS.FIELD_WORKERS, mock.initialFieldWorkers || []);
-    if (supervisorId && supervisorId !== 'all') {
-      const cleanSup = String(supervisorId).toLowerCase().trim();
-      const filtered = allWorkers.filter(w => {
-        if (!w.supervisor_id) return true;
-        if (w.supervisor_id === supervisorId) return true;
-        if (w.supervisor_name && w.supervisor_name.toLowerCase().includes(cleanSup)) return true;
-        if (w.state && w.state.toLowerCase() === cleanSup) return true;
-        return false;
-      });
-      return filtered.length > 0 ? filtered : allWorkers.slice(0, 5);
+    let allWorkers = getLocalData(STORAGE_KEYS.FIELD_WORKERS, mock.initialFieldWorkers || []);
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data: dbProfiles, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('role', 'Field Worker')
+          .order('full_name', { ascending: true });
+
+        if (!error && dbProfiles && dbProfiles.length > 0) {
+          const mappedDb = dbProfiles.map((p, idx) => {
+            let state = '';
+            let county = '';
+            if (p.department) {
+              const match = p.department.match(/\((.*?)\s*-\s*(.*?)\)/);
+              if (match) {
+                state = match[1].trim();
+                county = match[2].trim();
+              } else {
+                const stateMatch = p.department.match(/\((.*?)\)/);
+                if (stateMatch) state = stateMatch[1].trim();
+              }
+            }
+
+            const localMatch = allWorkers.find(m => 
+              m.id === p.id || 
+              m.email?.toLowerCase() === p.email?.toLowerCase() ||
+              m.name?.toLowerCase() === p.full_name?.toLowerCase()
+            ) || {};
+
+            return {
+              id: p.id || localMatch.id || `fw-${idx + 1}`,
+              name: p.full_name || localMatch.name || 'Field Worker',
+              role: 'Field Worker',
+              email: p.email,
+              phone: p.phone || localMatch.phone || '+211-920-000000',
+              supervisor_id: localMatch.supervisor_id || null,
+              supervisor_name: localMatch.supervisor_name || null,
+              programme: localMatch.programme || 'Emergency Food Security & Livelihoods Resilience',
+              state: state || localMatch.state || 'Central Equatoria',
+              county: county || localMatch.county || 'Juba',
+              payam: localMatch.payam || 'Central',
+              boma: localMatch.boma || 'Central',
+              assigned_area: p.department || localMatch.assigned_area || `${state || 'Central Equatoria'} (${county || 'Juba'})`,
+              current_status: localMatch.current_status || 'Available',
+              active_assignments: localMatch.active_assignments || 0,
+              completed_assignments: localMatch.completed_assignments || 12,
+              pending_reports: localMatch.pending_reports || 0,
+              overdue_assessments: localMatch.overdue_assessments || 0,
+              avatar: p.avatar_url || localMatch.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
+            };
+          });
+
+          allWorkers = mappedDb;
+          saveLocalData(STORAGE_KEYS.FIELD_WORKERS, mappedDb);
+        }
+      } catch (err) {
+        console.warn('Failed to query profiles for field workers:', err?.message);
+      }
     }
-    return allWorkers;
+
+    if (!supervisorId || supervisorId === 'all') {
+      return allWorkers;
+    }
+
+    const sups = await this.getSupervisors();
+    const cleanSup = String(supervisorId).toLowerCase().trim();
+    const sup = sups.find(s => 
+      String(s.id).toLowerCase() === cleanSup ||
+      String(s.email || '').toLowerCase() === cleanSup ||
+      String(s.name || '').toLowerCase() === cleanSup ||
+      (cleanSup === 'sup-1' && s.name?.toLowerCase().includes('adeyemi')) ||
+      (cleanSup === 'sup-2' && s.name?.toLowerCase().includes('akech')) ||
+      (cleanSup === 'sup-3' && s.name?.toLowerCase().includes('david'))
+    );
+
+    const supId = sup?.id ? String(sup.id).toLowerCase() : cleanSup;
+    const supName = sup?.name ? sup.name.toLowerCase() : '';
+    const supState = sup?.state ? sup.state.toLowerCase() : '';
+
+    const filtered = allWorkers.filter(w => {
+      const wSupId = String(w.supervisor_id || '').toLowerCase().trim();
+      const wSupName = String(w.supervisor_name || '').toLowerCase().trim();
+      const wState = String(w.state || '').toLowerCase().trim();
+
+      if (wSupId && (wSupId === cleanSup || wSupId === supId)) return true;
+      if (cleanSup === 'sup-1' && wSupId === 'a0000001-0000-0000-0000-000000000001') return true;
+      if (cleanSup === 'sup-2' && wSupId === 'a0000001-0000-0000-0000-000000000002') return true;
+      if (cleanSup === 'sup-3' && wSupId === 'a0000001-0000-0000-0000-000000000003') return true;
+
+      if (supName && wSupName && (wSupName.includes(supName) || supName.includes(wSupName))) return true;
+      if (supState && wState && (wState.includes(supState) || supState.includes(wState))) return true;
+      return false;
+    });
+
+    return filtered.length > 0 ? filtered : allWorkers;
   },
 
   async getFieldWorkerById(workerId) {
@@ -1318,27 +1540,46 @@ export const db = {
   async getSupervisorAssignments(supervisorId = null) {
     // 1. Fetch live assistance requests from database / local store
     const allRequests = await this.getAssistanceRequests();
+    if (!supervisorId || supervisorId === 'all') return allRequests;
 
-    // 2. Filter requests assigned to supervisor or pending supervisor action
+    const sups = await this.getSupervisors();
+    const cleanSupId = String(supervisorId).toLowerCase().trim();
+    const sup = sups.find(s => 
+      String(s.id).toLowerCase() === cleanSupId ||
+      String(s.email || '').toLowerCase() === cleanSupId ||
+      String(s.name || '').toLowerCase() === cleanSupId ||
+      (cleanSupId === 'sup-1' && s.name?.toLowerCase().includes('adeyemi')) ||
+      (cleanSupId === 'sup-2' && s.name?.toLowerCase().includes('akech')) ||
+      (cleanSupId === 'sup-3' && s.name?.toLowerCase().includes('david'))
+    );
+
+    const supId = sup?.id ? String(sup.id).toLowerCase() : cleanSupId;
+    const supName = sup?.name ? sup.name.toLowerCase() : '';
+    const supState = sup?.state ? sup.state.toLowerCase() : '';
+
     return allRequests.filter(r => {
-      if (!supervisorId || supervisorId === 'all') return true;
-      const matchSupId = r.assigned_supervisor_id === supervisorId;
-      const matchSupName = r.assigned_supervisor_name && supervisorId && (
-        r.assigned_supervisor_name.toLowerCase().includes(String(supervisorId).toLowerCase())
-      );
-      const isAssignedOrForwarded = [
-        'Assigned to Supervisor',
-        'Assigned to Field Worker',
-        'Assessment In Progress',
-        'Assessment Submitted',
-        'Correction Required',
-        'Awaiting Program Manager Decision',
-        'Approved',
-        'Distributed',
-        'Completed'
-      ].includes(r.status);
+      const rSupId = String(r.assigned_supervisor_id || '').toLowerCase().trim();
+      const rSupName = String(r.assigned_supervisor_name || '').toLowerCase().trim();
+      const rState = String(r.state || '').toLowerCase().trim();
 
-      return (matchSupId || matchSupName || isAssignedOrForwarded);
+      // 1. Explicit ID match (UUID or mock ID)
+      if (rSupId && (rSupId === cleanSupId || rSupId === supId)) return true;
+      if (cleanSupId === 'sup-1' && rSupId === 'a0000001-0000-0000-0000-000000000001') return true;
+      if (cleanSupId === 'sup-2' && rSupId === 'a0000001-0000-0000-0000-000000000002') return true;
+      if (cleanSupId === 'sup-3' && rSupId === 'a0000001-0000-0000-0000-000000000003') return true;
+
+      // 2. Explicit Supervisor Name match
+      if (supName && rSupName && (rSupName.includes(supName) || supName.includes(rSupName))) {
+        return true;
+      }
+
+      // 3. If unassigned or pending assignment, match by supervisor's operational state
+      const isUnassigned = !r.assigned_supervisor_id || r.assigned_supervisor_name === 'Unassigned' || !r.assigned_supervisor_name;
+      if (isUnassigned && supState && rState && rState.includes(supState)) {
+        return true;
+      }
+
+      return false;
     });
   },
 
@@ -1382,10 +1623,7 @@ export const db = {
           status: 'Assigned to Field Worker',
           status_label: 'Assigned to Field Worker',
           status_stage: 3,
-          assigned_field_worker_id: fieldWorkerId,
           assigned_field_worker_name: fieldWorkerName,
-          due_date: calculatedDueDate,
-          field_worker_assigned_at: now,
           review_notes: newNote,
           updated_at: now
         };
@@ -1503,7 +1741,6 @@ export const db = {
       try {
         const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
         const updates = {
-          assigned_field_worker_id: newFieldWorkerId,
           assigned_field_worker_name: newFieldWorkerName,
           status: 'Assigned to Field Worker',
           status_label: 'Assigned to Field Worker',
@@ -1589,9 +1826,9 @@ export const db = {
     // Also merge any assessments attached to assistance requests
     let merged = [...raw];
     try {
-      const allReqs = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, mock.initialAssistanceRequests || []);
+      const allReqs = await this.getAssistanceRequests();
       allReqs.forEach(r => {
-        const hasAssessment = r.field_worker_assessment || r.status === 'Assessment Submitted' || r.status === 'Awaiting Program Manager Decision';
+        const hasAssessment = r.field_worker_assessment || r.status === 'Assessment Submitted' || r.status === 'Awaiting Program Manager Decision' || r.status === 'Approved' || r.status === 'Completed';
         if (hasAssessment) {
           const reqCode = r.request_code || r.id;
           const alreadyExists = merged.some(a => a.request_code === reqCode || a.request_id === r.id || (r.assessment_code && a.assessment_code === r.assessment_code));
@@ -1599,7 +1836,7 @@ export const db = {
             const fwa = r.field_worker_assessment || {};
             merged.unshift({
               id: fwa.id || `ass-${reqCode}`,
-              assessment_code: fwa.assessment_code || r.assessment_code || `FA-${reqCode.replace(/[^0-9]/g, '').slice(-5) || '00895'}`,
+              assessment_code: fwa.assessment_code || r.assessment_code || `FA-${String(reqCode).replace(/[^0-9]/g, '').slice(-5) || '00895'}`,
               request_code: reqCode,
               request_id: r.id,
               beneficiary_name: r.beneficiary_name || fwa.beneficiary_name || 'Assessed Beneficiary',
@@ -1618,6 +1855,8 @@ export const db = {
               assistance_requested: r.assistance_type || r.category || 'Emergency Humanitarian Relief',
               recommended_aid: fwa.recommended_aid || r.recommended_aid || r.assistance_type || 'Immediate Emergency Relief Package',
               location: r.location || (r.county ? `${r.county}, ${r.state || 'South Sudan'}` : 'Eastern Equatoria'),
+              state: r.state || fwa.state,
+              county: r.county || fwa.county,
               ground_situation_report: fwa.ground_situation_report || fwa.audit_findings || r.ground_situation_report || r.review_notes || 'Household visited in-person. Severe need confirmed on-ground.',
               field_justification: fwa.field_justification || r.field_justification || 'Official Field Verification confirms acute humanitarian requirement.',
               audit_findings: fwa.audit_findings || fwa.ground_situation_report || r.ground_situation_report || 'Household verified in-person.',
@@ -1642,35 +1881,74 @@ export const db = {
       verification_finding: a.verification_finding || 'VERIFIED_TRUE'
     }));
 
-    // If supervisorId is passed:
-    if (supervisorId && supervisorId !== 'all') {
-      const cleanSupId = String(supervisorId).toLowerCase().trim();
-      const isAdeyemi = cleanSupId === 'sup-1' || cleanSupId === 'user-sup' || cleanSupId.includes('emmanuel') || cleanSupId.includes('adeyemi') || cleanSupId === 'eastern equatoria' || cleanSupId.includes('supervisor@adra.org') || cleanSupId.length > 20;
+    let result = all;
 
-      const filtered = all.filter(a => {
-        const aSupId = String(a.supervisor_id || '').toLowerCase().trim();
-        const aSupName = String(a.supervisor_name || '').toLowerCase().trim();
-        const aWorkerName = String(a.field_worker_name || a.assessed_by || '').toLowerCase();
+    // Filter by field worker if workerId or workerName is supplied
+    if (workerId || workerName) {
+      const cleanWId = workerId ? String(workerId).toLowerCase().trim() : null;
+      const cleanWName = workerName ? String(workerName).toLowerCase().trim() : null;
+      result = result.filter(a => {
+        const aWId = String(a.field_worker_id || a.worker_id || '').toLowerCase().trim();
+        const aWName = String(a.field_worker_name || a.assessed_by || '').toLowerCase().trim();
         
-        // Exact ID match
-        if (aSupId === cleanSupId) return true;
-        // Name partial match
-        if (cleanSupId && aSupName.includes(cleanSupId)) return true;
-        
-        // If Emmanuel Adeyemi (default supervisor for Eastern Equatoria & general supervisory queue)
-        if (isAdeyemi) {
-          return true;
+        let matchId = false;
+        if (cleanWId) {
+          matchId = (aWId === cleanWId);
+          if (!matchId && cleanWId === 'fw-1' && (aWId.includes('fw-1') || aWName.includes('john deng'))) matchId = true;
+          if (!matchId && cleanWId === 'fw-2' && (aWId.includes('fw-2') || aWName.includes('rose poni'))) matchId = true;
         }
 
-        return false;
-      });
+        let matchName = false;
+        if (cleanWName) {
+          matchName = Boolean(aWName && (aWName.includes(cleanWName) || cleanWName.includes(aWName)));
+        }
 
-      if (filtered.length > 0) return filtered;
-      // Fallback: return all so supervisor is never locked out of submitted audits
-      return all;
+        return matchId || matchName;
+      });
     }
 
-    return all;
+    if (!supervisorId || supervisorId === 'all') {
+      return result;
+    }
+
+    const sups = await this.getSupervisors();
+    const cleanSupId = String(supervisorId).toLowerCase().trim();
+    const sup = sups.find(s => 
+      String(s.id).toLowerCase() === cleanSupId ||
+      String(s.email || '').toLowerCase() === cleanSupId ||
+      String(s.name || '').toLowerCase() === cleanSupId ||
+      (cleanSupId === 'sup-1' && s.name?.toLowerCase().includes('adeyemi')) ||
+      (cleanSupId === 'sup-2' && s.name?.toLowerCase().includes('akech')) ||
+      (cleanSupId === 'sup-3' && s.name?.toLowerCase().includes('david'))
+    );
+
+    const supId = sup?.id ? String(sup.id).toLowerCase() : cleanSupId;
+    const supName = sup?.name ? sup.name.toLowerCase() : '';
+    const supState = sup?.state ? sup.state.toLowerCase() : '';
+
+    return result.filter(a => {
+      const aSupId = String(a.supervisor_id || '').toLowerCase().trim();
+      const aSupName = String(a.supervisor_name || '').toLowerCase().trim();
+      const aState = String(a.state || '').toLowerCase().trim();
+
+      // 1. Exact ID match (UUID or mock)
+      if (aSupId && (aSupId === cleanSupId || aSupId === supId)) return true;
+      if (cleanSupId === 'sup-1' && aSupId === 'a0000001-0000-0000-0000-000000000001') return true;
+      if (cleanSupId === 'sup-2' && aSupId === 'a0000001-0000-0000-0000-000000000002') return true;
+      if (cleanSupId === 'sup-3' && aSupId === 'a0000001-0000-0000-0000-000000000003') return true;
+
+      // 2. Exact Name match
+      if (supName && aSupName && (aSupName.includes(supName) || supName.includes(aSupName))) {
+        return true;
+      }
+
+      // 3. State match only if unassigned supervisor
+      if (!aSupId && !aSupName && supState && aState && aState.includes(supState)) {
+        return true;
+      }
+
+      return false;
+    });
   },
 
   async getAssessmentById(assessmentId) {
@@ -2324,7 +2602,7 @@ export const db = {
     const raw = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
     let needsSave = false;
 
-    // Filter out legacy mock demo records and auto-sync amount with breakdown
+    // Filter out legacy mock demo records, normalize rejected vs resubmitted/pending status, and auto-sync amount with breakdown
     const all = (Array.isArray(raw) ? raw : [])
       .filter(r => {
         if (r.id === 'fnd-104' || r.request_code === 'REQ-FND-2026-004') {
@@ -2334,14 +2612,39 @@ export const db = {
         return true;
       })
       .map(r => {
-        if (r.breakdown && Array.isArray(r.breakdown) && r.breakdown.length > 0) {
-          const computedTotal = r.breakdown.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-          if (computedTotal > 0 && r.amount !== computedTotal) {
+        let modified = { ...r };
+        const isRejectedStatus = r.status?.includes('Rejected') || r.status?.toLowerCase().includes('reject') || r.status === 'Returned to Field Worker';
+        
+        if (isRejectedStatus) {
+          if (modified.stage !== -1 || !modified.returned_to_worker) {
             needsSave = true;
-            return { ...r, amount: computedTotal };
+            modified.stage = -1;
+            modified.returned_to_worker = true;
+          }
+        } else if (r.status === 'Pending Supervisor Approval' || r.stage === 1) {
+          if (modified.returned_to_worker || modified.stage !== 1 || modified.supervisor_review?.status === 'Rejected') {
+            needsSave = true;
+            modified.returned_to_worker = false;
+            modified.stage = 1;
+            if (modified.supervisor_review?.status === 'Rejected') {
+              modified.supervisor_review = {
+                status: 'Pending',
+                reviewed_by: null,
+                reviewed_at: null,
+                notes: null
+              };
+            }
           }
         }
-        return r;
+
+        if (modified.breakdown && Array.isArray(modified.breakdown) && modified.breakdown.length > 0) {
+          const computedTotal = modified.breakdown.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+          if (computedTotal > 0 && modified.amount !== computedTotal) {
+            needsSave = true;
+            modified.amount = computedTotal;
+          }
+        }
+        return modified;
       });
 
     if (needsSave && typeof localStorage !== 'undefined') {
@@ -2361,27 +2664,62 @@ export const db = {
 
     if (supervisorId && supervisorId !== 'all') {
       const cleanSupId = String(supervisorId).toLowerCase().trim();
-      const sups = getLocalData(STORAGE_KEYS.SUPERVISORS, mock.initialSupervisors || []);
+      const sups = await this.getSupervisors();
       const matchedSup = sups.find(s => 
         String(s.id).toLowerCase() === cleanSupId ||
         (s.email && s.email.toLowerCase() === cleanSupId) ||
-        (s.name && s.name.toLowerCase() === cleanSupId)
-      ) || sups[0];
+        (s.name && s.name.toLowerCase() === cleanSupId) ||
+        (cleanSupId === 'sup-1' && s.name?.toLowerCase().includes('adeyemi')) ||
+        (cleanSupId === 'sup-2' && s.name?.toLowerCase().includes('akech')) ||
+        (cleanSupId === 'sup-3' && s.name?.toLowerCase().includes('david')) ||
+        (cleanSupId === 'a0000001-0000-0000-0000-000000000001' && (s.id === 'sup-1' || s.name?.toLowerCase().includes('adeyemi'))) ||
+        (cleanSupId === 'a0000001-0000-0000-0000-000000000002' && (s.id === 'sup-2' || s.name?.toLowerCase().includes('akech'))) ||
+        (cleanSupId === 'a0000001-0000-0000-0000-000000000003' && (s.id === 'sup-3' || s.name?.toLowerCase().includes('david')))
+      );
 
-      const targetState = matchedSup?.state?.toLowerCase();
-      const targetName = matchedSup?.name?.toLowerCase();
+      const targetState = matchedSup?.state ? matchedSup.state.toLowerCase().trim() : '';
+      const targetName = matchedSup?.name ? matchedSup.name.toLowerCase().trim() : '';
+      const targetId = matchedSup?.id ? String(matchedSup.id).toLowerCase().trim() : cleanSupId;
+
+      const workers = await this.getFieldWorkers(supervisorId);
+      const workerIds = new Set(workers.map(w => String(w.id).toLowerCase()));
+      const workerNames = new Set(workers.map(w => (w.name || '').toLowerCase().trim()));
 
       return all.filter(r => {
-        // Direct ID match
-        if (r.supervisor_id && String(r.supervisor_id).toLowerCase() === cleanSupId) return true;
-        // Direct Name match
-        if (targetName && r.supervisor_name && r.supervisor_name.toLowerCase().includes(targetName)) return true;
-        if (r.supervisor_name && r.supervisor_name.toLowerCase().includes(cleanSupId)) return true;
-        // State Hub match
-        if (targetState && r.state && r.state.toLowerCase() === targetState) return true;
-        // Default / general fallback for default supervisor
-        if (cleanSupId === 'sup-1' || cleanSupId === '1' || cleanSupId.includes('emmanuel') || cleanSupId.includes('supervisor')) {
-          if (!r.supervisor_id || r.supervisor_id === 'sup-1' || r.supervisor_id === '1' || !r.state || r.state.toLowerCase().includes('eastern')) {
+        const rSupId = String(r.supervisor_id || '').toLowerCase().trim();
+        const rSupName = String(r.supervisor_name || '').toLowerCase().trim();
+        const rState = String(r.state || '').toLowerCase().trim();
+        const rWorkerId = String(r.field_worker_id || '').toLowerCase().trim();
+        const rWorkerName = String(r.field_worker_name || '').toLowerCase().trim();
+
+        // 1. Worker roster match: If the field worker belongs to this supervisor's roster, show it
+        if (rWorkerId && workerIds.has(rWorkerId)) return true;
+        if (rWorkerName && workerNames.has(rWorkerName)) return true;
+        if (cleanSupId === 'sup-2' || cleanSupId === 'a0000001-0000-0000-0000-000000000002' || cleanSupId.includes('akech') || targetName.includes('akech')) {
+          if (rWorkerName.includes('rose') || rWorkerName.includes('poni') || rWorkerId === 'fw-7' || rWorkerId === 'fw-2') return true;
+        }
+
+        // 2. Direct ID match (UUID or mock id)
+        if (rSupId && (rSupId === cleanSupId || rSupId === targetId)) return true;
+        if (cleanSupId === 'sup-1' && (rSupId === 'a0000001-0000-0000-0000-000000000001' || rSupId === 'sup-1')) return true;
+        if (cleanSupId === 'sup-2' && (rSupId === 'a0000001-0000-0000-0000-000000000002' || rSupId === 'sup-2')) return true;
+        if (cleanSupId === 'sup-3' && (rSupId === 'a0000001-0000-0000-0000-000000000003' || rSupId === 'sup-3')) return true;
+        if (cleanSupId === 'a0000001-0000-0000-0000-000000000002' && (rSupId === 'sup-2' || rSupId === 'a0000001-0000-0000-0000-000000000002')) return true;
+        if (cleanSupId === 'a0000001-0000-0000-0000-000000000001' && (rSupId === 'sup-1' || rSupId === 'a0000001-0000-0000-0000-000000000001')) return true;
+        if (cleanSupId === 'a0000001-0000-0000-0000-000000000003' && (rSupId === 'sup-3' || rSupId === 'a0000001-0000-0000-0000-000000000003')) return true;
+
+        // 3. Supervisor Name match
+        if (targetName && rSupName && (rSupName.includes(targetName) || targetName.includes(rSupName))) return true;
+        if (rSupName && rSupName.includes(cleanSupId)) return true;
+        if ((cleanSupId.includes('akech') || targetName.includes('akech')) && (rSupName.includes('akech') || rState.includes('central'))) return true;
+        if ((cleanSupId.includes('adeyemi') || targetName.includes('adeyemi')) && (rSupName.includes('adeyemi') || rState.includes('eastern'))) return true;
+
+        // 4. State match
+        if (targetState && rState && (rState.includes(targetState) || targetState.includes(rState))) return true;
+
+        // 5. Default / general fallback for default supervisor
+        if ((cleanSupId === 'sup-1' || cleanSupId === '1' || cleanSupId.includes('adeyemi')) && (!rSupId || rSupId === 'sup-1')) {
+          if (!rState || rState.includes('eastern')) {
             return true;
           }
         }
@@ -2394,22 +2732,47 @@ export const db = {
 
   async createFieldFundingRequest(fundingData) {
     const raw = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
-    const all = (Array.isArray(raw) ? raw : []).filter(r => r.id !== 'fnd-104' && r.request_code !== 'REQ-FND-2026-004');
+    let all = (Array.isArray(raw) ? raw : []).filter(r => r.id !== 'fnd-104' && r.request_code !== 'REQ-FND-2026-004');
     const nextNum = (all.length + 1).toString().padStart(3, '0');
     const now = new Date().toISOString();
 
-    // Check if there is an existing rejected requisition for this linked case/request to re-activate
+    // Check if there is an existing requisition for this id, code, or linked case/request to re-activate
     const existingIndex = all.findIndex(r => 
       (fundingData.id && (r.id === fundingData.id || r.request_code === fundingData.id)) ||
       (fundingData.request_code && (r.request_code === fundingData.request_code || r.id === fundingData.request_code)) ||
-      (fundingData.linked_request_code && r.linked_request_code === fundingData.linked_request_code && (r.status?.includes('Rejected') || r.status?.toLowerCase().includes('reject'))) ||
-      (fundingData.linked_beneficiary_name && r.linked_beneficiary_name === fundingData.linked_beneficiary_name && (r.status?.includes('Rejected') || r.status?.toLowerCase().includes('reject')))
+      (fundingData.linked_request_code && fundingData.linked_request_code !== 'GEN-OPS' && r.linked_request_code === fundingData.linked_request_code) ||
+      (fundingData.linked_beneficiary_name && r.linked_beneficiary_name === fundingData.linked_beneficiary_name)
     );
 
     // Compute accurate amount from itemized breakdown if present
     const computedAmount = fundingData.breakdown && fundingData.breakdown.length > 0
       ? fundingData.breakdown.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
       : (Number(fundingData.amount) || 0);
+
+    let resolvedSupId = fundingData.supervisor_id;
+    let resolvedSupName = fundingData.supervisor_name;
+    let resolvedState = fundingData.state;
+    let resolvedCounty = fundingData.county;
+    let resolvedPayam = fundingData.payam;
+
+    const workerLookup = mock.initialFieldWorkers?.find(w => 
+      (fundingData.field_worker_id && String(w.id).toLowerCase() === String(fundingData.field_worker_id).toLowerCase()) ||
+      (fundingData.field_worker_name && w.name?.toLowerCase().includes(fundingData.field_worker_name.toLowerCase()))
+    );
+
+    if (workerLookup) {
+      if (!resolvedSupId || resolvedSupId === 'sup-1') {
+        resolvedSupId = workerLookup.supervisor_id || resolvedSupId || 'sup-2';
+      }
+      if (!resolvedSupName || resolvedSupName === 'Emmanuel Adeyemi') {
+        resolvedSupName = workerLookup.supervisor_name || resolvedSupName || 'Mary Akech';
+      }
+      if (!resolvedState || resolvedState === 'Eastern Equatoria') {
+        resolvedState = workerLookup.state || resolvedState || 'Central Equatoria';
+      }
+      if (!resolvedCounty) resolvedCounty = workerLookup.county;
+      if (!resolvedPayam) resolvedPayam = workerLookup.payam;
+    }
 
     let targetRequest;
     if (existingIndex >= 0) {
@@ -2419,8 +2782,13 @@ export const db = {
         ...fundingData,
         id: existing.id,
         request_code: existing.request_code,
+        supervisor_id: resolvedSupId || existing.supervisor_id,
+        supervisor_name: resolvedSupName || existing.supervisor_name,
+        state: resolvedState || existing.state,
         status: 'Pending Supervisor Approval',
         stage: 1,
+        returned_to_worker: false,
+        rejection_reason: null,
         amount: computedAmount || existing.amount,
         purpose: fundingData.purpose || existing.purpose,
         breakdown: fundingData.breakdown && fundingData.breakdown.length > 0 ? fundingData.breakdown : existing.breakdown,
@@ -2449,6 +2817,11 @@ export const db = {
       };
       all[existingIndex] = targetRequest;
     } else {
+      // If there are any previous rejected items for this same linked request or beneficiary, filter them out to prevent duplicate state
+      if (fundingData.linked_request_code && fundingData.linked_request_code !== 'GEN-OPS') {
+        all = all.filter(r => !(r.linked_request_code === fundingData.linked_request_code && (r.stage === -1 || r.status?.includes('Rejected'))));
+      }
+
       targetRequest = {
         id: `fnd-${Date.now()}`,
         request_code: fundingData.request_code || `REQ-FND-2026-${nextNum}`,
@@ -2456,13 +2829,13 @@ export const db = {
         field_worker_name: fundingData.field_worker_name || 'John Deng',
         field_worker_email: fundingData.field_worker_email || 'john.deng@adra.org',
         field_worker_phone: fundingData.field_worker_phone || '+211-921-550101',
-        supervisor_id: fundingData.supervisor_id || 'sup-1',
-        supervisor_name: fundingData.supervisor_name || 'Emmanuel Adeyemi',
+        supervisor_id: resolvedSupId || 'sup-1',
+        supervisor_name: resolvedSupName || 'Emmanuel Adeyemi',
         program_manager_name: fundingData.program_manager_name || 'Grace Ochieng',
         finance_officer_name: 'Finance Department',
-        payam: fundingData.payam || 'Field Location',
-        county: fundingData.county || 'Operational County',
-        state: fundingData.state || 'Eastern Equatoria',
+        payam: resolvedPayam || fundingData.payam || 'Field Location',
+        county: resolvedCounty || fundingData.county || 'Operational County',
+        state: resolvedState || fundingData.state || 'Central Equatoria',
         project_id: fundingData.project_id || 'prg1',
         project_name: fundingData.project_name || 'Emergency Food Security & Livelihoods (EFSLR)',
         category: fundingData.category || 'Field Operational Facilitation',
@@ -2478,6 +2851,8 @@ export const db = {
         payout_phone: fundingData.payout_phone || fundingData.field_worker_phone || '+211-921-550101',
         status: 'Pending Supervisor Approval',
         stage: 1, // 1: Submitted, 2: Supervisor Approved (Pending PM), 3: PM Approved (Pending Finance), 4: Disbursed
+        returned_to_worker: false,
+        rejection_reason: null,
         created_at: now,
         supervisor_review: {
           status: 'Pending',
@@ -2587,7 +2962,8 @@ export const db = {
     const updated = all.map(r => (r.id === requestId || r.request_code === requestId) ? {
       ...r,
       status: 'Rejected by Supervisor',
-      stage: 1,
+      stage: -1,
+      returned_to_worker: true,
       supervisor_review: {
         status: 'Rejected',
         reviewed_by: supervisorName,
