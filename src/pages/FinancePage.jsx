@@ -55,6 +55,16 @@ export function FinancePage() {
   const [isDeleteExpOpen, setIsDeleteExpOpen] = useState(false);
   const [selectedExp, setSelectedExp] = useState(null);
 
+  // Field Requisition Disbursement Modal State
+  const [isDisburseModalOpen, setIsDisburseModalOpen] = useState(false);
+  const [selectedRequisition, setSelectedRequisition] = useState(null);
+  const [disburseForm, setDisburseForm] = useState({
+    voucher_reference: '',
+    transaction_ref: '',
+    payment_method: 'm-Gurush Mobile Money',
+    notes: '',
+  });
+
   const [budgetForm, setBudgetForm] = useState({
     project_id: '',
     budget_category: BUDGET_CATEGORIES[0],
@@ -172,6 +182,39 @@ export function FinancePage() {
       loadData();
     } catch (err) {
       toast.error('Failed to delete expenditure.');
+    }
+  };
+
+  const handleOpenDisburse = (req) => {
+    setSelectedRequisition(req);
+    const rndNum = Math.floor(1000 + Math.random() * 9000);
+    const txnNum = Math.floor(1000000 + Math.random() * 9000000);
+    setDisburseForm({
+      voucher_reference: `PV-2026-${rndNum}`,
+      transaction_ref: `TXN-MG-${txnNum}`,
+      payment_method: req.preferred_payout || 'm-Gurush Mobile Money',
+      notes: `Disbursement authorized by Programme Manager. Disbursed via ${req.preferred_payout || 'm-Gurush'} to ${req.field_worker_name}.`,
+    });
+    setIsDisburseModalOpen(true);
+  };
+
+  const handleConfirmDisburse = async (e) => {
+    e.preventDefault();
+    if (!selectedRequisition) return;
+    try {
+      const financeOfficer = currentUser?.full_name || currentUser?.name || 'Mark Ladu (Finance Officer)';
+      await db.disburseFieldFundingByFinance(
+        selectedRequisition.id,
+        financeOfficer,
+        disburseForm
+      );
+      toast.success(`Disbursed ${selectedRequisition.currency || 'SSP'} ${Number(selectedRequisition.amount).toLocaleString()} to ${selectedRequisition.field_worker_name}. Payment Voucher ${disburseForm.voucher_reference} generated and logged in expenditures.`);
+      setIsDisburseModalOpen(false);
+      setSelectedRequisition(null);
+      loadData();
+    } catch (err) {
+      console.error('Disbursement failed:', err);
+      toast.error('Failed to execute disbursement. Please try again.');
     }
   };
 
@@ -475,18 +518,14 @@ export function FinancePage() {
                         <Button
                           size="sm"
                           variant="primary"
-                          onClick={async () => {
-                            await db.disburseFieldFundingByFinance(req.id, 'Mark Ladu (Finance Officer)');
-                            toast.success(`Disbursed $${req.amount} USD to ${req.field_worker_name}. Payment voucher issued.`);
-                            loadData();
-                          }}
+                          onClick={() => handleOpenDisburse(req)}
                         >
                           Disburse Funds
                         </Button>
                       )}
                       {req.status === 'Disbursed' && (
-                        <span className="font-mono text-[10px] text-slate-400">
-                          {req.finance_disbursement?.voucher_reference || 'Paid'}
+                        <span className="font-mono text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                          {req.finance_disbursement?.voucher_reference || 'Disbursed'}
                         </span>
                       )}
                       {(req.status === 'Pending Supervisor Approval' || req.status === 'Pending Program Manager Approval') && (
@@ -665,6 +704,114 @@ export function FinancePage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Field Facilitation Disbursement Modal */}
+      <Modal
+        isOpen={isDisburseModalOpen}
+        onClose={() => setIsDisburseModalOpen(false)}
+        title="Execute Field Facilitation Disbursement"
+        maxWidth="max-w-lg"
+      >
+        {selectedRequisition && (
+          <form onSubmit={handleConfirmDisburse} className="space-y-4">
+            {/* Summary Box */}
+            <div className="p-3.5 bg-slate-950/80 rounded-xl border border-slate-800 text-xs space-y-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Requisition Code:</span>
+                <span className="font-mono font-bold text-emerald-400">{selectedRequisition.request_code}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Field Worker:</span>
+                <span className="font-bold text-slate-100">{selectedRequisition.field_worker_name} ({selectedRequisition.payout_phone || selectedRequisition.field_worker_phone || 'Phone not listed'})</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Location / Operational County:</span>
+                <span className="text-slate-200">{selectedRequisition.payam}, {selectedRequisition.county}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t border-slate-800">
+                <span className="text-slate-400">Amount to Disburse:</span>
+                <span className="text-base font-black text-emerald-400">
+                  {selectedRequisition.currency || 'SSP'} {Number(selectedRequisition.amount).toLocaleString()}
+                </span>
+              </div>
+
+              {/* Endorsement Chain Highlights */}
+              {selectedRequisition.supervisor_review?.notes && (
+                <div className="pt-1.5 border-t border-slate-800 text-[11px] text-slate-300">
+                  <span className="text-slate-400 font-semibold">Supervisor Endorsement: </span>
+                  <span className="italic">"{selectedRequisition.supervisor_review.notes}"</span>
+                </div>
+              )}
+              {selectedRequisition.pm_review?.notes && (
+                <div className="text-[11px] text-slate-300">
+                  <span className="text-blue-400 font-semibold">PM Authorization: </span>
+                  <span className="italic">"{selectedRequisition.pm_review.notes}"</span>
+                </div>
+              )}
+            </div>
+
+            {/* Form Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Payment Voucher #</label>
+                <input
+                  type="text"
+                  value={disburseForm.voucher_reference}
+                  onChange={(e) => setDisburseForm({ ...disburseForm, voucher_reference: e.target.value })}
+                  className="adra-input font-mono uppercase"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Transaction Ref Code</label>
+                <input
+                  type="text"
+                  value={disburseForm.transaction_ref}
+                  onChange={(e) => setDisburseForm({ ...disburseForm, transaction_ref: e.target.value })}
+                  className="adra-input font-mono uppercase"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Payout Channel / Method</label>
+              <select
+                value={disburseForm.payment_method}
+                onChange={(e) => setDisburseForm({ ...disburseForm, payment_method: e.target.value })}
+                className="adra-select"
+                required
+              >
+                <option value="m-Gurush Mobile Money">m-Gurush Mobile Money</option>
+                <option value="Direct Cash Float">Direct Cash Float</option>
+                <option value="Equity Bank Transfer">Equity Bank Transfer</option>
+                <option value="Stanbic Bank Transfer">Stanbic Bank Transfer</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Disbursement Remarks / Audit Notes</label>
+              <textarea
+                value={disburseForm.notes}
+                onChange={(e) => setDisburseForm({ ...disburseForm, notes: e.target.value })}
+                placeholder="Audit notes for financial log and general ledger..."
+                className="adra-input min-h-[60px]"
+                rows={2}
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <Button type="button" variant="secondary" onClick={() => setIsDisburseModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary">
+                Confirm Disbursement & Issue Voucher
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* Confirm Delete Expenditure Modal */}

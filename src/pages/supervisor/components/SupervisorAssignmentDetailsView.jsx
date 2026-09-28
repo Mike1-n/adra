@@ -20,7 +20,9 @@ import {
   UserCheck,
   UserPlus,
   UserX,
-  ChevronDown
+  ChevronDown,
+  Image as ImageIcon,
+  FileCheck
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 
@@ -324,15 +326,62 @@ export function SupervisorAssignmentDetailsView({
               </div>
             </div>
 
-            {/* Compliance Policy Alert */}
-            <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900">
-              <Shield className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>
-                <strong>Humanitarian Compliance:</strong> Supervisors dispatch and verify field assessments. Final approvals remain with Program Manager Grace Ochieng.
-              </span>
+            {/* Field Officer Ground Verification & Evidence Dossier */}
+              {(assignment.ground_situation_report || assignment.field_justification || assignment.evidence_photos?.length > 0 || assignment.status?.includes('Assessment')) && (
+                <div className="p-4 bg-gradient-to-br from-emerald-50/90 to-teal-50/50 rounded-2xl border border-emerald-200 space-y-3">
+                  <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <FileCheck className="w-4 h-4 text-[#006B56]" />
+                      <span className="text-xs font-black uppercase text-slate-900 tracking-wider">
+                        Field Officer Verification Report
+                      </span>
+                    </div>
+                    {assignment.vulnerability_score && (
+                      <span className="text-[10px] font-black px-2 py-0.5 bg-[#006B56] text-white rounded-md">
+                        Score: {assignment.vulnerability_score}/100
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Justification Quote */}
+                  <div className="p-3 bg-white rounded-xl border border-emerald-200/80 space-y-1">
+                    <span className="text-[10px] font-bold uppercase text-[#006B56] block">
+                      Field Officer Justification to Management
+                    </span>
+                    <p className="text-xs text-slate-800 italic leading-relaxed">
+                      "{assignment.field_justification || assignment.ground_situation_report || assignment.review_notes || 'Household verified in urgent need of assistance.'}"
+                    </p>
+                  </div>
+
+                  {/* Photos Grid if any */}
+                  {assignment.evidence_photos && assignment.evidence_photos.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                        <ImageIcon className="w-3.5 h-3.5 text-[#006B56]" />
+                        <span>Attached Photos ({assignment.evidence_photos.length})</span>
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        {assignment.evidence_photos.map(p => (
+                          <div key={p.id} className="rounded-xl overflow-hidden border border-slate-200 bg-white">
+                            <img src={p.url} alt={p.title} className="w-full h-20 object-cover" />
+                            <p className="p-1 text-[10px] font-bold text-slate-800 truncate">{p.title}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Compliance Policy Alert */}
+              <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900">
+                <Shield className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Humanitarian Compliance:</strong> Supervisors dispatch and verify field assessments. Final approvals remain with Program Manager Grace Ochieng.
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* TAB 2: FIELD WORKER DISPATCH */}
         {activeTab === 'worker' && (

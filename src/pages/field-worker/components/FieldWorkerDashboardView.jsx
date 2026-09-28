@@ -181,14 +181,14 @@ export function FieldWorkerDashboardView({
           {/* Conduct Audit (Dark Rich Green) */}
           <button
             type="button"
-            onClick={onStartAssessment}
+            onClick={() => onNavigateTab ? onNavigateTab('tasks', 'pending') : onStartAssessment()}
             className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-br from-[#006B56] to-[#004d3d] hover:from-[#005a48] hover:to-[#003d30] text-white transition border border-[#004d3d] text-center group shadow-md hover:shadow-lg cursor-pointer"
           >
             <div className="w-9 h-9 rounded-xl bg-white/20 text-white flex items-center justify-center mb-1.5 shadow-inner group-hover:scale-105 transition">
               <FileCheck className="w-4 h-4 text-white" />
             </div>
             <span className="text-xs font-black text-white leading-tight">Conduct Audit</span>
-            <span className="text-[10px] font-extrabold text-emerald-200 mt-0.5">Vulnerability</span>
+            <span className="text-[10px] font-extrabold text-emerald-200 mt-0.5">Assigned Cases</span>
           </button>
 
           {/* Request Facilitation (Amber/Emerald Cash Requisition) */}

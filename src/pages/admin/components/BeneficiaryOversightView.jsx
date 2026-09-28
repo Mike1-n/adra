@@ -108,7 +108,12 @@ export function BeneficiaryOversightView() {
     }
   };
 
-  const getStatus = (b) => b.verification_status || b.status || 'Verified Active';
+  const getStatus = (b) => {
+    const raw = b.verification_status || b.status || 'Verified Active';
+    if (raw === 'Under Verification' || raw === 'Pending' || raw === 'pending') return 'Pending Verification';
+    if (raw === 'Active' && !b.verification_status) return 'Verified Active';
+    return raw;
+  };
 
   const filtered = beneficiaries.filter((b) => {
     const status = getStatus(b);
@@ -124,8 +129,12 @@ export function BeneficiaryOversightView() {
     
     let matchesStat = true;
     if (statusFilter === 'ALL') matchesStat = true;
-    else if (statusFilter === 'Pending Verification') matchesStat = status === 'Pending Verification';
-    else if (statusFilter === 'Verified') matchesStat = status === 'Verified' || status === 'Verified Active';
+    else if (statusFilter === 'Pending Verification' || statusFilter === 'Pending') {
+      matchesStat = status === 'Pending Verification' || status === 'Under Verification' || status === 'Pending' || status === 'pending';
+    }
+    else if (statusFilter === 'Verified' || statusFilter === 'Active') {
+      matchesStat = status === 'Verified' || status === 'Verified Active' || status === 'Active';
+    }
     else if (statusFilter === 'Flagged') matchesStat = status === 'Flagged';
     else if (statusFilter === 'Rejected') matchesStat = status === 'Rejected';
 
@@ -134,10 +143,13 @@ export function BeneficiaryOversightView() {
 
   const verifiedCount = beneficiaries.filter(b => {
     const s = getStatus(b);
-    return s === 'Verified' || s === 'Verified Active';
+    return s === 'Verified' || s === 'Verified Active' || s === 'Active';
   }).length;
   
-  const pendingCount = beneficiaries.filter(b => getStatus(b) === 'Pending Verification').length;
+  const pendingCount = beneficiaries.filter(b => {
+    const s = getStatus(b);
+    return s === 'Pending Verification' || s === 'Under Verification' || s === 'Pending';
+  }).length;
   const flaggedCount = beneficiaries.filter(b => getStatus(b) === 'Flagged').length;
 
   return (

@@ -150,3 +150,201 @@ export function exportToPDF({
 
   doc.save(fileName);
 }
+
+/**
+ * Generate official printable PDF Payment Voucher / Receipt
+ */
+export function exportVoucherPDF(item) {
+  if (!item) return;
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'pt',
+    format: 'a4'
+  });
+
+  const voucherCode = item.finance_disbursement?.voucher_reference || item.expenditure_code || item.request_code || `PV-${Date.now().toString().slice(-6)}`;
+  const txnCode = item.finance_disbursement?.transaction_ref || 'TXN-MG-VERIFIED';
+  const payeeName = item.field_worker_name || item.recorded_by || 'Field Worker';
+  const payeePhone = item.payout_phone || item.field_worker_phone || item.recipient_phone || 'N/A';
+  const amount = Number(item.amount || 0);
+  const currency = item.currency || 'SSP';
+  const paymentChannel = item.finance_disbursement?.payment_method || item.preferred_payout || 'm-Gurush Mobile Money';
+  const purpose = item.purpose || item.description || item.title || item.reason || 'Operational mission facilitation and transport stipend.';
+  const location = item.location || (item.payam ? `${item.payam}, ${item.county || ''}` : 'Field Operations');
+  const disbursedAt = new Date(item.finance_disbursement?.disbursed_at || item.expenditure_date || item.created_at || Date.now()).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  // Top Header Banner
+  doc.setFillColor(0, 107, 86); // #006B56
+  doc.rect(0, 0, 595, 80, 'F');
+
+  // ADRA Emblem Badge on Left
+  doc.setFillColor(4, 120, 87); // #047857
+  doc.roundedRect(40, 19, 42, 42, 6, 6, 'F');
+  doc.setDrawColor(52, 211, 153); // #34D399
+  doc.setLineWidth(1.2);
+  doc.roundedRect(40, 19, 42, 42, 6, 6, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.setTextColor(255, 255, 255);
+  doc.text('A', 53, 48);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(255, 255, 255);
+  doc.text('ADVENTIST DEVELOPMENT AND RELIEF AGENCY', 92, 34);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(230, 245, 240);
+  doc.text('ADRA South Sudan  •  Financial Control & Grants Directorate', 92, 48);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(167, 243, 208);
+  doc.text('OFFICIAL ELECTRONIC DISBURSEMENT VOUCHER RECEIPT', 92, 60);
+
+  // Reference & Date Strip
+  doc.setFillColor(245, 247, 246);
+  doc.roundedRect(40, 95, 515, 45, 4, 4, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(40, 95, 515, 45, 4, 4, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text('VOUCHER REFERENCE', 55, 112);
+  doc.text('PAYMENT CHANNEL', 220, 112);
+  doc.text('TRANSACTION REF', 380, 112);
+
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text(voucherCode, 55, 128);
+  doc.text(paymentChannel, 220, 128);
+  doc.text(txnCode, 380, 128);
+
+  // Payee & Operational Details Table
+  doc.autoTable({
+    startY: 150,
+    head: [['FIELD BENEFICIARY / PAYEE INFORMATION', 'DETAILS']],
+    body: [
+      ['Payee Staff Name', payeeName],
+      ['Staff Payout Phone', payeePhone],
+      ['Requisition Code / Case Ref', item.request_code || item.id || 'FAC-REQ'],
+      ['Operational Duty Station', location],
+      ['Program / Project Affiliation', item.project_name || 'Emergency Response Program (EFSLR)'],
+      ['Disbursement Date', disbursedAt],
+      ['Requisition Purpose', purpose]
+    ],
+    theme: 'grid',
+    headStyles: {
+      fillColor: [0, 107, 86],
+      textColor: 255,
+      fontSize: 9,
+      fontStyle: 'bold'
+    },
+    bodyStyles: {
+      fontSize: 9,
+      textColor: [30, 41, 59]
+    },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 180, fillColor: [248, 250, 252] },
+      1: { cellWidth: 335 }
+    },
+    margin: { left: 40, right: 40 }
+  });
+
+  let currentY = doc.lastAutoTable.finalY + 15;
+
+  // Itemized breakdown if present
+  if (item.breakdown && item.breakdown.length > 0) {
+    doc.autoTable({
+      startY: currentY,
+      head: [['ITEM DESCRIPTION', 'CATEGORY', 'AMOUNT (SSP)']],
+      body: item.breakdown.map((b, i) => [
+        b.item || b.description || `Line Item #${i + 1}`,
+        b.category || item.category || 'Operational Facilitation',
+        `${Number(b.total || b.amount || 0).toLocaleString()} SSP`
+      ]),
+      theme: 'striped',
+      headStyles: {
+        fillColor: [51, 65, 85],
+        textColor: 255,
+        fontSize: 8.5,
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        fontSize: 8.5
+      },
+      columnStyles: {
+        2: { halign: 'right', fontStyle: 'bold' }
+      },
+      margin: { left: 40, right: 40 }
+    });
+    currentY = doc.lastAutoTable.finalY + 15;
+  }
+
+  // Amount Highlight Box
+  doc.setFillColor(236, 253, 245); // #ECFDF5
+  doc.roundedRect(40, currentY, 515, 55, 6, 6, 'F');
+  doc.setDrawColor(16, 185, 129); // #10B981
+  doc.setLineWidth(1.5);
+  doc.roundedRect(40, currentY, 515, 55, 6, 6, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(6, 95, 70);
+  doc.text('TOTAL AMOUNT DISBURSED & RECONCILED:', 55, currentY + 22);
+
+  doc.setFontSize(18);
+  doc.setTextColor(0, 107, 86);
+  doc.text(`${currency} ${amount.toLocaleString()}.00`, 55, currentY + 44);
+
+  doc.setFontSize(9);
+  doc.setTextColor(4, 120, 87);
+  doc.text('STATUS: PAID & SETTLED', 400, currentY + 44);
+
+  currentY += 75;
+
+  // Signatures & Dual Authorization Section
+  doc.autoTable({
+    startY: currentY,
+    head: [['1. SUPERVISOR ENDORSEMENT', '2. PROGRAMME MANAGER AUTHORIZATION', '3. FINANCE OFFICER DISBURSEMENT']],
+    body: [
+      [
+        `Endorsed By: ${item.supervisor_endorsed_by || item.supervisor_name || 'Emmanuel Adeyemi'}\nStatus: VERIFIED\nRemarks: "${item.supervisor_remarks || 'Endorsed for mission.'}"`,
+        `Authorized By: ${item.pm_approved_by || 'Grace Ochieng'}\nStatus: AUTHORIZED\nRemarks: "${item.pm_remarks || 'Authorized for finance payout.'}"`,
+        `Disbursed By: ${item.finance_disbursement?.disbursed_by || 'Alex Morgan'}\nStatus: DISBURSED & LOGGED\nVoucher: ${voucherCode}`
+      ]
+    ],
+    theme: 'grid',
+    headStyles: {
+      fillColor: [241, 245, 249],
+      textColor: [51, 65, 85],
+      fontSize: 8,
+      fontStyle: 'bold'
+    },
+    bodyStyles: {
+      fontSize: 8,
+      textColor: [51, 65, 85]
+    },
+    margin: { left: 40, right: 40 }
+  });
+
+  // Footer Disclaimer
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    'This is an official electronic payment voucher generated by ADRA South Sudan Humanitarian ERP. Valid without physical stamp.',
+    40,
+    810
+  );
+
+  doc.save(`ADRA_Payment_Voucher_${voucherCode}.pdf`);
+}
+

@@ -17,7 +17,8 @@ import {
   User,
   Settings,
   ArrowLeft,
-  ChevronRight
+  ChevronRight,
+  Banknote
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/supabase';
@@ -34,6 +35,7 @@ import { SupervisorBeneficiariesView } from './components/SupervisorBeneficiarie
 import { SupervisorNotificationsView } from './components/SupervisorNotificationsView';
 import { SupervisorActivityHistoryView } from './components/SupervisorActivityHistoryView';
 import { SupervisorProfileView } from './components/SupervisorProfileView';
+import { SupervisorFacilitationsView } from './components/SupervisorFacilitationsView';
 
 export function SupervisorMobileApp({
   currentUser,
@@ -44,7 +46,7 @@ export function SupervisorMobileApp({
   const { logout, quickSwitchRole } = useAuth();
   const toast = useToast();
 
-  // Navigation states: 'dashboard' | 'assignments' | 'team' | 'reports' | 'beneficiaries' | 'activities' | 'profile'
+  // Navigation states: 'dashboard' | 'assignments' | 'team' | 'facilitations' | 'reports' | 'beneficiaries' | 'activities' | 'profile'
   const [activeTab, setActiveTab] = useState('dashboard');
   
   // Assignments sub-status filter: 'pending' | 'assigned' | 'in_progress' | 'completed'
@@ -64,6 +66,7 @@ export function SupervisorMobileApp({
   const [assignments, setAssignments] = useState([]);
   const [fieldWorkers, setFieldWorkers] = useState([]);
   const [assessments, setAssessments] = useState([]);
+  const [facilitations, setFacilitations] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [activities, setActivities] = useState([]);
   const [beneficiaries, setBeneficiaries] = useState([]);
@@ -77,9 +80,9 @@ export function SupervisorMobileApp({
   const [showStateMenu, setShowStateMenu] = useState(false);
 
   // Load all supervisory data
-  const loadData = async (targetSupervisor = null) => {
+  const loadData = async (targetSupervisor = null, isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent) setLoading(true);
       const sups = await db.getSupervisors();
       setAllSupervisors(sups || []);
 
@@ -94,6 +97,7 @@ export function SupervisorMobileApp({
         assignsData,
         workersData,
         assessData,
+        fundingData,
         notifsData,
         actsData,
         bensData
@@ -101,6 +105,7 @@ export function SupervisorMobileApp({
         db.getSupervisorAssignments(supervisorId),
         db.getFieldWorkers(supervisorId),
         db.getFieldAssessments(supervisorId),
+        db.getFieldFundingRequests ? db.getFieldFundingRequests(null, supervisorId) : [],
         db.getSupervisorNotifications(supervisorId),
         db.getSupervisorActivityHistory(supervisorId),
         db.getBeneficiaries()
@@ -109,6 +114,7 @@ export function SupervisorMobileApp({
       setAssignments(assignsData || []);
       setFieldWorkers(workersData || []);
       setAssessments(assessData || []);
+      setFacilitations(fundingData || []);
       setNotifications(notifsData || []);
       setActivities(actsData || []);
       setBeneficiaries(bensData || []);
@@ -231,6 +237,9 @@ export function SupervisorMobileApp({
   const pendingReportsCount = assessments.filter(
     a => a.status === 'Under Supervisor Review' || a.status === 'Submitted'
   ).length;
+  const pendingFacilitationsCount = facilitations.filter(
+    f => f.status === 'Pending Supervisor Approval' || f.stage === 1
+  ).length;
 
   // Render Subview or Tab Content
   const renderContent = () => {
@@ -350,6 +359,7 @@ export function SupervisorMobileApp({
               assignments={assignments}
               fieldWorkers={fieldWorkers}
               assessments={assessments}
+              facilitations={facilitations}
               activities={activities}
               onNavigateTab={(tab) => {
                 setActiveSubview(null);
@@ -367,6 +377,18 @@ export function SupervisorMobileApp({
                 setSelectedAssessment(ass);
                 setActiveSubview('report_review');
               }}
+            />
+          </div>
+        );
+
+      case 'facilitations':
+        return (
+          <div className="p-4">
+            <SupervisorFacilitationsView
+              requests={facilitations}
+              supervisorName={activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi'}
+              onRefresh={() => loadData(activeSupervisor)}
+              onBack={() => setActiveTab('dashboard')}
             />
           </div>
         );
@@ -463,8 +485,9 @@ export function SupervisorMobileApp({
   const sidebarNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'assignments', label: 'Assignments', icon: ClipboardList, badge: pendingAssignmentsCount > 0 ? pendingAssignmentsCount : null, badgeColor: 'bg-amber-500' },
+    { id: 'facilitations', label: 'Facilitations', icon: Banknote, badge: pendingFacilitationsCount > 0 ? pendingFacilitationsCount : null, badgeColor: 'bg-amber-500' },
     { id: 'team', label: 'Field Team (5 Workers)', icon: Users, badge: fieldWorkers.length, badgeColor: 'bg-emerald-600' },
-    { id: 'reports', label: 'Reports Review', icon: FileCheck, badge: pendingReportsCount > 0 ? pendingReportsCount : null, badgeColor: 'bg-rose-500' },
+    { id: 'reports', label: 'Field Assessments', icon: FileCheck, badge: pendingReportsCount > 0 ? pendingReportsCount : null, badgeColor: 'bg-purple-600' },
     { id: 'beneficiaries', label: 'Beneficiaries Registry', icon: UserCheck },
     { id: 'activities', label: 'Activity Log', icon: History },
     { id: 'profile', label: 'Profile & Settings', icon: Settings }

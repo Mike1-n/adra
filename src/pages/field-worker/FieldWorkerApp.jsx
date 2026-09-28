@@ -63,6 +63,7 @@ export function FieldWorkerApp({
   // Modals State
   const [showAssessmentModal, setShowAssessmentModal] = useState(false);
   const [selectedTaskForAssessment, setSelectedTaskForAssessment] = useState(null);
+  const [selectedProjectForAudit, setSelectedProjectForAudit] = useState(null);
   const [showScannerModal, setShowScannerModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showFundingModal, setShowFundingModal] = useState(false);
@@ -73,6 +74,7 @@ export function FieldWorkerApp({
   // Data State
   const [worker, setWorker] = useState({});
   const [allWorkers, setAllWorkers] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [assessments, setAssessments] = useState([]);
   const [activities, setActivities] = useState([]);
@@ -83,9 +85,9 @@ export function FieldWorkerApp({
   const [refreshing, setRefreshing] = useState(false);
 
   // Load all worker data
-  const loadData = async (targetWorker = null) => {
+  const loadData = async (targetWorker = null, isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent) setLoading(true);
       const workersList = await db.getFieldWorkers();
       setAllWorkers(workersList || []);
 
@@ -111,21 +113,18 @@ export function FieldWorkerApp({
       setWorker(current);
       setDutyStatus(current.current_status || 'Available');
 
-      const [assignedTasks, assData, actData, benData, fundData] = await Promise.all([
+      const [assignedTasks, assData, actData, benData, fundData, projData] = await Promise.all([
         db.getFieldWorkerAssignedRequests ? db.getFieldWorkerAssignedRequests(current.id, current.name) : db.getAssistanceRequests(),
         db.getFieldAssessments ? db.getFieldAssessments(null, current.id, current.name) : [],
         db.getFieldWorkerActivities ? db.getFieldWorkerActivities(current.id, current.name) : [],
         db.getBeneficiaries ? db.getBeneficiaries() : [],
-        db.getFieldFundingRequests ? db.getFieldFundingRequests(current.id) : []
+        db.getFieldFundingRequests ? db.getFieldFundingRequests(current.id) : [],
+        db.getProjects ? db.getProjects() : []
       ]);
 
-      if (assignedTasks && assignedTasks.length > 0) {
-        setTasks(assignedTasks);
-      } else {
-        const allReqs = await db.getAssistanceRequests();
-        setTasks(allReqs);
-      }
+      setTasks(Array.isArray(assignedTasks) ? assignedTasks : []);
 
+      setProjects(projData || []);
       setAssessments(assData || []);
       setActivities(actData || []);
       
@@ -248,6 +247,10 @@ export function FieldWorkerApp({
     return fundingRequests.filter(r => r.status === 'Disbursed').length;
   }, [fundingRequests]);
 
+  const rejectedFundingCount = useMemo(() => {
+    return fundingRequests.filter(r => r.status?.includes('Rejected') || r.stage === -1).length;
+  }, [fundingRequests]);
+
   return (
     <div className="min-h-screen bg-slate-950 sm:py-6 flex justify-center items-start font-sans">
       <div className="w-full max-w-md min-h-screen sm:min-h-[860px] bg-slate-100 sm:rounded-[32px] sm:shadow-2xl sm:border-[6px] sm:border-slate-800 relative overflow-hidden flex flex-col border-x border-slate-200">
@@ -355,11 +358,11 @@ export function FieldWorkerApp({
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'dashboard'
                   ? 'bg-[#006B56] text-white shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-slate-800 hover:text-slate-950 hover:bg-slate-100'
               }`}
             >
               <div className="flex items-center space-x-2.5">
-                <LayoutDashboard className={`w-4 h-4 ${activeTab === 'dashboard' ? 'text-white' : 'text-slate-400'}`} />
+                <LayoutDashboard className={`w-4 h-4 ${activeTab === 'dashboard' ? 'text-white' : 'text-slate-500'}`} />
                 <span>Dashboard Overview</span>
               </div>
             </button>
@@ -523,6 +526,24 @@ export function FieldWorkerApp({
               </span>
             </button>
 
+            {/* Scan Aid QR Token */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowScannerModal(true);
+                setIsSidebarOpen(false);
+              }}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 hover:text-slate-950 hover:bg-slate-100 transition-all cursor-pointer"
+            >
+              <div className="flex items-center space-x-2.5">
+                <QrCode className="w-4 h-4 text-slate-500" />
+                <span>Scan Aid QR Token</span>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
+                Scan
+              </span>
+            </button>
+
             {/* Daily Field Logs */}
             <button
               type="button"
@@ -657,6 +678,33 @@ export function FieldWorkerApp({
                       {approvedFundingCount}
                     </span>
                   </button>
+
+                  {/* 4. Rejected / Returned Facilitations */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('funding');
+                      setFacilitationFilter('rejected');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                      activeTab === 'funding' && facilitationFilter === 'rejected'
+                        ? 'bg-rose-50 text-rose-900 font-bold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'funding' && facilitationFilter === 'rejected' ? 'bg-rose-600' : 'bg-slate-400'}`} />
+                      <span>Rejected</span>
+                    </div>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      activeTab === 'funding' && facilitationFilter === 'rejected'
+                        ? 'bg-rose-600 text-white'
+                        : 'text-slate-500'
+                    }`}>
+                      {rejectedFundingCount}
+                    </span>
+                  </button>
                 </div>
               )}
             </div>
@@ -671,31 +719,13 @@ export function FieldWorkerApp({
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'profile'
                   ? 'bg-[#006B56] text-white shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-slate-800 hover:text-slate-950 hover:bg-slate-100'
               }`}
             >
               <div className="flex items-center space-x-2.5">
-                <User className={`w-4 h-4 ${activeTab === 'profile' ? 'text-white' : 'text-slate-400'}`} />
+                <User className={`w-4 h-4 ${activeTab === 'profile' ? 'text-white' : 'text-slate-500'}`} />
                 <span>Officer Profile & Zone</span>
               </div>
-            </button>
-
-            {/* Quick Scan Action in Drawer */}
-            <button
-              type="button"
-              onClick={() => {
-                setShowScannerModal(true);
-                setIsSidebarOpen(false);
-              }}
-              className="w-full mt-2 flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100 transition cursor-pointer"
-            >
-              <div className="flex items-center space-x-2.5">
-                <QrCode className="w-4 h-4 text-blue-700" />
-                <span>Scan Aid QR Token</span>
-              </div>
-              <span className="text-[9px] font-black uppercase bg-blue-200/80 text-blue-950 px-1.5 py-0.2 rounded">
-                Tool
-              </span>
             </button>
           </nav>
 
@@ -925,10 +955,15 @@ export function FieldWorkerApp({
                   requests={fundingRequests}
                   worker={worker}
                   tasks={tasks}
+                  assessments={assessments}
                   initialTask={selectedTaskForFunding}
                   filterMode={facilitationFilter}
                   onFilterModeChange={setFacilitationFilter}
                   onSubmitFundingRequest={handleSubmitFundingRequest}
+                  onStartAssessment={(task) => {
+                    setSelectedTaskForAssessment(task);
+                    setShowAssessmentModal(true);
+                  }}
                   onRefresh={() => loadData(worker)}
                 />
               )}
@@ -983,6 +1018,8 @@ export function FieldWorkerApp({
               setSelectedTaskForAssessment(null);
             }}
             task={selectedTaskForAssessment}
+            project={selectedProjectForAudit}
+            tasks={tasks}
             worker={worker}
             onSubmitAssessment={handleSubmitAssessment}
           />

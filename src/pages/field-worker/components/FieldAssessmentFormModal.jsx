@@ -1,16 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   FileCheck,
-  MapPin,
-  Users,
-  ShieldCheck,
-  AlertCircle,
-  Sparkles,
   Camera,
+  Upload,
+  Image as ImageIcon,
+  FileText,
+  Trash2,
+  AlertCircle,
+  Check,
   CheckCircle2,
-  Navigation,
-  Info
+  MapPin,
+  User,
+  ShieldCheck,
+  Sparkles,
+  Loader2,
+  Plus,
+  ClipboardList,
+  ChevronDown,
+  ArrowRight,
+  ArrowLeft,
+  BadgeCheck,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 
@@ -18,420 +30,858 @@ export function FieldAssessmentFormModal({
   isOpen,
   onClose,
   task = null,
+  tasks = [],
+  project = null,
   worker = {},
   onSubmitAssessment
 }) {
   const toast = useToast();
+  const fileInputRef = useRef(null);
+  const docInputRef = useRef(null);
 
+  // Wizard Step State (1: Finding & Case, 2: Report & Justification, 3: Evidence & Oath)
+  const [currentStep, setCurrentStep] = useState(1);
+
+  // Selected task state for task picker
+  const [selectedTaskId, setSelectedTaskId] = useState(() => task?.id || task?.request_code || '');
+
+  // Form Data State
   const [formData, setFormData] = useState(() => ({
     beneficiary_name: task?.beneficiary_name || '',
     beneficiary_code: task?.beneficiary_code || '',
     request_code: task?.request_code || '',
     request_id: task?.id || '',
-    national_id: task?.national_id || '',
+    project_id: project?.id || project?.project_code || task?.project_id || '',
+    project_name: project?.project_name || task?.project_name || task?.program_name || '',
+    project_code: project?.project_code || task?.project_code || '',
     phone: task?.phone || task?.phone_number || '',
-    state: task?.state || worker?.state || '',
-    county: task?.county || worker?.county || '',
-    payam: task?.payam || worker?.payam || '',
-    boma: task?.boma || worker?.boma || '',
-    village: task?.village || task?.village_area || '',
-    family_size: Number(task?.household_members) || 6,
-    children_under_5: 2,
-    elderly_count: 1,
-    disability_count: 0,
-    pregnant_lactating: 1,
-    female_headed: true,
-    shelter_condition: 'Critical / Makeshift',
-    food_security_status: 'Severe Hunger (1 meal or less / day)',
-    water_access: 'Unprotected Borehole / River (1km+ walk)',
-    income_source: 'None / Casual Labor',
-    id_verified: true,
-    gps_coordinates: '4.8516° N, 31.5825° E',
-    recommended_aid: task?.category || 'Immediate Food Relief Basket & Emergency WASH Kit',
-    audit_findings: task ? `In-person assessment conducted for ${task.beneficiary_name}. Household verified in urgent need of assistance.` : '',
-    field_officer_notes: ''
+    state: task?.state || worker?.state || 'Eastern Equatoria',
+    county: task?.county || worker?.county || 'Kapoeta South',
+    payam: task?.payam || worker?.payam || 'Kapoeta Town',
+    village: task?.village || task?.village_area || 'Longeleya',
+    urgency_level: task?.urgency_level || 'Critical Emergency',
+    recommended_aid: task?.category ? `${task.category} & Emergency Relief Kit` : (project?.sector ? `${project.sector} Relief Kit` : 'Emergency Food Basket & WASH Kit'),
+    ground_situation_report: task
+      ? `On-ground physical field assessment conducted for ${task.beneficiary_name}. Household visited in-person in ${task.payam || 'the payam'}. Living in severely compromised makeshift conditions with acute food insecurity and zero reserves remaining.`
+      : (project ? `On-ground household vulnerability audit conducted under project ${project.project_code} (${project.project_name}). Urgent humanitarian intervention required.` : 'Household visited in-person. Severe economic and nutritional distress observed on-site with urgent need for humanitarian intervention.'),
+    field_justification: task
+      ? `I hereby verify to the Supervisor and Program Manager that ${task.beneficiary_name} (${task.request_code || 'Case'}) genuinely requires the requested assistance (${task.category || project?.sector || 'Humanitarian Relief'}). Immediate approval and dispatch is strongly recommended.`
+      : `I hereby certify that the beneficiary household urgently requires immediate humanitarian assistance under ${project?.project_name || 'humanitarian relief'} to avert acute distress.`
   }));
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [gpsLoading, setGpsLoading] = useState(false);
+  // Truth Verification & Assessment Protocol State
+  const [verificationFinding, setVerificationFinding] = useState('VERIFIED_TRUE'); // 'VERIFIED_TRUE' | 'DISCREPANCY_FOUND' | 'INELIGIBLE_OR_RELOCATED'
+  const [truthCertifiedAgreed, setTruthCertifiedAgreed] = useState(true);
+  const [discrepancyNotes, setDiscrepancyNotes] = useState('');
+  const [checklist, setChecklist] = useState({
+    visitedInPerson: true,
+    idHeadVerified: true,
+    vulnerabilityConfirmed: true,
+    photoEvidenceTaken: true
+  });
 
-  // Pre-fill if a task was passed in
+  // Evidence Photos State
+  const [evidencePhotos, setEvidencePhotos] = useState([
+    {
+      id: 'photo-1',
+      name: 'Shelter_Living_Condition.jpg',
+      url: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=600&auto=format&fit=crop&q=80',
+      category: 'Shelter Condition',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    },
+    {
+      id: 'photo-2',
+      name: 'Household_Vulnerability_Context.jpg',
+      url: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=600&auto=format&fit=crop&q=80',
+      category: 'Family On-Site',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+  ]);
+
+  // Evidence Documents State
+  const [evidenceDocs, setEvidenceDocs] = useState([
+    {
+      id: 'doc-1',
+      name: 'Boma_Chief_Letter.pdf',
+      size: '1.4 MB',
+      type: 'Recommendation',
+      date: new Date().toLocaleDateString()
+    },
+    {
+      id: 'doc-2',
+      name: 'National_ID_Copy.pdf',
+      size: '840 KB',
+      type: 'ID Verification',
+      date: new Date().toLocaleDateString()
+    }
+  ]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Helper to autofill when a task is picked
+  const applyTaskToForm = (t) => {
+    if (!t) return;
+    setSelectedTaskId(t.id || t.request_code || '');
+    setFormData(prev => ({
+      ...prev,
+      beneficiary_name: t.beneficiary_name || prev.beneficiary_name,
+      beneficiary_code: t.beneficiary_code || prev.beneficiary_code,
+      request_code: t.request_code || prev.request_code,
+      request_id: t.id || prev.request_id,
+      phone: t.phone || t.phone_number || prev.phone,
+      state: t.state || worker?.state || prev.state,
+      county: t.county || worker?.county || prev.county,
+      payam: t.payam || worker?.payam || prev.payam,
+      village: t.village || t.village_area || prev.village,
+      recommended_aid: t.category ? `${t.category} & Emergency Relief Kit` : prev.recommended_aid,
+      ground_situation_report: `On-ground physical field assessment conducted for ${t.beneficiary_name}. Household visited in-person in ${t.payam || 'the payam'}. Living in severely compromised makeshift conditions with acute food insecurity and zero reserves remaining.`,
+      field_justification: `I hereby verify to the Supervisor and Program Manager that ${t.beneficiary_name} (${t.request_code || 'Case'}) genuinely requires the requested assistance (${t.category || 'Humanitarian Relief'}). Immediate approval and dispatch is strongly recommended.`
+    }));
+  };
+
+  // Sync state if task changes from props
   useEffect(() => {
     if (task) {
-      setFormData(prev => ({
-        ...prev,
-        beneficiary_name: task.beneficiary_name || prev.beneficiary_name,
-        beneficiary_code: task.beneficiary_code || prev.beneficiary_code,
-        request_code: task.request_code || prev.request_code,
-        request_id: task.id || prev.request_id,
-        national_id: task.national_id || prev.national_id,
-        phone: task.phone || task.phone_number || prev.phone,
-        state: task.state || worker?.state || prev.state,
-        county: task.county || worker?.county || prev.county,
-        payam: task.payam || worker?.payam || prev.payam,
-        boma: task.boma || worker?.boma || prev.boma,
-        village: task.village || task.village_area || prev.village,
-        family_size: Number(task.household_members) || prev.family_size,
-        audit_findings: `In-person assessment conducted for ${task.beneficiary_name}. Household confirmed in critical need of humanitarian assistance.`
-      }));
+      applyTaskToForm(task);
+    } else if (tasks && tasks.length > 0 && !selectedTaskId) {
+      const firstPending = tasks.find(t => t.status === 'Assessment In Progress' || t.status?.includes('Pending') || t.status === 'Assigned to Field Worker') || tasks[0];
+      if (firstPending) {
+        applyTaskToForm(firstPending);
+      }
     }
-  }, [task, worker]);
+  }, [task, tasks]);
 
   if (!isOpen) return null;
 
-  // Calculate dynamic vulnerability score (0 to 100)
-  const calculateVulnerabilityScore = () => {
-    let score = 40; // baseline
-    if (formData.female_headed) score += 10;
-    if (Number(formData.family_size) >= 6) score += 10;
-    if (Number(formData.disability_count) > 0) score += 15;
-    if (Number(formData.children_under_5) >= 2) score += 10;
-    if (Number(formData.pregnant_lactating) > 0) score += 10;
-    if (formData.food_security_status.includes('Severe')) score += 15;
-    return Math.min(100, Math.max(0, score));
-  };
-
-  const vulnerabilityScore = calculateVulnerabilityScore();
-
-  const handleSimulateGPS = () => {
-    setGpsLoading(true);
-    setTimeout(() => {
+  // Handle Task Select dropdown change
+  const handleTaskSelectionChange = (e) => {
+    const val = e.target.value;
+    if (val === 'custom') {
+      setSelectedTaskId('custom');
       setFormData(prev => ({
         ...prev,
-        gps_coordinates: `4.${Math.floor(8000 + Math.random() * 900)}° N, 31.${Math.floor(5000 + Math.random() * 900)}° E`
+        beneficiary_name: '',
+        request_code: `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
+        request_id: '',
+        ground_situation_report: '',
+        field_justification: ''
       }));
-      setGpsLoading(false);
-      toast.success('Live GPS coordinates acquired from mobile sensor');
-    }, 600);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.beneficiary_name.trim()) {
-      toast.error('Please enter the beneficiary household name.');
       return;
     }
 
+    const foundTask = tasks.find(t => (t.id && t.id.toString() === val) || (t.request_code && t.request_code.toString() === val));
+    if (foundTask) {
+      applyTaskToForm(foundTask);
+      toast?.showToast?.(`Loaded ${foundTask.beneficiary_name} details`, 'info');
+    }
+  };
+
+  // Handle Photo Upload
+  const handlePhotoUpload = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const newPhoto = {
+          id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          name: file.name,
+          url: event.target.result,
+          category: 'Field Evidence',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setEvidencePhotos(prev => [...prev, newPhoto]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    toast?.showToast?.(`${files.length} photo(s) added`, 'success');
+  };
+
+  // Remove Photo
+  const handleRemovePhoto = (id) => {
+    setEvidencePhotos(prev => prev.filter(p => p.id !== id));
+  };
+
+  // Handle Document Upload
+  const handleDocUpload = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    files.forEach(file => {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      const sizeStr = sizeMB >= 1 ? `${sizeMB} MB` : `${Math.round(file.size / 1024)} KB`;
+
+      const newDoc = {
+        id: `doc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        name: file.name,
+        size: sizeStr,
+        type: 'Document',
+        date: new Date().toLocaleDateString()
+      };
+      setEvidenceDocs(prev => [...prev, newDoc]);
+    });
+
+    toast?.showToast?.(`${files.length} document(s) attached`, 'success');
+  };
+
+  // Remove Document
+  const handleRemoveDoc = (id) => {
+    setEvidenceDocs(prev => prev.filter(d => d.id !== id));
+  };
+
+  const toggleChecklistItem = (key) => {
+    setChecklist(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Validate step before moving forward
+  const handleNextStep = () => {
+    if (currentStep === 1) {
+      if (!formData.beneficiary_name.trim()) {
+        toast?.showToast?.('Please enter or select the beneficiary name', 'error');
+        return;
+      }
+      if (verificationFinding !== 'VERIFIED_TRUE' && !discrepancyNotes.trim()) {
+        toast?.showToast?.('Please provide an explanation for the discrepancy / ineligibility', 'error');
+        return;
+      }
+    } else if (currentStep === 2) {
+      if (!formData.ground_situation_report.trim()) {
+        toast?.showToast?.('Please describe the on-ground situation findings', 'error');
+        return;
+      }
+    }
+    setCurrentStep(prev => Math.min(prev + 1, 3));
+  };
+
+  // Submit Handler
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+
+    if (!formData.beneficiary_name.trim()) {
+      toast?.showToast?.('Please enter or select the beneficiary name', 'error');
+      setCurrentStep(1);
+      return;
+    }
+
+    if (!formData.ground_situation_report.trim()) {
+      toast?.showToast?.('Please provide the on-ground situation report', 'error');
+      setCurrentStep(2);
+      return;
+    }
+
+    if (!truthCertifiedAgreed) {
+      toast?.showToast?.('You must certify the on-ground assessment declaration before submitting.', 'warning');
+      setCurrentStep(3);
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
-      setIsSubmitting(true);
-      await onSubmitAssessment({
-        ...formData,
-        vulnerability_score: vulnerabilityScore,
-        urgency_level: vulnerabilityScore >= 80 ? 'High' : vulnerabilityScore >= 60 ? 'Medium' : 'Normal',
-        field_worker_id: worker.id || 'fw-1',
-        field_worker_name: worker.name || 'John Deng',
-        supervisor_id: worker.supervisor_id || 'sup-1',
-        supervisor_name: worker.supervisor_name || 'Emmanuel Adeyemi'
-      });
-      toast.success('Field assessment submitted to supervisor review!');
+      const isVerifiedTrue = verificationFinding === 'VERIFIED_TRUE';
+
+      const payload = {
+        beneficiary_name: formData.beneficiary_name,
+        beneficiary_code: formData.beneficiary_code || `BEN-${Math.floor(1000 + Math.random() * 9000)}`,
+        request_code: formData.request_code || `REQ-${Math.floor(10000 + Math.random() * 90000)}`,
+        request_id: formData.request_id || task?.id,
+        project_id: formData.project_id || project?.id || project?.project_code || 'PRJ-SS-2025-01',
+        project_name: formData.project_name || project?.project_name || 'Emergency Humanitarian Relief',
+        project_code: formData.project_code || project?.project_code || 'PRJ-SS-2025-01',
+        phone: formData.phone,
+        state: formData.state,
+        county: formData.county,
+        payam: formData.payam,
+        village: formData.village,
+        urgency_level: formData.urgency_level,
+        recommended_aid: formData.recommended_aid,
+        ground_situation_report: formData.ground_situation_report,
+        field_justification: formData.field_justification,
+        audit_findings: formData.ground_situation_report,
+        evidence_photos: evidencePhotos,
+        assessed_by: worker?.name || 'John Deng',
+        worker_id: worker?.id || 'fw-1',
+        field_worker_name: worker?.name || 'John Deng',
+        field_worker_id: worker?.id || 'fw-1',
+        supervisor_id: worker?.supervisor_id || task?.assigned_supervisor_id || 'sup-1',
+        supervisor_name: worker?.supervisor_name || task?.assigned_supervisor_name || 'Emmanuel Adeyemi',
+        assessment_date: new Date().toISOString(),
+        
+        // Post-Disbursement Truth & Verification Report Fields
+        assignment_verified_true: isVerifiedTrue,
+        verification_finding: verificationFinding,
+        verification_finding_label: isVerifiedTrue ? 'Assignment Verified True on Ground' : (verificationFinding === 'DISCREPANCY_FOUND' ? 'Discrepancy Detected' : 'Beneficiary Ineligible / Relocated'),
+        truth_certified_agreed: truthCertifiedAgreed,
+        truth_statement: `I, ${worker?.name || 'Field Officer'}, certify under official humanitarian duty that I conducted an in-person field visit to ${formData.beneficiary_name} in ${formData.payam}. The assignment given concerning this beneficiary is ${isVerifiedTrue ? 'TRUE, genuine, and in acute need of aid' : 'FLAGGED with discrepancies'}.`,
+        discrepancy_notes: isVerifiedTrue ? '' : discrepancyNotes,
+        verification_checklist: checklist
+      };
+
+      if (onSubmitAssessment) {
+        await onSubmitAssessment(payload);
+      }
+
+      toast?.showToast?.(`Assessment submitted: ${formData.beneficiary_name} confirmed ${isVerifiedTrue ? 'TRUE' : 'evaluated'}.`, 'success');
       onClose();
     } catch (err) {
-      toast.error(err.message || 'Failed to submit assessment');
+      console.error(err);
+      toast?.showToast?.('Failed to submit report. Please try again.', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const steps = [
+    { id: 1, label: '1. Finding' },
+    { id: 2, label: '2. Report' },
+    { id: 3, label: '3. Evidence' }
+  ];
+
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center p-2.5 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl w-full h-full max-h-[96%] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-3 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="relative w-full h-[92vh] sm:h-auto sm:max-h-[90vh] sm:max-w-lg md:max-w-xl bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
         
-        {/* HEADER */}
-        <div className="p-4 bg-gradient-to-r from-[#006B56] to-[#004d3d] text-white flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center shadow-inner">
-              <FileCheck className="w-5 h-5 text-emerald-200" />
+        {/* MOBILE TOP DRAG HANDLE / HEADER */}
+        <div className="px-3.5 py-2.5 bg-gradient-to-r from-[#006B56] to-[#005544] text-white flex items-center justify-between shrink-0 shadow-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+              <FileCheck className="w-3.5 h-3.5 text-emerald-100" />
             </div>
-            <div>
-              <h2 className="text-sm font-bold tracking-tight">On-Ground Vulnerability Audit</h2>
-              <p className="text-[11px] text-emerald-100/90">Conduct household verification & score vulnerability</p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-xs font-black leading-tight truncate">Field Verification Report</h2>
+                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-400/25 border border-emerald-300/30 text-emerald-100 font-bold shrink-0">
+                  {currentStep}/3
+                </span>
+              </div>
+              <p className="text-[10px] text-emerald-100/80 font-medium truncate">
+                {formData.beneficiary_name ? `${formData.beneficiary_name} • ${formData.payam || 'Payam'}` : 'Verify authenticity & submit'}
+              </p>
             </div>
           </div>
+
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition"
+            className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition shrink-0 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* SCROLLABLE FORM BODY */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
-          
-          {/* TOP VULNERABILITY SCORE BADGE */}
-          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-3.5 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <span className="text-[11px] font-bold text-emerald-950 uppercase tracking-wider flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-[#006B56]" />
-                Computed Vulnerability Index
-              </span>
-              <p className="text-[11px] text-slate-600">Calculated based on household demographics and food insecurity metrics</p>
-            </div>
-            <div className="text-right">
-              <span className="text-2xl font-black text-[#006B56] tracking-tight">{vulnerabilityScore}</span>
-              <span className="text-xs text-slate-500 font-bold">/100</span>
-              <span className={`block text-[10px] font-black uppercase px-2 py-0.5 rounded-md mt-0.5 ${
-                vulnerabilityScore >= 80 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900'
-              }`}>
-                {vulnerabilityScore >= 80 ? 'Critical Need' : 'Moderate Need'}
-              </span>
-            </div>
-          </div>
+        {/* MOBILE STEP SWITCHER TABS */}
+        <div className="bg-slate-100/80 border-b border-slate-200 p-1.5 shrink-0 flex items-center justify-between gap-1">
+          {steps.map((s) => {
+            const isActive = currentStep === s.id;
+            const isDone = currentStep > s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setCurrentStep(s.id)}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-extrabold transition flex items-center justify-center gap-1 cursor-pointer select-none ${
+                  isActive
+                    ? 'bg-[#006B56] text-white shadow-xs'
+                    : isDone
+                    ? 'bg-emerald-100/80 text-[#006B56]'
+                    : 'bg-white text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                {isDone ? (
+                  <Check className="w-3 h-3 stroke-[3]" />
+                ) : (
+                  <span className={`w-3.5 h-3.5 rounded-full text-[9px] flex items-center justify-center font-black ${
+                    isActive ? 'bg-white text-[#006B56]' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {s.id}
+                  </span>
+                )}
+                <span className="truncate">{s.label.split(' ')[1]}</span>
+              </button>
+            );
+          })}
+        </div>
 
-          {/* 1. BENEFICIARY & HOUSEHOLD INFORMATION */}
-          <div className="space-y-3 pt-1">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
-              <Users className="w-4 h-4 text-[#006B56]" />
-              1. Household Demographics
-            </h3>
+        {/* MODAL SCROLLABLE BODY */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
+          {/* ================= STEP 1: FINDING & BENEFICIARY ================= */}
+          {currentStep === 1 && (
+            <div className="space-y-3 animate-in fade-in duration-100 text-xs">
+              {/* Task Selector */}
+              <div className="p-2.5 bg-emerald-50/70 rounded-xl border border-emerald-200/80 space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-black text-[#006B56] flex items-center gap-1">
+                    <ClipboardList className="w-3.5 h-3.5" />
+                    Assigned Case *
+                  </label>
+                  <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                    {tasks.length} task{tasks.length === 1 ? '' : 's'}
+                  </span>
+                </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Full Legal Name *</label>
-                <input
-                  type="text"
+                <div className="relative">
+                  <select
+                    value={selectedTaskId}
+                    onChange={handleTaskSelectionChange}
+                    className="w-full px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-[11px] font-bold text-slate-900 focus:outline-none focus:border-[#006B56] appearance-none pr-7 cursor-pointer"
+                  >
+                    {tasks.length === 0 ? (
+                      <option value="">No assigned tasks found (Fill below)</option>
+                    ) : (
+                      tasks.map(t => (
+                        <option key={t.id || t.request_code} value={t.id || t.request_code}>
+                          {t.beneficiary_name} • {t.request_code || 'REQ'}
+                        </option>
+                      ))
+                    )}
+                    <option value="custom">✍️ Manual Walk-in Entry</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* On-Ground Finding 3-Choice Radio Cards */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-black text-slate-900 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#006B56]" />
+                    Verification Finding *
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-normal">Select on-ground outcome</span>
+                </label>
+
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setVerificationFinding('VERIFIED_TRUE')}
+                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${
+                      verificationFinding === 'VERIFIED_TRUE'
+                        ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-950 font-black'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold'
+                    }`}
+                  >
+                    <CheckCircle2 className={`w-4 h-4 mb-0.5 ${verificationFinding === 'VERIFIED_TRUE' ? 'text-[#006B56]' : 'text-slate-300'}`} />
+                    <span className="text-[10px] leading-tight">Verified True</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVerificationFinding('DISCREPANCY_FOUND')}
+                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${
+                      verificationFinding === 'DISCREPANCY_FOUND'
+                        ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-500/20 text-amber-950 font-black'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold'
+                    }`}
+                  >
+                    <AlertCircle className={`w-4 h-4 mb-0.5 ${verificationFinding === 'DISCREPANCY_FOUND' ? 'text-amber-600' : 'text-slate-300'}`} />
+                    <span className="text-[10px] leading-tight">Discrepancy</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVerificationFinding('INELIGIBLE_OR_RELOCATED')}
+                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${
+                      verificationFinding === 'INELIGIBLE_OR_RELOCATED'
+                        ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-500/20 text-rose-950 font-black'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold'
+                    }`}
+                  >
+                    <X className={`w-4 h-4 mb-0.5 ${verificationFinding === 'INELIGIBLE_OR_RELOCATED' ? 'text-rose-600' : 'text-slate-300'}`} />
+                    <span className="text-[10px] leading-tight">Not Eligible</span>
+                  </button>
+                </div>
+
+                {verificationFinding !== 'VERIFIED_TRUE' && (
+                  <div className="pt-1">
+                    <textarea
+                      required
+                      rows={2}
+                      value={discrepancyNotes}
+                      onChange={(e) => setDiscrepancyNotes(e.target.value)}
+                      placeholder="Explain reason for discrepancy or ineligibility observed on ground..."
+                      className="w-full p-2 bg-white border border-amber-300 rounded-lg text-[11px] font-medium text-slate-900 focus:outline-none focus:border-amber-500 resize-none"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Beneficiary Details Form */}
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                    <User className="w-3 h-3 text-[#006B56]" />
+                    Beneficiary & Location
+                  </span>
+                  <span className="text-[9px] font-bold text-[#006B56] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
+                    {formData.payam || 'Payam'}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                      Beneficiary Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.beneficiary_name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, beneficiary_name: e.target.value }))}
+                      placeholder="Full Name"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:border-[#006B56]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                        Case / Request Code
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.request_code}
+                        onChange={(e) => setFormData(prev => ({ ...prev, request_code: e.target.value }))}
+                        placeholder="ADR-REQ-..."
+                        className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg text-[11px] font-semibold text-slate-900 focus:outline-none focus:border-[#006B56]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                        Urgency Level
+                      </label>
+                      <select
+                        value={formData.urgency_level}
+                        onChange={(e) => setFormData(prev => ({ ...prev, urgency_level: e.target.value }))}
+                        className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg text-[11px] font-bold text-slate-800 focus:outline-none focus:border-[#006B56]"
+                      >
+                        <option value="Critical Emergency">🚨 Critical Emergency</option>
+                        <option value="High Priority">⚠️ High Priority</option>
+                        <option value="Moderate">🟡 Moderate</option>
+                        <option value="Routine">🟢 Routine</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                      Recommended Aid Package
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.recommended_aid}
+                      onChange={(e) => setFormData(prev => ({ ...prev, recommended_aid: e.target.value }))}
+                      placeholder="e.g. Food & WASH Kit"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#006B56]"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ================= STEP 2: REPORT & JUSTIFICATION ================= */}
+          {currentStep === 2 && (
+            <div className="space-y-3 animate-in fade-in duration-100 text-xs">
+              {/* Situation Findings */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-black text-slate-900 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 text-[#006B56]" />
+                    Ground Situation & Vulnerability *
+                  </span>
+                </label>
+                <textarea
                   required
-                  value={formData.beneficiary_name}
-                  onChange={(e) => setFormData({ ...formData, beneficiary_name: e.target.value })}
-                  placeholder="e.g. Mary Ajak Deng"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#006B56] outline-none"
+                  rows={3}
+                  value={formData.ground_situation_report}
+                  onChange={(e) => setFormData(prev => ({ ...prev, ground_situation_report: e.target.value }))}
+                  placeholder="State living conditions, shelter state, hunger level observed..."
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-[11px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#006B56] resize-none leading-relaxed"
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">National ID / Refugee ID *</label>
-                <input
-                  type="text"
-                  value={formData.national_id}
-                  onChange={(e) => setFormData({ ...formData, national_id: e.target.value })}
-                  placeholder="e.g. SSD-ID-99201"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#006B56] outline-none font-mono"
+              {/* Justification for superiors */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-black text-slate-900 flex items-center gap-1">
+                  <BadgeCheck className="w-3.5 h-3.5 text-[#006B56]" />
+                  Officer Justification to Superiors *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={formData.field_justification}
+                  onChange={(e) => setFormData(prev => ({ ...prev, field_justification: e.target.value }))}
+                  placeholder="Explain why immediate relief approval & dispatch is essential..."
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-[11px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#006B56] resize-none leading-relaxed"
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Phone Number</label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+211-9..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#006B56] outline-none"
-                />
-              </div>
+              {/* Verification Checklist (Vertical with Larger Checkbox) */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                  Field Protocol Checklist
+                </span>
+                <div className="flex flex-col space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleChecklistItem('visitedInPerson')}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      checklist.visitedInPerson
+                        ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 font-bold'
+                        : 'bg-white border-slate-200 text-slate-700 font-medium hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {checklist.visitedInPerson ? (
+                        <CheckSquare className="w-5 h-5 text-[#006B56] shrink-0" />
+                      ) : (
+                        <Square className="w-5 h-5 text-slate-400 shrink-0" />
+                      )}
+                      <span className="text-xs font-bold truncate">In-Person Physical Visit</span>
+                    </div>
+                    <span className="text-[10px] font-extrabold text-[#006B56] shrink-0 ml-2">
+                      {checklist.visitedInPerson ? '✓ Confirmed' : 'Tap to confirm'}
+                    </span>
+                  </button>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Linked Assistance Request</label>
-                <input
-                  type="text"
-                  readOnly
-                  value={formData.request_code || 'Unlinked / Ad-hoc Audit'}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 font-mono"
-                />
+                  <button
+                    type="button"
+                    onClick={() => toggleChecklistItem('idHeadVerified')}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      checklist.idHeadVerified
+                        ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 font-bold'
+                        : 'bg-white border-slate-200 text-slate-700 font-medium hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {checklist.idHeadVerified ? (
+                        <CheckSquare className="w-5 h-5 text-[#006B56] shrink-0" />
+                      ) : (
+                        <Square className="w-5 h-5 text-slate-400 shrink-0" />
+                      )}
+                      <span className="text-xs font-bold truncate">ID & Head of Household Verified</span>
+                    </div>
+                    <span className="text-[10px] font-extrabold text-[#006B56] shrink-0 ml-2">
+                      {checklist.idHeadVerified ? '✓ Confirmed' : 'Tap to confirm'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => toggleChecklistItem('vulnerabilityConfirmed')}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      checklist.vulnerabilityConfirmed
+                        ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 font-bold'
+                        : 'bg-white border-slate-200 text-slate-700 font-medium hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {checklist.vulnerabilityConfirmed ? (
+                        <CheckSquare className="w-5 h-5 text-[#006B56] shrink-0" />
+                      ) : (
+                        <Square className="w-5 h-5 text-slate-400 shrink-0" />
+                      )}
+                      <span className="text-xs font-bold truncate">Acute Vulnerability & Need Confirmed</span>
+                    </div>
+                    <span className="text-[10px] font-extrabold text-[#006B56] shrink-0 ml-2">
+                      {checklist.vulnerabilityConfirmed ? '✓ Confirmed' : 'Tap to confirm'}
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* 2. LOCATION & GPS */}
-          <div className="space-y-3 pt-2">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
-              <MapPin className="w-4 h-4 text-[#006B56]" />
-              2. On-Site Location & Coordinates
-            </h3>
+          {/* ================= STEP 3: EVIDENCE & OATH ================= */}
+          {currentStep === 3 && (
+            <div className="space-y-3 animate-in fade-in duration-100 text-xs">
+              {/* Photo Evidence Gallery */}
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-black text-slate-900 flex items-center gap-1">
+                    <Camera className="w-3.5 h-3.5 text-[#006B56]" />
+                    Photos ({evidencePhotos.length})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-[#006B56] hover:bg-emerald-200 transition cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add Photo
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                  />
+                </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 mb-1">State</label>
-                <input
-                  type="text"
-                  value={formData.state}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs"
-                />
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {evidencePhotos.map(photo => (
+                    <div key={photo.id} className="relative group shrink-0 w-20 h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-200">
+                      <img src={photo.url} alt={photo.name} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(photo.id)}
+                        className="absolute top-0.5 right-0.5 p-0.5 rounded bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer"
+                      >
+                        <Trash2 className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="shrink-0 w-16 h-14 rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:bg-white cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="text-[8px] font-bold">Add</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 mb-1">County</label>
-                <input
-                  type="text"
-                  value={formData.county}
-                  onChange={(e) => setFormData({ ...formData, county: e.target.value })}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs"
-                />
+
+              {/* Document Attachments */}
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-black text-slate-900 flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5 text-[#006B56]" />
+                    Attached Docs ({evidenceDocs.length})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => docInputRef.current?.click()}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800 hover:bg-blue-200 transition cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Attach Doc
+                  </button>
+                  <input
+                    ref={docInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx,.png,.jpg,.txt"
+                    multiple
+                    onChange={handleDocUpload}
+                    className="hidden"
+                  />
+                </div>
+
+                <div className="space-y-1 max-h-[70px] overflow-y-auto">
+                  {evidenceDocs.map(doc => (
+                    <div key={doc.id} className="flex items-center justify-between p-1.5 rounded-lg bg-white border border-slate-200 text-[10px]">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <FileText className="w-3 h-3 text-blue-600 shrink-0" />
+                        <span className="font-bold text-slate-800 truncate max-w-[170px]">{doc.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDoc(doc.id)}
+                        className="p-0.5 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                      >
+                        <Trash2 className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 mb-1">Payam</label>
-                <input
-                  type="text"
-                  value={formData.payam}
-                  onChange={(e) => setFormData({ ...formData, payam: e.target.value })}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 mb-1">Boma / Village</label>
-                <input
-                  type="text"
-                  value={formData.boma}
-                  onChange={(e) => setFormData({ ...formData, boma: e.target.value })}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs"
-                />
+
+              {/* Sworn Officer Oath */}
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    id="truthCert"
+                    checked={truthCertifiedAgreed}
+                    onChange={(e) => setTruthCertifiedAgreed(e.target.checked)}
+                    className="mt-0.5 w-5 h-5 rounded-md text-[#006B56] focus:ring-[#006B56] cursor-pointer shrink-0 accent-[#006B56]"
+                  />
+                  <label htmlFor="truthCert" className="text-xs font-black text-emerald-950 leading-tight cursor-pointer select-none">
+                    Field Officer Sworn Declaration of Truth *
+                  </label>
+                </div>
+                
+                <p className="text-[10px] text-emerald-900 leading-normal pl-6 italic bg-white/70 p-2 rounded-lg border border-emerald-200/70">
+                  "I, <strong>{worker?.name || 'Field Officer'}</strong>, certify that I conducted an in-person visit to <strong>{formData.beneficiary_name || 'beneficiary'}</strong> at <strong>{formData.payam || 'payam'}</strong>. The assignment is <strong>{verificationFinding === 'VERIFIED_TRUE' ? 'TRUE' : 'evaluated as reported'}</strong>."
+                </p>
+
+                <div className="pl-6 flex flex-wrap items-center gap-x-2 text-[9px] text-emerald-800 font-bold">
+                  <span className="flex items-center gap-0.5">
+                    <Check className="w-2.5 h-2.5 text-[#006B56]" />
+                    In-Person Visit
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-0.5">
+                    <Check className="w-2.5 h-2.5 text-[#006B56]" />
+                    Conditions & Need Verified
+                  </span>
+                </div>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* GPS capture */}
-            <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-              <Navigation className="w-4 h-4 text-[#006B56] shrink-0" />
-              <input
-                type="text"
-                readOnly
-                value={formData.gps_coordinates}
-                className="bg-transparent font-mono text-xs flex-1 text-slate-800 outline-none"
-              />
+        {/* MOBILE STICKY BOTTOM CONTROLS */}
+        <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition cursor-pointer"
+          >
+            Cancel
+          </button>
+
+          <div className="flex items-center gap-2">
+            {currentStep > 1 && (
               <button
                 type="button"
-                onClick={handleSimulateGPS}
-                disabled={gpsLoading}
-                className="px-2.5 py-1 bg-[#006B56] hover:bg-[#005a48] text-white text-[11px] font-bold rounded-lg shadow-2xs transition shrink-0"
+                onClick={() => setCurrentStep(prev => prev - 1)}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-slate-300 text-slate-700 transition flex items-center gap-1 cursor-pointer"
               >
-                {gpsLoading ? 'Acquiring...' : 'Capture GPS'}
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back
               </button>
-            </div>
+            )}
+
+            {currentStep < 3 ? (
+              <button
+                type="button"
+                onClick={handleNextStep}
+                className="px-4 py-1.5 rounded-xl text-xs font-black bg-[#006B56] hover:bg-[#005544] text-white shadow-xs transition flex items-center gap-1 cursor-pointer"
+              >
+                <span>Continue</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting || !truthCertifiedAgreed}
+                className="px-4 py-1.5 rounded-xl text-xs font-black bg-[#006B56] hover:bg-[#005544] text-white shadow-xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Submit Report</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
-
-          {/* 3. VULNERABILITY CRITERIA */}
-          <div className="space-y-3 pt-2">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
-              <ShieldCheck className="w-4 h-4 text-[#006B56]" />
-              3. Vulnerability Indicators
-            </h3>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Total Household Members</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="25"
-                  value={formData.family_size}
-                  onChange={(e) => setFormData({ ...formData, family_size: Number(e.target.value) })}
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Children &lt; 5 yrs</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.children_under_5}
-                  onChange={(e) => setFormData({ ...formData, children_under_5: Number(e.target.value) })}
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Disabled Members</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.disability_count}
-                  onChange={(e) => setFormData({ ...formData, disability_count: Number(e.target.value) })}
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Food Security Situation</label>
-                <select
-                  value={formData.food_security_status}
-                  onChange={(e) => setFormData({ ...formData, food_security_status: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none"
-                >
-                  <option>Severe Hunger (1 meal or less / day)</option>
-                  <option>Moderate Hunger (2 meals / day, lacking protein)</option>
-                  <option>Borderline Food Security</option>
-                  <option>Adequate Food Security</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">Shelter & Living Condition</label>
-                <select
-                  value={formData.shelter_condition}
-                  onChange={(e) => setFormData({ ...formData, shelter_condition: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none"
-                >
-                  <option>Critical / Makeshift Tukl (Leaking/Damaged)</option>
-                  <option>Temporary Thatched Hut</option>
-                  <option>Permanent Mud-Brick Compound</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* 4. FIELD FINDINGS & RECOMMENDATIONS */}
-          <div className="space-y-3 pt-2">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
-              <FileCheck className="w-4 h-4 text-[#006B56]" />
-              4. Field Worker Observations & Recommended Package
-            </h3>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Recommended Aid Package</label>
-              <input
-                type="text"
-                value={formData.recommended_aid}
-                onChange={(e) => setFormData({ ...formData, recommended_aid: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none font-medium"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1">Field Assessment Notes & Justification *</label>
-              <textarea
-                rows={3}
-                required
-                value={formData.audit_findings}
-                onChange={(e) => setFormData({ ...formData, audit_findings: e.target.value })}
-                placeholder="Document in-person observations, verification details, and reasons for urgent dispatch..."
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none resize-none"
-              />
-            </div>
-          </div>
-
-          {/* SUBMIT BUTTONS */}
-          <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-5 py-2.5 bg-[#006B56] hover:bg-[#005a48] text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Submitting Report...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  Submit Audit to Supervisor
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+        </div>
 
       </div>
     </div>
   );
 }
+
+export default FieldAssessmentFormModal;

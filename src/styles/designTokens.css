@@ -1,0 +1,37 @@
+/* src/styles/designTokens.css */
+
+@layer base {
+  :root {
+    /* Primary brand color – teal/emerald HSL */
+    --color-primary-h: 168;
+    --color-primary-s: 57%;
+    --color-primary-l: 45%;
+    /* Secondary accent – amber */
+    --color-secondary-h: 45;
+    --color-secondary-s: 100%;
+    --color-secondary-l: 50%;
+    /* Success – emerald */
+    --color-success-h: 152;
+    --color-success-s: 61%;
+    --color-success-l: 45%;
+    /* Warning – orange */
+    --color-warning-h: 30;
+    --color-warning-s: 100%;
+    --color-warning-l: 55%;
+    /* Danger – rose */
+    --color-danger-h: 350;
+    --color-danger-s: 85%;
+    --color-danger-l: 60%;
+  }
+}
+
+/* Utility classes using the custom HSL variables */
+@layer utilities {
+  .bg-primary { background-color: hsl(var(--color-primary-h) var(--color-primary-s) var(--color-primary-l)); }
+  .text-primary { color: hsl(var(--color-primary-h) var(--color-primary-s) var(--color-primary-l)); }
+  .border-primary { border-color: hsl(var(--color-primary-h) var(--color-primary-s) var(--color-primary-l)); }
+  .bg-secondary { background-color: hsl(var(--color-secondary-h) var(--color-secondary-s) var(--color-secondary-l)); }
+  .bg-success { background-color: hsl(var(--color-success-h) var(--color-success-s) var(--color-success-l)); }
+  .bg-warning { background-color: hsl(var(--color-warning-h) var(--color-warning-s) var(--color-warning-l)); }
+  .bg-danger { background-color: hsl(var(--color-danger-h) var(--color-danger-s) var(--color-danger-l)); }
+}

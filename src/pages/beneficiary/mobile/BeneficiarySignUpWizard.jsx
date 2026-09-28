@@ -60,12 +60,13 @@ export function BeneficiarySignUpWizard({ onBackToLogin, onRegistrationComplete 
 
   const vulnerabilityOptions = [
     'Female-headed Household',
-    'Elderly (60+ years living alone)',
-    'Persons with Disability (PWD)',
-    'Internally Displaced Household (IDP)',
+    'Elderly',
+    'Persons with Disability',
+    'Internally Displaced Person (IDP)',
     'Child-headed Household',
-    'Drought-Affected Smallholder',
-    'General Community Member'
+    'Extremely Poor Household',
+    'Youth at Risk',
+    'General Community'
   ];
 
   // Validation before advancing

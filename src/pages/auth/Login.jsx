@@ -50,7 +50,7 @@ export function Login({ onLoginSuccess }) {
     phone_number: '',
     location: 'Juba Central, South Sudan',
     household_size: 4,
-    vulnerability_category: 'Female-headed household',
+    vulnerability_category: 'Female-headed Household',
     role: 'Project Officer',
     department: 'Humanitarian Response',
     password: '',
@@ -415,16 +415,16 @@ export function Login({ onLoginSuccess }) {
                       <p className="text-[10px] uppercase font-bold text-slate-400 text-center tracking-wider mb-2">
                         Quick Demo Accounts (1-Click Fill)
                       </p>
-                      <div className="grid grid-cols-2 gap-1.5">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                         <button
                           type="button"
                           onClick={() => {
-                            setIdentifier('supervisor@adra.org');
+                            setIdentifier('finance.officer@adra.org');
                             setPassword('Password123!');
                           }}
-                          className="px-2 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 text-[11px] font-bold border border-teal-200 text-center transition cursor-pointer"
+                          className="px-2 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#006B56] text-[11px] font-bold border border-emerald-300 text-center transition cursor-pointer"
                         >
-                          👔 Supervisor
+                          💸 Finance Mgr
                         </button>
                         <button
                           type="button"
@@ -432,9 +432,19 @@ export function Login({ onLoginSuccess }) {
                             setIdentifier('program.manager@adra.org');
                             setPassword('Password123!');
                           }}
-                          className="px-2 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-200 text-center transition cursor-pointer"
+                          className="px-2 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 text-[11px] font-bold border border-teal-200 text-center transition cursor-pointer"
                         >
                           📋 Program Mgr
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIdentifier('supervisor@adra.org');
+                            setPassword('Password123!');
+                          }}
+                          className="px-2 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold border border-amber-200 text-center transition cursor-pointer"
+                        >
+                          👔 Supervisor
                         </button>
                         <button
                           type="button"
@@ -452,7 +462,7 @@ export function Login({ onLoginSuccess }) {
                             setIdentifier('admin@adra.org');
                             setPassword('Password123!');
                           }}
-                          className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold border border-slate-200 text-center transition cursor-pointer"
+                          className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold border border-slate-200 text-center transition cursor-pointer col-span-2 sm:col-span-1"
                         >
                           ⚙️ Admin
                         </button>
@@ -632,12 +642,14 @@ export function Login({ onLoginSuccess }) {
                           onChange={(e) => setSignupForm({ ...signupForm, vulnerability_category: e.target.value })}
                           className="w-full pl-9 pr-3 py-2.5 text-xs text-slate-900 bg-transparent outline-none font-medium cursor-pointer"
                         >
-                          <option value="Female-headed household">Female-headed household</option>
+                          <option value="Female-headed Household">Female-headed Household</option>
                           <option value="Internally Displaced Person (IDP)">Internally Displaced Person (IDP)</option>
-                          <option value="Person with Disability (PWD)">Person with Disability (PWD)</option>
-                          <option value="Elderly Guardian">Elderly Guardian</option>
-                          <option value="Child-headed household">Child-headed household</option>
-                          <option value="General Community Member">General Community Member</option>
+                          <option value="Persons with Disability">Persons with Disability</option>
+                          <option value="Elderly">Elderly</option>
+                          <option value="Child-headed Household">Child-headed Household</option>
+                          <option value="Extremely Poor Household">Extremely Poor Household</option>
+                          <option value="Youth at Risk">Youth at Risk</option>
+                          <option value="General Community">General Community</option>
                         </select>
                       </div>
                     </div>

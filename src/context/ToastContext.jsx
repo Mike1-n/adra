@@ -26,6 +26,7 @@ export function ToastProvider({ children }) {
     error: (msg, dur) => addToast(msg, 'error', dur),
     info: (msg, dur) => addToast(msg, 'info', dur),
     warning: (msg, dur) => addToast(msg, 'warning', dur),
+    showToast: (msg, type = 'info', dur) => addToast(msg, type, dur),
   };
 
   const getToastIcon = (type) => {

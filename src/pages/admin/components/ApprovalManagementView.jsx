@@ -106,7 +106,10 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
       a.requester_email?.toLowerCase().includes(search.toLowerCase()) ||
       a.details?.toLowerCase().includes(search.toLowerCase()) ||
       a.id?.toLowerCase().includes(search.toLowerCase());
-    const matchesCat = categoryFilter === 'ALL' || a.category === categoryFilter;
+    const matchesCat = categoryFilter === 'ALL' || 
+      a.category === categoryFilter ||
+      (categoryFilter === 'Beneficiary Verification' && (a.category === 'User Onboarding' || a.role_requested === 'Beneficiary')) ||
+      (categoryFilter === 'User Registration' && (a.category === 'User Onboarding' && a.role_requested !== 'Beneficiary'));
     const matchesStat = statusFilter === 'ALL' || a.status === statusFilter;
     return matchesSearch && matchesCat && matchesStat;
   });

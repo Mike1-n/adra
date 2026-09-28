@@ -14,6 +14,8 @@ import {
   Sparkles,
   ShieldAlert,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   X,
   DollarSign
 } from 'lucide-react';
@@ -310,6 +312,20 @@ export function FieldWorkerTasksView({
                           >
                             <FileCheck className="w-3.5 h-3.5" />
                             <span>Start Audit</span>
+                          </button>
+                        )}
+
+                        {isSubmitted && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onStartAssessment(task);
+                            }}
+                            className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                          >
+                            <FileCheck className="w-3.5 h-3.5 text-purple-600" />
+                            <span>Audit Dossier</span>
                           </button>
                         )}
 

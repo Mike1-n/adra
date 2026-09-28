@@ -217,8 +217,8 @@ export function UserRoleManagementView() {
     const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
     const matchesStatus =
       statusFilter === 'ALL' ||
-      (statusFilter === 'Pending Verification'
-        ? (u.status === 'Pending Verification' || u.is_active === false)
+      (statusFilter === 'Pending Verification' || statusFilter === 'Pending'
+        ? (u.status === 'Pending Verification' || u.verification_status === 'Pending Verification' || u.status === 'Under Verification' || u.verification_status === 'Under Verification' || u.is_active === false)
         : (u.status || 'Active') === statusFilter);
     const matchesState =
       stateFilter === 'ALL' ||

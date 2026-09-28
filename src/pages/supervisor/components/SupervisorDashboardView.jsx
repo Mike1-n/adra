@@ -19,6 +19,7 @@ export function SupervisorDashboardView({
   fieldWorkers = [],
   assessments = [],
   activities = [],
+  facilitations = [],
   onNavigateTab,
   onSelectAssignment,
   onSelectWorker,
@@ -35,6 +36,10 @@ export function SupervisorDashboardView({
 
   const pendingReviews = assessments.filter(
     a => a.status === 'Under Supervisor Review' || a.status === 'Submitted'
+  );
+
+  const pendingFacilitations = facilitations.filter(
+    f => f.status === 'Pending Supervisor Approval' || f.stage === 1 || f.status === 'Submitted' || f.status === 'Pending'
   );
 
   const overdueCount = assignments.filter(
@@ -67,6 +72,44 @@ export function SupervisorDashboardView({
           </div>
         </div>
 
+        {/* Facilitation Approvals (Amber/Orange Theme) */}
+        <div
+          onClick={() => onNavigateTab('facilitations')}
+          className="bg-orange-50/50 rounded-2xl p-3.5 border border-orange-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-orange-950">Facilitations</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center shadow-2xs shrink-0">
+              <Sparkles className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-2xl font-black text-orange-950 tracking-tight">{pendingFacilitations.length}</span>
+            <span className="text-[10px] font-black text-orange-900 bg-orange-200/70 px-2 py-0.5 rounded-md">
+              Awaiting Endorsement
+            </span>
+          </div>
+        </div>
+
+        {/* Field Assessments Review (Purple Theme) */}
+        <div
+          onClick={() => onNavigateTab('reports')}
+          className="bg-purple-50/50 rounded-2xl p-3.5 border border-purple-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-purple-950">Field Assessments</span>
+            <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-2xs shrink-0">
+              <FileCheck className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-2xl font-black text-purple-950 tracking-tight">{pendingReviews.length}</span>
+            <span className="text-[10px] font-black text-purple-900 bg-purple-200/70 px-2 py-0.5 rounded-md">
+              Awaiting sign-off
+            </span>
+          </div>
+        </div>
+
         {/* Field Team (Emerald Theme) */}
         <div
           onClick={() => onNavigateTab('team')}
@@ -85,44 +128,6 @@ export function SupervisorDashboardView({
             </span>
           </div>
         </div>
-
-        {/* Reports Review (Purple Theme) */}
-        <div
-          onClick={() => onNavigateTab('reports')}
-          className="bg-purple-50/50 rounded-2xl p-3.5 border border-purple-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-purple-950">Reports Review</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-2xs shrink-0">
-              <FileCheck className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-2xl font-black text-purple-950 tracking-tight">{pendingReviews.length}</span>
-            <span className="text-[10px] font-black text-purple-900 bg-purple-200/70 px-2 py-0.5 rounded-md">
-              Awaiting sign-off
-            </span>
-          </div>
-        </div>
-
-        {/* Overdue (Rose Theme) */}
-        <div
-          onClick={() => onNavigateTab('assignments')}
-          className="bg-rose-50/50 rounded-2xl p-3.5 border border-rose-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-rose-950">Overdue</span>
-            <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-2xs shrink-0">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-2xl font-black text-rose-950 tracking-tight">{overdueCount}</span>
-            <span className="text-[10px] font-black text-rose-900 bg-rose-200/70 px-2 py-0.5 rounded-md">
-              Escalations
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* 2. HIGH-VISIBILITY VIBRANT QUICK ACTIONS */}
@@ -131,46 +136,65 @@ export function SupervisorDashboardView({
           Quick Actions
         </span>
         <div className="grid grid-cols-3 gap-2.5">
-          {/* Dispatch Action Button (Solid Emerald) */}
+          {/* Dispatch Action Button */}
           <button
             type="button"
             onClick={() => onNavigateTab('assignments')}
-            className="p-3.5 rounded-2xl bg-[#006B56] hover:bg-[#005242] active:scale-95 text-white text-center transition cursor-pointer flex flex-col items-center justify-center space-y-1.5 shadow-sm group"
+            className="p-3 rounded-2xl bg-[#006B56] hover:bg-[#005242] active:scale-95 text-white text-center transition cursor-pointer flex flex-col items-center justify-center space-y-1.5 shadow-sm group"
           >
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white group-hover:scale-105 transition-transform shadow-2xs">
-              <ClipboardList className="w-5 h-5 text-white stroke-[2.4]" />
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-white group-hover:scale-105 transition-transform shadow-2xs">
+              <ClipboardList className="w-4 h-4 text-white stroke-[2.4]" />
             </div>
             <span className="text-xs font-black text-white leading-tight">Dispatch</span>
           </button>
 
-          {/* Field Team Action Button (Solid Blue) */}
+          {/* Facilitations Action Button */}
           <button
             type="button"
-            onClick={() => onNavigateTab('team')}
-            className="p-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-center transition cursor-pointer flex flex-col items-center justify-center space-y-1.5 shadow-sm group"
+            onClick={() => onNavigateTab('facilitations')}
+            className="p-3 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-center transition cursor-pointer flex flex-col items-center justify-center space-y-1.5 shadow-sm group"
           >
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white group-hover:scale-105 transition-transform shadow-2xs">
-              <Users className="w-5 h-5 text-white stroke-[2.4]" />
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-white group-hover:scale-105 transition-transform shadow-2xs">
+              <Sparkles className="w-4 h-4 text-white stroke-[2.4]" />
             </div>
-            <span className="text-xs font-black text-white leading-tight">Field Team</span>
+            <span className="text-xs font-black text-white leading-tight">Facilitations</span>
           </button>
 
-          {/* Reports Action Button (Solid Purple) */}
+          {/* Field Assessments Action Button */}
           <button
             type="button"
             onClick={() => onNavigateTab('reports')}
-            className="p-3.5 rounded-2xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-center transition cursor-pointer flex flex-col items-center justify-center space-y-1.5 shadow-sm group"
+            className="p-3 rounded-2xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-center transition cursor-pointer flex flex-col items-center justify-center space-y-1.5 shadow-sm group"
           >
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white group-hover:scale-105 transition-transform shadow-2xs">
-              <FileCheck className="w-5 h-5 text-white stroke-[2.4]" />
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-white group-hover:scale-105 transition-transform shadow-2xs">
+              <FileCheck className="w-4 h-4 text-white stroke-[2.4]" />
             </div>
-            <span className="text-xs font-black text-white leading-tight">Reports</span>
+            <span className="text-xs font-black text-white leading-tight">Assessments</span>
           </button>
         </div>
       </div>
 
       {/* 3. ATTENTION REQUIRED OR OPERATIONS CURRENT */}
-      {pendingAssignments.length > 0 ? (
+      {pendingFacilitations.length > 0 ? (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3.5 shadow-2xs space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-amber-900">
+              ⚡ Facilitation Endorsement: {pendingFacilitations.length} Field Requisition{pendingFacilitations.length > 1 ? 's' : ''}
+            </span>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('facilitations')}
+              className="text-[11px] font-bold text-amber-900 hover:underline flex items-center space-x-0.5 bg-amber-200/80 px-2 py-0.5 rounded-lg"
+            >
+              <span>Review & Endorse</span>
+              <ChevronRight className="w-3 h-3" />
+            </button>
+          </div>
+          <p className="text-[11px] text-amber-800">
+            Field workers have submitted travel & operational funding requisitions awaiting your endorsement to Program Manager Grace Ochieng.
+          </p>
+        </div>
+      ) : pendingAssignments.length > 0 ? (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 shadow-2xs space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-amber-900">
@@ -193,12 +217,12 @@ export function SupervisorDashboardView({
         <div className="bg-purple-50 border border-purple-200 rounded-2xl p-3.5 shadow-2xs space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-purple-900">
-              📝 {pendingReviews.length} Report{pendingReviews.length > 1 ? 's' : ''} Awaiting Review
+              📝 {pendingReviews.length} Field Assessment{pendingReviews.length > 1 ? 's' : ''} Awaiting Review
             </span>
             <button
               type="button"
               onClick={() => onNavigateTab('reports')}
-              className="text-[11px] font-bold text-[#006B56] hover:underline flex items-center space-x-0.5"
+              className="text-[11px] font-bold text-purple-900 hover:underline flex items-center space-x-0.5 bg-purple-100 px-2 py-0.5 rounded-lg"
             >
               <span>Review</span>
               <ChevronRight className="w-3 h-3" />
@@ -223,4 +247,5 @@ export function SupervisorDashboardView({
     </div>
   );
 }
+
 

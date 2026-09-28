@@ -157,11 +157,39 @@ h1, h2, h3, h4, h5, h6 {
 .btn-primary *,
 .badge-primary,
 .badge-darkgreen,
-button[class*="bg-emerald-"],
-button[class*="bg-emerald-"] *,
-button[class*="bg-rose-"],
-button[class*="bg-rose-"] * {
+button[class*="bg-emerald-600"],
+button[class*="bg-emerald-600"] *,
+button[class*="bg-emerald-700"],
+button[class*="bg-emerald-700"] *,
+button[class*="bg-emerald-800"],
+button[class*="bg-emerald-800"] *,
+button[class*="bg-rose-600"],
+button[class*="bg-rose-600"] *,
+button[class*="bg-rose-700"],
+button[class*="bg-rose-700"] *,
+button[class*="bg-rose-800"],
+button[class*="bg-rose-800"] *,
+button[class*="bg-red-600"],
+button[class*="bg-red-600"] *,
+button[class*="bg-red-700"],
+button[class*="bg-red-700"] *,
+button[class*="bg-amber-500"],
+button[class*="bg-amber-500"] *,
+button[class*="bg-amber-600"],
+button[class*="bg-amber-600"] * {
   color: #FFFFFF !important;
+}
+
+/* Light/tinted red & rose buttons must have high contrast dark text, never white */
+button[class*="bg-rose-50"],
+button[class*="bg-rose-50"] *,
+button[class*="bg-rose-100"],
+button[class*="bg-rose-100"] *,
+button[class*="bg-red-50"],
+button[class*="bg-red-50"] *,
+button[class*="bg-red-100"],
+button[class*="bg-red-100"] * {
+  color: #9F1239 !important;
 }
 
 /* White buttons on emerald cards (e.g. "Apply Now", "Request Assistance") */

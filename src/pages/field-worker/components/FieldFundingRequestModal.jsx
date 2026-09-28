@@ -129,7 +129,7 @@ export function FieldFundingRequestModal({
         field_worker_name: worker.name || 'John Deng',
         field_worker_email: worker.email || 'john.deng@adra.org',
         field_worker_phone: worker.phone || payoutPhone,
-        supervisor_id: 'sup-1',
+        supervisor_id: worker.supervisor_id || 'sup-1',
         supervisor_name: worker.supervisor_name || 'Emmanuel Adeyemi',
         program_manager_name: 'Grace Ochieng',
         linked_task_id: targetTask?.id || selectedTaskId || null,

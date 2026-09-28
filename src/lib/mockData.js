@@ -1306,7 +1306,167 @@ export const approvedAdraContacts = [
 export { initialFieldWorkers } from './fieldWorkersRoster.js';
 
 // --- FIELD ASSESSMENTS & REPORTS ---
-export const initialFieldAssessments = [];
+export const initialFieldAssessments = [
+  {
+    id: 'ass-101',
+    assessment_code: 'FA-00892',
+    request_code: 'ADR-REQ-2026-00140',
+    request_id: 'ADR-REQ-2026-00140',
+    beneficiary_name: 'Mary Nyambura Ajak',
+    beneficiary_code: 'ADRA-SS-000140',
+    field_worker_id: 'fw-1',
+    field_worker_name: 'John Deng',
+    supervisor_id: 'sup-1',
+    supervisor_name: 'Emmanuel Adeyemi',
+    submission_date: new Date(Date.now() - 3600000 * 5).toISOString(),
+    date_conducted: '24 Sep 2026',
+    status: 'Under Supervisor Review',
+    vulnerability_score: 92,
+    urgency_level: 'High',
+    urgency_rating: 'Critical (Immediate 24-48h Dispatch)',
+    family_size: 7,
+    children_under_5: 3,
+    elderly_count: 1,
+    disability_count: 1,
+    pregnant_lactating: 1,
+    female_headed: true,
+    shelter_condition: 'Critical / Makeshift Tukl (Leaking & Structurally Compromised)',
+    food_security_status: 'Severe Hunger (1 meal or less / day, 0 reserves)',
+    water_access: 'Unprotected River / Borehole > 2.5km (Severe Risk)',
+    state: 'Eastern Equatoria',
+    county: 'Kapoeta South',
+    payam: 'Kapoeta Town',
+    boma: 'Machi',
+    village: 'Longeleya Area',
+    location: 'Eastern Equatoria, Kapoeta South, Kapoeta Town',
+    assistance_requested: 'Immediate Emergency Food Basket & WASH Kit',
+    recommended_aid: '30-Day Emergency Food Basket (50kg Maize, 10kg Beans, 5L Oil) + Non-Food Hygiene Kit',
+    ground_situation_report: 'Household visited in-person. The dwelling is a compromised makeshift structure with a severely leaking thatched roof. Family food granary is completely empty with no coping mechanism remaining. 3 children under five exhibit visible signs of severe acute malnutrition (SAM).',
+    field_justification: 'CONFIRMATION OF URGENT NEED: I hereby certify and confirm to Program Management and Supervision that Mary Nyambura Ajak and her 6 household dependents urgently require the requested emergency food and WASH assistance. Delayed response will result in severe health crisis. Immediate approval and dispatch is critical.',
+    audit_findings: 'Household verified in-person by Field Officer John Deng. Critical vulnerability confirmed across shelter, nutrition, and child health indicators.',
+    evidence_photos: [
+      {
+        id: 'photo-101',
+        title: 'Makeshift Shelter Condition',
+        category: 'Shelter & Living Condition',
+        caption: 'Tukul roof severely damaged by recent seasonal heavy rains. High vulnerability to exposure.',
+        url: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=800&auto=format&fit=crop&q=80',
+        size: '1.4 MB',
+        timestamp: new Date().toISOString()
+      },
+      {
+        id: 'photo-102',
+        title: 'Household & Family Verification',
+        category: 'Beneficiary & Demographics',
+        caption: 'In-person verification of Mary Ajak and 4 dependent children present at residence.',
+        url: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=800&auto=format&fit=crop&q=80',
+        size: '1.8 MB',
+        timestamp: new Date().toISOString()
+      },
+      {
+        id: 'photo-103',
+        title: 'Depleted Food Stock & Kitchen Area',
+        category: 'Food Security Evidence',
+        caption: 'Granary completely empty. Family surviving on single daily ration of boiled wild leaves.',
+        url: 'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=800&auto=format&fit=crop&q=80',
+        size: '1.2 MB',
+        timestamp: new Date().toISOString()
+      }
+    ],
+    evidence_documents: [
+      {
+        id: 'doc-101',
+        name: 'Signed_Household_Verification_Consent_Form.pdf',
+        type: 'pdf',
+        category: 'Signed Verification Form',
+        size: '420 KB',
+        uploaded_at: new Date().toISOString(),
+        content_summary: 'Official ADRA Household Verification Form signed with thumbprint by Mary Nyambura, acknowledging humanitarian audit and confirming urgent assistance requirement.',
+        issuer: 'ADRA South Sudan Field Operations'
+      },
+      {
+        id: 'doc-102',
+        name: 'Boma_Chief_Emergency_Referral_Letter.pdf',
+        type: 'pdf',
+        category: 'Local Chief Endorsement',
+        size: '310 KB',
+        uploaded_at: new Date().toISOString(),
+        content_summary: 'Official letter of endorsement from Boma Chief confirming household displacement, lack of food stocks, and endorsing emergency food & shelter kit dispatch.',
+        issuer: 'Payam Administration & Local Chief Council'
+      }
+    ]
+  },
+  {
+    id: 'ass-102',
+    assessment_code: 'FA-00893',
+    request_code: 'ADR-REQ-2026-00141',
+    request_id: 'ADR-REQ-2026-00141',
+    beneficiary_name: 'Moses Garang Malual',
+    beneficiary_code: 'ADRA-SS-000141',
+    field_worker_id: 'fw-1',
+    field_worker_name: 'John Deng',
+    supervisor_id: 'sup-1',
+    supervisor_name: 'Emmanuel Adeyemi',
+    submission_date: new Date(Date.now() - 3600000 * 12).toISOString(),
+    date_conducted: '23 Sep 2026',
+    status: 'Forwarded to Program Manager',
+    vulnerability_score: 86,
+    urgency_level: 'High',
+    urgency_rating: 'High Priority (Within 3-5 Days)',
+    family_size: 5,
+    children_under_5: 2,
+    elderly_count: 0,
+    disability_count: 0,
+    pregnant_lactating: 1,
+    female_headed: false,
+    shelter_condition: 'Damaged Thatched Hut (Requires Emergency Tarps)',
+    food_security_status: 'Moderate Hunger (1-2 poor quality meals, depleted food stock)',
+    water_access: 'Borehole within 1-2km (High queue time & congestion)',
+    state: 'Eastern Equatoria',
+    county: 'Kapoeta South',
+    payam: 'Kapoeta Town',
+    boma: 'Machi',
+    village: 'Machi Center',
+    location: 'Eastern Equatoria, Kapoeta South, Kapoeta Town',
+    assistance_requested: 'Agricultural Seed Starter Kit & Hand Tools',
+    recommended_aid: 'Certified Sorghum/Cowpea Seed Kit & Solar Irrigation Foot Pump',
+    ground_situation_report: 'Household visited. Farmer cluster member with arable land but zero seed capital due to consecutive drought losses. Immediate seed distribution enables planting in the upcoming rains.',
+    field_justification: 'CONFIRMATION OF URGENT NEED: Field verification confirms that Moses Garang has prepared 2 feddans of land and possesses agricultural skills. Seed starter kit assistance is urgently needed to restore food production capacity.',
+    audit_findings: 'Verified farm plot and household eligibility. Highly suitable candidate for resilience intervention.',
+    evidence_photos: [
+      {
+        id: 'photo-104',
+        title: 'Agricultural Farm Plot Verification',
+        category: 'Living Condition & Farmland',
+        caption: 'Cleared field ready for planting pending certified seed input.',
+        url: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=800&auto=format&fit=crop&q=80',
+        size: '1.6 MB',
+        timestamp: new Date().toISOString()
+      },
+      {
+        id: 'photo-105',
+        title: 'National ID & Farmer Group Membership',
+        category: 'Identity & Registration',
+        caption: 'Verified official South Sudan ID and Payam Agriculture Association card.',
+        url: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&auto=format&fit=crop&q=80',
+        size: '940 KB',
+        timestamp: new Date().toISOString()
+      }
+    ],
+    evidence_documents: [
+      {
+        id: 'doc-103',
+        name: 'Payam_Farmers_Cooperative_Endorsement.pdf',
+        type: 'pdf',
+        category: 'Community Cooperative Endorsement',
+        size: '340 KB',
+        uploaded_at: new Date().toISOString(),
+        content_summary: 'Recommendation from Kapoeta South Farmers Cooperative confirming household farming readiness and requesting certified seed support.',
+        issuer: 'Kapoeta South Farmers Cooperative'
+      }
+    ]
+  }
+];
 
 // --- SUPERVISOR NOTIFICATIONS ---
 export const initialSupervisorNotifications = [
@@ -1409,8 +1569,177 @@ export const initialSupervisorActivities = [
   }
 ];
 
-// --- FIELD WORKER OPERATIONAL FUNDING REQUISITIONS ---
-export const initialFieldFundingRequests = [];
+export const initialSupervisorActivityHistory = initialSupervisorActivities;
+
+// --- FIELD WORKER OPERATIONAL FUNDING REQUISITIONS (3-TIER APPROVAL) ---
+export const initialFieldFundingRequests = [
+  {
+    id: 'fnd-101',
+    request_code: 'REQ-FND-2026-001',
+    field_worker_id: 'fw-1',
+    field_worker_name: 'John Deng',
+    field_worker_email: 'john.deng@adra.org',
+    field_worker_phone: '+211-921-550101',
+    supervisor_id: 'sup-1',
+    supervisor_name: 'Emmanuel Adeyemi',
+    program_manager_name: 'Grace Ochieng',
+    finance_officer_name: 'Mark Ladu (Finance Officer)',
+    payam: 'Kapoeta Town',
+    county: 'Kapoeta South',
+    state: 'Eastern Equatoria',
+    project_id: 'prg1',
+    project_name: 'Emergency Food Security & Livelihoods (EFSLR)',
+    category: 'Transport & Vehicle Fuel',
+    amount: 230000,
+    currency: 'SSP',
+    purpose: 'Field operational facilitation & motorbike transport for household vulnerability audit for Mary Achol (ADR-REQ-2025-001) in Kapoeta South.',
+    linked_request_code: 'ADR-REQ-2025-001',
+    linked_beneficiary_name: 'Mary Achol',
+    linked_location: 'Kapoeta Town',
+    breakdown: [
+      { item: 'Fuel / Motorbike transport for Boma visit', amount: 150000 },
+      { item: 'Local guide allowance & logistics', amount: 80000 }
+    ],
+    urgency: 'Standard SLA (48h)',
+    preferred_payout: 'm-Gurush Mobile Money',
+    payout_phone: '+211-921-550101',
+    status: 'Pending Supervisor Approval',
+    stage: 1, // 1: Submitted, 2: Supervisor Approved (Pending PM), 3: PM Approved (Pending Finance), 4: Disbursed
+    created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
+    supervisor_review: {
+      status: 'Pending',
+      reviewed_by: null,
+      reviewed_at: null,
+      notes: null
+    },
+    pm_review: {
+      status: 'Pending',
+      reviewed_by: null,
+      reviewed_at: null,
+      notes: null
+    },
+    finance_disbursement: {
+      status: 'Pending',
+      disbursed_by: null,
+      disbursed_at: null,
+      payment_method: null,
+      voucher_reference: null,
+      transaction_ref: null,
+      notes: null
+    }
+  },
+  {
+    id: 'fnd-102',
+    request_code: 'REQ-FND-2026-002',
+    field_worker_id: 'fw-2',
+    field_worker_name: 'Mary Kiden',
+    field_worker_email: 'mary.kiden@adra.org',
+    field_worker_phone: '+211-922-660202',
+    supervisor_id: 'sup-1',
+    supervisor_name: 'Emmanuel Adeyemi',
+    program_manager_name: 'Grace Ochieng',
+    finance_officer_name: 'Mark Ladu (Finance Officer)',
+    payam: 'Machitar',
+    county: 'Kapoeta South',
+    state: 'Eastern Equatoria',
+    project_id: 'prg1',
+    project_name: 'Emergency Food Security & Livelihoods (EFSLR)',
+    category: 'Survey & Assessment Incidentals',
+    amount: 185000,
+    currency: 'SSP',
+    purpose: 'Community verification logistics and elder guide allowances for Peter Lado assessment in Machitar Boma.',
+    linked_request_code: 'ADR-REQ-2025-002',
+    linked_beneficiary_name: 'Peter Lado',
+    linked_location: 'Machitar Payam',
+    breakdown: [
+      { item: 'Terrain transport & fuel recharge', amount: 110000 },
+      { item: 'Community mobilizer field stipend', amount: 75000 }
+    ],
+    urgency: 'Urgent (24h)',
+    preferred_payout: 'm-Gurush Mobile Money',
+    payout_phone: '+211-922-660202',
+    status: 'Pending Program Manager Approval',
+    stage: 2,
+    created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
+    supervisor_review: {
+      status: 'Approved',
+      reviewed_by: 'Emmanuel Adeyemi',
+      reviewed_at: new Date(Date.now() - 3600000 * 8).toISOString(),
+      notes: 'Endorsed. Field verification in Machitar requires local Boma guide due to high remote terrain distance.'
+    },
+    pm_review: {
+      status: 'Pending',
+      reviewed_by: null,
+      reviewed_at: null,
+      notes: null
+    },
+    finance_disbursement: {
+      status: 'Pending',
+      disbursed_by: null,
+      disbursed_at: null,
+      payment_method: null,
+      voucher_reference: null,
+      transaction_ref: null,
+      notes: null
+    }
+  },
+  {
+    id: 'fnd-103',
+    request_code: 'REQ-FND-2026-003',
+    field_worker_id: 'fw-3',
+    field_worker_name: 'Santino Lado',
+    field_worker_email: 'santino.lado@adra.org',
+    field_worker_phone: '+211-923-770303',
+    supervisor_id: 'sup-1',
+    supervisor_name: 'Emmanuel Adeyemi',
+    program_manager_name: 'Grace Ochieng',
+    finance_officer_name: 'Mark Ladu (Finance Officer)',
+    payam: 'Lopet',
+    county: 'Kapoeta North',
+    state: 'Eastern Equatoria',
+    project_id: 'prg2',
+    project_name: 'WASH & Community Water Infrastructure',
+    category: 'Transport & Vehicle Fuel',
+    amount: 320000,
+    currency: 'SSP',
+    purpose: 'Water point physical survey logistics and community borehole pump assessment for Grace Nyibol.',
+    linked_request_code: 'ADR-REQ-2025-003',
+    linked_beneficiary_name: 'Grace Nyibol',
+    linked_location: 'Lopet Boma',
+    breakdown: [
+      { item: 'Motorcycle fuel & oil 3-day survey', amount: 200000 },
+      { item: 'Water technician field support', amount: 120000 }
+    ],
+    urgency: 'Standard SLA (48h)',
+    preferred_payout: 'm-Gurush Mobile Money',
+    payout_phone: '+211-923-770303',
+    status: 'Approved (Pending Finance Disbursement)',
+    stage: 3,
+    created_at: new Date(Date.now() - 3600000 * 32).toISOString(),
+    supervisor_review: {
+      status: 'Approved',
+      reviewed_by: 'Emmanuel Adeyemi',
+      reviewed_at: new Date(Date.now() - 3600000 * 20).toISOString(),
+      notes: 'Endorsed. Essential for completing technical inspection before rainy season cutoff.'
+    },
+    pm_review: {
+      status: 'Approved',
+      reviewed_by: 'Grace Ochieng',
+      reviewed_at: new Date(Date.now() - 3600000 * 10).toISOString(),
+      notes: 'Authorized for payment under WASH FY2026 field operational envelope.'
+    },
+    finance_disbursement: {
+      status: 'Pending',
+      disbursed_by: null,
+      disbursed_at: null,
+      payment_method: null,
+      voucher_reference: null,
+      transaction_ref: null,
+      notes: null
+    }
+  }
+];
+
 
 
 

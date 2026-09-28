@@ -150,14 +150,36 @@ export function normalizeAssistanceRequest(r) {
     eligibility_status: r.eligibility_status || 'Verified',
     verification_status: r.verification_status || 'Verified Active',
     duplicate_detected: Boolean(r.duplicate_detected || r.is_duplicate),
-    is_duplicate: Boolean(r.is_duplicate || r.duplicate_detected),
     assigned_field_worker_name,
     assigned_field_worker_id,
     assigned_supervisor_name: r.assigned_supervisor_name || r.supervisor_name || null,
     assigned_supervisor_id: r.assigned_supervisor_id || r.supervisor_id || null,
     field_worker_name: assigned_field_worker_name,
-    field_worker_id: assigned_field_worker_id
+    field_worker_id: assigned_field_worker_id,
+    evidence_photos: r.evidence_photos || (r.field_worker_assessment?.evidence_photos) || [],
+    evidence_documents: r.evidence_documents || (r.field_worker_assessment?.evidence_documents) || [],
+    ground_situation_report: r.ground_situation_report || (r.field_worker_assessment?.ground_situation_report) || r.audit_findings || '',
+    field_justification: r.field_justification || (r.field_worker_assessment?.field_justification) || '',
+    vulnerability_score: r.vulnerability_score || (r.field_worker_assessment?.vulnerability_score) || null,
+    assessment_code: r.assessment_code || (r.field_worker_assessment?.assessment_code) || null,
+    field_worker_assessment: r.field_worker_assessment || null,
+    recommended_aid: r.recommended_aid || (r.field_worker_assessment?.recommended_aid) || null
   };
+}
+
+// Helper to ensure vulnerability category strictly satisfies PostgreSQL check constraint:
+// CHECK (vulnerability_category IN ('Child-headed Household', 'Female-headed Household', 'Elderly', 'Persons with Disability', 'Internally Displaced Person (IDP)', 'Extremely Poor Household', 'Youth at Risk', 'General Community'))
+export function normalizeVulnerabilityCategory(cat) {
+  if (!cat) return 'General Community';
+  const str = String(cat).trim().toLowerCase();
+  if (str.includes('female')) return 'Female-headed Household';
+  if (str.includes('child')) return 'Child-headed Household';
+  if (str.includes('elder') || str.includes('senior') || str.includes('aged') || str.includes('60+')) return 'Elderly';
+  if (str.includes('disab') || str.includes('pwd')) return 'Persons with Disability';
+  if (str.includes('displace') || str.includes('idp') || str.includes('refugee') || str.includes('returnee')) return 'Internally Displaced Person (IDP)';
+  if (str.includes('poor') || str.includes('drought') || str.includes('smallholder') || str.includes('extreme') || str.includes('poverty')) return 'Extremely Poor Household';
+  if (str.includes('youth') || str.includes('risk')) return 'Youth at Risk';
+  return 'General Community';
 }
 
 // Unified Data Service for real Supabase queries with Mock fallback
@@ -165,8 +187,12 @@ export const db = {
   // --- PROGRAMS (PROGRAMS MANAGER) ---
   async getPrograms() {
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('programs').select('*').order('created_at', { ascending: false });
-      if (!error && data && data.length > 0) return data;
+      try {
+        const { data, error } = await supabase.from('programs').select('*').order('created_at', { ascending: false });
+        if (!error && data && data.length > 0) return data;
+      } catch (err) {
+        // Fallback to local storage
+      }
     }
     const SEEDED_PROGRAM_CODES = ['PRG-SS-001', 'PRG-SS-002', 'PRG-SS-003', 'PRG-SS-004', 'PRG-SS-005'];
     const current = getLocalData(STORAGE_KEYS.PROGRAMS, mock.initialPrograms || []);
@@ -313,8 +339,7 @@ export const db = {
   async getBeneficiaries() {
     const seededCodes = [
       'BEN-2025-001', 'BEN-2025-002', 'BEN-2025-003',
-      'BEN-2025-004', 'BEN-2025-005', 'BEN-2025-006',
-      'ADRA-SS-000125', 'ADRA-SS-000126', 'ADRA-SS-000127'
+      'BEN-2025-004', 'BEN-2025-005', 'BEN-2025-006'
     ];
     let remoteData = null;
     if (isSupabaseConfigured) {
@@ -334,21 +359,52 @@ export const db = {
   },
 
   async createBeneficiary(beneficiary) {
+    const normCategory = normalizeVulnerabilityCategory(beneficiary.vulnerability_category);
     const newBen = {
-      id: isSupabaseConfigured ? undefined : `b_${Date.now()}`,
+      id: isSupabaseConfigured ? undefined : `b_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       created_at: new Date().toISOString(),
       registration_date: beneficiary.registration_date || new Date().toISOString().split('T')[0],
-      ...beneficiary
+      verification_status: beneficiary.verification_status || 'Pending Verification',
+      status: beneficiary.status || beneficiary.verification_status || 'Pending Verification',
+      ...beneficiary,
+      vulnerability_category: normCategory
     };
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('beneficiaries').insert([newBen]).select().single();
-      if (error) throw error;
-      return data;
+      try {
+        let projId = beneficiary.project_id || null;
+        if (!projId) {
+          const projs = await this.getProjects();
+          projId = projs[0]?.id || null;
+        }
+        const insertPayload = {
+          beneficiary_code: newBen.beneficiary_code,
+          full_name: newBen.full_name,
+          gender: newBen.gender === 'Male' || newBen.gender === 'Female' ? newBen.gender : 'Female',
+          date_of_birth: newBen.date_of_birth || null,
+          age: Number(newBen.age) || 30,
+          phone_number: newBen.phone_number || '',
+          email: newBen.email || null,
+          location: newBen.location || 'General Zone',
+          vulnerability_category: normCategory,
+          registration_date: newBen.registration_date,
+          national_id: newBen.national_id || newBen.id_number || null,
+          verification_status: newBen.verification_status,
+          ...(projId ? { project_id: projId } : {})
+        };
+        const { data, error } = await supabase.from('beneficiaries').insert([insertPayload]).select().single();
+        if (!error && data) {
+          newBen.id = data.id;
+        } else if (error) {
+          console.warn('Supabase insert beneficiary error:', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase insert beneficiary error:', err?.message);
+      }
     }
     const current = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
     const updated = [newBen, ...current];
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updated);
-    db.logAudit({
+    await this.logAudit({
       action: 'CREATE',
       module: 'Beneficiaries',
       record_id: newBen.beneficiary_code || newBen.id,
@@ -359,32 +415,55 @@ export const db = {
 
   async registerBeneficiaryAccount(regData) {
     const existing = await this.getBeneficiaries();
+    
+    // Check for duplicates
+    const dupCheck = await this.checkBeneficiaryDuplicate({
+      phone_number: regData.phone_number || regData.phone,
+      national_id: regData.national_id || regData.id_number,
+      full_name: regData.full_name
+    });
+
     const codeNum = String(existing.length + 101).padStart(6, '0');
     const bCode = `ADRA-SS-${codeNum}`;
+    const benId = `ben_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const normCategory = normalizeVulnerabilityCategory(regData.vulnerability_category);
 
     const newBen = {
+      id: benId,
       beneficiary_code: bCode,
       full_name: regData.full_name,
       first_name: regData.first_name || '',
       middle_name: regData.middle_name || '',
       last_name: regData.last_name || '',
+      gender: regData.gender === 'Male' || regData.gender === 'Female' ? regData.gender : 'Female',
+      date_of_birth: regData.date_of_birth || '1990-01-01',
+      age: Number(regData.age) || (regData.date_of_birth ? Math.max(18, new Date().getFullYear() - new Date(regData.date_of_birth).getFullYear()) : 30),
       id_number: regData.id_number || regData.national_id || '',
       national_id: regData.id_number || regData.national_id || '',
-      phone_number: regData.phone_number || regData.phone,
-      email: regData.email || `${bCode.toLowerCase()}@adra.community`,
+      phone_number: regData.phone_number || regData.phone || '',
+      email: regData.email || `${regData.full_name?.toLowerCase().replace(/\s+/g, '.') || 'beneficiary'}@adra.community`,
       location: regData.location || 'Juba Central, South Sudan',
       household_size: Number(regData.household_size) || 4,
-      vulnerability_category: regData.vulnerability_category || 'General Humanitarian Aid',
+      vulnerability_category: normCategory,
       registration_date: new Date().toISOString().split('T')[0],
       verification_status: 'Pending Verification',
       status: 'Pending Verification',
+      duplicate_flag: dupCheck?.isDuplicate ? dupCheck.reason : null,
+      priority_needs: regData.priority_needs || regData.primary_needs || 'Emergency Food Baskets & Clean Water',
+      emergency_contact_name: regData.emergency_contact_name || regData.emergency_contact || '',
+      emergency_contact_phone: regData.emergency_contact_phone || '',
+      project_id: regData.project_id || 'pr1',
+      project_name: regData.project_name || 'Emergency Food Security & Livelihoods Resilience',
+      qr_token: `${bCode}-VFD${Date.now().toString().slice(-4)}`,
+      avatar: regData.gender === 'Female'
+        ? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150'
+        : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
       password: regData.password || 'Password123!'
     };
 
     let createdBen = newBen;
     if (isSupabaseConfigured) {
       try {
-        // Resolve a valid project_id if available
         let projId = regData.project_id || null;
         if (!projId) {
           const projs = await this.getProjects();
@@ -394,13 +473,13 @@ export const db = {
         const insertPayload = {
           beneficiary_code: newBen.beneficiary_code,
           full_name: newBen.full_name,
-          gender: regData.gender === 'Male' || regData.gender === 'Female' ? regData.gender : 'Female',
-          date_of_birth: regData.date_of_birth || null,
-          age: Number(regData.age) || (regData.date_of_birth ? Math.max(18, new Date().getFullYear() - new Date(regData.date_of_birth).getFullYear()) : 35),
+          gender: newBen.gender,
+          date_of_birth: newBen.date_of_birth || null,
+          age: newBen.age,
           phone_number: newBen.phone_number,
           email: newBen.email,
           location: newBen.location,
-          vulnerability_category: newBen.vulnerability_category || 'Female-headed Household',
+          vulnerability_category: normCategory,
           registration_date: newBen.registration_date,
           national_id: newBen.national_id || null,
           verification_status: 'Pending Verification',
@@ -409,7 +488,7 @@ export const db = {
 
         const { data, error } = await supabase.from('beneficiaries').insert([insertPayload]).select().single();
         if (!error && data) {
-          createdBen = { ...newBen, ...data };
+          createdBen = { ...newBen, ...data, vulnerability_category: normCategory };
         } else if (error) {
           console.warn('Supabase insert beneficiary error:', error.message);
         }
@@ -434,7 +513,9 @@ export const db = {
       department: `Community (${createdBen.location})`,
       password: createdBen.password,
       status: 'Pending Verification',
+      verification_status: 'Pending Verification',
       is_active: false,
+      avatar: createdBen.avatar,
       beneficiary_id: createdBen.id,
       beneficiary_code: createdBen.beneficiary_code
     });
@@ -445,13 +526,20 @@ export const db = {
       requester_email: createdBen.email,
       role_requested: 'Beneficiary',
       department: `Community (${createdBen.location})`,
-      details: `New Beneficiary registration: ${createdBen.full_name} (ID: ${createdBen.id_number || createdBen.national_id || 'N/A'}, Code: ${createdBen.beneficiary_code}, Phone: ${createdBen.phone_number}). Awaiting administrator verification.`,
+      details: `New Beneficiary registration: ${createdBen.full_name} (Code: ${createdBen.beneficiary_code}, ID: ${createdBen.national_id || 'N/A'}, Phone: ${createdBen.phone_number}). Awaiting administrator verification.`,
       user_id: userAccount.id,
       beneficiary_id: createdBen.id,
       priority: 'High'
     });
 
-    return { beneficiary: createdBen, user: userAccount, account: userAccount };
+    await this.logAudit({
+      action: 'REGISTER',
+      module: 'Beneficiary Management',
+      record_id: createdBen.beneficiary_code,
+      details: `Self-registered new beneficiary: ${createdBen.full_name} (${createdBen.beneficiary_code}) — Status: Pending Verification`
+    });
+
+    return { beneficiary: createdBen, user: userAccount, account: userAccount, dupCheck };
   },
 
   async verifyBeneficiary(id, notes = '') {
@@ -1497,22 +1585,92 @@ export const db = {
   // --- SUPERVISOR MODULE: FIELD ASSESSMENTS & REPORT REVIEW ---
   async getFieldAssessments(supervisorId = null, workerId = null, workerName = null) {
     const raw = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
-    // Clean any legacy mock entries with static mock IDs
-    const all = raw.filter(a => !['ass-892', 'ass-890', 'ass-885'].includes(a.id));
-    let filtered = all;
+    
+    // Also merge any assessments attached to assistance requests
+    let merged = [...raw];
+    try {
+      const allReqs = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, mock.initialAssistanceRequests || []);
+      allReqs.forEach(r => {
+        const hasAssessment = r.field_worker_assessment || r.status === 'Assessment Submitted' || r.status === 'Awaiting Program Manager Decision';
+        if (hasAssessment) {
+          const reqCode = r.request_code || r.id;
+          const alreadyExists = merged.some(a => a.request_code === reqCode || a.request_id === r.id || (r.assessment_code && a.assessment_code === r.assessment_code));
+          if (!alreadyExists) {
+            const fwa = r.field_worker_assessment || {};
+            merged.unshift({
+              id: fwa.id || `ass-${reqCode}`,
+              assessment_code: fwa.assessment_code || r.assessment_code || `FA-${reqCode.replace(/[^0-9]/g, '').slice(-5) || '00895'}`,
+              request_code: reqCode,
+              request_id: r.id,
+              beneficiary_name: r.beneficiary_name || fwa.beneficiary_name || 'Assessed Beneficiary',
+              beneficiary_code: r.beneficiary_code || r.beneficiary_id || fwa.beneficiary_code || 'ADRA-SS-000140',
+              field_worker_name: r.assigned_field_worker_name || fwa.field_worker_name || fwa.assessed_by || 'John Deng',
+              field_worker_id: r.assigned_field_worker_id || fwa.field_worker_id || 'fw-1',
+              supervisor_name: r.assigned_supervisor_name || fwa.supervisor_name || 'Emmanuel Adeyemi',
+              supervisor_id: r.assigned_supervisor_id || fwa.supervisor_id || 'sup-1',
+              submission_date: fwa.submission_date || r.updated_at || new Date().toISOString(),
+              date_conducted: fwa.date_conducted || new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+              status: fwa.status || (r.status === 'Awaiting Program Manager Decision' ? 'Forwarded to Program Manager' : 'Under Supervisor Review'),
+              verification_finding: fwa.verification_finding || 'VERIFIED_TRUE',
+              assignment_verified_true: fwa.assignment_verified_true ?? true,
+              vulnerability_score: fwa.vulnerability_score || r.vulnerability_score || 85,
+              urgency_level: fwa.urgency_level || r.urgency || r.priority || 'High',
+              assistance_requested: r.assistance_type || r.category || 'Emergency Humanitarian Relief',
+              recommended_aid: fwa.recommended_aid || r.recommended_aid || r.assistance_type || 'Immediate Emergency Relief Package',
+              location: r.location || (r.county ? `${r.county}, ${r.state || 'South Sudan'}` : 'Eastern Equatoria'),
+              ground_situation_report: fwa.ground_situation_report || fwa.audit_findings || r.ground_situation_report || r.review_notes || 'Household visited in-person. Severe need confirmed on-ground.',
+              field_justification: fwa.field_justification || r.field_justification || 'Official Field Verification confirms acute humanitarian requirement.',
+              audit_findings: fwa.audit_findings || fwa.ground_situation_report || r.ground_situation_report || 'Household verified in-person.',
+              evidence_photos: fwa.evidence_photos || r.evidence_photos || [],
+              evidence_documents: fwa.evidence_documents || r.evidence_documents || []
+            });
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('Could not merge assistance request assessments:', e);
+    }
+
+    const all = merged.map(a => ({
+      ...a,
+      field_worker_name: a.field_worker_name || a.assessed_by || 'John Deng',
+      field_worker_id: a.field_worker_id || a.worker_id || 'fw-1',
+      date_conducted: a.date_conducted || (a.submission_date ? new Date(a.submission_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'),
+      status: a.status || 'Under Supervisor Review',
+      supervisor_name: a.supervisor_name || 'Emmanuel Adeyemi',
+      supervisor_id: a.supervisor_id || 'sup-1',
+      verification_finding: a.verification_finding || 'VERIFIED_TRUE'
+    }));
+
+    // If supervisorId is passed:
     if (supervisorId && supervisorId !== 'all') {
-      const cleanSupId = String(supervisorId).toLowerCase();
-      filtered = filtered.filter(a => !a.supervisor_id || a.supervisor_id.toLowerCase() === cleanSupId);
+      const cleanSupId = String(supervisorId).toLowerCase().trim();
+      const isAdeyemi = cleanSupId === 'sup-1' || cleanSupId === 'user-sup' || cleanSupId.includes('emmanuel') || cleanSupId.includes('adeyemi') || cleanSupId === 'eastern equatoria' || cleanSupId.includes('supervisor@adra.org') || cleanSupId.length > 20;
+
+      const filtered = all.filter(a => {
+        const aSupId = String(a.supervisor_id || '').toLowerCase().trim();
+        const aSupName = String(a.supervisor_name || '').toLowerCase().trim();
+        const aWorkerName = String(a.field_worker_name || a.assessed_by || '').toLowerCase();
+        
+        // Exact ID match
+        if (aSupId === cleanSupId) return true;
+        // Name partial match
+        if (cleanSupId && aSupName.includes(cleanSupId)) return true;
+        
+        // If Emmanuel Adeyemi (default supervisor for Eastern Equatoria & general supervisory queue)
+        if (isAdeyemi) {
+          return true;
+        }
+
+        return false;
+      });
+
+      if (filtered.length > 0) return filtered;
+      // Fallback: return all so supervisor is never locked out of submitted audits
+      return all;
     }
-    if (workerId || workerName) {
-      const cleanWorkerId = workerId ? String(workerId).toLowerCase() : '';
-      const cleanWorkerName = workerName ? String(workerName).toLowerCase() : '';
-      filtered = filtered.filter(a => 
-        (cleanWorkerId && a.field_worker_id && String(a.field_worker_id).toLowerCase() === cleanWorkerId) ||
-        (cleanWorkerName && a.field_worker_name && a.field_worker_name.toLowerCase().includes(cleanWorkerName))
-      );
-    }
-    return filtered;
+
+    return all;
   },
 
   async getAssessmentById(assessmentId) {
@@ -1813,11 +1971,23 @@ export const db = {
     const nextNum = (895 + allAssessments.length).toString().padStart(5, '0');
     const now = new Date().toISOString();
 
+    const workerName = assessmentData.field_worker_name || assessmentData.assessed_by || 'John Deng';
+    const workerId = assessmentData.field_worker_id || assessmentData.worker_id || 'fw-1';
+    const supId = assessmentData.supervisor_id || 'sup-1';
+    const supName = assessmentData.supervisor_name || 'Emmanuel Adeyemi';
+
     const newAssessment = {
       id: `ass-${Date.now().toString().slice(-4)}`,
       assessment_code: assessmentData.assessment_code || `FA-${nextNum}`,
       submission_date: now,
+      date_conducted: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
       status: 'Under Supervisor Review',
+      field_worker_name: workerName,
+      field_worker_id: workerId,
+      assessed_by: workerName,
+      worker_id: workerId,
+      supervisor_id: supId,
+      supervisor_name: supName,
       vulnerability_score: assessmentData.vulnerability_score || 85,
       urgency_level: assessmentData.urgency_level || 'High',
       family_size: Number(assessmentData.family_size) || 6,
@@ -1826,7 +1996,9 @@ export const db = {
       pregnant_lactating_count: Number(assessmentData.pregnant_lactating_count) || 0,
       id_verified: Boolean(assessmentData.id_verified ?? true),
       gps_coordinates: assessmentData.gps_coordinates || '4.8516° N, 31.5825° E',
-      audit_findings: assessmentData.audit_findings || assessmentData.notes || 'Household verified in dire need of emergency assistance.',
+      audit_findings: assessmentData.audit_findings || assessmentData.ground_situation_report || assessmentData.notes || 'Household verified in dire need of emergency assistance.',
+      ground_situation_report: assessmentData.ground_situation_report || assessmentData.audit_findings || '',
+      field_justification: assessmentData.field_justification || '',
       recommended_aid: assessmentData.recommended_aid || 'Immediate Food & Non-Food Relief Package',
       ...assessmentData
     };
@@ -1844,7 +2016,13 @@ export const db = {
         status_stage: 4,
         vulnerability_score: newAssessment.vulnerability_score,
         assessment_code: newAssessment.assessment_code,
-        review_notes: `Field assessment ${newAssessment.assessment_code} submitted by ${newAssessment.field_worker_name || 'Field Worker'}. Awaiting Supervisor review.`,
+        evidence_photos: newAssessment.evidence_photos || [],
+        evidence_documents: newAssessment.evidence_documents || [],
+        ground_situation_report: newAssessment.ground_situation_report || newAssessment.audit_findings || '',
+        field_justification: newAssessment.field_justification || '',
+        recommended_aid: newAssessment.recommended_aid || r.recommended_aid,
+        field_worker_assessment: newAssessment,
+        review_notes: `Field assessment ${newAssessment.assessment_code} submitted by ${newAssessment.field_worker_name || 'Field Worker'}. Ground verification confirms urgent assistance requirement. Awaiting Supervisor review.`,
         updated_at: now
       } : r);
       saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedRequests);
@@ -1871,6 +2049,43 @@ export const db = {
           console.warn('Supabase assessment update error:', err?.message);
         }
       }
+    }
+
+    // Update linked facilitation / funding requests with post-disbursement truth report
+    try {
+      const allFunding = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+      const updatedFunding = allFunding.map(f => {
+        const matchCode = newAssessment.request_code && (f.linked_request_code === newAssessment.request_code || f.request_code === newAssessment.request_code);
+        const matchId = newAssessment.request_id && (f.linked_task_id === newAssessment.request_id || f.id === newAssessment.request_id);
+        const matchBen = newAssessment.beneficiary_name && f.linked_beneficiary_name?.toLowerCase() === newAssessment.beneficiary_name.toLowerCase();
+
+        if (matchCode || matchId || matchBen) {
+          return {
+            ...f,
+            post_disbursement_assessment: {
+              status: 'Completed & Verified True',
+              assessment_id: newAssessment.id,
+              assessment_code: newAssessment.assessment_code,
+              verification_finding: newAssessment.verification_finding || 'VERIFIED_TRUE',
+              assignment_verified_true: Boolean(newAssessment.assignment_verified_true ?? true),
+              truth_statement: newAssessment.truth_statement || '',
+              vulnerability_score: newAssessment.vulnerability_score || 85,
+              urgency_level: newAssessment.urgency_level || 'Critical Emergency',
+              ground_situation_report: newAssessment.ground_situation_report || newAssessment.audit_findings,
+              field_justification: newAssessment.field_justification || '',
+              recommended_aid: newAssessment.recommended_aid || 'Immediate Emergency Relief',
+              evidence_photos: newAssessment.evidence_photos || [],
+              evidence_documents: newAssessment.evidence_documents || [],
+              assessed_by: newAssessment.assessed_by || newAssessment.field_worker_name || 'Field Officer',
+              submitted_at: now
+            }
+          };
+        }
+        return f;
+      });
+      saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updatedFunding);
+    } catch (fErr) {
+      console.warn('Could not sync linked funding post-assessment:', fErr);
     }
 
     // Update field worker statistics
@@ -2107,108 +2322,221 @@ export const db = {
   // --- FIELD WORKER OPERATIONAL FUNDING REQUISITIONS (3-TIER APPROVAL) ---
   async getFieldFundingRequests(workerId = null, supervisorId = null) {
     const raw = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
-    // Clean any legacy mock entries with static mock IDs
-    const all = raw.filter(r => !['fnd-1', 'fnd-2', 'fnd-3', 'fnd-4'].includes(r.id));
-    if (workerId) {
-      const cleanId = String(workerId).toLowerCase().trim();
-      return all.filter(r => r.field_worker_id && String(r.field_worker_id).toLowerCase() === cleanId);
+    let needsSave = false;
+
+    // Filter out legacy mock demo records and auto-sync amount with breakdown
+    const all = (Array.isArray(raw) ? raw : [])
+      .filter(r => {
+        if (r.id === 'fnd-104' || r.request_code === 'REQ-FND-2026-004') {
+          needsSave = true;
+          return false;
+        }
+        return true;
+      })
+      .map(r => {
+        if (r.breakdown && Array.isArray(r.breakdown) && r.breakdown.length > 0) {
+          const computedTotal = r.breakdown.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+          if (computedTotal > 0 && r.amount !== computedTotal) {
+            needsSave = true;
+            return { ...r, amount: computedTotal };
+          }
+        }
+        return r;
+      });
+
+    if (needsSave && typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, JSON.stringify(all));
+      } catch (e) {}
     }
+
+    if (workerId && workerId !== 'all') {
+      const cleanId = String(workerId).toLowerCase().trim();
+      return all.filter(r => 
+        (r.field_worker_id && String(r.field_worker_id).toLowerCase() === cleanId) ||
+        (r.field_worker_name && r.field_worker_name.toLowerCase().includes(cleanId)) ||
+        (r.field_worker_email && r.field_worker_email.toLowerCase() === cleanId)
+      );
+    }
+
     if (supervisorId && supervisorId !== 'all') {
       const cleanSupId = String(supervisorId).toLowerCase().trim();
-      return all.filter(r => r.supervisor_id && String(r.supervisor_id).toLowerCase() === cleanSupId);
+      const sups = getLocalData(STORAGE_KEYS.SUPERVISORS, mock.initialSupervisors || []);
+      const matchedSup = sups.find(s => 
+        String(s.id).toLowerCase() === cleanSupId ||
+        (s.email && s.email.toLowerCase() === cleanSupId) ||
+        (s.name && s.name.toLowerCase() === cleanSupId)
+      ) || sups[0];
+
+      const targetState = matchedSup?.state?.toLowerCase();
+      const targetName = matchedSup?.name?.toLowerCase();
+
+      return all.filter(r => {
+        // Direct ID match
+        if (r.supervisor_id && String(r.supervisor_id).toLowerCase() === cleanSupId) return true;
+        // Direct Name match
+        if (targetName && r.supervisor_name && r.supervisor_name.toLowerCase().includes(targetName)) return true;
+        if (r.supervisor_name && r.supervisor_name.toLowerCase().includes(cleanSupId)) return true;
+        // State Hub match
+        if (targetState && r.state && r.state.toLowerCase() === targetState) return true;
+        // Default / general fallback for default supervisor
+        if (cleanSupId === 'sup-1' || cleanSupId === '1' || cleanSupId.includes('emmanuel') || cleanSupId.includes('supervisor')) {
+          if (!r.supervisor_id || r.supervisor_id === 'sup-1' || r.supervisor_id === '1' || !r.state || r.state.toLowerCase().includes('eastern')) {
+            return true;
+          }
+        }
+        return false;
+      });
     }
+
     return all;
   },
 
   async createFieldFundingRequest(fundingData) {
-    const all = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+    const raw = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
+    const all = (Array.isArray(raw) ? raw : []).filter(r => r.id !== 'fnd-104' && r.request_code !== 'REQ-FND-2026-004');
     const nextNum = (all.length + 1).toString().padStart(3, '0');
     const now = new Date().toISOString();
 
-    const newRequest = {
-      id: `fnd-${Date.now()}`,
-      request_code: fundingData.request_code || `REQ-FND-2026-${nextNum}`,
-      field_worker_id: fundingData.field_worker_id || 'fw-1',
-      field_worker_name: fundingData.field_worker_name || 'Field Officer',
-      field_worker_email: fundingData.field_worker_email || 'field.worker@adra.org',
-      field_worker_phone: fundingData.field_worker_phone || '+211-921-000000',
-      supervisor_id: fundingData.supervisor_id || 'sup-1',
-      supervisor_name: fundingData.supervisor_name || 'Emmanuel Adeyemi',
-      program_manager_name: fundingData.program_manager_name || 'Grace Ochieng',
-      finance_officer_name: 'Finance Department',
-      payam: fundingData.payam || 'Field Location',
-      county: fundingData.county || 'Operational County',
-      state: fundingData.state || 'Eastern Equatoria',
-      project_id: fundingData.project_id || 'prg1',
-      project_name: fundingData.project_name || 'Emergency Relief & Resilience',
-      category: fundingData.category || 'Transport & Vehicle Fuel',
-      amount: Number(fundingData.amount) || 0,
-      currency: fundingData.currency || 'SSP',
-      purpose: fundingData.purpose || 'Field operational requisition',
-      breakdown: fundingData.breakdown || [],
-      urgency: fundingData.urgency || 'Standard SLA (48h)',
-      preferred_payout: fundingData.preferred_payout || 'm-Gurush Mobile Money',
-      payout_phone: fundingData.payout_phone || fundingData.field_worker_phone || '+211-921-000000',
-      status: 'Pending Supervisor Approval',
-      stage: 1, // 1: Submitted, 2: Supervisor Approved (Pending PM), 3: PM Approved (Pending Finance), 4: Disbursed
-      created_at: now,
-      supervisor_review: {
-        status: 'Pending',
-        reviewed_by: null,
-        reviewed_at: null,
-        notes: null
-      },
-      pm_review: {
-        status: 'Pending',
-        reviewed_by: null,
-        reviewed_at: null,
-        notes: null
-      },
-      finance_disbursement: {
-        status: 'Pending',
-        disbursed_by: null,
-        disbursed_at: null,
-        payment_method: null,
-        voucher_reference: null,
-        transaction_ref: null,
-        notes: null
-      }
-    };
+    // Check if there is an existing rejected requisition for this linked case/request to re-activate
+    const existingIndex = all.findIndex(r => 
+      (fundingData.id && (r.id === fundingData.id || r.request_code === fundingData.id)) ||
+      (fundingData.request_code && (r.request_code === fundingData.request_code || r.id === fundingData.request_code)) ||
+      (fundingData.linked_request_code && r.linked_request_code === fundingData.linked_request_code && (r.status?.includes('Rejected') || r.status?.toLowerCase().includes('reject'))) ||
+      (fundingData.linked_beneficiary_name && r.linked_beneficiary_name === fundingData.linked_beneficiary_name && (r.status?.includes('Rejected') || r.status?.toLowerCase().includes('reject')))
+    );
 
-    const updated = [newRequest, ...all];
-    saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
+    // Compute accurate amount from itemized breakdown if present
+    const computedAmount = fundingData.breakdown && fundingData.breakdown.length > 0
+      ? fundingData.breakdown.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+      : (Number(fundingData.amount) || 0);
+
+    let targetRequest;
+    if (existingIndex >= 0) {
+      const existing = all[existingIndex];
+      targetRequest = {
+        ...existing,
+        ...fundingData,
+        id: existing.id,
+        request_code: existing.request_code,
+        status: 'Pending Supervisor Approval',
+        stage: 1,
+        amount: computedAmount || existing.amount,
+        purpose: fundingData.purpose || existing.purpose,
+        breakdown: fundingData.breakdown && fundingData.breakdown.length > 0 ? fundingData.breakdown : existing.breakdown,
+        updated_at: now,
+        supervisor_review: {
+          status: 'Pending',
+          reviewed_by: null,
+          reviewed_at: null,
+          notes: null
+        },
+        pm_review: {
+          status: 'Pending',
+          reviewed_by: null,
+          reviewed_at: null,
+          notes: null
+        },
+        finance_disbursement: {
+          status: 'Pending',
+          disbursed_by: null,
+          disbursed_at: null,
+          payment_method: null,
+          voucher_reference: null,
+          transaction_ref: null,
+          notes: null
+        }
+      };
+      all[existingIndex] = targetRequest;
+    } else {
+      targetRequest = {
+        id: `fnd-${Date.now()}`,
+        request_code: fundingData.request_code || `REQ-FND-2026-${nextNum}`,
+        field_worker_id: fundingData.field_worker_id || 'fw-1',
+        field_worker_name: fundingData.field_worker_name || 'John Deng',
+        field_worker_email: fundingData.field_worker_email || 'john.deng@adra.org',
+        field_worker_phone: fundingData.field_worker_phone || '+211-921-550101',
+        supervisor_id: fundingData.supervisor_id || 'sup-1',
+        supervisor_name: fundingData.supervisor_name || 'Emmanuel Adeyemi',
+        program_manager_name: fundingData.program_manager_name || 'Grace Ochieng',
+        finance_officer_name: 'Finance Department',
+        payam: fundingData.payam || 'Field Location',
+        county: fundingData.county || 'Operational County',
+        state: fundingData.state || 'Eastern Equatoria',
+        project_id: fundingData.project_id || 'prg1',
+        project_name: fundingData.project_name || 'Emergency Food Security & Livelihoods (EFSLR)',
+        category: fundingData.category || 'Field Operational Facilitation',
+        amount: computedAmount,
+        currency: fundingData.currency || 'SSP',
+        purpose: fundingData.purpose || 'Field operational requisition',
+        breakdown: fundingData.breakdown || [],
+        linked_request_code: fundingData.linked_request_code || 'GEN-OPS',
+        linked_beneficiary_name: fundingData.linked_beneficiary_name || 'Field Assignment',
+        linked_location: fundingData.linked_location || fundingData.payam || 'Field Location',
+        urgency: fundingData.urgency || 'Standard SLA (48h)',
+        preferred_payout: fundingData.preferred_payout || 'm-Gurush Mobile Money',
+        payout_phone: fundingData.payout_phone || fundingData.field_worker_phone || '+211-921-550101',
+        status: 'Pending Supervisor Approval',
+        stage: 1, // 1: Submitted, 2: Supervisor Approved (Pending PM), 3: PM Approved (Pending Finance), 4: Disbursed
+        created_at: now,
+        supervisor_review: {
+          status: 'Pending',
+          reviewed_by: null,
+          reviewed_at: null,
+          notes: null
+        },
+        pm_review: {
+          status: 'Pending',
+          reviewed_by: null,
+          reviewed_at: null,
+          notes: null
+        },
+        finance_disbursement: {
+          status: 'Pending',
+          disbursed_by: null,
+          disbursed_at: null,
+          payment_method: null,
+          voucher_reference: null,
+          transaction_ref: null,
+          notes: null
+        }
+      };
+      all.unshift(targetRequest);
+    }
+
+    saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, all);
 
     // Notify Supervisor
     const supervisorNotifs = getLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, mock.initialSupervisorNotifications || []);
     const newNotif = {
       id: `snotif-${Date.now().toString().slice(-4)}`,
-      title: 'New Field Funding Requisition',
-      message: `${newRequest.field_worker_name} submitted a funding request of $${newRequest.amount} for "${newRequest.category}". Review required.`,
+      title: 'New Facilitation Requisition Submitted',
+      message: `${targetRequest.field_worker_name} submitted a facilitation request of ${Number(targetRequest.amount).toLocaleString()} ${targetRequest.currency} for "${targetRequest.linked_beneficiary_name || targetRequest.category}". Endorsement required.`,
       type: 'funding_request',
       created_at: now,
       is_read: false,
-      link_id: newRequest.request_code
+      link_id: targetRequest.request_code
     };
     saveLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, [newNotif, ...supervisorNotifs]);
 
     // Create Field Worker Activity Log
     await this.createFieldWorkerActivity({
-      worker_id: newRequest.field_worker_id,
-      worker_name: newRequest.field_worker_name,
-      activity_type: 'Funding Requisition',
-      title: `Funding Requisition: $${newRequest.amount}`,
-      details: `Submitted requisition ${newRequest.request_code} ($${newRequest.amount}) for ${newRequest.category}. Pending Supervisor endorsement.`
+      worker_id: targetRequest.field_worker_id,
+      worker_name: targetRequest.field_worker_name,
+      activity_type: 'Facilitation Requisition',
+      title: `Facilitation Requisition: ${Number(targetRequest.amount).toLocaleString()} ${targetRequest.currency}`,
+      details: `Submitted requisition ${targetRequest.request_code} (${Number(targetRequest.amount).toLocaleString()} ${targetRequest.currency}) for ${targetRequest.category}. Pending Supervisor endorsement.`
     });
 
     // Audit Log
     await this.logAudit({
-      action: 'CREATE_FUNDING_REQUEST',
+      action: 'CREATE_FACILITATION_REQUEST',
       module: 'Field Finance Requisitions',
-      record_id: newRequest.request_code,
-      details: `Field Worker ${newRequest.field_worker_name} requested $${newRequest.amount} USD (${newRequest.category}) for ${newRequest.payam}. Requiring Supervisor & PM approvals.`
+      record_id: targetRequest.request_code,
+      details: `Field Worker ${targetRequest.field_worker_name} requested ${Number(targetRequest.amount).toLocaleString()} ${targetRequest.currency} (${targetRequest.category}) for ${targetRequest.payam}. Requiring Supervisor endorsement & PM approval.`
     });
 
-    return newRequest;
+    return targetRequest;
   },
 
   async approveFieldFundingBySupervisor(requestId, supervisorName = 'Emmanuel Adeyemi', notes = '') {
@@ -2223,18 +2551,30 @@ export const db = {
         status: 'Approved',
         reviewed_by: supervisorName,
         reviewed_at: now,
-        notes: notes || 'Endorsed by Supervisor. Sent to Program Manager for approval.'
+        notes: notes || 'Endorsed by Supervisor. Sent to Program Manager for authorization.'
       }
     } : r);
 
     saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
     const target = updated.find(r => r.id === requestId || r.request_code === requestId);
 
+    // Supervisor Activity Log
+    const supActivities = getLocalData(STORAGE_KEYS.SUPERVISOR_ACTIVITY_HISTORY, mock.initialSupervisorActivityHistory || []);
+    const supAct = {
+      id: `sact-${Date.now().toString().slice(-4)}`,
+      user_name: supervisorName,
+      role: 'Supervisor',
+      action: 'ENDORSE_FACILITATION',
+      details: `You endorsed facilitation request ${target?.request_code} (${Number(target?.amount).toLocaleString()} ${target?.currency}) for ${target?.field_worker_name}. Escalated to Program Manager.`,
+      created_at: now
+    };
+    saveLocalData(STORAGE_KEYS.SUPERVISOR_ACTIVITY_HISTORY, [supAct, ...supActivities]);
+
     await this.logAudit({
-      action: 'SUPERVISOR_APPROVE_FUNDING',
+      action: 'SUPERVISOR_APPROVE_FACILITATION',
       module: 'Field Finance Requisitions',
       record_id: target?.request_code || requestId,
-      details: `Supervisor ${supervisorName} endorsed funding request ${target?.request_code} ($${target?.amount}). Escalated to Program Manager Grace Ochieng.`
+      details: `Supervisor ${supervisorName} endorsed facilitation request ${target?.request_code} (${Number(target?.amount).toLocaleString()} ${target?.currency}). Escalated to Program Manager Grace Ochieng.`
     });
 
     return target;
@@ -2260,16 +2600,29 @@ export const db = {
     const target = updated.find(r => r.id === requestId || r.request_code === requestId);
 
     await this.logAudit({
-      action: 'SUPERVISOR_REJECT_FUNDING',
+      action: 'SUPERVISOR_REJECT_FACILITATION',
       module: 'Field Finance Requisitions',
       record_id: target?.request_code || requestId,
-      details: `Supervisor ${supervisorName} rejected funding request ${target?.request_code}. Reason: ${reason}`
+      details: `Supervisor ${supervisorName} rejected facilitation request ${target?.request_code}. Reason: ${reason}`
     });
 
     return target;
   },
 
-  async approveFieldFundingByPM(requestId, pmName = 'Grace Ochieng', notes = '') {
+  async approveFieldFundingByPM(requestId, param1 = 'Grace Ochieng', param2 = '') {
+    // Robust argument handling for (requestId, notes, pmName) or (requestId, pmName, notes)
+    let pmName = 'Grace Ochieng';
+    let notes = 'Authorized by Program Manager. Approved for Finance Officer disbursement.';
+    if (param1 && typeof param1 === 'string') {
+      if (param1.length > 30 || param1.includes(' ') && (param1.includes('Approved') || param1.includes('Authorized') || param1.includes('verified'))) {
+        notes = param1;
+        if (param2) pmName = param2;
+      } else {
+        pmName = param1;
+        if (param2) notes = param2;
+      }
+    }
+
     const all = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
     const now = new Date().toISOString();
 
@@ -2277,51 +2630,148 @@ export const db = {
       ...r,
       status: 'Approved (Pending Finance Disbursement)',
       stage: 3,
+      pm_approved_by: pmName,
+      pm_approved_at: now,
+      pm_remarks: notes,
       pm_review: {
         status: 'Approved',
         reviewed_by: pmName,
         reviewed_at: now,
-        notes: notes || 'Authorized by Program Manager. Approved for Finance Officer disbursement.'
+        notes: notes
       }
     } : r);
 
     saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
     const target = updated.find(r => r.id === requestId || r.request_code === requestId);
 
+    // Create notifications for Field Worker & Supervisor
+    try {
+      const notifs = getLocalData(STORAGE_KEYS.NOTIFICATIONS, mock.initialNotifications || []);
+      const newNotifs = [...notifs];
+
+      if (target?.field_worker_name || target?.field_worker_id) {
+        newNotifs.unshift({
+          id: `notif-fw-app-${Date.now()}`,
+          title: `Facilitation ${target.request_code || target.id} Authorized by PM`,
+          message: `Program Manager ${pmName} authorized your facilitation (${Number(target.amount || 0).toLocaleString()} SSP). Sent to Finance for disbursement.`,
+          recipient_id: target.field_worker_id,
+          recipient_role: 'Field Worker',
+          type: 'facilitation_approved',
+          created_at: now,
+          read: false
+        });
+      }
+
+      if (target?.supervisor_name || target?.supervisor_endorsed_by) {
+        newNotifs.unshift({
+          id: `notif-sup-app-${Date.now()}`,
+          title: `PM Approved Facilitation for ${target.field_worker_name}`,
+          message: `Program Manager ${pmName} authorized facilitation ${target.request_code || target.id} (${Number(target.amount || 0).toLocaleString()} SSP). Sent to Finance for disbursement.`,
+          recipient_id: target.supervisor_id,
+          recipient_role: 'Supervisor',
+          type: 'facilitation_pm_approved',
+          created_at: now,
+          read: false
+        });
+      }
+      saveLocalData(STORAGE_KEYS.NOTIFICATIONS, newNotifs);
+    } catch (e) {
+      console.warn('Could not post notifications:', e);
+    }
+
     await this.logAudit({
-      action: 'PM_APPROVE_FUNDING',
+      action: 'PM_APPROVE_FACILITATION',
       module: 'Field Finance Requisitions',
       record_id: target?.request_code || requestId,
-      details: `Program Manager ${pmName} authorized funding request ${target?.request_code} ($${target?.amount}). Ready for Finance Officer payout.`
+      details: `Program Manager ${pmName} authorized facilitation request ${target?.request_code} (${Number(target?.amount).toLocaleString()} ${target?.currency || 'SSP'}). Ready for Finance Officer payout.`
     });
 
     return target;
   },
 
-  async rejectFieldFundingByPM(requestId, pmName = 'Grace Ochieng', reason = '') {
+  // Backward compatibility / alias
+  async approveFieldFundingByProgramManager(requestId, pmName = 'Grace Ochieng', notes = '') {
+    return this.approveFieldFundingByPM(requestId, pmName, notes);
+  },
+
+  async rejectFieldFundingByPM(requestId, param1 = 'Grace Ochieng', param2 = '') {
+    // Robust argument handling for (requestId, reason, pmName) or (requestId, pmName, reason)
+    let pmName = 'Grace Ochieng';
+    let reason = 'Requisition declined by Program Manager.';
+    if (param1 && typeof param1 === 'string') {
+      if (param1.length > 20 || (param1.includes(' ') && (param1.includes('reject') || param1.includes('decline') || param1.includes('Please') || param1.includes('because') || param1.includes('not')))) {
+        reason = param1;
+        if (param2) pmName = param2;
+      } else {
+        pmName = param1;
+        if (param2) reason = param2;
+      }
+    }
+
     const all = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
     const now = new Date().toISOString();
 
     const updated = all.map(r => (r.id === requestId || r.request_code === requestId) ? {
       ...r,
       status: 'Rejected by Program Manager',
-      stage: 2,
+      stage: -1,
+      returned_to_worker: true,
+      pm_rejected_by: pmName,
+      pm_rejected_at: now,
+      pm_remarks: reason,
       pm_review: {
         status: 'Rejected',
         reviewed_by: pmName,
         reviewed_at: now,
-        notes: reason || 'Requisition declined by Program Manager.'
+        notes: reason
       }
     } : r);
 
     saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
     const target = updated.find(r => r.id === requestId || r.request_code === requestId);
 
+    // Create notifications for Field Worker & Supervisor
+    try {
+      const notifs = getLocalData(STORAGE_KEYS.NOTIFICATIONS, mock.initialNotifications || []);
+      const newNotifs = [...notifs];
+
+      // Notification directly to Field Worker: returned for revision
+      if (target?.field_worker_name || target?.field_worker_id) {
+        newNotifs.unshift({
+          id: `notif-fw-rej-${Date.now()}`,
+          title: `Facilitation ${target.request_code || target.id} Returned by PM`,
+          message: `Program Manager ${pmName} returned your facilitation request (${Number(target.amount || 0).toLocaleString()} SSP) for revision. Reason: "${reason}"`,
+          recipient_id: target.field_worker_id,
+          recipient_role: 'Field Worker',
+          type: 'facilitation_rejected',
+          created_at: now,
+          read: false
+        });
+      }
+
+      // Notification to Supervisor: visibility that PM declined it
+      if (target?.supervisor_name || target?.supervisor_endorsed_by) {
+        newNotifs.unshift({
+          id: `notif-sup-rej-${Date.now()}`,
+          title: `PM Declined Facilitation: ${target.request_code || target.id}`,
+          message: `Program Manager ${pmName} rejected the facilitation request for ${target.field_worker_name} (${Number(target.amount || 0).toLocaleString()} SSP). Reason: "${reason}". Returned directly to field worker.`,
+          recipient_id: target.supervisor_id,
+          recipient_role: 'Supervisor',
+          type: 'facilitation_pm_rejected',
+          created_at: now,
+          read: false
+        });
+      }
+      saveLocalData(STORAGE_KEYS.NOTIFICATIONS, newNotifs);
+    } catch (e) {
+      console.warn('Could not post notifications:', e);
+    }
+
     await this.logAudit({
-      action: 'PM_REJECT_FUNDING',
+      action: 'PM_REJECT_FACILITATION',
       module: 'Field Finance Requisitions',
       record_id: target?.request_code || requestId,
-      details: `Program Manager ${pmName} rejected funding request ${target?.request_code}. Reason: ${reason}`
+      details: `Program Manager ${pmName} rejected facilitation request ${target?.request_code} for ${target?.field_worker_name}. Returned directly to worker. Reason: ${reason}`
     });
 
     return target;
@@ -2344,7 +2794,7 @@ export const db = {
         payment_method: disbursementData.payment_method || r.preferred_payout || 'm-Gurush Mobile Money',
         voucher_reference: voucherRef,
         transaction_ref: txnRef,
-        notes: disbursementData.notes || `Disbursed $${r.amount} USD to ${r.field_worker_name} (${r.payout_phone || r.field_worker_phone}). Payment voucher generated.`
+        notes: disbursementData.notes || `Disbursed ${Number(r.amount).toLocaleString()} ${r.currency || 'SSP'} to ${r.field_worker_name} (${r.payout_phone || r.field_worker_phone}). Payment voucher ${voucherRef} generated.`
       }
     } : r);
 
@@ -2353,22 +2803,38 @@ export const db = {
 
     // Also record in expenditures ledger
     if (target) {
-      await this.createExpenditure({
-        expenditure_code: `EXP-${voucherRef}`,
-        project_id: target.project_id || 'prg1',
-        category: 'Travel & Transport',
-        description: `Field Cash Requisition (${target.category}) for ${target.field_worker_name} (${target.request_code}) - Voucher ${voucherRef}`,
-        amount: target.amount,
-        expenditure_date: now.split('T')[0],
-        receipt_url: `https://adra-docs.internal/vouchers/${voucherRef}.pdf`
+      try {
+        await this.createExpenditure({
+          expenditure_code: `EXP-${voucherRef}`,
+          project_id: target.project_id || 'prg1',
+          project_name: target.project_name || 'Emergency Food Security & Livelihoods (EFSLR)',
+          category: 'Travel & Transport',
+          description: `Field Cash Facilitation (${target.category}) for ${target.field_worker_name} (${target.request_code}) - Voucher ${voucherRef}`,
+          amount: target.amount,
+          expenditure_date: now.split('T')[0],
+          receipt_url: `https://adra-docs.internal/vouchers/${voucherRef}.pdf`
+        });
+      } catch (expErr) {
+        console.warn('Could not record expenditure ledger entry for disbursement:', expErr);
+      }
+    }
+
+    // Notify Field Worker via activity
+    if (target) {
+      await this.createFieldWorkerActivity({
+        worker_id: target.field_worker_id,
+        worker_name: target.field_worker_name,
+        activity_type: 'Facilitation Disbursed',
+        title: `Facilitation Disbursed: ${Number(target.amount).toLocaleString()} ${target.currency}`,
+        details: `Funds for ${target.request_code} have been disbursed by Finance via ${disbursementData.payment_method || target.preferred_payout || 'm-Gurush Mobile Money'}. Voucher: ${voucherRef}`
       });
     }
 
     await this.logAudit({
-      action: 'FINANCE_DISBURSE_FUNDING',
+      action: 'FINANCE_DISBURSE_FACILITATION',
       module: 'Field Finance Requisitions',
       record_id: target?.request_code || requestId,
-      details: `Finance Officer ${financeName} disbursed $${target?.amount} USD for ${target?.request_code} to ${target?.field_worker_name}. Voucher: ${voucherRef}`
+      details: `Finance Officer ${financeName} disbursed ${Number(target?.amount).toLocaleString()} ${target?.currency || 'SSP'} for ${target?.request_code} to ${target?.field_worker_name}. Voucher: ${voucherRef}`
     });
 
     return target;
@@ -2476,55 +2942,6 @@ export const db = {
 
   async getApprovedContacts() {
     return getLocalData(STORAGE_KEYS.ADRA_CONTACTS, mock.approvedAdraContacts);
-  },
-
-  // --- BENEFICIARY SELF-REGISTRATION ---
-  async registerBeneficiaryAccount(regData) {
-    const bens = await this.getBeneficiaries();
-    const codeNum = String(bens.length + 1).padStart(3, '0');
-    const benCode = `BEN-2025-${codeNum}`;
-
-    const newBen = {
-      id: `b_${Date.now()}`,
-      beneficiary_code: benCode,
-      full_name: regData.full_name,
-      email: regData.email || `${regData.full_name.toLowerCase().replace(/\s+/g, '.')}@adra.community`,
-      gender: regData.gender || 'Not Specified',
-      date_of_birth: regData.date_of_birth || '1990-01-01',
-      age: Number(regData.age) || 30,
-      phone_number: regData.phone_number,
-      location: regData.location,
-      household_size: Number(regData.household_size) || 1,
-      vulnerability_category: regData.vulnerability_category || 'General Community Member',
-      verification_status: 'Under Verification',
-      registration_date: new Date().toISOString().split('T')[0],
-      project_id: regData.project_id || 'pr1',
-      project_name: regData.project_name || 'Drought Resilience & Climate-Smart Agriculture',
-      emergency_contact: regData.emergency_contact || 'None Listed',
-      primary_needs: regData.primary_needs || ['Food Rations'],
-      qr_token: `ADRA-${benCode}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-    };
-
-    await this.createBeneficiary(newBen);
-
-    // Also register user account in users / mock accounts
-    const newAccount = {
-      id: `user-ben-${Date.now()}`,
-      email: newBen.email,
-      password: regData.password || 'Password123!',
-      full_name: newBen.full_name,
-      role: 'Beneficiary',
-      department: `Community Beneficiary (${newBen.location})`,
-      status: 'Active',
-      avatar: newBen.gender === 'Female'
-        ? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150'
-        : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'
-    };
-
-    const currentAccounts = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
-    saveLocalData(STORAGE_KEYS.USERS, [...currentAccounts, newAccount]);
-
-    return { beneficiary: newBen, account: newAccount };
   },
 
   // --- ACTIVITIES ---
@@ -2730,21 +3147,52 @@ export const db = {
   async getBudgets() {
     if (isSupabaseConfigured) {
       const { data, error } = await supabase.from('budgets').select('*, projects(project_name)');
-      if (!error && data) return data;
+      if (!error && data) {
+        return data.map(b => ({
+          ...b,
+          project_name: b.projects?.project_name || b.project_name || 'General Project'
+        }));
+      }
     }
     return getLocalData(STORAGE_KEYS.BUDGETS, mock.initialBudgets);
   },
 
   async createBudget(budget) {
+    let resolvedProjectId = budget.project_id;
+    if (isSupabaseConfigured) {
+      const isValidUUID = typeof resolvedProjectId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedProjectId);
+      if (!isValidUUID) {
+        try {
+          const projs = await this.getProjects();
+          if (projs && projs.length > 0) {
+            resolvedProjectId = projs[0].id;
+          }
+        } catch (e) {
+          console.warn('Could not resolve project_id UUID for budget:', e);
+        }
+      }
+    }
+
     const newBg = {
       id: isSupabaseConfigured ? undefined : `bg_${Date.now()}`,
       created_at: new Date().toISOString(),
-      ...budget
+      ...budget,
+      project_id: resolvedProjectId || budget.project_id
     };
+
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('budgets').insert([newBg]).select().single();
+      const dbPayload = {
+        project_id: newBg.project_id,
+        budget_category: newBg.budget_category || 'Personnel',
+        allocated_amount: Number(newBg.allocated_amount || 0),
+        financial_year: newBg.financial_year || 'FY 2025/2026'
+      };
+      const { data, error } = await supabase.from('budgets').insert([dbPayload]).select('*, projects(project_name)').single();
       if (error) throw error;
-      return data;
+      return {
+        ...data,
+        project_name: data.projects?.project_name || budget.project_name || 'Emergency Project'
+      };
     }
     const current = getLocalData(STORAGE_KEYS.BUDGETS, mock.initialBudgets);
     const updated = [newBg, ...current];
@@ -2761,21 +3209,60 @@ export const db = {
   async getExpenditures() {
     if (isSupabaseConfigured) {
       const { data, error } = await supabase.from('expenditures').select('*, projects(project_name)').order('expenditure_date', { ascending: false });
-      if (!error && data) return data;
+      if (!error && data) {
+        return data.map(exp => ({
+          ...exp,
+          project_name: exp.projects?.project_name || exp.project_name || 'General Project'
+        }));
+      }
     }
     return getLocalData(STORAGE_KEYS.EXPENDITURES, mock.initialExpenditures);
   },
 
   async createExpenditure(expenditure) {
+    let resolvedProjectId = expenditure.project_id;
+    if (isSupabaseConfigured) {
+      const isValidUUID = typeof resolvedProjectId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resolvedProjectId);
+      if (!isValidUUID) {
+        try {
+          const projs = await this.getProjects();
+          if (projs && projs.length > 0) {
+            resolvedProjectId = projs[0].id;
+          }
+        } catch (e) {
+          console.warn('Could not resolve project_id UUID for expenditure:', e);
+        }
+      }
+    }
+
     const newExp = {
       id: isSupabaseConfigured ? undefined : `ex_${Date.now()}`,
       created_at: new Date().toISOString(),
-      ...expenditure
+      ...expenditure,
+      project_id: resolvedProjectId || expenditure.project_id
     };
+
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('expenditures').insert([newExp]).select().single();
-      if (error) throw error;
-      return data;
+      const dbPayload = {
+        expenditure_code: newExp.expenditure_code || `EXP-${Date.now().toString().slice(-6)}`,
+        project_id: newExp.project_id,
+        category: newExp.category || 'General',
+        description: newExp.description || 'Expenditure logged',
+        amount: Number(newExp.amount || 0),
+        expenditure_date: newExp.expenditure_date || new Date().toISOString().split('T')[0],
+        receipt_url: newExp.receipt_url || null,
+        recorded_by: (typeof newExp.recorded_by === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newExp.recorded_by)) ? newExp.recorded_by : null
+      };
+
+      const { data, error } = await supabase.from('expenditures').insert([dbPayload]).select('*, projects(project_name)').single();
+      if (error) {
+        console.error('Supabase createExpenditure insert error:', error);
+        throw error;
+      }
+      return {
+        ...data,
+        project_name: data.projects?.project_name || expenditure.project_name || 'Emergency Project'
+      };
     }
     const current = getLocalData(STORAGE_KEYS.EXPENDITURES, mock.initialExpenditures);
     const updated = [newExp, ...current];
@@ -2894,20 +3381,37 @@ export const db = {
         currentUser = JSON.parse(localStorage.getItem('adra_current_user') || '{}');
       } catch (e) {}
     }
+    const safeDetails = typeof details === 'object' && details !== null 
+      ? details 
+      : { message: String(details || '') };
+
     const newLog = {
-      id: isSupabaseConfigured ? undefined : `log_${Date.now()}`,
+      id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       user_email: currentUser.email || 'system@adra.org',
       user_role: currentUser.role || 'Administrator',
-      action,
-      module,
+      action: action || 'AUDIT',
+      module: module || 'General',
       record_id: String(record_id || ''),
       details: typeof details === 'string' ? details : JSON.stringify(details),
       created_at: new Date().toISOString()
     };
+
     if (isSupabaseConfigured) {
-      await supabase.from('audit_logs').insert([newLog]);
-      return;
+      try {
+        const payload = {
+          user_email: newLog.user_email,
+          action: newLog.action,
+          module: newLog.module,
+          record_id: newLog.record_id,
+          details: safeDetails,
+          created_at: newLog.created_at
+        };
+        await supabase.from('audit_logs').insert([payload]);
+      } catch (err) {
+        console.warn('Supabase audit log insert error:', err?.message);
+      }
     }
+
     const current = getLocalData(STORAGE_KEYS.AUDIT_LOGS, mock.initialAuditLogs);
     const updated = [newLog, ...current].slice(0, 100);
     saveLocalData(STORAGE_KEYS.AUDIT_LOGS, updated);
@@ -3187,36 +3691,94 @@ export const db = {
   async getApprovals(categoryFilter) {
     const stored = getLocalData(STORAGE_KEYS.APPROVALS, []) || [];
     
+    // Normalize any legacy stored approval records
+    stored.forEach(a => {
+      if (a.category === 'User Onboarding' && a.role_requested === 'Beneficiary') {
+        a.category = 'Beneficiary Verification';
+      }
+    });
+
     // Automatically synthesize approval records for any real pending staff or beneficiaries in database
     try {
-      const users = await this.getUsers();
-      const pendingUsers = users.filter(u => u.status === 'Pending Verification' || u.is_active === false);
+      const [users, bens] = await Promise.all([
+        this.getUsers(),
+        this.getBeneficiaries()
+      ]);
+
+      // 1. Pending Users
+      const pendingUsers = users.filter(u => 
+        u.status === 'Pending Verification' || 
+        u.verification_status === 'Pending Verification' || 
+        u.is_active === false
+      );
       
       pendingUsers.forEach(u => {
-        const appId = `app-usr-${(u.id || '').slice(0, 8)}`;
-        const exists = stored.some(a => a.user_id === u.id || a.requester_email?.toLowerCase() === (u.email || '').toLowerCase());
+        const isBen = u.role === 'Beneficiary';
+        const cat = isBen ? 'Beneficiary Verification' : 'User Registration';
+        const exists = stored.some(a => 
+          (u.id && a.user_id === u.id) || 
+          (u.email && a.requester_email?.toLowerCase() === u.email.toLowerCase()) ||
+          (u.beneficiary_code && a.details?.includes(u.beneficiary_code))
+        );
         if (!exists) {
-          stored.push({
-            id: appId,
-            category: u.role === 'Beneficiary' ? 'Beneficiary Verification' : 'User Registration',
+          stored.unshift({
+            id: `app-usr-${(u.id || Date.now().toString()).slice(-8)}`,
+            category: cat,
             requester_name: u.full_name || 'Self-Registered User',
             requester_email: u.email || 'N/A',
             role_requested: u.role || 'Field Worker',
             department: u.department || 'Operations',
-            details: `${u.role || 'Staff'} registration for ${u.full_name || 'User'} (${u.email || 'N/A'}). Awaiting administrator compliance & role approval.`,
+            details: isBen 
+              ? `New Beneficiary registration: ${u.full_name || 'Beneficiary'} (Code: ${u.beneficiary_code || 'N/A'}, Phone: ${u.phone || 'N/A'}). Awaiting administrator verification.`
+              : `${u.role || 'Staff'} registration for ${u.full_name || 'User'} (${u.email || 'N/A'}). Awaiting administrator compliance & role approval.`,
             status: 'Pending',
             date: u.created_at || new Date().toISOString(),
             priority: 'High',
-            user_id: u.id
+            user_id: u.id,
+            beneficiary_id: u.beneficiary_id || u.beneficiary_code
+          });
+        }
+      });
+
+      // 2. Pending Beneficiaries
+      const pendingBens = bens.filter(b => {
+        const s = b.verification_status || b.status;
+        return s === 'Pending Verification' || s === 'Under Verification' || s === 'Pending' || s === 'pending';
+      });
+
+      pendingBens.forEach(b => {
+        const exists = stored.some(a => 
+          (b.id && a.beneficiary_id === b.id) ||
+          (b.beneficiary_code && (a.beneficiary_id === b.beneficiary_code || a.details?.includes(b.beneficiary_code))) ||
+          (b.email && a.requester_email?.toLowerCase() === b.email.toLowerCase()) ||
+          (b.full_name && a.requester_name?.toLowerCase() === b.full_name.toLowerCase())
+        );
+        if (!exists) {
+          stored.unshift({
+            id: `app-ben-${(b.id || b.beneficiary_code || Date.now().toString()).slice(-8)}`,
+            category: 'Beneficiary Verification',
+            requester_name: b.full_name,
+            requester_email: b.email || `${b.beneficiary_code?.toLowerCase()}@adra.community`,
+            role_requested: 'Beneficiary',
+            department: `Community (${b.location || 'Operations'})`,
+            details: `New Beneficiary registration: ${b.full_name} (Code: ${b.beneficiary_code}, ID: ${b.id_number || b.national_id || 'N/A'}, Phone: ${b.phone_number || 'N/A'}). Awaiting administrator verification.`,
+            status: 'Pending',
+            date: b.registration_date || new Date().toISOString(),
+            priority: 'High',
+            beneficiary_id: b.id || b.beneficiary_code
           });
         }
       });
     } catch (e) {
-      console.warn('Could not sync pending user approvals:', e);
+      console.warn('Could not sync pending user/beneficiary approvals:', e);
     }
 
     if (!categoryFilter || categoryFilter === 'ALL') return stored;
-    return stored.filter(a => a.category === categoryFilter);
+    return stored.filter(a => 
+      a.category === categoryFilter ||
+      (categoryFilter === 'Beneficiary Verification' && (a.category === 'User Onboarding' || a.role_requested === 'Beneficiary')) ||
+      (categoryFilter === 'User Registration' && (a.category === 'User Onboarding' && a.role_requested !== 'Beneficiary'))
+    );
   },
 
   async updateApprovalStatus(id, status, notes = '') {
@@ -3226,7 +3788,7 @@ export const db = {
     saveLocalData(STORAGE_KEYS.APPROVALS, updated);
 
     // If User Onboarding or Beneficiary Verification approval is approved or rejected, synchronize user and beneficiary status
-    if (targetApp && (targetApp.category === 'User Onboarding' || targetApp.category === 'Beneficiary Verification' || targetApp.category === 'User Registration' || targetApp.user_id || targetApp.beneficiary_id)) {
+    if (targetApp && (targetApp.category === 'User Onboarding' || targetApp.category === 'Beneficiary Verification' || targetApp.category === 'User Registration' || targetApp.user_id || targetApp.beneficiary_id || targetApp.role_requested === 'Beneficiary')) {
       const isApproved = status === 'Approved';
       const userStatus = isApproved ? 'Active' : 'Rejected';
       const benStatus = isApproved ? 'Verified Active' : 'Rejected';
@@ -3234,7 +3796,9 @@ export const db = {
       // Update users list in local storage
       const users = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
       const updatedUsers = users.map(u => {
-        if ((targetApp.user_id && u.id === targetApp.user_id) || (targetApp.requester_email && u.email?.toLowerCase() === targetApp.requester_email.toLowerCase())) {
+        if ((targetApp.user_id && u.id === targetApp.user_id) || 
+            (targetApp.requester_email && u.email?.toLowerCase() === targetApp.requester_email.toLowerCase()) ||
+            (targetApp.beneficiary_id && (u.beneficiary_id === targetApp.beneficiary_id || u.beneficiary_code === targetApp.beneficiary_id))) {
           return { ...u, status: userStatus, is_active: isApproved, verification_status: benStatus };
         }
         return u;
@@ -3246,8 +3810,9 @@ export const db = {
       const updatedBens = bens.map(b => {
         if ((targetApp.beneficiary_id && (b.id === targetApp.beneficiary_id || b.beneficiary_code === targetApp.beneficiary_id)) || 
             (targetApp.requester_email && b.email?.toLowerCase() === targetApp.requester_email.toLowerCase()) ||
-            (targetApp.requester_name && b.full_name?.toLowerCase() === targetApp.requester_name.toLowerCase())) {
-          return { ...b, verification_status: benStatus };
+            (targetApp.requester_name && b.full_name?.toLowerCase() === targetApp.requester_name.toLowerCase()) ||
+            (targetApp.details && b.beneficiary_code && targetApp.details.includes(b.beneficiary_code))) {
+          return { ...b, verification_status: benStatus, status: benStatus };
         }
         return b;
       });
@@ -3305,7 +3870,7 @@ export const db = {
                     (target?.phone && b.phone_number === target.phone) ||
                     (target?.full_name && b.full_name?.toLowerCase() === target.full_name.toLowerCase()) ||
                     (target?.beneficiary_code && b.beneficiary_code === target.beneficiary_code);
-      return match ? { ...b, verification_status: 'Verified Active' } : b;
+      return match ? { ...b, verification_status: 'Verified Active', status: 'Verified Active' } : b;
     });
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBens);
 
@@ -3514,10 +4079,14 @@ export const db = {
   // --- BENEFICIARY PORTAL: COMPLAINTS & FEEDBACK ---
   async getComplaints(beneficiaryId = null) {
     if (isSupabaseConfigured) {
-      let query = supabase.from('complaints').select('*').order('created_at', { ascending: false });
-      if (beneficiaryId) query = query.eq('beneficiary_id', beneficiaryId);
-      const { data, error } = await query;
-      if (!error && data) return data;
+      try {
+        let query = supabase.from('complaints').select('*').order('created_at', { ascending: false });
+        if (beneficiaryId) query = query.eq('beneficiary_id', beneficiaryId);
+        const { data, error } = await query;
+        if (!error && data) return data;
+      } catch (err) {
+        // Fallback to local storage
+      }
     }
     const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
     if (beneficiaryId) {
@@ -3603,151 +4172,6 @@ export const db = {
       matchedBeneficiary: null,
       reason: 'No existing duplicates detected in ADRA database.'
     };
-  },
-
-  // --- BENEFICIARY SELF-REGISTRATION ---
-  async registerBeneficiaryAccount(regData) {
-    const beneficiaries = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries || []);
-    
-    // Check for duplicates
-    const dupCheck = await this.checkBeneficiaryDuplicate({
-      phone_number: regData.phone_number,
-      national_id: regData.national_id,
-      full_name: regData.full_name
-    });
-
-    // Format Beneficiary ID as ADRA-SS-000125 as specified
-    const nextCodeNum = (125 + beneficiaries.length).toString().padStart(6, '0');
-    const benCode = `ADRA-SS-${nextCodeNum}`;
-    const benId = `b${Date.now().toString().slice(-4)}`;
-
-    const newBeneficiary = {
-      id: benId,
-      beneficiary_code: benCode,
-      full_name: regData.full_name,
-      first_name: regData.first_name || '',
-      middle_name: regData.middle_name || '',
-      last_name: regData.last_name || '',
-      email: regData.email || `${regData.full_name.toLowerCase().replace(/\s+/g, '.')}@adra.community`,
-      gender: regData.gender || 'Other',
-      date_of_birth: regData.date_of_birth || '1990-01-01',
-      age: regData.age || 35,
-      phone_number: regData.phone_number || '',
-      national_id: regData.id_number || regData.national_id || '',
-      id_number: regData.id_number || regData.national_id || '',
-      location: regData.location || 'Turkana West, Kenya',
-      household_size: Number(regData.household_size) || 4,
-      vulnerability_category: regData.vulnerability_category || 'General Community Member',
-      verification_status: 'Pending Verification',
-      duplicate_flag: dupCheck.isDuplicate ? dupCheck.reason : null,
-      priority_needs: regData.priority_needs || 'Food Rations & Clean Water',
-      emergency_contact_name: regData.emergency_contact_name || '',
-      emergency_contact_phone: regData.emergency_contact_phone || '',
-      registration_date: new Date().toISOString().split('T')[0],
-      project_id: regData.project_id || 'pr1',
-      project_name: regData.project_name || 'Drought Resilience & Climate-Smart Agriculture',
-      qr_token: `${benCode}-VFD${Date.now().toString().slice(-4)}`,
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80'
-    };
-
-    // Save beneficiary
-    const updatedBeneficiaries = [newBeneficiary, ...beneficiaries];
-    saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBeneficiaries);
-
-    // Also register user credentials with Pending Verification status
-    const users = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts || []);
-    const newUser = {
-      id: `usr_${Date.now()}`,
-      email: newBeneficiary.email,
-      phone: newBeneficiary.phone_number,
-      password: regData.password || 'Password123!',
-      full_name: newBeneficiary.full_name,
-      first_name: newBeneficiary.first_name,
-      middle_name: newBeneficiary.middle_name,
-      last_name: newBeneficiary.last_name,
-      national_id: newBeneficiary.national_id,
-      id_number: newBeneficiary.id_number,
-      role: 'Beneficiary',
-      department: `Community (${newBeneficiary.location})`,
-      status: 'Pending Verification',
-      verification_status: 'Pending Verification',
-      is_active: false,
-      avatar: newBeneficiary.avatar,
-      beneficiary_id: newBeneficiary.id,
-      beneficiary_code: newBeneficiary.beneficiary_code
-    };
-    const updatedUsers = [newUser, ...users];
-    saveLocalData(STORAGE_KEYS.USERS, updatedUsers);
-
-    // Also update demoAccounts in memory or state if possible
-    if (mock.demoAccounts) {
-      mock.demoAccounts.push(newUser);
-    }
-
-    if (isSupabaseConfigured) {
-      try {
-        const isBrowser = typeof crypto !== 'undefined' && crypto.randomUUID;
-        const benUuid = isBrowser ? crypto.randomUUID() : undefined;
-        const projects = await this.getProjects();
-        const firstProjId = projects[0]?.id;
-
-        await supabase.from('beneficiaries').insert([{
-          id: benUuid,
-          beneficiary_code: newBeneficiary.beneficiary_code,
-          full_name: newBeneficiary.full_name,
-          national_id: newBeneficiary.national_id,
-          gender: newBeneficiary.gender === 'Female' ? 'Female' : 'Male',
-          date_of_birth: newBeneficiary.date_of_birth,
-          age: Number(newBeneficiary.age) || 30,
-          phone_number: newBeneficiary.phone_number,
-          location: newBeneficiary.location,
-          vulnerability_category: 'General Community',
-          verification_status: 'Pending Verification',
-          project_id: firstProjId
-        }]);
-
-        const userUuid = isBrowser ? crypto.randomUUID() : undefined;
-        await supabase.from('profiles').insert([{
-          id: userUuid,
-          email: newBeneficiary.email,
-          password: newUser.password,
-          full_name: newBeneficiary.full_name,
-          first_name: newBeneficiary.first_name,
-          middle_name: newBeneficiary.middle_name,
-          last_name: newBeneficiary.last_name,
-          national_id: newBeneficiary.national_id,
-          role: 'Beneficiary',
-          phone: newBeneficiary.phone_number,
-          department: `Community (${newBeneficiary.location})`,
-          is_active: false,
-          status: 'Pending Verification'
-        }]);
-      } catch (err) {
-        console.warn('Could not sync self-registration to Supabase:', err?.message);
-      }
-    }
-
-    // Automatically queue an onboarding approval request for Administrator
-    await this.createApproval({
-      category: 'User Onboarding',
-      requester_name: newBeneficiary.full_name,
-      requester_email: newBeneficiary.email,
-      role_requested: 'Beneficiary',
-      department: `Community (${newBeneficiary.location})`,
-      details: `Beneficiary self-registration for ${newBeneficiary.full_name} (${newBeneficiary.beneficiary_code}, ID: ${newBeneficiary.national_id || 'N/A'}, Phone: ${newBeneficiary.phone_number}). Awaiting administrator verification.`,
-      user_id: newUser.id,
-      beneficiary_id: newBeneficiary.id,
-      priority: 'Normal'
-    });
-
-    await this.logAudit({
-      action: 'REGISTER',
-      module: 'Beneficiary Mobile App',
-      record_id: newBeneficiary.beneficiary_code,
-      details: `Self-registered new beneficiary: ${newBeneficiary.full_name} (${newBeneficiary.beneficiary_code}) — Status: Pending Verification`
-    });
-
-    return { beneficiary: newBeneficiary, user: newUser, dupCheck };
   },
 
   // --- ADMIN COMPREHENSIVE STATS ---

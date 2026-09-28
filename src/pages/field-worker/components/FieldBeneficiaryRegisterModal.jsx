@@ -33,7 +33,7 @@ export function FieldBeneficiaryRegisterModal({
     village_area: 'Hai Malakal South',
     gender: 'Female',
     age: 38,
-    vulnerability_category: 'Female-Headed Household',
+    vulnerability_category: 'Female-headed Household',
     household_members: 6,
     children_under_5: 2,
     elderly_members: 1,
@@ -153,13 +153,14 @@ export function FieldBeneficiaryRegisterModal({
                   onChange={(e) => setFormData({ ...formData, vulnerability_category: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none"
                 >
-                  <option>Female-Headed Household</option>
+                  <option>Female-headed Household</option>
                   <option>Internally Displaced Person (IDP)</option>
-                  <option>Returnee Household</option>
-                  <option>Child-Headed Household</option>
-                  <option>Household with Disabilities</option>
-                  <option>Elderly Vulnerable Person</option>
-                  <option>Host Community - Extreme Poverty</option>
+                  <option>Persons with Disability</option>
+                  <option>Child-headed Household</option>
+                  <option>Elderly</option>
+                  <option>Extremely Poor Household</option>
+                  <option>Youth at Risk</option>
+                  <option>General Community</option>
                 </select>
               </div>
             </div>

@@ -34,6 +34,9 @@ import { SupervisorMobileApp } from './pages/supervisor/SupervisorMobileApp';
 // Specialized Field Worker Mobile Application
 import { FieldWorkerApp } from './pages/field-worker/FieldWorkerApp';
 
+// Specialized Finance Manager Mobile Application
+import { FinanceMobileApp } from './pages/finance/FinanceMobileApp';
+
 export function App() {
   const { currentUser, logout, quickSwitchRole } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -101,9 +104,10 @@ export function App() {
     }
 
     // Field staff role routes
-    if (currentUser.role === 'Finance Officer') {
+    if (currentUser.role === 'Finance Officer' || currentUser.role === 'Finance Manager') {
       setCurrentTab('finance');
-      setAppMode('field_app');
+      setAppMode('finance_mobile');
+      return;
     } else if (currentUser.role === 'M&E Officer') {
       setCurrentTab('me');
       setAppMode('field_app');
@@ -168,6 +172,18 @@ export function App() {
   if (currentUser.role === 'Program Manager' || currentUser.role === 'Programme Manager' || appMode === 'programme_manager' || currentTab === 'programs') {
     return (
       <ProgrammeManagerDashboard
+        currentUser={currentUser}
+        onLogout={logout}
+        onSwitchRole={quickSwitchRole}
+        onBackToFieldApp={() => setCurrentTab('dashboard')}
+      />
+    );
+  }
+
+  // If Finance Officer logs in or switches to Finance mode:
+  if (currentUser.role === 'Finance Officer' || currentUser.role === 'Finance Manager' || appMode === 'finance_mobile' || currentTab === 'finance') {
+    return (
+      <FinanceMobileApp
         currentUser={currentUser}
         onLogout={logout}
         onSwitchRole={quickSwitchRole}

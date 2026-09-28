@@ -13,7 +13,8 @@ import {
   Calendar,
   Sparkles,
   Inbox,
-  User
+  User,
+  FileCheck
 } from 'lucide-react';
 import { SupervisorAssignWorkerModal } from './SupervisorAssignWorkerModal';
 
@@ -325,10 +326,18 @@ export function SupervisorAssignmentsView({
 
                 {/* Action Buttons */}
                 <div className="flex items-center space-x-2 pt-1">
-                  {isUnassigned ? (
+                  {item.status === 'Assessment Submitted' || item.status === 'Awaiting Program Manager Decision' ? (
+                    <button
+                      onClick={() => onOpenReport ? onOpenReport(item) : onSelectAssignment(item)}
+                      className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <FileCheck className="w-3.5 h-3.5" />
+                      <span>Review Assessment</span>
+                    </button>
+                  ) : isUnassigned ? (
                     <button
                       onClick={() => setAssignModalRequest(item)}
-                      className="flex-1 py-2 bg-[#006B56] hover:bg-[#005544] text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-colors"
+                      className="flex-1 py-2 bg-[#006B56] hover:bg-[#005544] text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
                     >
                       <UserCheck className="w-3.5 h-3.5" />
                       <span>Assign Field Worker</span>
@@ -336,7 +345,7 @@ export function SupervisorAssignmentsView({
                   ) : (
                     <button
                       onClick={() => onSelectAssignment(item)}
-                      className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-center space-x-1 transition-colors"
+                      className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer"
                     >
                       <span>View Case Details</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -345,7 +354,7 @@ export function SupervisorAssignmentsView({
 
                   <button
                     onClick={() => onSelectAssignment(item)}
-                    className="px-3 py-2 border border-slate-300 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-50 transition-colors"
+                    className="px-3 py-2 border border-slate-300 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-50 transition-colors cursor-pointer"
                   >
                     Details
                   </button>

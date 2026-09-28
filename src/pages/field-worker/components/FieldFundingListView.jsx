@@ -25,10 +25,13 @@ import {
   FileCheck,
   Layers,
   ArrowRight,
-  AlertTriangle
+  AlertTriangle,
+  XCircle,
+  RotateCcw
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 import { db } from '../../../lib/supabase';
+import { exportVoucherPDF } from '../../../lib/reportGenerator';
 
 const FUNDING_CATEGORIES = [
   { id: 'Transport & Vehicle Fuel', label: 'Transport & Fuel' },
@@ -54,10 +57,12 @@ export function FieldFundingListView({
   requests = [],
   worker = {},
   tasks = [],
+  assessments = [],
   initialTask = null,
   filterMode: externalFilterMode = 'request', // 'request' | 'pending' | 'approved'
   onFilterModeChange,
   onSubmitFundingRequest,
+  onStartAssessment,
   onRefresh
 }) {
   const toast = useToast();
@@ -79,6 +84,7 @@ export function FieldFundingListView({
   );
 
   // Breakdown & Form state
+  const [revisingReq, setRevisingReq] = useState(null);
   const [breakdown, setBreakdown] = useState([
     { item: 'Fuel / Motorbike transport for Boma visit', amount: 150000 },
     { item: 'Local guide allowance & logistics', amount: 80000 }
@@ -126,6 +132,7 @@ export function FieldFundingListView({
     const tId = task.id || task.request_code;
     if (activeFormTaskId === tId) {
       setActiveFormTaskId(null);
+      setRevisingReq(null);
     } else {
       setActiveFormTaskId(tId);
       setJustificationNote(`Field operational facilitation & transport for conducting household vulnerability audit for ${task.beneficiary_name} in ${task.payam || worker.payam || 'assigned territory'}.`);
@@ -146,10 +153,16 @@ export function FieldFundingListView({
         .map(b => ({ item: b.item.trim(), amount: Number(b.amount) }));
 
       const payload = {
+        id: revisingReq?.id,
+        request_code: revisingReq?.request_code,
         field_worker_id: worker.id || 'fw-1',
         field_worker_name: worker.name || 'John Deng',
-        linked_request_code: task?.request_code || 'GEN-OPS',
-        linked_beneficiary_name: task?.beneficiary_name || `${worker.payam || 'Kapoeta Town'} Field Case`,
+        field_worker_email: worker.email || 'john.deng@adra.org',
+        field_worker_phone: worker.phone || '+211-921-550101',
+        supervisor_id: worker.supervisor_id || 'sup-1',
+        supervisor_name: worker.supervisor_name || 'Emmanuel Adeyemi',
+        linked_request_code: task?.request_code || revisingReq?.linked_request_code || 'GEN-OPS',
+        linked_beneficiary_name: task?.beneficiary_name || revisingReq?.linked_beneficiary_name || `${worker.payam || 'Kapoeta Town'} Field Case`,
         linked_location: task?.payam || worker.payam || 'Kapoeta Town',
         payam: task?.payam || worker.payam || 'Kapoeta Town',
         county: task?.county || worker.county || 'Kapoeta South',
@@ -161,7 +174,7 @@ export function FieldFundingListView({
         payout_phone: worker.phone || '+211-921-550101',
         amount: totalAmount,
         currency: 'SSP',
-        purpose: justificationNote?.trim() || `Field operational facilitation for ${task.beneficiary_name}`,
+        purpose: justificationNote?.trim() || `Field operational facilitation for ${task?.beneficiary_name || 'Assigned Case'}`,
         breakdown: validBreakdown.length > 0 ? validBreakdown : [
           { item: 'Field Operational Facilitation', amount: totalAmount }
         ]
@@ -173,11 +186,12 @@ export function FieldFundingListView({
         await db.createFieldFundingRequest(payload);
       }
 
-      toast.success(`Facilitation of ${totalAmount.toLocaleString()} SSP submitted for ${task.beneficiary_name} (#${task.request_code}).`);
+      toast.success(`Facilitation of ${totalAmount.toLocaleString()} SSP submitted for ${task?.beneficiary_name || 'Case'}.`);
+      setRevisingReq(null);
+      setActiveFormTaskId(null);
       if (onRefresh) onRefresh();
 
-      // Collapse form & switch to pending list view
-      setActiveFormTaskId(null);
+      // Switch to pending list view
       setView('pending');
     } catch (err) {
       console.error('Error submitting facilitation:', err);
@@ -203,67 +217,39 @@ export function FieldFundingListView({
 
   // Filter requests
   const pendingRequests = useMemo(() => {
-    return requests.filter(r => r.status !== 'Disbursed' && !r.status?.includes('Rejected'));
+    return requests.filter(r => r.status !== 'Disbursed' && !r.status?.includes('Rejected') && r.stage !== -1);
   }, [requests]);
 
   const approvedRequests = useMemo(() => {
-    return requests.filter(r => r.status === 'Disbursed');
+    return requests.filter(r => r.status === 'Disbursed' || r.stage === 4);
   }, [requests]);
 
-  // Simulation handlers for approval tiers
-  const handleApproveAsSupervisor = async (req) => {
-    try {
-      setProcessingId(req.id);
-      await db.approveFieldFundingBySupervisor(
-        req.id, 
-        worker.supervisor_name || 'Emmanuel Adeyemi',
-        'Verified in-field operational necessity. Budget lines comply with Kapoeta South allocation.'
-      );
-      toast.success(`Request ${req.request_code} approved by Supervisor Emmanuel Adeyemi.`);
-      if (onRefresh) onRefresh();
-    } catch (e) {
-      toast.error('Failed to approve request.');
-    } finally {
-      setProcessingId(null);
+  const rejectedRequests = useMemo(() => {
+    return requests.filter(r => r.status?.includes('Rejected') || r.stage === -1 || r.status?.toLowerCase().includes('reject'));
+  }, [requests]);
+
+  const handleReviseRequest = (req) => {
+    setRevisingReq(req);
+    const linkedTask = tasks.find(
+      t => t.request_code === req.linked_request_code || t.beneficiary_name === req.linked_beneficiary_name
+    );
+    if (linkedTask) {
+      setActiveFormTaskId(linkedTask.id || linkedTask.request_code);
+    } else {
+      setActiveFormTaskId(req.linked_request_code || req.id);
     }
+    if (req.breakdown && req.breakdown.length > 0) {
+      setBreakdown(req.breakdown.map(b => ({ item: b.item, amount: b.amount })));
+    }
+    setJustificationNote(req.purpose || '');
+    setView('request');
+    toast.info(`Pre-filled facilitation for ${req.linked_beneficiary_name || req.request_code}. Adjust details and click Submit.`);
   };
 
-  const handleApproveAsPM = async (req) => {
-    try {
-      setProcessingId(req.id);
-      await db.approveFieldFundingByProgramManager(
-        req.id,
-        'Grace Ochieng (Program Manager)',
-        'Approved for finance disbursement.'
-      );
-      toast.success(`Request ${req.request_code} approved by PM Grace Ochieng.`);
-      if (onRefresh) onRefresh();
-    } catch (e) {
-      toast.error('Failed to approve request.');
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  const handleDisburseAsFinance = async (req) => {
-    try {
-      setProcessingId(req.id);
-      await db.disburseFieldFundingByFinance(req.id, 'Mark Ladu (Finance Officer)', {
-        payment_method: req.preferred_payout || 'm-Gurush Mobile Money',
-        notes: `Funds disbursed to ${req.field_worker_name} (${req.payout_phone || req.field_worker_phone}).`
-      });
-      toast.success(`Funds (${Number(req.amount).toLocaleString()} ${req.currency || 'SSP'}) disbursed! Voucher generated.`);
-      if (onRefresh) onRefresh();
-    } catch (e) {
-      toast.error('Failed to disburse funds.');
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  // Expand/collapse state for pending and approved items
+  // Expand/collapse state for pending, approved, and rejected items
   const [expandedPendingId, setExpandedPendingId] = useState(null);
   const [expandedApprovedId, setExpandedApprovedId] = useState(null);
+  const [expandedRejectedId, setExpandedRejectedId] = useState(null);
 
   const togglePendingExpand = (id) => {
     setExpandedPendingId(prev => prev === id ? null : id);
@@ -273,15 +259,19 @@ export function FieldFundingListView({
     setExpandedApprovedId(prev => prev === id ? null : id);
   };
 
+  const toggleRejectedExpand = (id) => {
+    setExpandedRejectedId(prev => prev === id ? null : id);
+  };
+
   return (
     <div className="space-y-3.5 pb-12 animate-in fade-in duration-200">
       
-      {/* 1. FLAT TAB BAR (Request, Pending, Approved - No Card Wrapper) */}
-      <div className="flex items-center justify-around border-b border-slate-200 px-1">
+      {/* 1. FLAT TAB BAR (Request, Pending, Approved, Rejected) */}
+      <div className="flex items-center justify-around border-b border-slate-200 px-0.5">
         <button
           type="button"
           onClick={() => setView('request')}
-          className={`pb-2 px-2 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer ${
+          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer ${
             currentView === 'request'
               ? 'border-[#006B56] text-[#006B56]'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -298,7 +288,7 @@ export function FieldFundingListView({
         <button
           type="button"
           onClick={() => setView('pending')}
-          className={`pb-2 px-2 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer ${
+          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer ${
             currentView === 'pending'
               ? 'border-amber-600 text-amber-700'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -315,7 +305,7 @@ export function FieldFundingListView({
         <button
           type="button"
           onClick={() => setView('approved')}
-          className={`pb-2 px-2 text-xs font-bold transition flex items-center gap-1.5 border-b-2 cursor-pointer ${
+          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer ${
             currentView === 'approved'
               ? 'border-emerald-700 text-emerald-800'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -326,6 +316,23 @@ export function FieldFundingListView({
             currentView === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
           }`}>
             {approvedRequests.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setView('rejected')}
+          className={`pb-2 px-1.5 text-xs font-bold transition flex items-center gap-1 border-b-2 cursor-pointer ${
+            currentView === 'rejected'
+              ? 'border-rose-600 text-rose-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>Rejected</span>
+          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+            currentView === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-500'
+          }`}>
+            {rejectedRequests.length}
           </span>
         </button>
       </div>
@@ -618,6 +625,9 @@ export function FieldFundingListView({
                 const isPendingPM = req.status === 'Pending Program Manager Approval';
                 const isReadyFinance = req.status === 'Approved (Pending Finance Disbursement)';
                 const isExpanded = expandedPendingId === req.id;
+                const displayAmount = req.breakdown?.length > 0 
+                  ? req.breakdown.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+                  : Number(req.amount || 0);
 
                 return (
                   <div 
@@ -632,7 +642,7 @@ export function FieldFundingListView({
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-xs font-black text-slate-900">
+                            <span className="text-xs font-black text-slate-900 font-mono">
                               {req.request_code || 'REQ-FND-2026'}
                             </span>
                             <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full ${
@@ -652,7 +662,7 @@ export function FieldFundingListView({
                         <div className="flex items-center gap-2">
                           <div className="text-right shrink-0">
                             <span className="text-base font-black text-slate-900 tracking-tight block">
-                              {Number(req.amount).toLocaleString()}
+                              {displayAmount.toLocaleString()}
                             </span>
                             <span className="text-[10px] font-bold text-slate-400 block">{req.currency || 'SSP'}</span>
                           </div>
@@ -665,86 +675,103 @@ export function FieldFundingListView({
 
                     {/* Expandable Details */}
                     {isExpanded && (
-                      <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5 text-xs animate-in fade-in duration-150">
-                        <p className="text-xs text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200">
-                          {req.purpose}
-                        </p>
+                      <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-3 text-xs animate-in fade-in duration-150">
+                        {/* Purpose / Justification */}
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                            Field Worker Justification
+                          </span>
+                          <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                            {req.purpose}
+                          </p>
+                        </div>
+
+                        {/* Itemized Cost Breakdown Table */}
+                        {req.breakdown && req.breakdown.length > 0 && (
+                          <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                              Itemized Cost Breakdown ({req.currency || 'SSP'})
+                            </span>
+                            <div className="divide-y divide-slate-100 text-xs">
+                              {req.breakdown.map((item, idx) => (
+                                <div key={idx} className="py-1.5 flex items-center justify-between">
+                                  <span className="text-slate-700 font-medium">{item.item}</span>
+                                  <span className="font-bold text-slate-900 font-mono">
+                                    {Number(item.amount).toLocaleString()} SSP
+                                  </span>
+                                </div>
+                              ))}
+                              <div className="pt-1.5 flex items-center justify-between font-black text-slate-900">
+                                <span>Total Requisition:</span>
+                                <span className="text-[#006B56] text-sm">
+                                  {displayAmount.toLocaleString()} {req.currency || 'SSP'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Payout Details */}
+                        <div className="flex items-center justify-between text-[11px] text-slate-600 bg-white p-2 rounded-xl border border-slate-200">
+                          <span>Payout Channel:</span>
+                          <span className="font-bold text-slate-900">
+                            {req.preferred_payout || 'm-Gurush Mobile Money'} ({req.payout_phone || req.field_worker_phone})
+                          </span>
+                        </div>
 
                         {/* 4-Step Progress Stepper */}
-                        <div className="grid grid-cols-4 gap-1 text-center pt-1 border-t border-slate-200 bg-white p-2 rounded-xl border">
-                          <div className="flex flex-col items-center">
-                            <div className="w-5 h-5 rounded-full bg-[#006B56] text-white flex items-center justify-center text-[9px] font-black mb-0.5">
-                              ✓
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block text-center">
+                            Approval Pipeline Status
+                          </span>
+                          <div className="grid grid-cols-4 gap-1 text-center pt-1">
+                            <div className="flex flex-col items-center">
+                              <div className="w-5 h-5 rounded-full bg-[#006B56] text-white flex items-center justify-center text-[9px] font-black mb-0.5">
+                                ✓
+                              </div>
+                              <span className="text-[8px] font-bold text-slate-900">Submitted</span>
                             </div>
-                            <span className="text-[8px] font-bold text-slate-900">Submitted</span>
-                          </div>
 
-                          <div className="flex flex-col items-center">
-                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black mb-0.5 ${
-                              req.stage >= 2 ? 'bg-[#006B56] text-white' : 'bg-amber-400 text-slate-900 animate-pulse'
-                            }`}>
-                              {req.stage >= 2 ? '✓' : '2'}
+                            <div className="flex flex-col items-center">
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black mb-0.5 ${
+                                req.stage >= 2 ? 'bg-[#006B56] text-white' : 'bg-amber-400 text-slate-900 animate-pulse'
+                              }`}>
+                                {req.stage >= 2 ? '✓' : '2'}
+                              </div>
+                              <span className="text-[8px] font-bold text-slate-900">Supervisor</span>
                             </div>
-                            <span className="text-[8px] font-bold text-slate-900">Supervisor</span>
-                          </div>
 
-                          <div className="flex flex-col items-center">
-                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black mb-0.5 ${
-                              req.stage >= 3 ? 'bg-[#006B56] text-white' : req.stage === 2 ? 'bg-purple-500 text-white animate-pulse' : 'bg-slate-200 text-slate-400'
-                            }`}>
-                              {req.stage >= 3 ? '✓' : '3'}
+                            <div className="flex flex-col items-center">
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black mb-0.5 ${
+                                req.stage >= 3 ? 'bg-[#006B56] text-white' : req.stage === 2 ? 'bg-purple-500 text-white animate-pulse' : 'bg-slate-200 text-slate-400'
+                              }`}>
+                                {req.stage >= 3 ? '✓' : '3'}
+                              </div>
+                              <span className="text-[8px] font-bold text-slate-900">PM Auth</span>
                             </div>
-                            <span className="text-[8px] font-bold text-slate-900">PM Auth</span>
-                          </div>
 
-                          <div className="flex flex-col items-center">
-                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black mb-0.5 ${
-                              req.stage === 4 ? 'bg-[#006B56] text-white' : req.stage === 3 ? 'bg-blue-600 text-white animate-pulse' : 'bg-slate-200 text-slate-400'
-                            }`}>
-                              {req.stage === 4 ? '✓' : '4'}
+                            <div className="flex flex-col items-center">
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black mb-0.5 ${
+                                req.stage === 4 ? 'bg-[#006B56] text-white' : req.stage === 3 ? 'bg-blue-600 text-white animate-pulse' : 'bg-slate-200 text-slate-400'
+                              }`}>
+                                {req.stage === 4 ? '✓' : '4'}
+                              </div>
+                              <span className="text-[8px] font-bold text-slate-900">Finance</span>
                             </div>
-                            <span className="text-[8px] font-bold text-slate-900">Finance</span>
                           </div>
                         </div>
 
-                        {/* Simulation Action Buttons */}
-                        <div className="pt-2 flex items-center justify-end gap-1.5">
-                          {isPendingSup && (
-                            <button
-                              type="button"
-                              onClick={() => handleApproveAsSupervisor(req)}
-                              disabled={processingId === req.id}
-                              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Approve as Supervisor</span>
-                            </button>
-                          )}
-
-                          {isPendingPM && (
-                            <button
-                              type="button"
-                              onClick={() => handleApproveAsPM(req)}
-                              disabled={processingId === req.id}
-                              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Authorize as PM</span>
-                            </button>
-                          )}
-
-                          {isReadyFinance && (
-                            <button
-                              type="button"
-                              onClick={() => handleDisburseAsFinance(req)}
-                              disabled={processingId === req.id}
-                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer"
-                            >
-                              <DollarSign className="w-3.5 h-3.5" />
-                              <span>Disburse Cash</span>
-                            </button>
-                          )}
-                        </div>
+                        {/* Supervisor Endorsement Notes if available */}
+                        {req.supervisor_review?.reviewed_by && (
+                          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2.5 space-y-0.5">
+                            <span className="text-[10px] font-black text-emerald-950 uppercase block">
+                              Supervisor Endorsement ({req.supervisor_review.reviewed_by}):
+                            </span>
+                            <p className="text-xs text-emerald-900 italic">
+                              "{req.supervisor_review.notes || 'Endorsed for PM authorization.'}"
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -802,6 +829,9 @@ export function FieldFundingListView({
             <div className="space-y-3">
               {approvedRequests.map(req => {
                 const isExpanded = expandedApprovedId === req.id;
+                const displayAmount = req.breakdown?.length > 0 
+                  ? req.breakdown.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+                  : Number(req.amount || 0);
 
                 return (
                   <div 
@@ -816,7 +846,7 @@ export function FieldFundingListView({
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-xs font-black text-slate-900">
+                            <span className="text-xs font-black text-slate-900 font-mono">
                               {req.request_code || 'REQ-FND-2026'}
                             </span>
                             <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
@@ -832,7 +862,7 @@ export function FieldFundingListView({
                         <div className="flex items-center gap-2">
                           <div className="text-right shrink-0">
                             <span className="text-base font-black text-emerald-800 tracking-tight block">
-                              {Number(req.amount).toLocaleString()}
+                              {displayAmount.toLocaleString()}
                             </span>
                             <span className="text-[10px] font-bold text-slate-400 block">{req.currency || 'SSP'}</span>
                           </div>
@@ -845,10 +875,81 @@ export function FieldFundingListView({
 
                     {/* Expandable Details */}
                     {isExpanded && (
-                      <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5 text-xs animate-in fade-in duration-150">
-                        <p className="text-xs text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200">
-                          {req.purpose}
-                        </p>
+                      <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-3 text-xs animate-in fade-in duration-150">
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                            Requisition Purpose
+                          </span>
+                          <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                            {req.purpose}
+                          </p>
+                        </div>
+
+                        {/* POST-DISBURSEMENT MANDATORY FIELD ASSESSMENT & TRUTH REPORT CARD */}
+                        {(() => {
+                          const linkedTask = tasks.find(t => 
+                            (req.linked_task_id && (t.id === req.linked_task_id || t.request_code === req.linked_task_id)) ||
+                            (req.linked_request_code && (t.request_code === req.linked_request_code || t.id === req.linked_request_code)) ||
+                            (req.linked_beneficiary_name && t.beneficiary_name?.toLowerCase() === req.linked_beneficiary_name.toLowerCase())
+                          );
+
+                          const hasAssessment = assessments.some(a => 
+                            (req.linked_request_code && (a.request_code === req.linked_request_code || a.request_id === req.linked_request_code)) ||
+                            (req.linked_task_id && (a.request_id === req.linked_task_id || a.request_code === req.linked_task_id)) ||
+                            (req.linked_beneficiary_name && a.beneficiary_name?.toLowerCase() === req.linked_beneficiary_name.toLowerCase())
+                          ) || req.post_disbursement_assessment?.status === 'Completed & Verified True';
+
+                          return (
+                            <div className="rounded-xl border p-3 space-y-2.5 bg-gradient-to-br from-emerald-50 via-teal-50/40 to-white border-emerald-300 shadow-2xs">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <ShieldCheck className="w-4 h-4 text-[#006B56]" />
+                                  <span className="text-xs font-black text-emerald-950 uppercase tracking-tight">
+                                    Post-Disbursement Field Verification Report
+                                  </span>
+                                </div>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                  hasAssessment
+                                    ? 'bg-emerald-100 text-[#006B56] border border-emerald-300'
+                                    : 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
+                                }`}>
+                                  {hasAssessment ? '✓ Verified True on Ground' : '⚡ Field Action Required'}
+                                </span>
+                              </div>
+
+                              <p className="text-[11px] text-slate-600 leading-relaxed">
+                                {hasAssessment
+                                  ? `On-ground physical assessment completed. Official report filed confirming the assignment concerning ${req.linked_beneficiary_name || 'this beneficiary'} is true, genuine, and verified.`
+                                  : `Facilitation funds are disbursed. You must now travel to the field in-person to assess ${req.linked_beneficiary_name || 'the beneficiary'} and give a formal verification report confirming the assignment is true.`}
+                              </p>
+
+                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-200/60">
+                                <span className="text-[10px] font-bold text-slate-500">
+                                  Case: <strong className="text-slate-800">{req.linked_request_code || 'Assigned Household'}</strong>
+                                </span>
+
+                                {onStartAssessment && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onStartAssessment(linkedTask || {
+                                      id: req.linked_task_id || req.id,
+                                      request_code: req.linked_request_code || req.request_code,
+                                      beneficiary_name: req.linked_beneficiary_name,
+                                      payam: req.payam || req.linked_location,
+                                      county: req.county,
+                                      state: req.state,
+                                      project_name: req.project_name
+                                    })}
+                                    className="px-3.5 py-1.5 bg-[#006B56] hover:bg-[#005a48] text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+                                  >
+                                    <FileCheck className="w-3.5 h-3.5 text-emerald-200" />
+                                    <span>{hasAssessment ? 'Update Truth Report' : 'Go to Field & Submit Truth Report'}</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex items-center justify-between gap-2 pt-1">
                           <span className="text-[11px] text-slate-500 font-medium">
@@ -858,11 +959,183 @@ export function FieldFundingListView({
                           <button
                             type="button"
                             onClick={() => setSelectedVoucher(req)}
-                            className="px-3 py-1.5 bg-[#006B56] hover:bg-[#005a48] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                           >
                             <Receipt className="w-3.5 h-3.5" />
                             <span>View Payment Voucher</span>
                           </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW 4: REJECTED / RETURNED FACILITATIONS                                 */}
+      {/* ========================================================================= */}
+      {currentView === 'rejected' && (
+        <div className="space-y-3.5 animate-in fade-in duration-150">
+          
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                <XCircle className="w-5 h-5 text-rose-600" />
+                <span>Returned Facilitations</span>
+              </h2>
+              <p className="text-xs text-slate-500 font-medium">
+                Requisitions declined by Supervisor or PM. Review the feedback and re-apply.
+              </p>
+            </div>
+
+            <span className="text-xs px-2.5 py-1 rounded-full font-black bg-rose-100 text-rose-900 shrink-0 border border-rose-200">
+              {rejectedRequests.length} Returned
+            </span>
+          </div>
+
+          {rejectedRequests.length === 0 ? (
+            <div className="p-8 bg-white rounded-2xl border border-slate-200 text-center space-y-3 shadow-2xs">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#006B56] flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">No Rejected Requisitions</h3>
+                <p className="text-xs text-slate-500 max-w-xs mx-auto mt-1">
+                  All your facilitation requests are in good standing without any rejection notices.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setView('request')}
+                className="px-4 py-2 bg-[#006B56] text-white text-xs font-bold rounded-xl shadow-xs hover:bg-[#005a48] transition cursor-pointer"
+              >
+                + Request Facilitation for Case
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {rejectedRequests.map(req => {
+                const isExpanded = expandedRejectedId === req.id;
+                const reviewerName = req.pm_review?.status === 'Rejected'
+                  ? (req.pm_review.reviewed_by || 'Program Manager Grace')
+                  : (req.supervisor_review?.reviewed_by || worker.supervisor_name || 'Supervisor Emmanuel');
+                const reviewerTitle = req.pm_review?.status === 'Rejected'
+                  ? 'Program Manager'
+                  : 'Supervisor';
+                const rejectionReason = req.pm_review?.status === 'Rejected'
+                  ? req.pm_review.notes
+                  : (req.supervisor_review?.notes || req.rejection_reason || 'Requisition declined during review.');
+                const reviewDate = req.pm_review?.reviewed_at || req.supervisor_review?.reviewed_at || req.updated_at || req.created_at;
+                const displayAmount = req.breakdown?.length > 0 
+                  ? req.breakdown.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+                  : Number(req.amount || 0);
+
+                return (
+                  <div 
+                    key={req.id}
+                    className="bg-white rounded-2xl border border-rose-200 shadow-2xs overflow-hidden transition-all"
+                  >
+                    {/* Collapsible Header */}
+                    <div
+                      onClick={() => toggleRejectedExpand(req.id)}
+                      className="p-3.5 space-y-2 cursor-pointer hover:bg-rose-50/30 transition"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-black text-slate-900 font-mono">
+                              {req.request_code || 'REQ-FND-2026'}
+                            </span>
+                            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300 flex items-center gap-1">
+                              <XCircle className="w-3 h-3 text-rose-600" />
+                              <span>Rejected by {reviewerTitle}</span>
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-bold text-slate-900 mt-1">{req.category}</h4>
+                          <p className="text-[10px] text-slate-500 font-medium">
+                            For: <strong className="text-slate-800">{req.linked_beneficiary_name || req.linked_request_code}</strong>
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className="text-right shrink-0">
+                            <span className="text-base font-black text-rose-700 tracking-tight block">
+                              {displayAmount.toLocaleString()}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400 block">{req.currency || 'SSP'}</span>
+                          </div>
+                          <div className="text-slate-400">
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Prominent Reason Callout directly visible on card */}
+                      <div className="p-2.5 bg-rose-50/90 rounded-xl border border-rose-200 text-xs space-y-1">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="font-black text-rose-950 uppercase flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 text-rose-600" />
+                            <span>Reason for Rejection:</span>
+                          </span>
+                          {reviewDate && (
+                            <span className="text-rose-700 text-[9px] font-semibold">
+                              {new Date(reviewDate).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-rose-900 font-bold leading-relaxed">
+                          "{rejectionReason}"
+                        </p>
+                        <span className="text-[10px] text-rose-800 font-medium block">
+                          — {reviewerName} ({reviewerTitle})
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Bar & Expandable Details */}
+                    <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        Adjustment required before resubmission
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReviseRequest(req);
+                        }}
+                        className="px-3.5 py-1.5 bg-[#006B56] hover:bg-[#005242] text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Re-Apply / Edit Request</span>
+                      </button>
+                    </div>
+
+                    {/* Expandable Breakdown */}
+                    {isExpanded && req.breakdown && req.breakdown.length > 0 && (
+                      <div className="p-3.5 bg-white border-t border-slate-200 space-y-2 text-xs animate-in fade-in duration-150">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                          Original Cost Breakdown ({req.currency || 'SSP'})
+                        </span>
+                        <div className="divide-y divide-slate-100 text-xs">
+                          {req.breakdown.map((item, idx) => (
+                            <div key={idx} className="py-1.5 flex items-center justify-between">
+                              <span className="text-slate-700">{item.item}</span>
+                              <span className="font-bold text-slate-900 font-mono">
+                                {Number(item.amount).toLocaleString()} SSP
+                              </span>
+                            </div>
+                          ))}
+                          <div className="pt-1.5 flex items-center justify-between font-black text-slate-900">
+                            <span>Total Requisition:</span>
+                            <span className="text-rose-700 text-sm">
+                              {displayAmount.toLocaleString()} {req.currency || 'SSP'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -975,17 +1248,28 @@ export function FieldFundingListView({
 
             {/* Voucher Footer */}
             <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-              <span className="text-[10px] text-slate-500 font-bold">Ref: {selectedVoucher.id}</span>
+              <button
+                type="button"
+                onClick={() => setSelectedVoucher(null)}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Close
+              </button>
               <button
                 type="button"
                 onClick={() => {
-                  toast.success('Payment Voucher receipt downloaded (PDF / Print view).');
-                  setSelectedVoucher(null);
+                  try {
+                    exportVoucherPDF(selectedVoucher);
+                    toast.success('Official Payment Voucher PDF downloaded!');
+                  } catch (err) {
+                    console.error(err);
+                    toast.error('Failed to export voucher PDF');
+                  }
                 }}
-                className="px-3 py-1.5 bg-[#006B56] hover:bg-[#005a48] text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                className="px-3.5 py-1.5 bg-[#006B56] hover:bg-[#005a48] text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Download Receipt</span>
+                <span>Download Voucher (PDF)</span>
               </button>
             </div>
 

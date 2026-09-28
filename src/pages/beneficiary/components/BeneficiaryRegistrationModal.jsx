@@ -43,12 +43,13 @@ export function BeneficiaryRegistrationModal({ isOpen, onClose, onSuccess }) {
 
   const vulnerabilityOptions = [
     'Female-headed Household',
-    'Elderly (60+ years)',
-    'Persons with Disability (PWD)',
+    'Elderly',
+    'Persons with Disability',
     'Internally Displaced Person (IDP)',
     'Child-headed Household',
-    'Extremely Poor / Drought-Affected',
-    'General Vulnerable Community Member'
+    'Extremely Poor Household',
+    'Youth at Risk',
+    'General Community'
   ];
 
   const handleSubmit = async (e) => {
