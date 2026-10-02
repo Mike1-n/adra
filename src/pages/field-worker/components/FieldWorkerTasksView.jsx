@@ -52,11 +52,13 @@ export function FieldWorkerTasksView({
 
       let matchStatus = true;
       if (statusFilter === 'pending') {
-        matchStatus = task.status === 'Assigned to Field Worker' || task.status === 'Submitted' || task.status === 'Correction Required';
+        matchStatus = (task.status === 'Assigned to Field Worker' || task.status === 'Submitted' || task.status === 'Assessment In Progress') && task.status !== 'Rejected';
       } else if (statusFilter === 'in_progress') {
         matchStatus = task.status === 'Assessment In Progress';
       } else if (statusFilter === 'submitted') {
         matchStatus = task.status === 'Assessment Submitted' || task.status === 'Awaiting Program Manager Decision';
+      } else if (statusFilter === 'rejected') {
+        matchStatus = task.status === 'Rejected' || task.status?.includes('Rejected') || task.status === 'Correction Required' || Boolean(task.returned_to_worker);
       } else if (statusFilter === 'completed') {
         matchStatus = task.status === 'Completed' || task.status === 'Distributed' || task.status === 'Approved';
       }
@@ -77,15 +79,23 @@ export function FieldWorkerTasksView({
   };
 
   const pendingCount = tasks.filter(t => 
-    t.status === 'Assigned to Field Worker' || 
-    t.status === 'Submitted' || 
-    t.status === 'Assessment In Progress' || 
-    t.status === 'Correction Required'
+    (t.status === 'Assigned to Field Worker' || 
+     t.status === 'Submitted' || 
+     t.status === 'Assessment In Progress') &&
+    t.status !== 'Rejected' &&
+    !t.status?.includes('Rejected')
   ).length;
 
   const submittedCount = tasks.filter(t => 
     t.status === 'Assessment Submitted' || 
     t.status === 'Awaiting Program Manager Decision'
+  ).length;
+
+  const rejectedCount = tasks.filter(t => 
+    t.status === 'Rejected' || 
+    t.status?.includes('Rejected') || 
+    t.status === 'Correction Required' ||
+    Boolean(t.returned_to_worker)
   ).length;
 
   const completedCount = tasks.filter(t => 
@@ -97,7 +107,7 @@ export function FieldWorkerTasksView({
   return (
     <div className="space-y-3.5 pb-12 animate-in fade-in duration-200">
       
-      {/* 1. FLAT TAB BAR: All Tasks, Pending Audit, Submitted, Delivered (No Card Wrapper) */}
+      {/* 1. FLAT TAB BAR: All Tasks, Pending Audit, Submitted, Returned / Rejected, Delivered */}
       <div className="flex items-center space-x-1 border-b border-slate-200 px-1 overflow-x-auto no-scrollbar">
         <button
           type="button"
@@ -147,6 +157,23 @@ export function FieldWorkerTasksView({
             statusFilter === 'submitted' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-500'
           }`}>
             {submittedCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter('rejected')}
+          className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 border-b-2 cursor-pointer ${
+            statusFilter === 'rejected'
+              ? 'border-rose-600 text-rose-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <span>Returned / Rejected</span>
+          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+            statusFilter === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-500'
+          }`}>
+            {rejectedCount}
           </span>
         </button>
 
@@ -204,20 +231,25 @@ export function FieldWorkerTasksView({
         <div className="space-y-3">
           {filteredTasks.map(task => {
             const taskId = task.id || task.request_code;
-            const isPending = task.status === 'Assigned to Field Worker' || task.status === 'Submitted' || task.status === 'Correction Required';
-            const isSubmitted = task.status === 'Assessment Submitted' || task.status === 'Awaiting Program Manager Decision';
-            const isCompleted = task.status === 'Completed' || task.status === 'Distributed' || task.status === 'Approved';
+            const isRejected = task.status === 'Rejected' || task.status?.includes('Rejected') || task.status === 'Correction Required' || Boolean(task.returned_to_worker);
+            const isPending = !isRejected && (task.status === 'Assigned to Field Worker' || task.status === 'Submitted' || task.status === 'Assessment In Progress');
+            const isSubmitted = !isRejected && (task.status === 'Assessment Submitted' || task.status === 'Awaiting Program Manager Decision');
+            const isCompleted = !isRejected && (task.status === 'Completed' || task.status === 'Distributed' || task.status === 'Approved');
             const isExpanded = expandedTaskId === taskId;
 
             return (
               <div
                 key={taskId}
-                className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden transition"
+                className={`bg-white rounded-2xl border shadow-2xs overflow-hidden transition ${
+                  isRejected ? 'border-rose-300 ring-1 ring-rose-200' : 'border-slate-200'
+                }`}
               >
                 {/* Collapsible Header */}
                 <div 
                   onClick={() => toggleTaskExpand(taskId)}
-                  className="p-3.5 space-y-2 cursor-pointer hover:bg-slate-50/70 transition"
+                  className={`p-3.5 space-y-2 cursor-pointer transition ${
+                    isRejected ? 'bg-rose-50/40 hover:bg-rose-50/70' : 'hover:bg-slate-50/70'
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -243,13 +275,13 @@ export function FieldWorkerTasksView({
 
                     {/* Status Badge & Chevron */}
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        isCompleted ? 'bg-emerald-100 text-[#006B56]' :
-                        isSubmitted ? 'bg-purple-100 text-purple-800' :
-                        task.status === 'Correction Required' ? 'bg-red-100 text-red-800' :
-                        'bg-amber-100 text-amber-900'
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        isRejected ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                        isCompleted ? 'bg-emerald-100 text-[#006B56] border-emerald-200' :
+                        isSubmitted ? 'bg-purple-100 text-purple-800 border-purple-200' :
+                        'bg-amber-100 text-amber-900 border-amber-200'
                       }`}>
-                        {task.status}
+                        {isRejected ? 'Rejected by PM' : task.status}
                       </span>
                       <div className="text-slate-400 p-0.5">
                         {isExpanded ? <ChevronUp className="w-4 h-4 text-[#006B56]" /> : <ChevronDown className="w-4 h-4" />}
@@ -261,13 +293,26 @@ export function FieldWorkerTasksView({
                 {/* Expanded Details Section */}
                 {isExpanded && (
                   <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-3 text-xs animate-in fade-in duration-150">
-                    {/* Assistance Request Category & Supervisor Notes */}
+                    {/* Rejection notice box if rejected */}
+                    {isRejected && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-rose-800 text-[11px]">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          <span>Audit Rejected by Programme Manager</span>
+                        </div>
+                        <p className="text-[11px] text-rose-900 font-medium italic">
+                          "{task.rejection_reason || task.review_notes || 'Returned to field worker for re-assessment.'}"
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Assistance Request Category & Notes */}
                     <div className="bg-white rounded-xl p-2.5 border border-slate-200 text-xs space-y-1">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-slate-500 font-medium">Requested Assistance:</span>
                         <span className="font-bold text-slate-800">{task.category || 'Food & Non-Food Relief'}</span>
                       </div>
-                      {task.review_notes && (
+                      {!isRejected && task.review_notes && (
                         <p className="text-[11px] text-slate-600 italic">
                           "{task.review_notes}"
                         </p>
@@ -298,6 +343,20 @@ export function FieldWorkerTasksView({
                           >
                             <DollarSign className="w-3.5 h-3.5 text-amber-700" />
                             <span>Facilitation</span>
+                          </button>
+                        )}
+
+                        {isRejected && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onStartAssessment(task);
+                            }}
+                            className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                          >
+                            <FileCheck className="w-3.5 h-3.5" />
+                            <span>Re-Audit Household</span>
                           </button>
                         )}
 

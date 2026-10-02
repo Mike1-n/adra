@@ -37,6 +37,7 @@ export function SupervisorAssignmentDetailsView({
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'notes' | 'contact'
   const [newNote, setNewNote] = useState('');
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
   const parseNotes = (rawNotes) => {
     if (!rawNotes) {
       return [
@@ -249,6 +250,32 @@ export function SupervisorAssignmentDetailsView({
           </div>
         </div>
 
+        {/* REJECTION / RETURNED BANNER */}
+        {(assignment.status === 'Rejected' || assignment.status_label?.includes('Rejected') || assignment.returned_to_worker) && (
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 shadow-2xs space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+              <div>
+                <h3 className="text-xs font-black text-rose-900 leading-tight">
+                  Audit Rejected by Programme Manager
+                </h3>
+                <span className="text-[10px] text-rose-700 font-medium block">
+                  Returned directly to field officer for re-audit
+                </span>
+              </div>
+            </div>
+            {assignment.rejection_reason && (
+              <div className="bg-white/90 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-950 font-medium">
+                <span className="text-[10px] font-bold uppercase text-rose-500 block mb-0.5">PM Rejection Justification</span>
+                "{assignment.rejection_reason}"
+              </div>
+            )}
+            <p className="text-[11px] text-rose-800">
+              The case has been routed back to Field Officer <strong>{assignedWorker?.name || assignment.assigned_field_worker_name || 'assigned officer'}</strong> for physical verification and resubmission.
+            </p>
+          </div>
+        )}
+
         {/* 2. SEGMENTED TABS CONTROLLER */}
         <div className="grid grid-cols-3 gap-1 bg-slate-200/70 p-1 rounded-2xl">
           <button
@@ -356,15 +383,59 @@ export function SupervisorAssignmentDetailsView({
                   {/* Photos Grid if any */}
                   {assignment.evidence_photos && assignment.evidence_photos.length > 0 && (
                     <div className="space-y-1.5">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                        <ImageIcon className="w-3.5 h-3.5 text-[#006B56]" />
-                        <span>Attached Photos ({assignment.evidence_photos.length})</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <ImageIcon className="w-3.5 h-3.5 text-[#006B56]" />
+                          <span>Attached Photos ({assignment.evidence_photos.length})</span>
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-normal">Tap to enlarge</span>
                       </span>
                       <div className="grid grid-cols-2 gap-2">
-                        {assignment.evidence_photos.map(p => (
-                          <div key={p.id} className="rounded-xl overflow-hidden border border-slate-200 bg-white">
-                            <img src={p.url} alt={p.title} className="w-full h-20 object-cover" />
-                            <p className="p-1 text-[10px] font-bold text-slate-800 truncate">{p.title}</p>
+                        {assignment.evidence_photos.map((p, idx) => (
+                          <div
+                            key={p.id || `p-${idx}`}
+                            onClick={() => setSelectedPhoto(p)}
+                            className="rounded-xl overflow-hidden border border-slate-200 bg-white cursor-pointer group hover:border-[#006B56] transition"
+                          >
+                            <img src={p.url} alt={p.name || p.title || 'Field Photo'} className="w-full h-20 object-cover group-hover:scale-105 transition-transform duration-200" />
+                            <p className="p-1.5 text-[10px] font-bold text-slate-800 truncate">{p.name || p.title || 'Field Photo'}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Attached Documents if any */}
+                  {assignment.evidence_documents && assignment.evidence_documents.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                        <FileCheck className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Attached Documents ({assignment.evidence_documents.length})</span>
+                      </span>
+                      <div className="space-y-1.5">
+                        {assignment.evidence_documents.map((doc, idx) => (
+                          <div key={doc.id || `doc-${idx}`} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2 text-xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-6 h-6 rounded bg-blue-100 text-blue-700 font-bold font-mono text-[9px] flex items-center justify-center shrink-0">
+                                {doc.name?.split('.').pop()?.toUpperCase() || 'DOC'}
+                              </div>
+                              <div className="min-w-0">
+                                <span className="font-bold text-slate-800 truncate block text-[11px]">{doc.name}</span>
+                                <span className="text-[9px] text-slate-400">{doc.category || 'Verification Document'} • {doc.size || 'Attached'}</span>
+                              </div>
+                            </div>
+                            {doc.url && (
+                              <a
+                                href={doc.url}
+                                download={doc.name}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 border border-slate-200 text-blue-700 font-bold text-[10px] flex items-center gap-1 shrink-0 transition"
+                              >
+                                <Eye className="w-3 h-3 text-blue-600" />
+                                <span>View</span>
+                              </a>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -688,6 +759,48 @@ export function SupervisorAssignmentDetailsView({
                     : 'Assign Field Worker'}
                 </span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Photo Fullscreen Viewer */}
+      {selectedPhoto && (
+        <div
+          onClick={() => setSelectedPhoto(null)}
+          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 animate-in fade-in cursor-pointer"
+        >
+          <div className="relative max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="relative rounded-xl overflow-hidden bg-slate-900 border border-white/20">
+              <img
+                src={selectedPhoto.url}
+                alt={selectedPhoto.name || selectedPhoto.title || 'Field Photo'}
+                className="w-full max-h-[75vh] object-contain"
+              />
+              <button
+                type="button"
+                onClick={() => setSelectedPhoto(null)}
+                className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-3 bg-white/10 text-white rounded-xl mt-3 text-xs flex items-center justify-between gap-3">
+              <div>
+                <p className="font-bold">{selectedPhoto.name || selectedPhoto.title || 'Field Photo Evidence'}</p>
+                <p className="text-slate-300 text-[11px] mt-0.5">{selectedPhoto.caption || selectedPhoto.category || selectedPhoto.timestamp || ''}</p>
+              </div>
+              {selectedPhoto.url && (
+                <a
+                  href={selectedPhoto.url}
+                  download={selectedPhoto.name || 'field-photo.jpg'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1 bg-white text-slate-900 font-bold rounded-lg text-[11px] shrink-0"
+                >
+                  Open Original
+                </a>
+              )}
             </div>
           </div>
         </div>

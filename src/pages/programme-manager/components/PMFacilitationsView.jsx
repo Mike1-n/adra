@@ -12,7 +12,9 @@ import {
   MapPin,
   Phone,
   X,
-  SlidersHorizontal
+  SlidersHorizontal,
+  FileCheck,
+  Eye
 } from 'lucide-react';
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
@@ -565,7 +567,43 @@ export function PMFacilitationsView({
                 <div className="grid grid-cols-2 gap-2">
                   {viewingReport.evidence_photos.map((p, i) => (
                     <div key={i} className="rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100">
-                      <img src={p.url} alt={p.name || 'Evidence'} className="w-full h-full object-cover" />
+                      <img src={p.url} alt={p.name || p.title || 'Evidence'} className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Documents if attached */}
+            {viewingReport.evidence_documents && viewingReport.evidence_documents.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                  Attached Verification Documents ({viewingReport.evidence_documents.length})
+                </span>
+                <div className="space-y-1.5">
+                  {viewingReport.evidence_documents.map((doc, i) => (
+                    <div key={i} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded bg-blue-100 text-blue-700 font-bold font-mono text-[9px] flex items-center justify-center shrink-0">
+                          {doc.name?.split('.').pop()?.toUpperCase() || 'DOC'}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-bold text-slate-800 truncate block text-[11px]">{doc.name}</span>
+                          <span className="text-[9px] text-slate-400">{doc.category || 'Verification Document'} • {doc.size || 'Attached'}</span>
+                        </div>
+                      </div>
+                      {doc.url && (
+                        <a
+                          href={doc.url}
+                          download={doc.name}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 border border-slate-200 text-blue-700 font-bold text-[10px] flex items-center gap-1 shrink-0 transition"
+                        >
+                          <Eye className="w-3 h-3 text-blue-600" />
+                          <span>View</span>
+                        </a>
+                      )}
                     </div>
                   ))}
                 </div>

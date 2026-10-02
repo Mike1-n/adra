@@ -216,19 +216,25 @@ export function SupervisorMobileApp({
   
   // Dynamic Assignment Counts for Sidebar Sub-navigation
   const assignmentCounts = useMemo(() => {
-    const counts = { total: assignments.length, pending: 0, assigned: 0, in_progress: 0, completed: 0, overdue: 0 };
+    const counts = { total: assignments.length, pending: 0, assigned: 0, in_progress: 0, completed: 0, rejected: 0, overdue: 0 };
     assignments.forEach(item => {
       const status = item.status || 'Submitted';
-      const isUnassigned = !item.assigned_field_worker_name || 
-                           item.assigned_field_worker_name.includes('Pending') || 
-                           item.assigned_field_worker_name.includes('Unassigned') || 
-                           status === 'Assigned to Supervisor' || 
-                           status === 'Submitted';
+      const isRejected = status === 'Rejected' || status?.includes('Rejected') || item.status_label?.includes('Rejected') || Boolean(item.returned_to_worker);
       
-      if (isUnassigned) counts.pending++;
-      else if (status === 'Assigned to Field Worker') counts.assigned++;
-      else if (status === 'Assessment In Progress' || status === 'Correction Required') counts.in_progress++;
-      else if (status === 'Completed' || status === 'Distributed' || status === 'Assessment Submitted' || status === 'Awaiting Program Manager Decision' || status === 'Approved') counts.completed++;
+      if (isRejected) {
+        counts.rejected++;
+      } else {
+        const isUnassigned = !item.assigned_field_worker_name || 
+                             item.assigned_field_worker_name.includes('Pending') || 
+                             item.assigned_field_worker_name.includes('Unassigned') || 
+                             status === 'Assigned to Supervisor' || 
+                             status === 'Submitted';
+        
+        if (isUnassigned) counts.pending++;
+        else if (status === 'Assigned to Field Worker') counts.assigned++;
+        else if (status === 'Assessment In Progress' || status === 'Correction Required') counts.in_progress++;
+        else if (status === 'Completed' || status === 'Distributed' || status === 'Assessment Submitted' || status === 'Awaiting Program Manager Decision' || status === 'Approved') counts.completed++;
+      }
 
       if (item.is_overdue || (item.due_date && new Date(item.due_date) < new Date() && status !== 'Completed' && status !== 'Distributed')) {
         counts.overdue++;
@@ -778,6 +784,34 @@ export function SupervisorMobileApp({
                                 : 'bg-emerald-100 text-emerald-800'
                             }`}>
                               {assignmentCounts.completed}
+                            </span>
+                          </button>
+
+                          {/* Rejected by PM */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('assignments');
+                              setAssignmentsStatusTab('rejected');
+                              setIsSidebarOpen(false);
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'rejected'
+                                ? 'bg-rose-600 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'rejected' ? 'bg-white' : 'bg-rose-500'}`} />
+                              <span>Rejected by PM</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'rejected'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}>
+                              {assignmentCounts.rejected}
                             </span>
                           </button>
                         </div>

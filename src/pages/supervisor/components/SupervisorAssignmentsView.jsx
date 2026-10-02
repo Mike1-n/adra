@@ -64,6 +64,9 @@ export function SupervisorAssignmentsView({
       } else if (activeTab === 'in_progress') {
         const isInProgress = status === 'Assessment In Progress' || status === 'Correction Required';
         if (!isInProgress) return false;
+      } else if (activeTab === 'rejected') {
+        const isRejected = status === 'Rejected' || status?.includes('Rejected') || item.status_label?.includes('Rejected') || Boolean(item.returned_to_worker);
+        if (!isRejected) return false;
       } else if (activeTab === 'completed') {
         const isCompleted = status === 'Completed' || status === 'Distributed' || status === 'Assessment Submitted' || status === 'Awaiting Program Manager Decision' || status === 'Approved';
         if (!isCompleted) return false;
@@ -103,15 +106,21 @@ export function SupervisorAssignmentsView({
 
   // Tab counts
   const tabCounts = useMemo(() => {
-    const counts = { total: assignments.length, pending: 0, assigned: 0, in_progress: 0, completed: 0, overdue: 0 };
+    const counts = { total: assignments.length, pending: 0, assigned: 0, in_progress: 0, completed: 0, rejected: 0, overdue: 0 };
     assignments.forEach(item => {
       const status = item.status || 'Submitted';
-      const isUnassigned = !item.assigned_field_worker_name || item.assigned_field_worker_name.includes('Pending') || item.assigned_field_worker_name.includes('Unassigned') || status === 'Assigned to Supervisor' || status === 'Submitted';
+      const isRejected = status === 'Rejected' || status?.includes('Rejected') || item.status_label?.includes('Rejected') || Boolean(item.returned_to_worker);
       
-      if (isUnassigned) counts.pending++;
-      else if (status === 'Assigned to Field Worker') counts.assigned++;
-      else if (status === 'Assessment In Progress' || status === 'Correction Required') counts.in_progress++;
-      else if (status === 'Completed' || status === 'Distributed' || status === 'Assessment Submitted' || status === 'Awaiting Program Manager Decision' || status === 'Approved') counts.completed++;
+      if (isRejected) {
+        counts.rejected++;
+      } else {
+        const isUnassigned = !item.assigned_field_worker_name || item.assigned_field_worker_name.includes('Pending') || item.assigned_field_worker_name.includes('Unassigned') || status === 'Assigned to Supervisor' || status === 'Submitted';
+        
+        if (isUnassigned) counts.pending++;
+        else if (status === 'Assigned to Field Worker') counts.assigned++;
+        else if (status === 'Assessment In Progress' || status === 'Correction Required') counts.in_progress++;
+        else if (status === 'Completed' || status === 'Distributed' || status === 'Assessment Submitted' || status === 'Awaiting Program Manager Decision' || status === 'Approved') counts.completed++;
+      }
 
       if (item.is_overdue || (item.due_date && new Date(item.due_date) < new Date() && status !== 'Completed' && status !== 'Distributed')) {
         counts.overdue++;
@@ -122,55 +131,33 @@ export function SupervisorAssignmentsView({
 
   return (
     <div className="space-y-3 pb-24">
-      
-      {/* Horizontal Status Queue Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-        {[
-          { id: 'all', label: 'All Cases', count: assignments.length },
-          { id: 'pending', label: 'Pending', count: tabCounts.pending },
-          { id: 'assigned', label: 'Assigned', count: tabCounts.assigned },
-          { id: 'in_progress', label: 'In Progress', count: tabCounts.in_progress },
-          { id: 'completed', label: 'Completed', count: tabCounts.completed }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => {
-              setActiveTab(tab.id);
-              if (onStatusTabChange) onStatusTabChange(tab.id);
-            }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 cursor-pointer ${
-              activeTab === tab.id
-                ? 'bg-[#006B56] text-white shadow-xs'
-                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
-            }`}
-          >
-            <span>{tab.label}</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-              activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
-            }`}>
-              {tab.count}
-            </span>
-          </button>
-        ))}
-      </div>
-
       {/* Active Queue Status Bar */}
       <div className="bg-white p-3.5 rounded-2xl shadow-xs border border-slate-200/80 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-extrabold text-slate-900 capitalize">
-            {activeTab === 'all' ? 'All Humanitarian Cases' : `${activeTab.replace('_', ' ')} Cases`}
+            {activeTab === 'all' && 'All Humanitarian Cases'}
+            {activeTab === 'pending' && 'Pending Assignment Cases'}
+            {activeTab === 'assigned' && 'Assigned Field Cases'}
+            {activeTab === 'in_progress' && 'In Progress Cases'}
+            {activeTab === 'rejected' && 'Rejected by PM Cases'}
+            {activeTab === 'completed' && 'Completed Cases'}
+            {activeTab === 'overdue' && 'Overdue Cases'}
           </h2>
           <p className="text-[11px] text-slate-500">
             {activeTab === 'all' && 'All dispatched and pending verification requests across state'}
             {activeTab === 'pending' && 'Awaiting field worker assignment'}
             {activeTab === 'assigned' && 'Assigned to field workers for verification'}
             {activeTab === 'in_progress' && 'Field verification currently in progress'}
+            {activeTab === 'rejected' && 'Cases rejected by Programme Manager and returned to field officer'}
             {activeTab === 'completed' && 'Field assessments completed & approved'}
             {activeTab === 'overdue' && 'Overdue field assessments'}
           </p>
         </div>
-        <span className="text-xs font-black px-2.5 py-1 bg-emerald-50 text-[#006B56] rounded-xl border border-emerald-200">
+        <span className={`text-xs font-black px-2.5 py-1 rounded-xl border ${
+          activeTab === 'rejected'
+            ? 'bg-rose-50 text-rose-700 border-rose-200'
+            : 'bg-emerald-50 text-[#006B56] border border-emerald-200'
+        }`}>
           {filteredAssignments.length} {filteredAssignments.length === 1 ? 'case' : 'cases'}
         </span>
       </div>

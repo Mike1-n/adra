@@ -29,7 +29,13 @@ export function PMOverviewView({
   // 2. Pending Assistance Requests needing PM decision
   const pendingPMAssistance = useMemo(() => {
     return requests.filter(
-      r => r.status === 'Pending' || r.status === 'Pending Review' || r.status === 'My Decision' || r.status === 'Submitted'
+      r => r.status === 'Pending' || 
+           r.status === 'Pending Review' || 
+           r.status === 'My Decision' || 
+           r.status === 'Submitted' ||
+           r.status === 'Awaiting Program Manager Decision' ||
+           r.status === 'Forwarded to Program Manager' ||
+           r.status === 'Assessment Submitted'
     );
   }, [requests]);
 

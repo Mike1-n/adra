@@ -177,6 +177,8 @@ export function PMAssistanceRequestsView({
   const getAuditStatus = (r) => {
     const isAssessed = Boolean(
       r.status === 'Assessment Submitted' ||
+      r.status === 'Awaiting Program Manager Decision' ||
+      r.status === 'Forwarded to Program Manager' ||
       r.status === 'Completed' ||
       r.status === 'Fulfilled' ||
       r.assessment_code ||
@@ -389,8 +391,8 @@ export function PMAssistanceRequestsView({
 
   // Handle Reject Action
   const handleConfirmReject = async () => {
-    if (!decisionReason.trim()) {
-      setDecisionError('Please provide an official rejection reason before proceeding.');
+    if (!decisionReason.trim() || decisionReason.trim().length < 5) {
+      setDecisionError('Please provide an official rejection reason (minimum 5 characters).');
       return;
     }
     try {
@@ -408,8 +410,8 @@ export function PMAssistanceRequestsView({
 
   // Handle Request Info Action
   const handleConfirmRequestInfo = async () => {
-    if (!decisionReason.trim()) {
-      setDecisionError('Please specify the additional information required from field/beneficiary.');
+    if (!decisionReason.trim() || decisionReason.trim().length < 5) {
+      setDecisionError('Please specify the information required from the field (minimum 5 characters).');
       return;
     }
     try {
@@ -484,10 +486,20 @@ export function PMAssistanceRequestsView({
     }
     
     // 3. Fallback regional match for assigned / approved / in progress / completed status
-    const isAssignedStatus = activeModalRequest.status === 'Assigned to Supervisor' || 
-                             activeModalRequest.status === 'Approved' || 
-                             activeModalRequest.status === 'In Progress' || 
-                             activeModalRequest.status === 'Completed';
+    const isAssignedStatus = [
+      'Assigned to Supervisor',
+      'Approved',
+      'In Progress',
+      'Assessment In Progress',
+      'Assigned to Field Worker',
+      'Assessment Submitted',
+      'Awaiting Program Manager Decision',
+      'Forwarded to Program Manager',
+      'Completed',
+      'Fulfilled',
+      'Disbursed'
+    ].includes(activeModalRequest.status);
+
     if (isAssignedStatus) {
       const reqLoc = (activeModalRequest.state || activeModalRequest.location || '').toLowerCase();
       const match = supervisors.find(s => {
@@ -501,20 +513,318 @@ export function PMAssistanceRequestsView({
     return null;
   }, [activeModalRequest, supervisors]);
 
+  // Shared overlay modals (photos, docs, rejection modal, request info modal)
+  const renderOverlays = () => (
+    <>
+      {/* MODAL 1: FULLSCREEN PHOTO PREVIEWER */}
+      {selectedPreviewPhoto && (
+        <div className="fixed inset-0 z-60 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-slate-900 rounded-3xl max-w-2xl w-full overflow-hidden border border-slate-700 shadow-2xl flex flex-col">
+            <div className="p-4 bg-slate-800 text-white flex items-center justify-between border-b border-slate-700">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-sm font-bold truncate">{selectedPreviewPhoto.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPreviewPhoto(null)}
+                className="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-2 bg-black flex items-center justify-center max-h-[60vh] overflow-hidden">
+              <img
+                src={selectedPreviewPhoto.url}
+                alt={selectedPreviewPhoto.title}
+                className="max-h-[58vh] w-auto object-contain rounded-lg"
+              />
+            </div>
+
+            <div className="p-4 bg-slate-800 text-slate-200 text-xs space-y-1.5 border-t border-slate-700">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-400 uppercase text-[10px] tracking-wider">
+                  {selectedPreviewPhoto.category}
+                </span>
+                <span className="text-[10px] text-slate-400">{selectedPreviewPhoto.size}</span>
+              </div>
+              <p className="text-slate-300 leading-relaxed">{selectedPreviewPhoto.caption}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: DOCUMENT PREVIEWER */}
+      {selectedPreviewDoc && (
+        <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-xl w-full overflow-hidden border border-slate-200 shadow-2xl flex flex-col">
+            <div className="p-4 bg-gradient-to-r from-blue-700 to-indigo-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-200" />
+                <div>
+                  <h3 className="text-sm font-bold truncate">{selectedPreviewDoc.name}</h3>
+                  <p className="text-[10px] text-blue-200">{selectedPreviewDoc.category || 'Official Document'}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPreviewDoc(null)}
+                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs text-slate-700">
+              <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold text-blue-900 border-b border-blue-200/60 pb-2">
+                  <span>Document Seal &amp; Authority</span>
+                  <span className="text-emerald-700 flex items-center gap-1 font-bold">
+                    <Check className="w-3.5 h-3.5" /> Verified Valid Document
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Issuer / Authority</span>
+                    <span className="font-bold text-slate-800">{selectedPreviewDoc.issuer || 'Payam Administration & Field Team'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">File Size</span>
+                    <span className="font-bold text-slate-800">{selectedPreviewDoc.size || '420 KB'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Document Content &amp; Field Verification Summary
+                </span>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-slate-800 leading-relaxed italic text-xs">
+                  "{selectedPreviewDoc.content_summary || 'Official humanitarian verification document confirming household eligibility, vulnerability audit endorsement, and emergency relief requirements.'}"
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>This document is cryptographically referenced in the verified field audit record.</span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedPreviewDoc(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: OFFICIAL REJECTION REASON MODAL (MANDATORY REASON) */}
+      {decisionAction === 'reject' && activeModalRequest && (
+        <div className="fixed inset-0 z-70 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden border border-slate-200 shadow-2xl flex flex-col animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 bg-gradient-to-r from-rose-700 to-red-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                  <XCircle className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black">Reject Assistance Request</h3>
+                  <p className="text-[10px] text-rose-100 font-mono">
+                    {activeModalRequest.request_code || activeModalRequest.id} &bull; {activeModalRequest.beneficiary_name || activeModalRequest.beneficiary_id}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDecisionAction(null);
+                  setDecisionReason('');
+                  setDecisionError('');
+                }}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 text-xs">
+              {decisionError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{decisionError}</span>
+                </div>
+              )}
+
+              {/* Reason Textarea */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  Reason for Rejection <span className="text-rose-600">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  value={decisionReason}
+                  onChange={(e) => {
+                    setDecisionReason(e.target.value);
+                    if (decisionError) setDecisionError('');
+                  }}
+                  placeholder="Enter rejection reason..."
+                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs outline-none focus:ring-2 focus:ring-rose-600 font-medium text-slate-800 placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setDecisionAction(null);
+                  setDecisionReason('');
+                  setDecisionError('');
+                }}
+                className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!decisionReason.trim() || decisionReason.trim().length < 5}
+                onClick={handleConfirmReject}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white font-black rounded-xl text-xs transition shadow-sm cursor-pointer flex items-center gap-1.5 active:scale-95"
+              >
+                <XCircle className="w-4 h-4" />
+                <span>Confirm Official Rejection</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: REQUEST MORE INFORMATION MODAL */}
+      {decisionAction === 'request_info' && activeModalRequest && (
+        <div className="fixed inset-0 z-70 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden border border-slate-200 shadow-2xl flex flex-col animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 bg-gradient-to-r from-amber-600 to-amber-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                  <HelpCircle className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black">Request Additional Field Information</h3>
+                  <p className="text-[10px] text-amber-100 font-mono">
+                    {activeModalRequest.request_code || activeModalRequest.id} &bull; {activeModalRequest.beneficiary_name || activeModalRequest.beneficiary_id}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDecisionAction(null);
+                  setDecisionReason('');
+                  setDecisionError('');
+                }}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 text-xs">
+              {decisionError && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{decisionError}</span>
+                </div>
+              )}
+
+              {/* Textarea */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  Information Required <span className="text-amber-600">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  value={decisionReason}
+                  onChange={(e) => {
+                    setDecisionReason(e.target.value);
+                    if (decisionError) setDecisionError('');
+                  }}
+                  placeholder="Specify the information or documentation needed..."
+                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs outline-none focus:ring-2 focus:ring-amber-500 font-medium text-slate-800 placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setDecisionAction(null);
+                  setDecisionReason('');
+                  setDecisionError('');
+                }}
+                className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!decisionReason.trim() || decisionReason.trim().length < 5}
+                onClick={handleConfirmRequestInfo}
+                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-black rounded-xl text-xs transition shadow-sm cursor-pointer flex items-center gap-1.5 active:scale-95"
+              >
+                <Send className="w-4 h-4" />
+                <span>Send Request to Field</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   // IF A REQUEST IS SELECTED: RENDER DEDICATED FULL AUTHORIZATION PAGE VIEW
   if (activeModalRequest) {
     const isAssessed = Boolean(activeModalRequest.assessment_code) || 
                        activeModalRequest.status === 'Assessment Submitted' || 
+                       activeModalRequest.status === 'Awaiting Program Manager Decision' ||
+                       activeModalRequest.status === 'Forwarded to Program Manager' ||
                        activeModalRequest.status === 'Completed' ||
                        activeModalRequest.is_verified_on_ground === true;
 
+    const isAwaitingPMDecision = activeModalRequest.status === 'Awaiting Program Manager Decision' ||
+                                 activeModalRequest.status === 'Assessment Submitted' ||
+                                 activeModalRequest.status === 'Forwarded to Program Manager' ||
+                                 activeModalRequest.status === 'My Decision';
+
     const b = getBeneficiary(activeModalRequest.beneficiary_id);
-    const isAssignedOrApproved = activeModalRequest.status === 'Assigned to Supervisor' || 
-                                 activeModalRequest.status === 'Approved' || 
-                                 activeModalRequest.status === 'Assigned to Field Worker' ||
-                                 activeModalRequest.status === 'Assessment In Progress' ||
-                                 activeModalRequest.status === 'In Progress' || 
-                                 activeModalRequest.status === 'Completed';
+    const isAssignedOrApproved = [
+      'Assigned to Supervisor',
+      'Approved',
+      'Assigned to Field Worker',
+      'Assessment In Progress',
+      'In Progress',
+      'Assessment Submitted',
+      'Awaiting Program Manager Decision',
+      'Forwarded to Program Manager',
+      'Completed',
+      'Fulfilled',
+      'Disbursed'
+    ].includes(activeModalRequest.status);
+
     const showAssignedCard = Boolean(assignedSupervisor) && isAssignedOrApproved && !isReassigning;
     const currentAction = decisionAction || 'assign';
 
@@ -674,18 +984,131 @@ export function PMAssistanceRequestsView({
           </div>
         </div>
 
-        {/* 2. SUPERVISOR ASSIGNMENT & DISPATCH SECTION */}
-        {showAssignedCard ? (
-          /* ASSIGNED SUPERVISOR INFO */
+        {/* 2. ON-GROUND FIELD AUDIT & VERIFICATION EVIDENCE DOSSIER */}
+        {isAssessed && (
+          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-[#006B56]" />
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    On-Ground Field Audit &amp; Verification Dossier
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {activeModalRequest.assessment_code ? `Assessment Reference: ${activeModalRequest.assessment_code}` : 'Verified by Assigned Field Worker'}
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-black text-[#006B56] bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                Score: {activeModalRequest.vulnerability_score || 85}/100 ({activeModalRequest.urgency || activeModalRequest.priority || 'Critical Need'})
+              </span>
+            </div>
+
+            {/* Field Worker Report / Ground Findings */}
+            <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200/70 space-y-1.5 text-xs">
+              <span className="font-black text-[#006B56] text-[11px] uppercase tracking-wider block">
+                Field Worker On-Ground Report &amp; Need Confirmation
+              </span>
+              <p className="text-slate-800 italic font-medium leading-relaxed">
+                "{activeModalRequest.field_justification || activeModalRequest.ground_situation_report || activeModalRequest.audit_findings || 'Household verified in-person with acute need of emergency humanitarian assistance.'}"
+              </p>
+            </div>
+
+            {/* Supervisor Endorsement Notes */}
+            {activeModalRequest.review_notes && (
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
+                <span className="font-bold text-slate-600 text-[11px] block">
+                  Supervisor Endorsement &amp; Verification Remarks:
+                </span>
+                <p className="text-slate-800 leading-relaxed">
+                  {activeModalRequest.review_notes}
+                </p>
+              </div>
+            )}
+
+            {/* Real Uploaded Photo Gallery */}
+            {realPhotos.length > 0 && (
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-[#006B56]" />
+                    <span>Attached Field Photos ({realPhotos.length})</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-semibold">Click to enlarge</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {realPhotos.map((photo, idx) => (
+                    <div
+                      key={photo.id || `photo-${idx}`}
+                      onClick={() => setSelectedPreviewPhoto(photo)}
+                      className="rounded-2xl overflow-hidden border border-slate-200 cursor-pointer hover:border-[#006B56] group bg-slate-100 shadow-2xs transition"
+                    >
+                      <div className="h-28 w-full bg-slate-900 overflow-hidden relative">
+                        <img src={photo.url} alt={photo.name || photo.title || 'Evidence'} className="h-full w-full object-cover group-hover:scale-105 transition duration-200" />
+                      </div>
+                      <div className="p-2 bg-white text-[11px] font-bold text-slate-800 truncate">
+                        {photo.name || photo.title || 'Field Evidence Photo'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Real Uploaded Verification Documents */}
+            {realDocs.length > 0 && (
+              <div className="space-y-2 pt-1">
+                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <FileCheck className="w-4 h-4 text-blue-600" />
+                  <span>Attached Verification Documents ({realDocs.length})</span>
+                </span>
+                <div className="space-y-2">
+                  {realDocs.map((doc, idx) => (
+                    <div
+                      key={doc.id || `doc-${idx}`}
+                      className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold font-mono text-[10px] flex items-center justify-center shrink-0">
+                          {doc.name?.split('.').pop()?.toUpperCase() || 'PDF'}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-slate-800 truncate text-xs">{doc.name}</h4>
+                          <p className="text-[10px] text-slate-500 truncate">{doc.category || 'Verification Document'} &bull; {doc.size || 'Attached'}</p>
+                        </div>
+                      </div>
+
+                      {doc.url && (
+                        <a
+                          href={doc.url}
+                          download={doc.name}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-blue-700 font-bold rounded-xl text-xs flex items-center gap-1 transition cursor-pointer shadow-2xs shrink-0"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-blue-600" />
+                          <span>View Doc</span>
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 3. ASSIGNED SUPERVISOR & FIELD OPERATIONS TEAM */}
+        {showAssignedCard && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-[#006B56]" />
                 <div>
                   <h3 className="text-sm font-black text-slate-900">
-                    Assigned State Supervisor
+                    Field Operations Team
                   </h3>
-                  <p className="text-[11px] text-slate-500">Responsible for deploying field worker for ground audit</p>
+                  <p className="text-[11px] text-slate-500">Supervisory state lead and deployed field officer</p>
                 </div>
               </div>
               <span className="text-xs font-bold text-[#006B56] bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
@@ -719,17 +1142,19 @@ export function PMAssistanceRequestsView({
                   <Phone className="w-3.5 h-3.5 text-slate-400" />
                   <span>{assignedSupervisor.phone || '+211-922-345002'}</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsReassigning(true);
-                    setSelectedSupervisorId(assignedSupervisor.id || '');
-                    setSupervisorNotes(activeModalRequest.review_notes || '');
-                  }}
-                  className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-700 transition cursor-pointer shadow-2xs"
-                >
-                  Change
-                </button>
+                {!isAwaitingPMDecision && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsReassigning(true);
+                      setSelectedSupervisorId(assignedSupervisor.id || '');
+                      setSupervisorNotes(activeModalRequest.review_notes || '');
+                    }}
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-700 transition cursor-pointer shadow-2xs"
+                  >
+                    Change
+                  </button>
+                )}
               </div>
             </div>
 
@@ -738,16 +1163,125 @@ export function PMAssistanceRequestsView({
               <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs text-slate-800 flex items-center justify-between">
                 <span className="font-bold flex items-center gap-1.5 text-slate-700">
                   <User className="w-3.5 h-3.5 text-[#006B56]" />
-                  Field Worker: {activeModalRequest.assigned_field_worker_name}
+                  Field Officer: <strong>{activeModalRequest.assigned_field_worker_name}</strong>
                 </span>
                 <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                  {activeModalRequest.status === 'Assessment Submitted' ? 'Audit Submitted' : 'Conducting Audit'}
+                  {isAssessed ? 'Audit Complete & Forwarded' : 'Conducting Field Audit'}
                 </span>
               </div>
             )}
           </div>
-        ) : (
-          /* ASSIGN SUPERVISOR FORM */
+        )}
+
+        {/* 4. PROGRAMME MANAGER DECISION & AUTHORIZATION CARD */}
+        {isAwaitingPMDecision ? (
+          <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-white p-6 rounded-3xl border-2 border-[#006B56]/40 shadow-md space-y-4">
+            <div className="flex items-center justify-between border-b border-emerald-200/60 pb-3">
+              <div className="flex items-center gap-2.5">
+                <Sparkles className="w-5 h-5 text-[#006B56]" />
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    Programme Manager Final Authorization &amp; Aid Allocation
+                  </h3>
+                  <p className="text-xs text-slate-600">
+                    Field audit verified on ground. Authorize assistance package and release for depot dispatch.
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-black text-purple-900 bg-purple-100 border border-purple-200 px-3 py-1 rounded-full">
+                Final Sign-off
+              </span>
+            </div>
+
+            <div className="p-4 bg-white rounded-2xl border border-emerald-200/80 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-bold">Recommended Aid Package:</span>
+                <span className="font-black text-slate-900 text-right">
+                  {activeModalRequest.recommended_aid || activeModalRequest.assistance_type || activeModalRequest.category || 'Emergency Food Security Package'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-bold">Beneficiary:</span>
+                <span className="font-bold text-slate-800">
+                  {beneficiaryName} ({beneficiaryCode})
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await onApproveRequest(activeModalRequest.id, {
+                      notes: 'Approved and authorized for dispatch by Programme Manager Grace Ochieng.'
+                    });
+                    setActiveModalRequest(null);
+                  } catch (e) {}
+                }}
+                className="w-full sm:flex-1 py-3.5 bg-[#006B56] hover:bg-[#005544] text-white font-black rounded-2xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2 active:scale-98"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Approve &amp; Authorize Aid Dispatch</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDecisionAction('request_info');
+                  setDecisionReason('');
+                  setDecisionError('');
+                }}
+                className="w-full sm:w-auto px-4 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-2xl text-xs transition cursor-pointer"
+              >
+                Request More Info
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDecisionAction('reject');
+                  setDecisionReason('');
+                  setDecisionError('');
+                }}
+                className="w-full sm:w-auto px-4 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-2xl text-xs transition cursor-pointer"
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+        ) : activeModalRequest.status === 'Approved' || activeModalRequest.status === 'Completed' ? (
+          <div className="bg-emerald-50/80 p-5 rounded-3xl border border-emerald-300 flex items-center gap-3.5 text-xs text-emerald-950">
+            <CheckCircle2 className="w-6 h-6 text-[#006B56] shrink-0" />
+            <div>
+              <p className="font-black text-sm text-[#006B56]">Assistance Officially Approved &amp; Authorized</p>
+              <p className="text-emerald-800/90 text-xs mt-0.5">
+                This case has received Programme Manager authorization and is queued for warehouse dispatch and depot distribution.
+              </p>
+            </div>
+          </div>
+        ) : activeModalRequest.status === 'Rejected' ? (
+          <div className="bg-rose-50/90 p-5 rounded-3xl border border-rose-200 space-y-3 text-xs text-rose-950">
+            <div className="flex items-center gap-2.5">
+              <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
+              <span className="font-black text-sm text-rose-800">Request Officially Rejected</span>
+            </div>
+            <div className="p-3.5 bg-white/90 rounded-2xl border border-rose-200 text-rose-900 font-medium text-xs leading-relaxed space-y-1 shadow-2xs">
+              <span className="text-[10px] uppercase font-bold text-rose-500 block tracking-wider">Recorded Rejection Reason</span>
+              <p className="italic">"{activeModalRequest.rejection_reason || activeModalRequest.review_notes || 'No specific rejection reason recorded.'}"</p>
+            </div>
+            <div className="pt-1 flex flex-wrap items-center gap-3 text-[11px] text-rose-700/90 font-medium">
+              <span>Decision by: <strong className="text-rose-900">{activeModalRequest.reviewed_by || 'Grace Ochieng (Programme Manager)'}</strong></span>
+              {activeModalRequest.reviewed_at && (
+                <>
+                  <span>&bull;</span>
+                  <span>Date: {new Date(activeModalRequest.reviewed_at).toLocaleDateString()}</span>
+                </>
+              )}
+            </div>
+          </div>
+        ) : !isAssignedOrApproved || isReassigning ? (
+          /* ASSIGN SUPERVISOR FORM (When not yet assigned) */
           <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
@@ -839,8 +1373,9 @@ export function PMAssistanceRequestsView({
                   <button
                     type="button"
                     onClick={() => {
-                      const reason = window.prompt('Specify information required from beneficiary/community:');
-                      if (reason) onRequestInfo(activeModalRequest.id, reason);
+                      setDecisionAction('request_info');
+                      setDecisionReason('');
+                      setDecisionError('');
                     }}
                     className="text-amber-700 hover:text-amber-800 font-bold cursor-pointer hover:underline"
                   >
@@ -850,8 +1385,9 @@ export function PMAssistanceRequestsView({
                   <button
                     type="button"
                     onClick={() => {
-                      const reason = window.prompt('Enter rejection reason:');
-                      if (reason) onRejectRequest(activeModalRequest.id, reason);
+                      setDecisionAction('reject');
+                      setDecisionReason('');
+                      setDecisionError('');
                     }}
                     className="text-rose-600 hover:text-rose-700 font-bold cursor-pointer hover:underline"
                   >
@@ -861,50 +1397,10 @@ export function PMAssistanceRequestsView({
               )}
             </div>
           </div>
-        )}
+        ) : null}
 
-        {/* 3. ONLY IF AUDIT EVIDENCE EXISTS: DISPLAY IT */}
-        {isAssessed && (realPhotos.length > 0 || realDocs.length > 0 || activeModalRequest.field_justification) && (
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-[#006B56]" />
-                <h3 className="text-sm font-black text-slate-900">
-                  Field Worker Audit Evidence
-                </h3>
-              </div>
-              <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                Verified On-Ground
-              </span>
-            </div>
-
-            {activeModalRequest.field_justification && (
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
-                <span className="font-bold text-slate-500 text-[11px] block">Field Worker Report:</span>
-                <p className="text-slate-800 italic font-medium leading-relaxed">
-                  "{activeModalRequest.field_justification}"
-                </p>
-              </div>
-            )}
-
-            {realPhotos.length > 0 && (
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-700">Audit Photos ({realPhotos.length}):</span>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {realPhotos.map((photo) => (
-                    <div
-                      key={photo.id || photo.url}
-                      onClick={() => setSelectedPreviewPhoto(photo)}
-                      className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer hover:border-[#006B56]"
-                    >
-                      <img src={photo.url} alt={photo.title || 'Evidence'} className="h-28 w-full object-cover" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {/* SHARED OVERLAYS (PHOTO, DOC, REJECTION & REQUEST INFO MODALS) */}
+        {renderOverlays()}
 
       </div>
     );
@@ -1233,113 +1729,8 @@ export function PMAssistanceRequestsView({
         </div>
       )}
 
-      {/* MODAL 1: FULLSCREEN PHOTO PREVIEWER */}
-      {selectedPreviewPhoto && (
-        <div className="fixed inset-0 z-60 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-slate-900 rounded-3xl max-w-2xl w-full overflow-hidden border border-slate-700 shadow-2xl flex flex-col">
-            <div className="p-4 bg-slate-800 text-white flex items-center justify-between border-b border-slate-700">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-sm font-bold truncate">{selectedPreviewPhoto.title}</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedPreviewPhoto(null)}
-                className="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-2 bg-black flex items-center justify-center max-h-[60vh] overflow-hidden">
-              <img
-                src={selectedPreviewPhoto.url}
-                alt={selectedPreviewPhoto.title}
-                className="max-h-[58vh] w-auto object-contain rounded-lg"
-              />
-            </div>
-
-            <div className="p-4 bg-slate-800 text-slate-200 text-xs space-y-1.5 border-t border-slate-700">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-emerald-400 uppercase text-[10px] tracking-wider">
-                  {selectedPreviewPhoto.category}
-                </span>
-                <span className="text-[10px] text-slate-400">{selectedPreviewPhoto.size}</span>
-              </div>
-              <p className="text-slate-300 leading-relaxed">{selectedPreviewPhoto.caption}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: DOCUMENT PREVIEWER */}
-      {selectedPreviewDoc && (
-        <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-xl w-full overflow-hidden border border-slate-200 shadow-2xl flex flex-col">
-            <div className="p-4 bg-gradient-to-r from-blue-700 to-indigo-800 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-200" />
-                <div>
-                  <h3 className="text-sm font-bold truncate">{selectedPreviewDoc.name}</h3>
-                  <p className="text-[10px] text-blue-200">{selectedPreviewDoc.category || 'Official Document'}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedPreviewDoc(null)}
-                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 text-xs text-slate-700">
-              <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-100 space-y-2">
-                <div className="flex items-center justify-between text-[11px] font-bold text-blue-900 border-b border-blue-200/60 pb-2">
-                  <span>Document Seal &amp; Authority</span>
-                  <span className="text-emerald-700 flex items-center gap-1 font-bold">
-                    <Check className="w-3.5 h-3.5" /> Verified Valid Document
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Issuer / Authority</span>
-                    <span className="font-bold text-slate-800">{selectedPreviewDoc.issuer || 'Payam Administration & Field Team'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase font-bold">File Size</span>
-                    <span className="font-bold text-slate-800">{selectedPreviewDoc.size || '420 KB'}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Document Content &amp; Field Verification Summary
-                </span>
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-slate-800 leading-relaxed italic text-xs">
-                  "{selectedPreviewDoc.content_summary || 'Official humanitarian verification document confirming household eligibility, vulnerability audit endorsement, and emergency relief requirements.'}"
-                </div>
-              </div>
-
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>This document is cryptographically referenced in the verified field audit record.</span>
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedPreviewDoc(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs cursor-pointer"
-              >
-                Close Preview
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* SHARED OVERLAYS (PHOTO, DOC, REJECTION & REQUEST INFO MODALS) */}
+      {renderOverlays()}
     </div>
   );
 }

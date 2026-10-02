@@ -231,10 +231,13 @@ export function FieldWorkerApp({
   // Dynamic counts for sidebar badges
   const pendingTasksCount = useMemo(() => {
     return tasks.filter(t => 
-      t.status === 'Assigned to Field Worker' || 
-      t.status === 'Submitted' ||
-      t.status === 'Assessment In Progress' || 
-      t.status === 'Correction Required'
+      (t.status === 'Assigned to Field Worker' || 
+       t.status === 'Submitted' || 
+       t.status === 'Assessment In Progress') &&
+      t.status !== 'Rejected' &&
+      !t.status?.includes('Rejected') &&
+      !t.status_label?.includes('Rejected') &&
+      !t.returned_to_worker
     ).length;
   }, [tasks]);
 
@@ -242,6 +245,16 @@ export function FieldWorkerApp({
     return tasks.filter(t => 
       t.status === 'Assessment Submitted' || 
       t.status === 'Awaiting Program Manager Decision'
+    ).length;
+  }, [tasks]);
+
+  const rejectedTasksCount = useMemo(() => {
+    return tasks.filter(t => 
+      t.status === 'Rejected' || 
+      t.status?.includes('Rejected') || 
+      t.status_label?.includes('Rejected') || 
+      t.status === 'Correction Required' ||
+      Boolean(t.returned_to_worker)
     ).length;
   }, [tasks]);
 
@@ -486,6 +499,33 @@ export function FieldWorkerApp({
                         : 'text-slate-500'
                     }`}>
                       {submittedTasksCount}
+                    </span>
+                  </button>
+
+                  {/* Returned / Rejected */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('tasks');
+                      setTaskStatusFilter('rejected');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                      activeTab === 'tasks' && taskStatusFilter === 'rejected'
+                        ? 'bg-rose-50 text-rose-900 font-bold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'tasks' && taskStatusFilter === 'rejected' ? 'bg-rose-600' : (rejectedTasksCount > 0 ? 'bg-rose-500' : 'bg-slate-400')}`} />
+                      <span>Returned / Rejected</span>
+                    </div>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      activeTab === 'tasks' && taskStatusFilter === 'rejected'
+                        ? 'bg-rose-600 text-white'
+                        : (rejectedTasksCount > 0 ? 'bg-rose-100 text-rose-800 font-black' : 'text-slate-500')
+                    }`}>
+                      {rejectedTasksCount}
                     </span>
                   </button>
 
@@ -1038,6 +1078,7 @@ export function FieldWorkerApp({
             task={selectedTaskForAssessment}
             project={selectedProjectForAudit}
             tasks={tasks}
+            assessments={assessments}
             worker={worker}
             onSubmitAssessment={handleSubmitAssessment}
           />

@@ -318,6 +318,8 @@ export function ProgrammeManagerDashboard({
   const getAuditFinishedStatus = (r) => {
     return Boolean(
       r.status === 'Assessment Submitted' ||
+      r.status === 'Awaiting Program Manager Decision' ||
+      r.status === 'Forwarded to Program Manager' ||
       r.status === 'Completed' ||
       r.status === 'Fulfilled' ||
       r.assessment_code ||

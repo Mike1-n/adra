@@ -22,7 +22,9 @@ import {
   Filter,
   CheckCircle,
   AlertTriangle,
-  FileText
+  FileText,
+  Lock,
+  ShieldCheck
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 
@@ -57,8 +59,25 @@ export function SupervisorReportReviewView({
   // If viewing a single report in detail mode
   const current = selectedAssessment;
 
+  const isForwardedToPM = current ? (
+    [
+      'Forwarded to Program Manager',
+      'Forwarded',
+      'Awaiting Program Manager Decision',
+      'Approved',
+      'Dispatched',
+      'Completed',
+      'Delivered',
+      'Closed'
+    ].includes(current.status) || Boolean(current.forwarded_to_pm || current.forwarded_to_pm_at || current.forwarded_at)
+  ) : false;
+
   const handleExecuteForward = async () => {
     if (!current) return;
+    if (isForwardedToPM) {
+      toast.info('This audit has already been forwarded to Programme Manager and cannot be modified.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       await onForwardToPM(current.id || current.assessment_code, current.request_id || current.request_code, supervisorNotes);
@@ -75,6 +94,10 @@ export function SupervisorReportReviewView({
 
   const handleExecuteCorrection = async () => {
     if (!current) return;
+    if (isForwardedToPM) {
+      toast.info('This audit has already been forwarded to Programme Manager and is locked.');
+      return;
+    }
     if (!correctionReason.trim()) {
       toast.warning('Please enter a specific reason for requesting correction.');
       return;
@@ -96,6 +119,10 @@ export function SupervisorReportReviewView({
 
   const handleExecuteComment = async () => {
     if (!current || !supervisorNotes.trim()) return;
+    if (isForwardedToPM) {
+      toast.info('This audit is locked under Programme Manager review.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       await onAddComment(current.id || current.assessment_code, supervisorNotes);
@@ -115,8 +142,9 @@ export function SupervisorReportReviewView({
     'Submitted': 'bg-amber-100 text-amber-800 border-amber-300',
     'Correction Required': 'bg-rose-100 text-rose-800 border-rose-300',
     'Forwarded to Program Manager': 'bg-purple-100 text-purple-800 border-purple-300',
+    'Awaiting Program Manager Decision': 'bg-purple-100 text-purple-800 border-purple-300',
     'Approved': 'bg-emerald-100 text-emerald-800 border-emerald-300',
-    'Rejected': 'bg-slate-100 text-slate-700 border-slate-300'
+    'Rejected': 'bg-rose-100 text-rose-800 border-rose-300'
   };
 
   // Filter assessments
@@ -124,14 +152,17 @@ export function SupervisorReportReviewView({
     return assessments.filter(item => {
       const status = item.status || 'Under Supervisor Review';
       if (activeTab === 'pending') {
-        const isPending = status === 'Under Supervisor Review' || status === 'Submitted' || status === 'Assessment Submitted' || status === 'Pending' || !item.status;
+        const isPending = (status === 'Under Supervisor Review' || status === 'Submitted' || status === 'Assessment Submitted' || status === 'Pending' || !item.status) && status !== 'Rejected';
         if (!isPending) return false;
       } else if (activeTab === 'forwarded') {
-        const isForwarded = status === 'Forwarded to Program Manager' || status === 'Approved' || status === 'Awaiting Program Manager Decision';
+        const isForwarded = (status === 'Forwarded to Program Manager' || status === 'Approved' || status === 'Awaiting Program Manager Decision') && status !== 'Rejected';
         if (!isForwarded) return false;
       } else if (activeTab === 'correction') {
         const isCorr = status === 'Correction Required';
         if (!isCorr) return false;
+      } else if (activeTab === 'rejected') {
+        const isRej = status === 'Rejected' || status?.includes('Rejected') || item.returned_to_worker;
+        if (!isRej) return false;
       }
 
       if (searchQuery.trim()) {
@@ -153,9 +184,10 @@ export function SupervisorReportReviewView({
   const counts = useMemo(() => {
     return {
       all: assessments.length,
-      pending: assessments.filter(a => a.status === 'Under Supervisor Review' || a.status === 'Submitted' || a.status === 'Assessment Submitted' || a.status === 'Pending' || !a.status).length,
-      forwarded: assessments.filter(a => a.status === 'Forwarded to Program Manager' || a.status === 'Approved' || a.status === 'Awaiting Program Manager Decision').length,
-      correction: assessments.filter(a => a.status === 'Correction Required').length
+      pending: assessments.filter(a => (a.status === 'Under Supervisor Review' || a.status === 'Submitted' || a.status === 'Assessment Submitted' || a.status === 'Pending' || !a.status) && a.status !== 'Rejected').length,
+      forwarded: assessments.filter(a => (a.status === 'Forwarded to Program Manager' || a.status === 'Approved' || a.status === 'Awaiting Program Manager Decision') && a.status !== 'Rejected').length,
+      correction: assessments.filter(a => a.status === 'Correction Required').length,
+      rejected: assessments.filter(a => a.status === 'Rejected' || a.status?.includes('Rejected') || a.returned_to_worker).length
     };
   }, [assessments]);
 
@@ -207,6 +239,7 @@ export function SupervisorReportReviewView({
           {[
             { id: 'pending', label: 'Pending Review', count: counts.pending, color: 'bg-amber-500' },
             { id: 'forwarded', label: 'Forwarded to PM', count: counts.forwarded, color: 'bg-purple-600' },
+            { id: 'rejected', label: 'Rejected by PM', count: counts.rejected, color: 'bg-rose-600' },
             { id: 'correction', label: 'Needs Correction', count: counts.correction, color: 'bg-rose-500' },
             { id: 'all', label: 'All Audits', count: counts.all, color: 'bg-slate-700' }
           ].map(tab => (
@@ -339,17 +372,36 @@ export function SupervisorReportReviewView({
                       </span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedAssessment(item);
-                      }}
-                      className="inline-flex items-center gap-1 text-xs font-black text-purple-700 hover:text-purple-900 group-hover:underline"
-                    >
-                      <span>Review Dossier</span>
-                      <Eye className="w-3.5 h-3.5" />
-                    </button>
+                    {(() => {
+                      const isItemForwarded = [
+                        'Forwarded to Program Manager',
+                        'Forwarded',
+                        'Awaiting Program Manager Decision',
+                        'Approved',
+                        'Dispatched',
+                        'Completed',
+                        'Delivered',
+                        'Closed'
+                      ].includes(item.status) || Boolean(item.forwarded_to_pm || item.forwarded_to_pm_at || item.forwarded_at);
+
+                      return (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedAssessment(item);
+                          }}
+                          className={`inline-flex items-center gap-1 text-xs font-black transition ${
+                            isItemForwarded
+                              ? 'text-purple-700 hover:text-purple-900 group-hover:underline'
+                              : 'text-[#006B56] hover:text-[#005544] group-hover:underline'
+                          }`}
+                        >
+                          <span>{isItemForwarded ? 'View Dossier' : 'Review Dossier'}</span>
+                          {isItemForwarded ? <Lock className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               );
@@ -393,6 +445,53 @@ export function SupervisorReportReviewView({
 
       {/* Main Review Form & Findings */}
       <div className="p-4 space-y-4 flex-1 pb-28 max-w-xl mx-auto w-full">
+
+        {/* Rejection Notification Banner when rejected by PM */}
+        {current.status === 'Rejected' && (
+          <div className="p-4 bg-gradient-to-r from-rose-50 to-red-50 border-2 border-rose-300 rounded-2xl flex items-start gap-3 text-xs text-rose-950 shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <div className="space-y-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-black text-rose-900 uppercase tracking-wider text-[11px]">
+                  Audit Rejected by Programme Manager
+                </span>
+                <span className="px-2 py-0.2 rounded-full text-[9px] font-black bg-rose-200 text-rose-900">
+                  Returned to Field
+                </span>
+              </div>
+              <p className="text-[11px] text-rose-950 font-medium leading-relaxed">
+                Reason: <span className="font-bold italic">"{current.rejection_reason || current.review_notes || 'Outside eligibility criteria.'}"</span>
+              </p>
+              <p className="text-[10px] text-rose-800/80">
+                This case has been returned directly to Field Officer <strong>{current.field_worker_name || 'assigned officer'}</strong>. The supervisor is notified for visibility and oversight.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Read-only notification banner when forwarded to PM */}
+        {isForwardedToPM && current.status !== 'Rejected' && (
+          <div className="p-3.5 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-300 rounded-2xl flex items-start gap-3 text-xs text-purple-950 shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div className="space-y-0.5 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-black text-purple-900 uppercase tracking-wider text-[11px]">
+                  Audit Forwarded to Programme Manager
+                </span>
+                <span className="px-2 py-0.2 rounded-full text-[9px] font-black bg-purple-200/80 text-purple-900">
+                  Read-Only Mode
+                </span>
+              </div>
+              <p className="text-[11px] text-purple-900/90 leading-relaxed">
+                This field audit has been officially submitted to Programme Manager <strong>Grace Ochieng</strong> for final allocation and dispatch decision. The record is locked; supervisors can view findings and evidence but cannot edit, modify, or return the audit.
+              </p>
+            </div>
+          </div>
+        )}
         
         {/* Core Beneficiary & Request Overview */}
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 space-y-3">
@@ -486,44 +585,29 @@ export function SupervisorReportReviewView({
         </div>
 
         {/* Photo Evidence Gallery */}
-        {((current.evidence_photos && current.evidence_photos.length > 0) || current.photos_count > 0) && (
-          <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
-                <ImageIcon className="w-4 h-4 text-[#006B56]" />
-                <span>Photographic Field Evidence ({current.evidence_photos?.length || 2})</span>
-              </h3>
+        <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
+              <ImageIcon className="w-4 h-4 text-[#006B56]" />
+              <span>Photographic Field Evidence ({current.evidence_photos?.length || 0})</span>
+            </h3>
+            {current.evidence_photos && current.evidence_photos.length > 0 && (
               <span className="text-[10px] text-slate-400 font-semibold">Click photo to enlarge</span>
-            </div>
+            )}
+          </div>
 
+          {current.evidence_photos && current.evidence_photos.length > 0 ? (
             <div className="grid grid-cols-2 gap-2.5">
-              {(current.evidence_photos || [
-                {
-                  id: 'p1',
-                  title: 'Shelter Condition',
-                  category: 'Shelter & Living Condition',
-                  caption: 'Tukul roof severely damaged by recent seasonal heavy rains.',
-                  url: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=800&auto=format&fit=crop&q=80',
-                  size: '1.4 MB'
-                },
-                {
-                  id: 'p2',
-                  title: 'Household Verification',
-                  category: 'Beneficiary & Demographics',
-                  caption: 'In-person verification of family present at residence.',
-                  url: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=800&auto=format&fit=crop&q=80',
-                  size: '1.8 MB'
-                }
-              ]).map((photo) => (
+              {current.evidence_photos.map((photo, idx) => (
                 <div
-                  key={photo.id}
+                  key={photo.id || `photo-${idx}`}
                   onClick={() => setSelectedPhoto(photo)}
                   className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer group relative bg-slate-100 shadow-2xs hover:border-[#006B56] transition"
                 >
                   <div className="relative h-28 overflow-hidden bg-slate-900">
                     <img
                       src={photo.url}
-                      alt={photo.title}
+                      alt={photo.name || photo.title || 'Field Photo'}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />
                     <span className="absolute bottom-1 left-1 text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-900/70 text-white backdrop-blur-xs">
@@ -531,75 +615,70 @@ export function SupervisorReportReviewView({
                     </span>
                   </div>
                   <div className="p-2 bg-white text-[11px] space-y-0.5">
-                    <p className="font-bold text-slate-900 truncate">{photo.title}</p>
-                    <p className="text-slate-400 text-[10px] truncate">{photo.caption}</p>
+                    <p className="font-bold text-slate-900 truncate">{photo.name || photo.title || 'Field Photo'}</p>
+                    <p className="text-slate-400 text-[10px] truncate">{photo.caption || photo.timestamp || 'Attached Field Photo'}</p>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="p-4 text-center rounded-xl bg-slate-50 border border-slate-200 text-slate-400 text-xs">
+              <ImageIcon className="w-6 h-6 mx-auto mb-1 text-slate-300" />
+              <span>No photographic evidence was attached to this assessment.</span>
+            </div>
+          )}
+        </div>
 
         {/* Attached Verification Documents */}
         <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
               <FileCheck className="w-4 h-4 text-blue-600" />
-              <span>Attached Verification Documents ({current.evidence_documents?.length || 2})</span>
+              <span>Attached Verification Documents ({current.evidence_documents?.length || 0})</span>
             </h3>
-            <span className="text-[10px] text-slate-400 font-semibold">Signed forms &amp; chief letters</span>
+            <span className="text-[10px] text-slate-400 font-semibold">Signed forms, IDs &amp; letters</span>
           </div>
 
-          <div className="space-y-2">
-            {(current.evidence_documents && current.evidence_documents.length > 0 ? current.evidence_documents : [
-              {
-                id: 'doc-1',
-                name: 'Signed_Household_Verification_Consent_Form.pdf',
-                category: 'Signed Verification Form',
-                size: '420 KB',
-                issuer: 'ADRA Field Team',
-                content_summary: 'Official ADRA Household Verification Form signed with thumbprint by head of household, acknowledging humanitarian audit and confirming urgent assistance requirement.'
-              },
-              {
-                id: 'doc-2',
-                name: 'Boma_Chief_Emergency_Referral_Letter.pdf',
-                category: 'Local Chief Endorsement',
-                size: '310 KB',
-                issuer: 'Payam Administration',
-                content_summary: 'Official letter of endorsement from Boma Chief confirming household displacement, lack of food stocks, and endorsing emergency food & shelter kit dispatch.'
-              }
-            ]).map((doc) => (
-              <div
-                key={doc.id}
-                className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3 text-xs"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold font-mono text-[10px] flex items-center justify-center shrink-0">
-                    PDF
+          {current.evidence_documents && current.evidence_documents.length > 0 ? (
+            <div className="space-y-2">
+              {current.evidence_documents.map((doc, idx) => (
+                <div
+                  key={doc.id || `doc-${idx}`}
+                  className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3 text-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold font-mono text-[10px] flex items-center justify-center shrink-0">
+                      {doc.name?.split('.').pop()?.toUpperCase() || 'DOC'}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-slate-800 truncate text-xs">{doc.name}</h4>
+                      <p className="text-[10px] text-slate-500 truncate">{doc.category || 'Verification Document'} &bull; {doc.size || 'Attached'}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-slate-800 truncate text-xs">{doc.name}</h4>
-                    <p className="text-[10px] text-slate-500 truncate">{doc.category} &bull; {doc.size || '350 KB'}</p>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {doc.url && (
+                      <a
+                        href={doc.url}
+                        download={doc.name}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-blue-700 font-bold rounded-lg text-[11px] flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-blue-600" />
+                        <span>View</span>
+                      </a>
+                    )}
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedPhoto({
-                    title: doc.name,
-                    caption: doc.content_summary || 'Official verified document attached to field assessment.',
-                    category: doc.category || 'Verification Document',
-                    url: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&auto=format&fit=crop&q=80',
-                    size: doc.size || '350 KB'
-                  })}
-                  className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold rounded-lg text-[11px] flex items-center gap-1 shrink-0 transition cursor-pointer"
-                >
-                  <Eye className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Inspect</span>
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-4 text-center rounded-xl bg-slate-50 border border-slate-200 text-slate-400 text-xs">
+              <FileCheck className="w-6 h-6 mx-auto mb-1 text-slate-300" />
+              <span>No verification documents were attached to this assessment.</span>
+            </div>
+          )}
         </div>
 
         {/* Field Worker's Official Recommendation */}
@@ -648,34 +727,56 @@ export function SupervisorReportReviewView({
 
       {/* Floating Bottom Supervisor Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-xl z-40">
-        <div className="max-w-xl mx-auto flex items-center space-x-2">
-          
-          <button
-            type="button"
-            onClick={() => setShowCorrectionModal(true)}
-            className="flex-1 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-xs"
-          >
-            <RotateCcw className="w-4 h-4 text-amber-700" />
-            <span>Request Correction</span>
-          </button>
+        <div className="max-w-xl mx-auto">
+          {isForwardedToPM ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-slate-600 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-purple-600 shrink-0 animate-pulse" />
+                <span className="truncate font-semibold text-slate-700 text-xs">
+                  Forwarded to PM &bull; <strong className="text-purple-900">Read-Only (Locked)</strong>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onBack) onBack();
+                  setSelectedAssessment(null);
+                }}
+                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer shrink-0"
+              >
+                Back to Audits List
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowCorrectionModal(true)}
+                className="flex-1 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-xs cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4 text-amber-700" />
+                <span>Request Correction</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setShowForwardModal(true)}
-            className="flex-1 py-3 bg-[#006B56] hover:bg-[#005544] text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md transition-colors"
-          >
-            <Send className="w-4 h-4" />
-            <span>Forward to PM</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setShowForwardModal(true)}
+                className="flex-1 py-3 bg-[#006B56] hover:bg-[#005544] text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md transition-colors cursor-pointer"
+              >
+                <Send className="w-4 h-4" />
+                <span>Forward to PM</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setShowCommentModal(true)}
-            className="px-3.5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
-            title="Add Supervisor Comment"
-          >
-            <MessageSquare className="w-4 h-4" />
-          </button>
+              <button
+                type="button"
+                onClick={() => setShowCommentModal(true)}
+                className="px-3.5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                title="Add Supervisor Comment"
+              >
+                <MessageSquare className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -832,17 +933,39 @@ export function SupervisorReportReviewView({
       {selectedPhoto && (
         <div
           onClick={() => setSelectedPhoto(null)}
-          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 animate-in fade-in"
+          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 animate-in fade-in cursor-pointer"
         >
-          <div className="relative max-w-lg w-full">
-            <img
-              src={selectedPhoto.url}
-              alt={selectedPhoto.title}
-              className="w-full max-h-[75vh] object-contain rounded-xl"
-            />
-            <div className="p-3 bg-white/10 text-white rounded-xl mt-3 text-xs">
-              <p className="font-bold">{selectedPhoto.title}</p>
-              <p className="text-slate-300 text-[11px] mt-0.5">{selectedPhoto.caption}</p>
+          <div className="relative max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="relative rounded-xl overflow-hidden bg-slate-900 border border-white/20">
+              <img
+                src={selectedPhoto.url}
+                alt={selectedPhoto.name || selectedPhoto.title || 'Field Photo'}
+                className="w-full max-h-[75vh] object-contain"
+              />
+              <button
+                type="button"
+                onClick={() => setSelectedPhoto(null)}
+                className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-3 bg-white/10 text-white rounded-xl mt-3 text-xs flex items-center justify-between gap-3">
+              <div>
+                <p className="font-bold">{selectedPhoto.name || selectedPhoto.title || 'Field Photo Evidence'}</p>
+                <p className="text-slate-300 text-[11px] mt-0.5">{selectedPhoto.caption || selectedPhoto.category || selectedPhoto.timestamp || ''}</p>
+              </div>
+              {selectedPhoto.url && (
+                <a
+                  href={selectedPhoto.url}
+                  download={selectedPhoto.name || 'field-photo.jpg'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1 bg-white text-slate-900 font-bold rounded-lg text-[11px] shrink-0"
+                >
+                  Open Original
+                </a>
+              )}
             </div>
           </div>
         </div>

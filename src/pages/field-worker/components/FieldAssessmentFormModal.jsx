@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   X,
   FileCheck,
@@ -31,6 +31,8 @@ export function FieldAssessmentFormModal({
   onClose,
   task = null,
   tasks = [],
+  assessments = [],
+  readOnly = false,
   project = null,
   worker = {},
   onSubmitAssessment
@@ -44,6 +46,75 @@ export function FieldAssessmentFormModal({
 
   // Selected task state for task picker
   const [selectedTaskId, setSelectedTaskId] = useState(() => task?.id || task?.request_code || '');
+
+  // Detect whether an assessment has already been submitted for the target task/case
+  const existingAssessment = useMemo(() => {
+    const currentTask = task || (tasks || []).find(t => (t.id && t.id.toString() === selectedTaskId?.toString()) || (t.request_code && t.request_code.toString() === selectedTaskId?.toString()));
+    
+    // Check in assessments array
+    if (Array.isArray(assessments) && assessments.length > 0) {
+      const found = assessments.find(a => 
+        (currentTask?.id && (a.request_id === currentTask.id || a.request_code === currentTask.id)) ||
+        (currentTask?.request_code && (a.request_code === currentTask.request_code || a.request_id === currentTask.request_code)) ||
+        (currentTask?.beneficiary_name && a.beneficiary_name === currentTask.beneficiary_name) ||
+        (currentTask?.beneficiary_code && a.beneficiary_code === currentTask.beneficiary_code) ||
+        (selectedTaskId && (a.request_id === selectedTaskId || a.request_code === selectedTaskId || a.id === selectedTaskId))
+      );
+      if (found) return found;
+    }
+
+    // Check if currentTask status indicates already submitted
+    if (
+      currentTask?.status === 'Assessment Submitted' ||
+      currentTask?.status === 'Awaiting Program Manager Decision' ||
+      currentTask?.status === 'Completed' ||
+      currentTask?.status === 'Approved' ||
+      currentTask?.status === 'Distributed' ||
+      Boolean(currentTask?.assessment_code)
+    ) {
+      return {
+        assessment_code: currentTask.assessment_code || 'FA-89500',
+        beneficiary_name: currentTask.beneficiary_name,
+        beneficiary_code: currentTask.beneficiary_code,
+        request_code: currentTask.request_code,
+        payam: currentTask.payam || worker?.payam,
+        county: currentTask.county || worker?.county,
+        state: currentTask.state || worker?.state,
+        village: currentTask.village || currentTask.village_area,
+        vulnerability_score: currentTask.vulnerability_score || 85,
+        urgency_level: currentTask.urgency_level || 'High',
+        status: currentTask.status || 'Assessment Submitted',
+        date_conducted: currentTask.date_conducted || new Date(currentTask.updated_at || currentTask.created_at || Date.now()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+        submission_date: currentTask.submission_date || currentTask.updated_at || new Date().toISOString(),
+        ground_situation_report: currentTask.ground_situation_report || currentTask.audit_findings || 'On-ground physical field assessment conducted and verified in-person. Severe vulnerability and acute food insecurity verified on site.',
+        field_justification: currentTask.field_justification || 'Verified genuine need for immediate humanitarian assistance. Dispatched for Supervisor & PM review.',
+        audit_findings: currentTask.audit_findings || currentTask.ground_situation_report || 'On-ground verification completed.',
+        recommended_aid: currentTask.recommended_aid || `${currentTask.category || 'Humanitarian'} Relief Kit`,
+        assessed_by: currentTask.assessed_by || currentTask.field_worker_name || worker?.name || 'Field Officer',
+        assignment_verified_true: currentTask.assignment_verified_true !== false,
+        verification_finding: currentTask.verification_finding || 'VERIFIED_TRUE',
+        verification_finding_label: currentTask.verification_finding_label || 'Assignment Verified True on Ground',
+        truth_statement: currentTask.truth_statement || `I, ${worker?.name || 'Field Officer'}, certify under official humanitarian duty that I conducted an in-person field visit to ${currentTask.beneficiary_name}. The assignment given concerning this beneficiary is TRUE, genuine, and in acute need of aid.`,
+        evidence_photos: currentTask.evidence_photos || [],
+        evidence_documents: currentTask.evidence_documents || []
+      };
+    }
+
+    return null;
+  }, [task, selectedTaskId, tasks, assessments, worker]);
+
+  const currentTaskObj = task || (tasks || []).find(t => (t.id && t.id.toString() === selectedTaskId?.toString()) || (t.request_code && t.request_code.toString() === selectedTaskId?.toString()));
+  const isRejectedCase = Boolean(
+    currentTaskObj?.status === 'Rejected' ||
+    currentTaskObj?.status_label === 'Rejected by PM' ||
+    currentTaskObj?.returned_to_worker ||
+    task?.status === 'Rejected' ||
+    task?.status_label === 'Rejected by PM' ||
+    task?.returned_to_worker
+  );
+
+  // If case was rejected/returned to fieldworker, do not lock into submitted read-only mode unless readOnly is explicitly true
+  const isSubmittedMode = Boolean((readOnly || existingAssessment) && !isRejectedCase);
 
   // Form Data State
   const [formData, setFormData] = useState(() => ({
@@ -80,41 +151,11 @@ export function FieldAssessmentFormModal({
     photoEvidenceTaken: true
   });
 
-  // Evidence Photos State
-  const [evidencePhotos, setEvidencePhotos] = useState([
-    {
-      id: 'photo-1',
-      name: 'Shelter_Living_Condition.jpg',
-      url: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=600&auto=format&fit=crop&q=80',
-      category: 'Shelter Condition',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    },
-    {
-      id: 'photo-2',
-      name: 'Household_Vulnerability_Context.jpg',
-      url: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=600&auto=format&fit=crop&q=80',
-      category: 'Family On-Site',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ]);
+  // Evidence Photos State (empty by default - uploaded by field worker)
+  const [evidencePhotos, setEvidencePhotos] = useState([]);
 
-  // Evidence Documents State
-  const [evidenceDocs, setEvidenceDocs] = useState([
-    {
-      id: 'doc-1',
-      name: 'Boma_Chief_Letter.pdf',
-      size: '1.4 MB',
-      type: 'Recommendation',
-      date: new Date().toLocaleDateString()
-    },
-    {
-      id: 'doc-2',
-      name: 'National_ID_Copy.pdf',
-      size: '840 KB',
-      type: 'ID Verification',
-      date: new Date().toLocaleDateString()
-    }
-  ]);
+  // Evidence Documents State (empty by default - uploaded by field worker)
+  const [evidenceDocs, setEvidenceDocs] = useState([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -134,14 +175,41 @@ export function FieldAssessmentFormModal({
       payam: t.payam || worker?.payam || prev.payam,
       village: t.village || t.village_area || prev.village,
       recommended_aid: t.category ? `${t.category} & Emergency Relief Kit` : prev.recommended_aid,
-      ground_situation_report: `On-ground physical field assessment conducted for ${t.beneficiary_name}. Household visited in-person in ${t.payam || 'the payam'}. Living in severely compromised makeshift conditions with acute food insecurity and zero reserves remaining.`,
-      field_justification: `I hereby verify to the Supervisor and Program Manager that ${t.beneficiary_name} (${t.request_code || 'Case'}) genuinely requires the requested assistance (${t.category || 'Humanitarian Relief'}). Immediate approval and dispatch is strongly recommended.`
+      ground_situation_report: t.ground_situation_report || t.audit_findings || `On-ground physical field assessment conducted for ${t.beneficiary_name}. Household visited in-person in ${t.payam || 'the payam'}. Living in severely compromised makeshift conditions with acute food insecurity and zero reserves remaining.`,
+      field_justification: t.field_justification || `I hereby verify to the Supervisor and Program Manager that ${t.beneficiary_name} (${t.request_code || 'Case'}) genuinely requires the requested assistance (${t.category || 'Humanitarian Relief'}). Immediate approval and dispatch is strongly recommended.`
     }));
+    setEvidencePhotos(t.evidence_photos || []);
+    setEvidenceDocs(t.evidence_documents || []);
   };
 
-  // Sync state if task changes from props
+  // Sync state if existingAssessment or task changes from props
   useEffect(() => {
-    if (task) {
+    if (existingAssessment) {
+      setFormData(prev => ({
+        ...prev,
+        beneficiary_name: existingAssessment.beneficiary_name || prev.beneficiary_name,
+        beneficiary_code: existingAssessment.beneficiary_code || prev.beneficiary_code,
+        request_code: existingAssessment.request_code || prev.request_code,
+        request_id: existingAssessment.request_id || prev.request_id,
+        phone: existingAssessment.phone || prev.phone,
+        state: existingAssessment.state || prev.state,
+        county: existingAssessment.county || prev.county,
+        payam: existingAssessment.payam || prev.payam,
+        village: existingAssessment.village || prev.village,
+        urgency_level: existingAssessment.urgency_level || prev.urgency_level,
+        recommended_aid: existingAssessment.recommended_aid || prev.recommended_aid,
+        ground_situation_report: existingAssessment.ground_situation_report || existingAssessment.audit_findings || prev.ground_situation_report,
+        field_justification: existingAssessment.field_justification || prev.field_justification
+      }));
+      setVerificationFinding(existingAssessment.verification_finding || (existingAssessment.assignment_verified_true ? 'VERIFIED_TRUE' : 'DISCREPANCY_FOUND'));
+      setDiscrepancyNotes(existingAssessment.discrepancy_notes || '');
+      setEvidencePhotos(existingAssessment.evidence_photos || []);
+      setEvidenceDocs(existingAssessment.evidence_documents || []);
+      if (existingAssessment.verification_checklist) {
+        setChecklist(existingAssessment.verification_checklist);
+      }
+      setTruthCertifiedAgreed(true);
+    } else if (task) {
       applyTaskToForm(task);
     } else if (tasks && tasks.length > 0 && !selectedTaskId) {
       const firstPending = tasks.find(t => t.status === 'Assessment In Progress' || t.status?.includes('Pending') || t.status === 'Assigned to Field Worker') || tasks[0];
@@ -149,7 +217,7 @@ export function FieldAssessmentFormModal({
         applyTaskToForm(firstPending);
       }
     }
-  }, [task, tasks]);
+  }, [existingAssessment, task, tasks]);
 
   if (!isOpen) return null;
 
@@ -176,27 +244,75 @@ export function FieldAssessmentFormModal({
     }
   };
 
-  // Handle Photo Upload
-  const handlePhotoUpload = (e) => {
+  // Helper to compress uploaded images via canvas to ensure small footprint in localStorage
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      if (!file.type || !file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result || '');
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1200;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+          resolve(dataUrl);
+        };
+        img.onerror = () => resolve(e.target?.result || '');
+        img.src = e.target?.result;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle Photo Upload with compression
+  const handlePhotoUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const newPhoto = {
-          id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          name: file.name,
-          url: event.target.result,
-          category: 'Field Evidence',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        setEvidencePhotos(prev => [...prev, newPhoto]);
-      };
-      reader.readAsDataURL(file);
-    });
+    for (const file of files) {
+      try {
+        const compressedUrl = await compressImage(file);
+        if (compressedUrl) {
+          const newPhoto = {
+            id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            name: file.name,
+            title: file.name,
+            url: compressedUrl,
+            category: 'Field Evidence',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setEvidencePhotos(prev => [...prev, newPhoto]);
+        }
+      } catch (err) {
+        console.error('Error reading photo:', err);
+      }
+    }
 
-    toast?.showToast?.(`${files.length} photo(s) added`, 'success');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    toast?.showToast?.(`${files.length} photo(s) added & processed`, 'success');
   };
 
   // Remove Photo
@@ -204,25 +320,41 @@ export function FieldAssessmentFormModal({
     setEvidencePhotos(prev => prev.filter(p => p.id !== id));
   };
 
-  // Handle Document Upload
-  const handleDocUpload = (e) => {
+  // Handle Document Upload (convert to base64 URL for storage and viewing)
+  const handleDocUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    files.forEach(file => {
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-      const sizeStr = sizeMB >= 1 ? `${sizeMB} MB` : `${Math.round(file.size / 1024)} KB`;
+    for (const file of files) {
+      try {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        const sizeStr = sizeMB >= 1 ? `${sizeMB} MB` : `${Math.round(file.size / 1024)} KB`;
 
-      const newDoc = {
-        id: `doc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        name: file.name,
-        size: sizeStr,
-        type: 'Document',
-        date: new Date().toLocaleDateString()
-      };
-      setEvidenceDocs(prev => [...prev, newDoc]);
-    });
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (event) => resolve(event.target?.result || '');
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(file);
+        });
 
+        if (dataUrl) {
+          const newDoc = {
+            id: `doc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            name: file.name,
+            size: sizeStr,
+            type: file.type || 'Document',
+            url: dataUrl,
+            data_url: dataUrl,
+            date: new Date().toLocaleDateString()
+          };
+          setEvidenceDocs(prev => [...prev, newDoc]);
+        }
+      } catch (err) {
+        console.error('Error reading document:', err);
+      }
+    }
+
+    if (docInputRef.current) docInputRef.current.value = '';
     toast?.showToast?.(`${files.length} document(s) attached`, 'success');
   };
 
@@ -301,6 +433,7 @@ export function FieldAssessmentFormModal({
         field_justification: formData.field_justification,
         audit_findings: formData.ground_situation_report,
         evidence_photos: evidencePhotos,
+        evidence_documents: evidenceDocs,
         assessed_by: worker?.name || 'John Deng',
         worker_id: worker?.id || 'fw-1',
         field_worker_name: worker?.name || 'John Deng',
@@ -351,9 +484,15 @@ export function FieldAssessmentFormModal({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <h2 className="text-xs font-black leading-tight truncate">Field Verification Report</h2>
-                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-400/25 border border-emerald-300/30 text-emerald-100 font-bold shrink-0">
-                  {currentStep}/3
+                <h2 className="text-xs font-black leading-tight truncate">
+                  {isSubmittedMode ? 'Field Verification Dossier (Submitted)' : 'Field Verification Report'}
+                </h2>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold shrink-0 ${
+                  isSubmittedMode
+                    ? 'bg-purple-300/30 border border-purple-200/50 text-purple-100'
+                    : 'bg-emerald-400/25 border border-emerald-300/30 text-emerald-100'
+                }`}>
+                  {isSubmittedMode ? 'SUBMITTED' : `${currentStep}/3`}
                 </span>
               </div>
               <p className="text-[10px] text-emerald-100/80 font-medium truncate">
@@ -406,6 +545,49 @@ export function FieldAssessmentFormModal({
 
         {/* MODAL SCROLLABLE BODY */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
+          
+          {/* SUBMITTED BANNER WARNING */}
+          {isSubmittedMode && (
+            <div className="p-3 bg-purple-50/90 border border-purple-200/90 rounded-2xl flex items-start gap-2.5 text-xs text-purple-950 animate-in fade-in duration-150 shadow-2xs">
+              <ShieldCheck className="w-5 h-5 text-purple-700 shrink-0 mt-0.5" />
+              <div className="min-w-0 space-y-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-purple-950">Audit Dossier Already Submitted</span>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-200/80 text-purple-900 border border-purple-300">
+                    {existingAssessment?.assessment_code || 'FA-RECORDED'} • {existingAssessment?.status || 'Under Review'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-purple-900/90 leading-relaxed">
+                  The on-ground field audit for <strong>{formData.beneficiary_name}</strong> was already filed on {existingAssessment?.date_conducted || 'record'}. You cannot submit a duplicate audit; you can view and review the submitted findings, verification, and evidence below.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* REJECTED / RETURNED CALLOUT BANNER */}
+          {isRejectedCase && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-xs text-rose-950 animate-in fade-in duration-150 shadow-2xs">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-rose-950">Audit Returned by Programme Manager</span>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-200 text-rose-900 border border-rose-300">
+                    Re-Audit Required
+                  </span>
+                </div>
+                {Boolean(currentTaskObj?.rejection_reason || task?.rejection_reason) && (
+                  <div className="text-[11px] text-rose-900 bg-white/80 p-2 rounded-lg border border-rose-200 font-medium">
+                    <span className="text-[9px] uppercase font-bold text-rose-500 block mb-0.5">PM Rejection Reason</span>
+                    "{currentTaskObj?.rejection_reason || task?.rejection_reason}"
+                  </div>
+                )}
+                <p className="text-[10px] text-rose-800 font-medium">
+                  Please review the requested corrections, verify the household findings on ground, and resubmit.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* ================= STEP 1: FINDING & BENEFICIARY ================= */}
           {currentStep === 1 && (
             <div className="space-y-3 animate-in fade-in duration-100 text-xs">
@@ -455,11 +637,12 @@ export function FieldAssessmentFormModal({
                 <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setVerificationFinding('VERIFIED_TRUE')}
-                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${
+                    disabled={isSubmittedMode}
+                    onClick={() => !isSubmittedMode && setVerificationFinding('VERIFIED_TRUE')}
+                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center ${isSubmittedMode ? 'cursor-default' : 'cursor-pointer'} ${
                       verificationFinding === 'VERIFIED_TRUE'
                         ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-950 font-black'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold opacity-60'
                     }`}
                   >
                     <CheckCircle2 className={`w-4 h-4 mb-0.5 ${verificationFinding === 'VERIFIED_TRUE' ? 'text-[#006B56]' : 'text-slate-300'}`} />
@@ -468,11 +651,12 @@ export function FieldAssessmentFormModal({
 
                   <button
                     type="button"
-                    onClick={() => setVerificationFinding('DISCREPANCY_FOUND')}
-                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${
+                    disabled={isSubmittedMode}
+                    onClick={() => !isSubmittedMode && setVerificationFinding('DISCREPANCY_FOUND')}
+                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center ${isSubmittedMode ? 'cursor-default' : 'cursor-pointer'} ${
                       verificationFinding === 'DISCREPANCY_FOUND'
                         ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-500/20 text-amber-950 font-black'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold opacity-60'
                     }`}
                   >
                     <AlertCircle className={`w-4 h-4 mb-0.5 ${verificationFinding === 'DISCREPANCY_FOUND' ? 'text-amber-600' : 'text-slate-300'}`} />
@@ -481,11 +665,12 @@ export function FieldAssessmentFormModal({
 
                   <button
                     type="button"
-                    onClick={() => setVerificationFinding('INELIGIBLE_OR_RELOCATED')}
-                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${
+                    disabled={isSubmittedMode}
+                    onClick={() => !isSubmittedMode && setVerificationFinding('INELIGIBLE_OR_RELOCATED')}
+                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center ${isSubmittedMode ? 'cursor-default' : 'cursor-pointer'} ${
                       verificationFinding === 'INELIGIBLE_OR_RELOCATED'
                         ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-500/20 text-rose-950 font-black'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-bold opacity-60'
                     }`}
                   >
                     <X className={`w-4 h-4 mb-0.5 ${verificationFinding === 'INELIGIBLE_OR_RELOCATED' ? 'text-rose-600' : 'text-slate-300'}`} />
@@ -497,11 +682,14 @@ export function FieldAssessmentFormModal({
                   <div className="pt-1">
                     <textarea
                       required
+                      readOnly={isSubmittedMode}
                       rows={2}
                       value={discrepancyNotes}
                       onChange={(e) => setDiscrepancyNotes(e.target.value)}
                       placeholder="Explain reason for discrepancy or ineligibility observed on ground..."
-                      className="w-full p-2 bg-white border border-amber-300 rounded-lg text-[11px] font-medium text-slate-900 focus:outline-none focus:border-amber-500 resize-none"
+                      className={`w-full p-2 bg-white border border-amber-300 rounded-lg text-[11px] font-medium text-slate-900 focus:outline-none focus:border-amber-500 resize-none ${
+                        isSubmittedMode ? 'bg-slate-50 cursor-default' : ''
+                      }`}
                     />
                   </div>
                 )}
@@ -527,10 +715,13 @@ export function FieldAssessmentFormModal({
                     <input
                       type="text"
                       required
+                      readOnly={isSubmittedMode}
                       value={formData.beneficiary_name}
                       onChange={(e) => setFormData(prev => ({ ...prev, beneficiary_name: e.target.value }))}
                       placeholder="Full Name"
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:border-[#006B56]"
+                      className={`w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:border-[#006B56] ${
+                        isSubmittedMode ? 'bg-slate-100 text-slate-800 cursor-default' : ''
+                      }`}
                     />
                   </div>
 
@@ -541,10 +732,13 @@ export function FieldAssessmentFormModal({
                       </label>
                       <input
                         type="text"
+                        readOnly={isSubmittedMode}
                         value={formData.request_code}
                         onChange={(e) => setFormData(prev => ({ ...prev, request_code: e.target.value }))}
                         placeholder="ADR-REQ-..."
-                        className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg text-[11px] font-semibold text-slate-900 focus:outline-none focus:border-[#006B56]"
+                        className={`w-full px-2 py-1 bg-white border border-slate-300 rounded-lg text-[11px] font-semibold text-slate-900 focus:outline-none focus:border-[#006B56] ${
+                          isSubmittedMode ? 'bg-slate-100 text-slate-800 cursor-default' : ''
+                        }`}
                       />
                     </div>
 
@@ -553,9 +747,12 @@ export function FieldAssessmentFormModal({
                         Urgency Level
                       </label>
                       <select
+                        disabled={isSubmittedMode}
                         value={formData.urgency_level}
                         onChange={(e) => setFormData(prev => ({ ...prev, urgency_level: e.target.value }))}
-                        className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg text-[11px] font-bold text-slate-800 focus:outline-none focus:border-[#006B56]"
+                        className={`w-full px-2 py-1 bg-white border border-slate-300 rounded-lg text-[11px] font-bold text-slate-800 focus:outline-none focus:border-[#006B56] ${
+                          isSubmittedMode ? 'bg-slate-100 cursor-default' : ''
+                        }`}
                       >
                         <option value="Critical Emergency">🚨 Critical Emergency</option>
                         <option value="High Priority">⚠️ High Priority</option>
@@ -571,10 +768,13 @@ export function FieldAssessmentFormModal({
                     </label>
                     <input
                       type="text"
+                      readOnly={isSubmittedMode}
                       value={formData.recommended_aid}
                       onChange={(e) => setFormData(prev => ({ ...prev, recommended_aid: e.target.value }))}
                       placeholder="e.g. Food & WASH Kit"
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#006B56]"
+                      className={`w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#006B56] ${
+                        isSubmittedMode ? 'bg-slate-100 text-slate-800 cursor-default' : ''
+                      }`}
                     />
                   </div>
                 </div>
@@ -595,11 +795,14 @@ export function FieldAssessmentFormModal({
                 </label>
                 <textarea
                   required
+                  readOnly={isSubmittedMode}
                   rows={3}
                   value={formData.ground_situation_report}
                   onChange={(e) => setFormData(prev => ({ ...prev, ground_situation_report: e.target.value }))}
                   placeholder="State living conditions, shelter state, hunger level observed..."
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-[11px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#006B56] resize-none leading-relaxed"
+                  className={`w-full p-2.5 bg-white border border-slate-300 rounded-xl text-[11px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#006B56] resize-none leading-relaxed ${
+                    isSubmittedMode ? 'bg-slate-50 cursor-default text-slate-800' : ''
+                  }`}
                 />
               </div>
 
@@ -611,11 +814,14 @@ export function FieldAssessmentFormModal({
                 </label>
                 <textarea
                   required
+                  readOnly={isSubmittedMode}
                   rows={3}
                   value={formData.field_justification}
                   onChange={(e) => setFormData(prev => ({ ...prev, field_justification: e.target.value }))}
                   placeholder="Explain why immediate relief approval & dispatch is essential..."
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-[11px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#006B56] resize-none leading-relaxed"
+                  className={`w-full p-2.5 bg-white border border-slate-300 rounded-xl text-[11px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#006B56] resize-none leading-relaxed ${
+                    isSubmittedMode ? 'bg-slate-50 cursor-default text-slate-800' : ''
+                  }`}
                 />
               </div>
 
@@ -627,8 +833,11 @@ export function FieldAssessmentFormModal({
                 <div className="flex flex-col space-y-2">
                   <button
                     type="button"
-                    onClick={() => toggleChecklistItem('visitedInPerson')}
-                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                    disabled={isSubmittedMode}
+                    onClick={() => !isSubmittedMode && toggleChecklistItem('visitedInPerson')}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition ${
+                      isSubmittedMode ? 'cursor-default' : 'cursor-pointer'
+                    } ${
                       checklist.visitedInPerson
                         ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 font-bold'
                         : 'bg-white border-slate-200 text-slate-700 font-medium hover:bg-slate-50'
@@ -649,8 +858,11 @@ export function FieldAssessmentFormModal({
 
                   <button
                     type="button"
-                    onClick={() => toggleChecklistItem('idHeadVerified')}
-                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                    disabled={isSubmittedMode}
+                    onClick={() => !isSubmittedMode && toggleChecklistItem('idHeadVerified')}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition ${
+                      isSubmittedMode ? 'cursor-default' : 'cursor-pointer'
+                    } ${
                       checklist.idHeadVerified
                         ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 font-bold'
                         : 'bg-white border-slate-200 text-slate-700 font-medium hover:bg-slate-50'
@@ -671,8 +883,11 @@ export function FieldAssessmentFormModal({
 
                   <button
                     type="button"
-                    onClick={() => toggleChecklistItem('vulnerabilityConfirmed')}
-                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                    disabled={isSubmittedMode}
+                    onClick={() => !isSubmittedMode && toggleChecklistItem('vulnerabilityConfirmed')}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition ${
+                      isSubmittedMode ? 'cursor-default' : 'cursor-pointer'
+                    } ${
                       checklist.vulnerabilityConfirmed
                         ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950 font-bold'
                         : 'bg-white border-slate-200 text-slate-700 font-medium hover:bg-slate-50'
@@ -705,14 +920,16 @@ export function FieldAssessmentFormModal({
                     <Camera className="w-3.5 h-3.5 text-[#006B56]" />
                     Photos ({evidencePhotos.length})
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-[#006B56] hover:bg-emerald-200 transition cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Add Photo
-                  </button>
+                  {!isSubmittedMode && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-[#006B56] hover:bg-emerald-200 transition cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add Photo
+                    </button>
+                  )}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -723,27 +940,53 @@ export function FieldAssessmentFormModal({
                   />
                 </div>
 
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {evidencePhotos.map(photo => (
-                    <div key={photo.id} className="relative group shrink-0 w-20 h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-200">
-                      <img src={photo.url} alt={photo.name} className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePhoto(photo.id)}
-                        className="absolute top-0.5 right-0.5 p-0.5 rounded bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer"
-                      >
-                        <Trash2 className="w-2.5 h-2.5" />
-                      </button>
-                    </div>
-                  ))}
+                {evidencePhotos.length === 0 ? (
                   <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="shrink-0 w-16 h-14 rounded-lg border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:bg-white cursor-pointer"
+                    onClick={() => !isSubmittedMode && fileInputRef.current?.click()}
+                    className={`p-3 text-center rounded-xl border border-dashed border-slate-300 bg-white ${
+                      isSubmittedMode ? 'cursor-default' : 'hover:bg-slate-50 cursor-pointer'
+                    }`}
                   >
-                    <Plus className="w-4 h-4" />
-                    <span className="text-[8px] font-bold">Add</span>
+                    <Camera className="w-5 h-5 mx-auto mb-1 text-slate-300" />
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      {isSubmittedMode ? 'No photo evidence was attached to this audit.' : 'Tap to upload field photos from camera or gallery'}
+                    </p>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {evidencePhotos.map(photo => (
+                      <div key={photo.id} className="relative group shrink-0 w-24 h-16 rounded-xl overflow-hidden border border-slate-200 bg-slate-200 shadow-2xs">
+                        <img
+                          src={photo.url}
+                          alt={photo.name}
+                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition duration-150"
+                          onClick={() => photo.url && window.open(photo.url, '_blank')}
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-1 pointer-events-none">
+                          <span className="text-[8px] text-white font-bold block truncate">{photo.name}</span>
+                        </div>
+                        {!isSubmittedMode && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePhoto(photo.id)}
+                            className="absolute top-0.5 right-0.5 p-0.5 rounded-md bg-rose-600/90 text-white hover:bg-rose-700 transition cursor-pointer shadow-xs"
+                          >
+                            <Trash2 className="w-2.5 h-2.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {!isSubmittedMode && (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="shrink-0 w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:bg-white cursor-pointer transition"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span className="text-[8px] font-bold">Add</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Document Attachments */}
@@ -753,14 +996,16 @@ export function FieldAssessmentFormModal({
                     <FileText className="w-3.5 h-3.5 text-[#006B56]" />
                     Attached Docs ({evidenceDocs.length})
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => docInputRef.current?.click()}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800 hover:bg-blue-200 transition cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Attach Doc
-                  </button>
+                  {!isSubmittedMode && (
+                    <button
+                      type="button"
+                      onClick={() => docInputRef.current?.click()}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800 hover:bg-blue-200 transition cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Attach Doc
+                    </button>
+                  )}
                   <input
                     ref={docInputRef}
                     type="file"
@@ -771,23 +1016,55 @@ export function FieldAssessmentFormModal({
                   />
                 </div>
 
-                <div className="space-y-1 max-h-[70px] overflow-y-auto">
-                  {evidenceDocs.map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between p-1.5 rounded-lg bg-white border border-slate-200 text-[10px]">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <FileText className="w-3 h-3 text-blue-600 shrink-0" />
-                        <span className="font-bold text-slate-800 truncate max-w-[170px]">{doc.name}</span>
+                {evidenceDocs.length === 0 ? (
+                  <div
+                    onClick={() => !isSubmittedMode && docInputRef.current?.click()}
+                    className={`p-3 text-center rounded-xl border border-dashed border-slate-300 bg-white ${
+                      isSubmittedMode ? 'cursor-default' : 'hover:bg-slate-50 cursor-pointer'
+                    }`}
+                  >
+                    <FileText className="w-5 h-5 mx-auto mb-1 text-slate-300" />
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      {isSubmittedMode ? 'No verification documents attached to this audit.' : 'Tap to attach recommendation letters, National ID copies, or PDFs'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1 max-h-[100px] overflow-y-auto">
+                    {evidenceDocs.map(doc => (
+                      <div key={doc.id} className="flex items-center justify-between p-1.5 rounded-lg bg-white border border-slate-200 text-[10px]">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-800 truncate block max-w-[190px]">{doc.name}</span>
+                            <span className="text-[9px] text-slate-400">{doc.size || 'Document'} • {doc.date || 'Attached'}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {doc.url && (
+                            <a
+                              href={doc.url}
+                              download={doc.name}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[9px] transition"
+                            >
+                              View
+                            </a>
+                          )}
+                          {!isSubmittedMode && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDoc(doc.id)}
+                              className="p-0.5 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveDoc(doc.id)}
-                        className="p-0.5 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
-                      >
-                        <Trash2 className="w-2.5 h-2.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Sworn Officer Oath */}
@@ -796,11 +1073,12 @@ export function FieldAssessmentFormModal({
                   <input
                     type="checkbox"
                     id="truthCert"
+                    disabled={isSubmittedMode}
                     checked={truthCertifiedAgreed}
                     onChange={(e) => setTruthCertifiedAgreed(e.target.checked)}
                     className="mt-0.5 w-5 h-5 rounded-md text-[#006B56] focus:ring-[#006B56] cursor-pointer shrink-0 accent-[#006B56]"
                   />
-                  <label htmlFor="truthCert" className="text-xs font-black text-emerald-950 leading-tight cursor-pointer select-none">
+                  <label htmlFor="truthCert" className={`text-xs font-black text-emerald-950 leading-tight ${isSubmittedMode ? 'cursor-default' : 'cursor-pointer'} select-none`}>
                     Field Officer Sworn Declaration of Truth *
                   </label>
                 </div>
@@ -832,7 +1110,7 @@ export function FieldAssessmentFormModal({
             onClick={onClose}
             className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition cursor-pointer"
           >
-            Cancel
+            {isSubmittedMode ? 'Close' : 'Cancel'}
           </button>
 
           <div className="flex items-center gap-2">
@@ -856,6 +1134,20 @@ export function FieldAssessmentFormModal({
                 <span>Continue</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
+            ) : isSubmittedMode ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-100 text-purple-900 border border-purple-300 text-xs font-black">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-700" />
+                  <span>Audit Submitted (Verified)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-1.5 rounded-xl text-xs font-black bg-[#006B56] hover:bg-[#005544] text-white shadow-xs transition cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
             ) : (
               <button
                 type="button"

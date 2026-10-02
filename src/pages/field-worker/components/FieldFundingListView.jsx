@@ -244,6 +244,26 @@ export function FieldFundingListView({
     return requests.filter(r => r.status?.includes('Rejected') || r.stage === -1 || r.status?.toLowerCase().includes('reject'));
   }, [requests]);
 
+  const isTaskAuditSubmitted = (t) => {
+    if (!t) return false;
+    if (
+      t.status === 'Assessment Submitted' ||
+      t.status === 'Awaiting Program Manager Decision' ||
+      t.status === 'Completed' ||
+      t.status === 'Approved' ||
+      t.status === 'Distributed' ||
+      Boolean(t.assessment_code)
+    ) {
+      return true;
+    }
+    return (assessments || []).some(a => 
+      (t.id && (a.request_id === t.id || a.request_code === t.id)) ||
+      (t.request_code && (a.request_code === t.request_code || a.request_id === t.request_code)) ||
+      (t.beneficiary_code && a.beneficiary_code === t.beneficiary_code) ||
+      (t.beneficiary_name && a.beneficiary_name === t.beneficiary_name)
+    );
+  };
+
   const handleReviseRequest = (req) => {
     setRevisingReq(req);
     const linkedTask = tasks.find(
@@ -454,43 +474,52 @@ export function FieldFundingListView({
                     </div>
 
                     {/* ALREADY DISBURSED STATE BANNER */}
-                    {isFormOpen && activeDisbursedReq && (
-                      <div className="p-3.5 bg-emerald-50/70 border-t border-emerald-100 space-y-3 text-xs animate-in fade-in duration-150">
-                        <div className="flex items-start gap-2.5">
-                          <CheckCircle2 className="w-5 h-5 text-[#006B56] shrink-0 mt-0.5" />
-                          <div className="space-y-1">
-                            <h4 className="font-bold text-emerald-950">
-                              Facilitation Disbursed ({Number(activeDisbursedReq.amount).toLocaleString()} SSP)
-                            </h4>
-                            <p className="text-[11px] text-emerald-900 leading-relaxed">
-                              Funds have already been disbursed via {activeDisbursedReq.finance_disbursement?.payment_method || activeDisbursedReq.preferred_payout}. You are fully funded to conduct the on-ground vulnerability assessment for {task.beneficiary_name}.
-                            </p>
+                    {isFormOpen && activeDisbursedReq && (() => {
+                      const isAuditDone = isTaskAuditSubmitted(task);
+                      return (
+                        <div className="p-3.5 bg-emerald-50/70 border-t border-emerald-100 space-y-3 text-xs animate-in fade-in duration-150">
+                          <div className="flex items-start gap-2.5">
+                            <CheckCircle2 className="w-5 h-5 text-[#006B56] shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                              <h4 className="font-bold text-emerald-950">
+                                Facilitation Disbursed ({Number(activeDisbursedReq.amount).toLocaleString()} SSP)
+                              </h4>
+                              <p className="text-[11px] text-emerald-900 leading-relaxed">
+                                {isAuditDone
+                                  ? `Funds have already been disbursed via ${activeDisbursedReq.finance_disbursement?.payment_method || activeDisbursedReq.preferred_payout}. Field vulnerability audit for ${task.beneficiary_name} has already been submitted to the supervisor.`
+                                  : `Funds have already been disbursed via ${activeDisbursedReq.finance_disbursement?.payment_method || activeDisbursedReq.preferred_payout}. You are fully funded to conduct the on-ground vulnerability assessment for ${task.beneficiary_name}.`}
+                              </p>
+                            </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-2 pt-1 border-t border-emerald-200/60">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedVoucher(activeDisbursedReq)}
-                            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-                          >
-                            <Receipt className="w-3.5 h-3.5" />
-                            <span>View Payment Receipt</span>
-                          </button>
-
-                          {onStartAssessment && (
+                          <div className="flex items-center gap-2 pt-1 border-t border-emerald-200/60">
                             <button
                               type="button"
-                              onClick={() => onStartAssessment(task)}
-                              className="flex-1 py-2 px-3 bg-[#006B56] hover:bg-[#005a48] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                              onClick={() => setSelectedVoucher(activeDisbursedReq)}
+                              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-black border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                             >
-                              <FileCheck className="w-3.5 h-3.5" />
-                              <span>Conduct Field Audit</span>
+                              <Receipt className="w-3.5 h-3.5 text-black" />
+                              <span className="text-black font-bold">View Payment Receipt</span>
                             </button>
-                          )}
+
+                            {onStartAssessment && (
+                              <button
+                                type="button"
+                                onClick={() => onStartAssessment(task)}
+                                className={`flex-1 py-2 px-3 ${
+                                  isAuditDone
+                                    ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                                    : 'bg-[#006B56] hover:bg-[#005a48] text-white'
+                                } rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer`}
+                              >
+                                <FileCheck className="w-3.5 h-3.5" />
+                                <span>{isAuditDone ? 'View Submitted Audit' : 'Conduct Field Audit'}</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* ALREADY PENDING STATE BANNER */}
                     {isFormOpen && activePendingReq && !activeDisbursedReq && (
@@ -1006,7 +1035,7 @@ export function FieldFundingListView({
                                     className="px-3.5 py-1.5 bg-[#006B56] hover:bg-[#005a48] text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
                                   >
                                     <FileCheck className="w-3.5 h-3.5 text-emerald-200" />
-                                    <span>{hasAssessment ? 'Update Truth Report' : 'Go to Field & Submit Truth Report'}</span>
+                                    <span>{hasAssessment ? 'View Field Audit' : 'Go to Field & Submit Truth Report'}</span>
                                   </button>
                                 )}
                               </div>
@@ -1215,8 +1244,8 @@ export function FieldFundingListView({
       {/* 4. OFFICIAL PAYMENT VOUCHER MODAL                                         */}
       {/* ========================================================================= */}
       {selectedVoucher && (
-        <div className="absolute inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3.5 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-sm w-full shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150 flex flex-col max-h-[92%]">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-sm w-full shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
             
             {/* Voucher Header */}
             <div className="bg-[#006B56] text-white p-4 flex items-center justify-between">

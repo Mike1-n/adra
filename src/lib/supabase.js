@@ -73,7 +73,16 @@ function saveLocalData(key, data) {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e) {
-    console.error('Error writing to localStorage', e);
+    console.error('Error writing to localStorage for key:', key, e);
+    try {
+      // If quota exceeded, clean non-critical keys and retry
+      localStorage.removeItem('adra_audit_logs');
+      localStorage.removeItem('adra_field_worker_notifications');
+      localStorage.removeItem('adra_supervisor_notifications');
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (retryErr) {
+      console.error('Retry save to localStorage failed:', retryErr);
+    }
   }
 }
 
@@ -1197,25 +1206,88 @@ export const db = {
     const updated = all.map(r => (r.id === id || r.request_code === id || (target && r.id === target.id)) ? {
       ...r,
       status: 'Rejected',
-      status_label: 'Rejected',
+      status_label: 'Rejected by PM',
       status_stage: 6,
       reviewed_by: `${managerName} (Programme Manager)`,
       reviewed_at: now,
       rejection_reason: reason,
-      review_notes: `Rejected: ${reason}`
+      review_notes: `Rejected by Programme Manager: ${reason}`,
+      returned_to_worker: true
     } : r);
 
     saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
     const finalTarget = updated.find(r => r.id === id || r.request_code === id || (target && r.id === target.id));
+
+    // Also update any matching field assessment in FIELD_ASSESSMENTS
+    try {
+      const allAssessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
+      const updatedAssessments = allAssessments.map(a => {
+        const isMatch = (a.request_code && (a.request_code === target.request_code || a.request_code === target.id)) ||
+                        (a.request_id && (a.request_id === target.id || a.request_id === target.request_code)) ||
+                        (a.beneficiary_name && target.beneficiary_name && a.beneficiary_name.toLowerCase() === target.beneficiary_name.toLowerCase());
+        if (isMatch) {
+          return {
+            ...a,
+            status: 'Rejected',
+            rejection_reason: reason,
+            review_notes: `Rejected by Programme Manager: ${reason}`,
+            reviewed_by: `${managerName} (Programme Manager)`,
+            reviewed_at: now,
+            returned_to_worker: true
+          };
+        }
+        return a;
+      });
+      saveLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, updatedAssessments);
+    } catch (e) {
+      console.warn('Could not sync field assessments rejection:', e);
+    }
+
+    // Add notification to Field Worker
+    try {
+      const fwNotifs = getLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, []);
+      const newFwNotif = {
+        id: `fw-notif-${Date.now()}`,
+        title: `Audit Rejected by PM (#${target.request_code || id})`,
+        message: `Programme Manager ${managerName} rejected the assistance request for ${target.beneficiary_name}. Reason: "${reason}". Returned to field for review.`,
+        type: 'warning',
+        request_id: target.id,
+        request_code: target.request_code,
+        read: false,
+        created_at: now
+      };
+      saveLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, [newFwNotif, ...fwNotifs]);
+    } catch (e) {
+      console.warn('Could not save FW notification:', e);
+    }
+
+    // Add notification to State Supervisor
+    try {
+      const supNotifs = getLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, []);
+      const newSupNotif = {
+        id: `sup-notif-${Date.now()}`,
+        title: `Case #${target.request_code || id} Rejected by PM`,
+        message: `Programme Manager ${managerName} rejected audit for ${target.beneficiary_name} (Reason: "${reason}"). Returned directly to Field Officer ${target.assigned_field_worker_name || 'assigned officer'}.`,
+        type: 'warning',
+        request_id: target.id,
+        request_code: target.request_code,
+        read: false,
+        created_at: now
+      };
+      saveLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, [newSupNotif, ...supNotifs]);
+    } catch (e) {
+      console.warn('Could not save supervisor notification:', e);
+    }
 
     if (isSupabaseConfigured && finalTarget) {
       try {
         const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
         const updates = {
           status: 'Rejected',
-          status_label: 'Rejected',
+          status_label: 'Rejected by PM',
           status_stage: 6,
-          review_notes: `Rejected: ${reason}`,
+          review_notes: `Rejected by PM: ${reason}`,
+          rejection_reason: reason,
           updated_at: now
         };
         if (isUUID(finalTarget.id)) {
@@ -2255,7 +2327,7 @@ export const db = {
     const supName = assessmentData.supervisor_name || 'Emmanuel Adeyemi';
 
     const newAssessment = {
-      id: `ass-${Date.now().toString().slice(-4)}`,
+      id: assessmentData.id || `ass-${Date.now().toString().slice(-4)}`,
       assessment_code: assessmentData.assessment_code || `FA-${nextNum}`,
       submission_date: now,
       date_conducted: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -2278,31 +2350,52 @@ export const db = {
       ground_situation_report: assessmentData.ground_situation_report || assessmentData.audit_findings || '',
       field_justification: assessmentData.field_justification || '',
       recommended_aid: assessmentData.recommended_aid || 'Immediate Food & Non-Food Relief Package',
+      evidence_photos: Array.isArray(assessmentData.evidence_photos) ? assessmentData.evidence_photos : [],
+      evidence_documents: Array.isArray(assessmentData.evidence_documents) ? assessmentData.evidence_documents : [],
       ...assessmentData
     };
 
-    const updatedAssessments = [newAssessment, ...allAssessments];
+    // Filter out previous version of this assessment to prevent stale duplicates
+    const filteredOldAssessments = allAssessments.filter(a => 
+      !(a.id === newAssessment.id || 
+        (newAssessment.request_code && (a.request_code === newAssessment.request_code || a.request_id === newAssessment.request_code)) ||
+        (newAssessment.request_id && (a.request_id === newAssessment.request_id || a.request_code === newAssessment.request_id)) ||
+        (newAssessment.beneficiary_name && a.beneficiary_name?.toLowerCase() === newAssessment.beneficiary_name?.toLowerCase()))
+    );
+
+    const updatedAssessments = [newAssessment, ...filteredOldAssessments];
     saveLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, updatedAssessments);
 
     // Update the linked assistance request
-    if (newAssessment.request_id || newAssessment.request_code) {
+    if (newAssessment.request_id || newAssessment.request_code || newAssessment.beneficiary_name) {
       const allRequests = await this.getAssistanceRequests();
-      const updatedRequests = allRequests.map(r => (r.id === newAssessment.request_id || r.request_code === newAssessment.request_code) ? {
-        ...r,
-        status: 'Assessment Submitted',
-        status_label: 'Assessment Submitted',
-        status_stage: 4,
-        vulnerability_score: newAssessment.vulnerability_score,
-        assessment_code: newAssessment.assessment_code,
-        evidence_photos: newAssessment.evidence_photos || [],
-        evidence_documents: newAssessment.evidence_documents || [],
-        ground_situation_report: newAssessment.ground_situation_report || newAssessment.audit_findings || '',
-        field_justification: newAssessment.field_justification || '',
-        recommended_aid: newAssessment.recommended_aid || r.recommended_aid,
-        field_worker_assessment: newAssessment,
-        review_notes: `Field assessment ${newAssessment.assessment_code} submitted by ${newAssessment.field_worker_name || 'Field Worker'}. Ground verification confirms urgent assistance requirement. Awaiting Supervisor review.`,
-        updated_at: now
-      } : r);
+      const updatedRequests = allRequests.map(r => {
+        const isMatch = (newAssessment.request_id && (r.id === newAssessment.request_id || r.request_code === newAssessment.request_id)) ||
+                        (newAssessment.request_code && (r.request_code === newAssessment.request_code || r.id === newAssessment.request_code)) ||
+                        (newAssessment.beneficiary_name && r.beneficiary_name && r.beneficiary_name.toLowerCase() === newAssessment.beneficiary_name.toLowerCase()) ||
+                        (newAssessment.beneficiary_code && r.beneficiary_code && r.beneficiary_code === newAssessment.beneficiary_code);
+        if (isMatch) {
+          return {
+            ...r,
+            status: 'Assessment Submitted',
+            status_label: 'Assessment Submitted',
+            status_stage: 4,
+            vulnerability_score: newAssessment.vulnerability_score,
+            assessment_code: newAssessment.assessment_code,
+            evidence_photos: newAssessment.evidence_photos || [],
+            evidence_documents: newAssessment.evidence_documents || [],
+            ground_situation_report: newAssessment.ground_situation_report || newAssessment.audit_findings || '',
+            field_justification: newAssessment.field_justification || '',
+            recommended_aid: newAssessment.recommended_aid || r.recommended_aid,
+            field_worker_assessment: newAssessment,
+            returned_to_worker: false,
+            rejection_reason: null,
+            review_notes: `Field assessment ${newAssessment.assessment_code} submitted by ${newAssessment.field_worker_name || 'Field Worker'}. Ground verification confirms urgent assistance requirement. Awaiting Supervisor review.`,
+            updated_at: now
+          };
+        }
+        return r;
+      });
       saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedRequests);
 
       if (isSupabaseConfigured) {
