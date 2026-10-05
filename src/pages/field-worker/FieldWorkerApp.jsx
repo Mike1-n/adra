@@ -229,40 +229,39 @@ export function FieldWorkerApp({
   };
 
   // Dynamic counts for sidebar badges
+  const isTaskRejected = (t) => t.status === 'Rejected' || 
+                                t.status?.includes('Rejected') || 
+                                t.status_label?.includes('Rejected') || 
+                                t.status === 'Correction Required' ||
+                                Boolean(t.returned_to_worker);
+
   const pendingTasksCount = useMemo(() => {
     return tasks.filter(t => 
       (t.status === 'Assigned to Field Worker' || 
        t.status === 'Submitted' || 
        t.status === 'Assessment In Progress') &&
-      t.status !== 'Rejected' &&
-      !t.status?.includes('Rejected') &&
-      !t.status_label?.includes('Rejected') &&
-      !t.returned_to_worker
+      !isTaskRejected(t)
     ).length;
   }, [tasks]);
 
   const submittedTasksCount = useMemo(() => {
     return tasks.filter(t => 
-      t.status === 'Assessment Submitted' || 
-      t.status === 'Awaiting Program Manager Decision'
+      (t.status === 'Assessment Submitted' || 
+       t.status === 'Awaiting Program Manager Decision') &&
+      !isTaskRejected(t)
     ).length;
   }, [tasks]);
 
   const rejectedTasksCount = useMemo(() => {
-    return tasks.filter(t => 
-      t.status === 'Rejected' || 
-      t.status?.includes('Rejected') || 
-      t.status_label?.includes('Rejected') || 
-      t.status === 'Correction Required' ||
-      Boolean(t.returned_to_worker)
-    ).length;
+    return tasks.filter(t => isTaskRejected(t)).length;
   }, [tasks]);
 
   const completedTasksCount = useMemo(() => {
     return tasks.filter(t => 
-      t.status === 'Completed' || 
-      t.status === 'Distributed' || 
-      t.status === 'Approved'
+      (t.status === 'Completed' || 
+       t.status === 'Distributed' || 
+       t.status === 'Approved') &&
+      !isTaskRejected(t)
     ).length;
   }, [tasks]);
 

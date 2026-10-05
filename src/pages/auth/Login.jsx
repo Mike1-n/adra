@@ -459,10 +459,20 @@ export function Login({ onLoginSuccess }) {
                         <button
                           type="button"
                           onClick={() => {
+                            setIdentifier('inventory.manager@adra.org');
+                            setPassword('Password123!');
+                          }}
+                          className="px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-[11px] font-bold border border-indigo-200 text-center transition cursor-pointer"
+                        >
+                          📦 Inventory Mgr
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
                             setIdentifier('admin@adra.org');
                             setPassword('Password123!');
                           }}
-                          className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold border border-slate-200 text-center transition cursor-pointer col-span-2 sm:col-span-1"
+                          className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold border border-slate-200 text-center transition cursor-pointer"
                         >
                           ⚙️ Admin
                         </button>

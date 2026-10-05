@@ -83,6 +83,11 @@ export function AuthProvider({ children }) {
         field: 'field.worker@adra.org',
         worker: 'field.worker@adra.org',
         'field worker': 'field.worker@adra.org',
+        inventory: 'inventory.manager@adra.org',
+        'inventory manager': 'inventory.manager@adra.org',
+        im: 'inventory.manager@adra.org',
+        logistics: 'inventory.manager@adra.org',
+        warehouse: 'inventory.manager@adra.org',
         beneficiary: 'mary.nyambura@adra.community'
       };
 
@@ -189,7 +194,7 @@ export function AuthProvider({ children }) {
       }
 
       // 2. Query ADRA database directly (profiles / beneficiaries / demoAccounts)
-      const userObj = await db.authenticateUser(cleanIdent, password);
+      const userObj = await db.authenticateUser(candidateEmail || cleanIdent, password);
       setCurrentUser(userObj);
       toast.success(`Welcome back, ${userObj.full_name} (${userObj.role})!`);
       return userObj;
@@ -313,6 +318,7 @@ export function AuthProvider({ children }) {
     isProjectOfficer: currentUser?.role === 'Project Officer',
     isFieldWorker: currentUser?.role === 'Field Worker',
     isFinanceOfficer: currentUser?.role === 'Finance Officer',
+    isInventoryManager: currentUser?.role === 'Inventory Manager' || currentUser?.role === 'Logistics Officer',
     isSupplier: currentUser?.role === 'Supplier',
     isDonor: currentUser?.role === 'Donor',
     isBeneficiary: currentUser?.role === 'Beneficiary',

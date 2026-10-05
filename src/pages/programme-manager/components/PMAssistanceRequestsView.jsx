@@ -175,23 +175,37 @@ export function PMAssistanceRequestsView({
   };
 
   const getAuditStatus = (r) => {
-    const isAssessed = Boolean(
+    const isRejected = r.status === 'Rejected' || r.status_label === 'Rejected by PM' || r.returned_to_worker;
+    const isAssessed = !isRejected && Boolean(
       r.status === 'Assessment Submitted' ||
       r.status === 'Awaiting Program Manager Decision' ||
       r.status === 'Forwarded to Program Manager' ||
       r.status === 'Completed' ||
       r.status === 'Fulfilled' ||
-      r.assessment_code ||
+      (r.assessment_code && r.status !== 'Rejected') ||
       r.is_verified_on_ground === true
     );
     const worker = getFieldWorkerStatus(r);
-    const isInProgress = !isAssessed && (
+    const isInProgress = !isAssessed && !isRejected && (
       r.status === 'In Progress' ||
       r.status === 'Assigned to Field Worker' ||
       r.status === 'Assessment In Progress' ||
       r.status === 'In Field' ||
       worker.isAssigned
     );
+
+    if (isRejected) {
+      return {
+        stage: -1,
+        isFinished: false,
+        isInProgress: false,
+        isRejected: true,
+        label: 'Audit Rejected by PM (Returned to Field Worker)',
+        shortLabel: 'Rejected by PM',
+        color: 'rose',
+        badgeClass: 'bg-rose-50 text-rose-800 border-rose-200'
+      };
+    }
 
     if (isAssessed) {
       return {
@@ -272,20 +286,21 @@ export function PMAssistanceRequestsView({
       // Status Filter
       if (filterStatus !== 'ALL') {
         const filterKey = filterStatus.toLowerCase();
+        const isRej = r.status === 'Rejected' || r.status_label === 'Rejected by PM' || Boolean(r.returned_to_worker) || (typeof r.status === 'string' && r.status.toLowerCase().includes('reject'));
         if (filterKey.includes('pending supervisor') || filterKey === 'pending review' || filterKey === 'pending pm') {
-          if (sup.isAssigned || r.status === 'Rejected') return false;
+          if (sup.isAssigned || isRej) return false;
         } else if (filterKey.includes('supervisor assigned')) {
-          if (!sup.isAssigned || worker.isAssigned || audit.isFinished) return false;
+          if (!sup.isAssigned || worker.isAssigned || audit.isFinished || isRej) return false;
         } else if (filterKey.includes('field worker') || filterKey.includes('worker assigned') || filterKey === 'in progress' || filterKey === 'in field') {
-          if (!worker.isAssigned || audit.isFinished) return false;
+          if (!worker.isAssigned || audit.isFinished || isRej) return false;
         } else if (filterKey.includes('audit finished') || filterKey.includes('audit completed') || filterKey === 'audit done' || filterKey === 'assessment submitted') {
-          if (!audit.isFinished) return false;
+          if (!audit.isFinished || isRej) return false;
         } else if (filterKey === 'approved') {
-          if (r.status !== 'Approved' && r.status !== 'Assigned to Supervisor') return false;
+          if ((r.status !== 'Approved' && r.status !== 'Assigned to Supervisor') || isRej) return false;
         } else if (filterKey === 'completed' || filterKey === 'disbursed') {
-          if (r.status !== 'Completed' && r.status !== 'Fulfilled' && r.status !== 'Disbursed') return false;
-        } else if (filterKey === 'rejected') {
-          if (r.status !== 'Rejected') return false;
+          if ((r.status !== 'Completed' && r.status !== 'Fulfilled' && r.status !== 'Disbursed') || isRej) return false;
+        } else if (filterKey === 'rejected' || filterKey.includes('reject')) {
+          if (!isRej) return false;
         } else if (r.status !== filterStatus) {
           return false;
         }
@@ -798,20 +813,29 @@ export function PMAssistanceRequestsView({
 
   // IF A REQUEST IS SELECTED: RENDER DEDICATED FULL AUTHORIZATION PAGE VIEW
   if (activeModalRequest) {
-    const isAssessed = Boolean(activeModalRequest.assessment_code) || 
-                       activeModalRequest.status === 'Assessment Submitted' || 
-                       activeModalRequest.status === 'Awaiting Program Manager Decision' ||
-                       activeModalRequest.status === 'Forwarded to Program Manager' ||
-                       activeModalRequest.status === 'Completed' ||
-                       activeModalRequest.is_verified_on_ground === true;
+    const isModalRejected = activeModalRequest.status === 'Rejected' || 
+                            activeModalRequest.status_label === 'Rejected by PM' || 
+                            Boolean(activeModalRequest.returned_to_worker) ||
+                            (typeof activeModalRequest.status === 'string' && activeModalRequest.status.toLowerCase().includes('reject'));
 
-    const isAwaitingPMDecision = activeModalRequest.status === 'Awaiting Program Manager Decision' ||
-                                 activeModalRequest.status === 'Assessment Submitted' ||
-                                 activeModalRequest.status === 'Forwarded to Program Manager' ||
-                                 activeModalRequest.status === 'My Decision';
+    const isAssessed = !isModalRejected && Boolean(
+      activeModalRequest.status === 'Assessment Submitted' || 
+      activeModalRequest.status === 'Awaiting Program Manager Decision' || 
+      activeModalRequest.status === 'Forwarded to Program Manager' || 
+      activeModalRequest.status === 'Completed' || 
+      activeModalRequest.assessment_code ||
+      activeModalRequest.is_verified_on_ground === true
+    );
+
+    const isAwaitingPMDecision = !isModalRejected && (
+      activeModalRequest.status === 'Awaiting Program Manager Decision' ||
+      activeModalRequest.status === 'Assessment Submitted' ||
+      activeModalRequest.status === 'Forwarded to Program Manager' ||
+      activeModalRequest.status === 'My Decision'
+    );
 
     const b = getBeneficiary(activeModalRequest.beneficiary_id);
-    const isAssignedOrApproved = [
+    const isAssignedOrApproved = !isModalRejected && [
       'Assigned to Supervisor',
       'Approved',
       'Assigned to Field Worker',
@@ -876,15 +900,15 @@ export function PMAssistanceRequestsView({
               {activeModalRequest.priority || 'High'} Priority
             </span>
             <span className={`text-xs font-bold px-3 py-0.5 rounded-full border ${
+              isModalRejected ? 'bg-rose-50 text-rose-800 border-rose-200' :
               activeModalRequest.status === 'Approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
               activeModalRequest.status === 'Assigned to Supervisor' ? 'bg-emerald-50 text-[#006B56] border-emerald-200 font-bold' :
               activeModalRequest.status === 'In Progress' ? 'bg-blue-50 text-blue-800 border-blue-200' :
               activeModalRequest.status === 'Completed' ? 'bg-emerald-800 text-white border-emerald-900' :
-              activeModalRequest.status === 'Rejected' ? 'bg-rose-50 text-rose-800 border-rose-200' :
               activeModalRequest.status === 'Info Requested' ? 'bg-orange-50 text-orange-800 border-orange-200' :
               'bg-amber-50 text-amber-800 border-amber-200'
             }`}>
-              {activeModalRequest.status === 'Submitted' ? 'Submitted (Pending Supervisor)' : activeModalRequest.status}
+              {isModalRejected ? 'Rejected by PM' : activeModalRequest.status === 'Submitted' ? 'Submitted (Pending Supervisor)' : activeModalRequest.status}
             </span>
           </div>
         </div>
@@ -1260,7 +1284,7 @@ export function PMAssistanceRequestsView({
               </p>
             </div>
           </div>
-        ) : activeModalRequest.status === 'Rejected' ? (
+        ) : isModalRejected ? (
           <div className="bg-rose-50/90 p-5 rounded-3xl border border-rose-200 space-y-3 text-xs text-rose-950">
             <div className="flex items-center gap-2.5">
               <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
@@ -1540,7 +1564,8 @@ export function PMAssistanceRequestsView({
             const supInfo = getSupervisorStatus(r);
             const workerInfo = getFieldWorkerStatus(r);
             const auditInfo = getAuditStatus(r);
-            const isPendingPM = !supInfo.isAssigned && r.status !== 'Rejected';
+            const isRejected = r.status === 'Rejected' || r.status_label === 'Rejected by PM' || Boolean(r.returned_to_worker) || (typeof r.status === 'string' && r.status.toLowerCase().includes('reject'));
+            const isPendingPM = !supInfo.isAssigned && !isRejected;
 
             return (
               <div
@@ -1608,9 +1633,9 @@ export function PMAssistanceRequestsView({
                       <div className="min-w-0">
                         <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">1. State Supervisor</span>
                         <span className={`text-[11px] font-black block truncate ${
-                          supInfo.isAssigned ? 'text-slate-900' : 'text-amber-800'
+                          supInfo.isAssigned ? 'text-slate-900' : isRejected ? 'text-slate-500' : 'text-amber-800'
                         }`}>
-                          {supInfo.isAssigned ? supInfo.name : 'Unassigned (Action Req.)'}
+                          {supInfo.isAssigned ? supInfo.name : isRejected ? 'None (Rejected)' : 'Unassigned (Action Req.)'}
                         </span>
                       </div>
                     </div>
@@ -1636,14 +1661,16 @@ export function PMAssistanceRequestsView({
                     <div className="flex items-start gap-1.5 bg-white p-2 rounded-lg border border-slate-200/60 shadow-2xs min-w-0">
                       <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
                         auditInfo.isFinished ? 'bg-emerald-100 text-emerald-700' : 
+                        auditInfo.isRejected ? 'bg-rose-100 text-rose-700' :
                         auditInfo.isInProgress ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
                       }`}>
-                        {auditInfo.isFinished ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                        {auditInfo.isFinished ? <CheckCircle2 className="w-3.5 h-3.5" /> : auditInfo.isRejected ? <XCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
                       </div>
                       <div className="min-w-0">
                         <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">3. Field Audit</span>
                         <span className={`text-[11px] font-bold block truncate ${
                           auditInfo.isFinished ? 'text-[#006B56] font-black' : 
+                          auditInfo.isRejected ? 'text-rose-700 font-black' :
                           auditInfo.isInProgress ? 'text-blue-700 font-bold' : 'text-slate-500'
                         }`}>
                           {auditInfo.label}
@@ -1656,14 +1683,14 @@ export function PMAssistanceRequestsView({
                 {/* Footer Controls */}
                 <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs gap-2">
                   <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                    isRejected ? 'bg-rose-50 text-rose-800 border-rose-200' :
                     r.status === 'Approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
                     r.status === 'In Progress' ? 'bg-blue-50 text-blue-800 border-blue-200' :
                     r.status === 'Completed' ? 'bg-emerald-800 text-white border-emerald-900' :
-                    r.status === 'Rejected' ? 'bg-rose-50 text-rose-800 border-rose-200' :
                     r.status === 'Info Requested' ? 'bg-orange-50 text-orange-800 border-orange-200' :
                     'bg-amber-50 text-amber-800 border-amber-200'
                   }`}>
-                    {r.status}
+                    {isRejected ? 'Rejected by PM' : r.status}
                   </span>
 
                   <div className="flex items-center gap-2">

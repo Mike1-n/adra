@@ -20,6 +20,7 @@ import {
   Globe,
   X,
   Layers,
+  Package,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
@@ -53,6 +54,7 @@ export function Sidebar({ currentTab, onSelectTab, onSwitchToAdminWeb, isMobile 
   const navigation = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
     { id: 'programs', name: 'Programs Manager', icon: Layers, roles: ['Administrator', 'Program Manager', 'Project Officer', 'M&E Officer', 'Finance Officer'] },
+    { id: 'inventory', name: 'Inventory & Logistics', icon: Package, roles: ['Administrator', 'Program Manager', 'Inventory Manager', 'Finance Officer'] },
     { id: 'projects', name: 'Projects', icon: FolderKanban, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
     { id: 'beneficiaries', name: 'Beneficiaries', icon: Users, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
     { id: 'activities', name: 'Activities', icon: CalendarCheck2, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
@@ -127,6 +129,7 @@ export function Sidebar({ currentTab, onSelectTab, onSwitchToAdminWeb, isMobile 
           <option value="Project Officer">📋 Project Officer</option>
           <option value="Field Worker">🌾 Field Worker</option>
           <option value="Finance Officer">💰 Finance Officer</option>
+          <option value="Inventory Manager">📦 Inventory Manager</option>
           <option value="Supplier">🚚 Supplier</option>
           <option value="Donor">🤝 Donor</option>
           <option value="Beneficiary">👥 Beneficiary</option>

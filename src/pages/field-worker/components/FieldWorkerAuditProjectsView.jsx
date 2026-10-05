@@ -24,7 +24,8 @@ import {
   Eye,
   FileText,
   UserCheck,
-  AlertCircle
+  AlertCircle,
+  RotateCcw
 } from 'lucide-react';
 
 export function FieldWorkerAuditProjectsView({
@@ -276,30 +277,45 @@ export function FieldWorkerAuditProjectsView({
   // If a project is selected -> Render the Project Audit Workspace (drilldown)
   if (selectedProject) {
     const projectTasks = getTasksForProject(selectedProject);
+
+    const isRej = (t) => t.status === 'Rejected' || 
+                         t.status_label === 'Rejected by PM' || 
+                         Boolean(t.returned_to_worker) || 
+                         (typeof t.status === 'string' && t.status.toLowerCase().includes('reject')) ||
+                         (typeof t.status_label === 'string' && t.status_label.toLowerCase().includes('reject'));
     
+    const rejectedCases = projectTasks.filter(t => isRej(t));
+
     const pendingCases = projectTasks.filter(t => 
-      t.status === 'Assigned to Field Worker' || 
-      t.status === 'Submitted' ||
-      t.status === 'Assessment In Progress' || 
-      t.status === 'Correction Required' ||
-      t.status === 'Pending' ||
-      t.status === 'Pending Review'
+      !isRej(t) && (
+        t.status === 'Assigned to Field Worker' || 
+        t.status === 'Submitted' ||
+        t.status === 'Assessment In Progress' || 
+        t.status === 'Correction Required' ||
+        t.status === 'Pending' ||
+        t.status === 'Pending Review'
+      )
     );
 
     const submittedCases = projectTasks.filter(t => 
-      t.status === 'Assessment Submitted' || 
-      t.status === 'Awaiting Program Manager Decision'
+      !isRej(t) && (
+        t.status === 'Assessment Submitted' || 
+        t.status === 'Awaiting Program Manager Decision'
+      )
     );
 
     const completedCases = projectTasks.filter(t => 
-      t.status === 'Completed' || 
-      t.status === 'Distributed' || 
-      t.status === 'Approved'
+      !isRej(t) && (
+        t.status === 'Completed' || 
+        t.status === 'Distributed' || 
+        t.status === 'Approved'
+      )
     );
 
     let displayCases = projectTasks;
     if (activeCaseTab === 'pending') displayCases = pendingCases;
     if (activeCaseTab === 'submitted') displayCases = submittedCases;
+    if (activeCaseTab === 'rejected') displayCases = rejectedCases;
     if (activeCaseTab === 'completed') displayCases = completedCases;
 
     if (searchQuery.trim()) {
@@ -353,22 +369,26 @@ export function FieldWorkerAuditProjectsView({
           </div>
 
           {/* Quick Metrics Bar */}
-          <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-100">
+          <div className="grid grid-cols-5 gap-1.5 pt-2 border-t border-slate-100">
             <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 text-center">
-              <span className="text-[10px] font-bold text-slate-500 block">Total Cases</span>
-              <span className="text-sm font-black text-slate-900">{projectTasks.length}</span>
+              <span className="text-[9px] font-bold text-slate-500 block">Total</span>
+              <span className="text-xs font-black text-slate-900">{projectTasks.length}</span>
             </div>
             <div className="bg-amber-50 p-2 rounded-xl border border-amber-200/80 text-center">
-              <span className="text-[10px] font-bold text-amber-800 block">Pending Audit</span>
-              <span className="text-sm font-black text-amber-950">{pendingCases.length}</span>
+              <span className="text-[9px] font-bold text-amber-800 block">Pending</span>
+              <span className="text-xs font-black text-amber-950">{pendingCases.length}</span>
             </div>
             <div className="bg-purple-50 p-2 rounded-xl border border-purple-200/80 text-center">
-              <span className="text-[10px] font-bold text-purple-800 block">Submitted</span>
-              <span className="text-sm font-black text-purple-950">{submittedCases.length}</span>
+              <span className="text-[9px] font-bold text-purple-800 block">Submitted</span>
+              <span className="text-xs font-black text-purple-950">{submittedCases.length}</span>
+            </div>
+            <div className="bg-rose-50 p-2 rounded-xl border border-rose-200/80 text-center">
+              <span className="text-[9px] font-bold text-rose-800 block">Rejected</span>
+              <span className="text-xs font-black text-rose-950">{rejectedCases.length}</span>
             </div>
             <div className="bg-emerald-50 p-2 rounded-xl border border-emerald-200/80 text-center">
-              <span className="text-[10px] font-bold text-emerald-800 block">Completed</span>
-              <span className="text-sm font-black text-emerald-950">{completedCases.length}</span>
+              <span className="text-[9px] font-bold text-emerald-800 block">Done</span>
+              <span className="text-xs font-black text-emerald-950">{completedCases.length}</span>
             </div>
           </div>
 
@@ -384,33 +404,33 @@ export function FieldWorkerAuditProjectsView({
         </div>
 
         {/* Filter Tabs Bar for Cases under this project */}
-        <div className="flex items-center gap-1.5 bg-slate-200/80 p-1 rounded-xl overflow-x-auto text-xs font-bold">
+        <div className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-xl overflow-x-auto text-[11px] font-bold no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveCaseTab('pending')}
-            className={`flex-1 py-1.5 px-2 rounded-lg transition whitespace-nowrap text-center cursor-pointer ${
+            className={`py-1.5 px-2.5 rounded-lg transition whitespace-nowrap text-center cursor-pointer ${
               activeCaseTab === 'pending'
                 ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Pending Audit ({pendingCases.length})
+            Pending ({pendingCases.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveCaseTab('all')}
-            className={`flex-1 py-1.5 px-2 rounded-lg transition whitespace-nowrap text-center cursor-pointer ${
+            className={`py-1.5 px-2.5 rounded-lg transition whitespace-nowrap text-center cursor-pointer ${
               activeCaseTab === 'all'
                 ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            All Cases ({projectTasks.length})
+            All ({projectTasks.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveCaseTab('submitted')}
-            className={`flex-1 py-1.5 px-2 rounded-lg transition whitespace-nowrap text-center cursor-pointer ${
+            className={`py-1.5 px-2.5 rounded-lg transition whitespace-nowrap text-center cursor-pointer ${
               activeCaseTab === 'submitted'
                 ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
                 : 'text-slate-600 hover:text-slate-900'
@@ -420,8 +440,19 @@ export function FieldWorkerAuditProjectsView({
           </button>
           <button
             type="button"
+            onClick={() => setActiveCaseTab('rejected')}
+            className={`py-1.5 px-2.5 rounded-lg transition whitespace-nowrap text-center cursor-pointer ${
+              activeCaseTab === 'rejected'
+                ? 'bg-rose-600 text-white shadow-2xs font-extrabold'
+                : 'text-rose-700 hover:bg-rose-100/60'
+            }`}
+          >
+            Returned ({rejectedCases.length})
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveCaseTab('completed')}
-            className={`flex-1 py-1.5 px-2 rounded-lg transition whitespace-nowrap text-center cursor-pointer ${
+            className={`py-1.5 px-2.5 rounded-lg transition whitespace-nowrap text-center cursor-pointer ${
               activeCaseTab === 'completed'
                 ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
                 : 'text-slate-600 hover:text-slate-900'
@@ -455,6 +486,8 @@ export function FieldWorkerAuditProjectsView({
                 <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
                   {activeCaseTab === 'pending'
                     ? 'All assigned beneficiary cases for this project have been audited!'
+                    : activeCaseTab === 'rejected'
+                    ? 'No returned or rejected cases for this project.'
                     : 'No household cases match your current filter criteria.'}
                 </p>
               </div>
@@ -469,16 +502,19 @@ export function FieldWorkerAuditProjectsView({
             </div>
           ) : (
             displayCases.map((task) => {
-              const isPending = task.status === 'Assigned to Field Worker' || task.status === 'Submitted' || task.status === 'Assessment In Progress' || task.status === 'Correction Required' || task.status === 'Pending' || task.status === 'Pending Review';
-              const isSubmitted = task.status === 'Assessment Submitted' || task.status === 'Awaiting Program Manager Decision';
-              const isCompleted = task.status === 'Completed' || task.status === 'Distributed' || task.status === 'Approved';
+              const isRejected = isRej(task);
+              const isPending = !isRejected && (task.status === 'Assigned to Field Worker' || task.status === 'Submitted' || task.status === 'Assessment In Progress' || task.status === 'Correction Required' || task.status === 'Pending' || task.status === 'Pending Review');
+              const isSubmitted = !isRejected && (task.status === 'Assessment Submitted' || task.status === 'Awaiting Program Manager Decision');
+              const isCompleted = !isRejected && (task.status === 'Completed' || task.status === 'Distributed' || task.status === 'Approved');
 
               const isUrgent = task.urgency_level === 'Critical Emergency' || task.urgency === 'Critical' || task.priority === 'Critical';
 
               return (
                 <div
                   key={task.id || task.request_code}
-                  className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-2xs hover:shadow-xs transition space-y-2.5"
+                  className={`bg-white rounded-2xl p-3.5 border shadow-2xs hover:shadow-xs transition space-y-2.5 ${
+                    isRejected ? 'border-rose-300 ring-1 ring-rose-200/50 bg-rose-50/10' : 'border-slate-200'
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -499,13 +535,27 @@ export function FieldWorkerAuditProjectsView({
                     </div>
 
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      isRejected ? 'bg-rose-100 text-rose-900 border border-rose-200' :
                       isPending ? 'bg-amber-100 text-amber-900 border border-amber-200' :
                       isSubmitted ? 'bg-purple-100 text-purple-900 border border-purple-200' :
                       'bg-emerald-100 text-emerald-900 border border-emerald-200'
                     }`}>
-                      {isPending ? 'Pending Audit' : isSubmitted ? 'Submitted' : 'Delivered'}
+                      {isRejected ? 'Returned by PM' : isPending ? 'Pending Audit' : isSubmitted ? 'Submitted' : 'Delivered'}
                     </span>
                   </div>
+
+                  {/* Rejection Notice Banner */}
+                  {isRejected && (
+                    <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-950 space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-rose-900 text-[11px]">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                        <span>Audit Returned by Program Manager</span>
+                      </div>
+                      <p className="text-[11px] text-rose-800 italic pl-5">
+                        "{task.rejection_reason || task.review_notes || 'Declined during PM review. Returned for on-ground re-assessment.'}"
+                      </p>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2 rounded-xl border border-slate-100">
                     <div className="flex items-center gap-1.5 text-slate-600">
@@ -531,6 +581,17 @@ export function FieldWorkerAuditProjectsView({
                           className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[10px] font-bold rounded-lg border border-amber-200 transition cursor-pointer"
                         >
                           Facilitation
+                        </button>
+                      )}
+
+                      {isRejected && (
+                        <button
+                          type="button"
+                          onClick={() => onStartAuditForTask(task)}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 text-rose-200" />
+                          <span>Re-Audit Case</span>
                         </button>
                       )}
 

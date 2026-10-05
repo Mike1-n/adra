@@ -31,9 +31,10 @@ export function UserProfileModal({ isOpen, onClose }) {
     'Program Manager',
     'Supervisor',
     'Field Worker',
+    'Inventory Manager',
+    'Finance Officer',
     'Beneficiary',
     'Project Officer',
-    'Finance Officer',
     'M&E Officer'
   ];
 

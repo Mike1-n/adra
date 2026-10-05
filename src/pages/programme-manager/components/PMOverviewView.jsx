@@ -22,20 +22,29 @@ export function PMOverviewView({
   // 1. Pending Facilitations needing PM sign-off (Stage 2)
   const pendingPMFacilitations = useMemo(() => {
     return facilitations.filter(
-      f => f.status === 'Pending Program Manager Approval' || f.stage === 2
+      f => f.status !== 'Rejected by Program Manager' &&
+           f.status !== 'Rejected' &&
+           f.stage !== -1 &&
+           !f.returned_to_worker &&
+           !f.status?.toLowerCase()?.includes('reject') &&
+           (f.status === 'Pending Program Manager Approval' || f.stage === 2 || f.status === 'Endorsed by Supervisor')
     );
   }, [facilitations]);
 
   // 2. Pending Assistance Requests needing PM decision
   const pendingPMAssistance = useMemo(() => {
     return requests.filter(
-      r => r.status === 'Pending' || 
-           r.status === 'Pending Review' || 
-           r.status === 'My Decision' || 
-           r.status === 'Submitted' ||
-           r.status === 'Awaiting Program Manager Decision' ||
-           r.status === 'Forwarded to Program Manager' ||
-           r.status === 'Assessment Submitted'
+      r => r.status !== 'Rejected' &&
+           r.status_label !== 'Rejected by PM' &&
+           !r.returned_to_worker &&
+           !r.status?.toLowerCase()?.includes('reject') &&
+           (r.status === 'Pending' || 
+            r.status === 'Pending Review' || 
+            r.status === 'My Decision' || 
+            r.status === 'Submitted' ||
+            r.status === 'Awaiting Program Manager Decision' ||
+            r.status === 'Forwarded to Program Manager' ||
+            r.status === 'Assessment Submitted')
     );
   }, [requests]);
 

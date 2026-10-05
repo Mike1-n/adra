@@ -37,6 +37,9 @@ import { FieldWorkerApp } from './pages/field-worker/FieldWorkerApp';
 // Specialized Finance Manager Mobile Application
 import { FinanceMobileApp } from './pages/finance/FinanceMobileApp';
 
+// Dedicated Inventory & Logistics Manager Portal (Section 1.5.10 & 1.5.11)
+import { InventoryManagerDashboard } from './pages/inventory/InventoryManagerDashboard';
+
 export function App() {
   const { currentUser, logout, quickSwitchRole } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -107,6 +110,10 @@ export function App() {
     if (currentUser.role === 'Finance Officer' || currentUser.role === 'Finance Manager') {
       setCurrentTab('finance');
       setAppMode('finance_mobile');
+      return;
+    } else if (currentUser.role === 'Inventory Manager' || currentUser.role === 'Logistics Officer') {
+      setCurrentTab('inventory');
+      setAppMode('inventory_manager');
       return;
     } else if (currentUser.role === 'M&E Officer') {
       setCurrentTab('me');
@@ -192,11 +199,24 @@ export function App() {
     );
   }
 
+  // If Inventory Manager logs in or switches to Inventory mode:
+  if (currentUser.role === 'Inventory Manager' || currentUser.role === 'Logistics Officer' || appMode === 'inventory_manager' || currentTab === 'inventory') {
+    return (
+      <InventoryManagerDashboard
+        currentUser={currentUser}
+        onLogout={logout}
+        onSwitchRole={quickSwitchRole}
+        onBackToFieldApp={() => setCurrentTab('dashboard')}
+      />
+    );
+  }
+
   const tabTitles = {
     dashboard: 'Field Operations Dashboard',
     supervisor: 'Supervisor Mobile App',
     field_worker: 'Field Worker Application',
     programs: 'Programme Manager Dashboard',
+    inventory: 'Inventory & Logistics Command Hub',
     projects: 'Project Portfolio',
     beneficiaries: 'Beneficiary Management',
     activities: 'Project Activities',
@@ -240,6 +260,15 @@ export function App() {
             currentUser={currentUser}
             onLogout={logout}
             onSwitchRole={quickSwitchRole}
+          />
+        );
+      case 'inventory':
+        return (
+          <InventoryManagerDashboard
+            currentUser={currentUser}
+            onLogout={logout}
+            onSwitchRole={quickSwitchRole}
+            onBackToFieldApp={() => setCurrentTab('dashboard')}
           />
         );
       case 'projects':

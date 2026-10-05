@@ -569,6 +569,17 @@ export const demoAccounts = [
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
   },
   {
+    id: 'user-im',
+    email: 'inventory.manager@adra.org',
+    phone: '+211-920-000008',
+    password: 'Password123!',
+    full_name: 'Gabriel Majok',
+    role: 'Inventory Manager',
+    department: 'Central Warehousing & Logistics (Juba Hub)',
+    status: 'Active',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80'
+  },
+  {
     id: 'user-fw',
     email: 'field.worker@adra.org',
     phone: '+211-920-000005',
@@ -622,6 +633,7 @@ export const initialRoles = [
   'Supervisor',
   'Field Worker',
   'Finance Officer',
+  'Inventory Manager',
   'Supplier',
   'Donor',
   'Beneficiary'
@@ -631,6 +643,7 @@ export const initialPermissions = [
   { role: 'Administrator', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: true, can_export: true },
   { role: 'Program Manager', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: false, can_export: true },
   { role: 'Supervisor', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: false, can_export: true },
+  { role: 'Inventory Manager', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: false, can_export: true },
   { role: 'Project Officer', can_view: true, can_create: true, can_edit: true, can_approve: false, can_delete: false, can_export: true },
   { role: 'Finance Officer', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: false, can_export: true },
   { role: 'Field Worker', can_view: true, can_create: true, can_edit: false, can_approve: false, can_delete: false, can_export: false },
@@ -639,24 +652,231 @@ export const initialPermissions = [
   { role: 'Beneficiary', can_view: true, can_create: false, can_edit: false, can_approve: false, can_delete: false, can_export: false }
 ];
 
+export const initialWarehouses = [
+  { id: 'wh-1', code: 'DEP-CEQ-01', name: 'Central Equatoria State Depot', location: 'Central Equatoria State, Juba Port Zone', manager_name: 'Gabriel Majok', contact_phone: '+211-920-000008', capacity_sqm: 4500, utilized_pct: 68, status: 'Active' },
+  { id: 'wh-2', code: 'DEP-EEQ-02', name: 'Eastern Equatoria State Depot', location: 'Eastern Equatoria State, Torit / Kapoeta Hub', manager_name: 'Mary Naita', contact_phone: '+211-923-440055', capacity_sqm: 2400, utilized_pct: 61, status: 'Active' },
+  { id: 'wh-3', code: 'DEP-WEQ-03', name: 'Western Equatoria State Depot', location: 'Western Equatoria State, Yambio Base', manager_name: 'Emmanuel Kenyi', contact_phone: '+211-925-660077', capacity_sqm: 2200, utilized_pct: 45, status: 'Active' },
+  { id: 'wh-4', code: 'DEP-JON-04', name: 'Jonglei State Depot', location: 'Jonglei State, Bor River Port', manager_name: 'James Manyok', contact_phone: '+211-924-550066', capacity_sqm: 3000, utilized_pct: 58, status: 'Active' },
+  { id: 'wh-5', code: 'DEP-UNI-05', name: 'Unity State Depot', location: 'Unity State, Bentiu Humanitarian Base', manager_name: 'Gatluak Biel', contact_phone: '+211-926-770088', capacity_sqm: 2600, utilized_pct: 50, status: 'Active' },
+  { id: 'wh-6', code: 'DEP-UPN-06', name: 'Upper Nile State Depot', location: 'Upper Nile State, Malakal River Port', manager_name: 'Peter Chol', contact_phone: '+211-921-110022', capacity_sqm: 3200, utilized_pct: 54, status: 'Active' },
+  { id: 'wh-7', code: 'DEP-LAK-07', name: 'Lakes State Depot', location: 'Lakes State, Rumbek Central Hub', manager_name: 'Daniel Mabor', contact_phone: '+211-927-880099', capacity_sqm: 2500, utilized_pct: 48, status: 'Active' },
+  { id: 'wh-8', code: 'DEP-WAR-08', name: 'Warrap State Depot', location: 'Warrap State, Kuajok Supply Base', manager_name: 'Deng Deng', contact_phone: '+211-928-990011', capacity_sqm: 2300, utilized_pct: 52, status: 'Active' },
+  { id: 'wh-9', code: 'DEP-NBG-09', name: 'Northern Bahr el Ghazal State Depot', location: 'Northern Bahr el Ghazal State, Aweil Town', manager_name: 'Garang Akok', contact_phone: '+211-929-110033', capacity_sqm: 2700, utilized_pct: 56, status: 'Active' },
+  { id: 'wh-10', code: 'DEP-WBG-10', name: 'Western Bahr el Ghazal State Depot', location: 'Western Bahr el Ghazal State, Wau Town', manager_name: 'Santino Alier', contact_phone: '+211-922-330044', capacity_sqm: 2800, utilized_pct: 42, status: 'Active' }
+];
+
 export const initialLocations = [];
 
 export const initialApprovals = [];
 
 export const initialSuppliers = [
-  { id: 'sup-1', company_name: 'Equatorial Relief Logistics', category: 'Fleet & Cargo', contact_person: 'Hassan Gedi', phone: '+254-711-234567', email: 'procurement@africasupplies.com', status: 'Active', rating: 4.8 },
-  { id: 'sup-2', company_name: 'Simlaw Certified Seeds Kenya', category: 'Agriculture & Inputs', contact_person: 'Faith Waweru', phone: '+254-722-456789', email: 'orders@simlaw.co.ke', status: 'Active', rating: 4.9 },
-  { id: 'sup-3', company_name: 'Davis & Shirtliff Water Technologies', category: 'WASH Equipment', contact_person: 'Eng. Paul Kilonzo', phone: '+254-733-678901', email: 'humanitarian@dayliff.com', status: 'Active', rating: 5.0 },
-  { id: 'sup-4', company_name: 'MedAid Kenya Pharmaceuticals', category: 'Medical & Hygiene', contact_person: 'Dr. James Kariuki', phone: '+254-700-112233', email: 'supplies@medaid.ke', status: 'Pending Review', rating: 4.2 }
+  { id: 'sup-1', company_name: 'Davis & Shirtliff Water Technologies', category: 'WASH (Water & Sanitation)', contact_person: 'Eng. Paul Kilonzo', phone: '+254-733-678901', email: 'humanitarian@dayliff.com', status: 'Active', rating: 5.0 },
+  { id: 'sup-2', company_name: 'MedAid Kenya Pharmaceuticals', category: 'WASH (Water & Sanitation)', contact_person: 'Dr. James Kariuki', phone: '+254-700-112233', email: 'supplies@medaid.ke', status: 'Active', rating: 4.9 },
+  { id: 'sup-3', company_name: 'Nutriset Humanitarian Supplies', category: 'Food Assistance', contact_person: 'Claire Dubois', phone: '+33-2-35-12-34-56', email: 'relief-orders@nutriset.fr', status: 'Active', rating: 5.0 },
+  { id: 'sup-4', company_name: 'Simlaw Certified Seeds', category: 'Agriculture & Livelihoods', contact_person: 'Faith Waweru', phone: '+254-722-456789', email: 'orders@simlaw.co.ke', status: 'Active', rating: 4.8 },
+  { id: 'sup-5', company_name: 'Equatorial Relief Logistics', category: 'Shelter & Non-Food Items', contact_person: 'Hassan Gedi', phone: '+254-711-234567', email: 'procurement@africasupplies.com', status: 'Active', rating: 4.8 }
 ];
 
 export const initialInventory = [
-  { id: 'inv-1', item_name: 'Solar Borehole Submersible Pump Units', category: 'WASH', quantity: 24, unit: 'Sets', warehouse: 'Lodwar Central Depot', min_threshold: 5, status: 'In Stock' },
-  { id: 'inv-2', item_name: 'Certified Drought Sorghum Seeds (25kg bags)', category: 'Agriculture', quantity: 850, unit: 'Bags', warehouse: 'Marsabit Logistics Hub', min_threshold: 100, status: 'In Stock' },
-  { id: 'inv-3', item_name: 'Family Hygiene Dignity Kits', category: 'Health & Shelter', quantity: 1420, unit: 'Kits', warehouse: 'Garissa Sub-Office', min_threshold: 200, status: 'In Stock' },
-  { id: 'inv-4', item_name: 'Water Purification Chlorination Tablets (Boxes of 100)', category: 'WASH', quantity: 3200, unit: 'Boxes', warehouse: 'Nairobi Central Store', min_threshold: 500, status: 'In Stock' },
-  { id: 'inv-5', item_name: 'Micro-Drip Irrigation Line Bundles', category: 'Agriculture', quantity: 65, unit: 'Bundles', warehouse: 'Lodwar Central Depot', min_threshold: 80, status: 'Low Stock' }
+  {
+    id: 'inv-101',
+    sku: 'FOD-MZ-011',
+    item_name: 'Fortified Maize Flour (25kg Bags)',
+    category: 'Food Assistance',
+    quantity: 3600,
+    unit: 'Bags',
+    warehouse: 'Eastern Equatoria State Depot',
+    min_threshold: 600,
+    unit_cost: 28.50,
+    total_value: 102600.00,
+    batch_number: 'BATCH-2026-FOD-55',
+    expiry_date: '2027-03-31',
+    supplier_name: 'Equatorial Relief Logistics',
+    status: 'In Stock'
+  },
+  {
+    id: 'inv-102',
+    sku: 'FOD-PLS-012',
+    item_name: 'Yellow Split Peas / Pulses (10kg Bags)',
+    category: 'Food Assistance',
+    quantity: 80,
+    unit: 'Bags',
+    warehouse: 'Eastern Equatoria State Depot',
+    min_threshold: 250,
+    unit_cost: 16.20,
+    total_value: 1296.00,
+    batch_number: 'BATCH-2026-PLS-22',
+    expiry_date: '2027-02-28',
+    supplier_name: 'Equatorial Relief Logistics',
+    status: 'Low Stock'
+  },
+  {
+    id: 'inv-103',
+    sku: 'ADRA-FOD-FB01',
+    item_name: 'Emergency Household Food Basket (Maize Flour, Beans, Rice, Oil, Salt)',
+    category: 'Food Assistance',
+    quantity: 950,
+    unit: 'Baskets',
+    warehouse: 'Central Equatoria State Depot',
+    min_threshold: 150,
+    unit_cost: 42.00,
+    total_value: 39900.00,
+    batch_number: 'BATCH-2026-FOD-01',
+    expiry_date: '2027-06-30',
+    supplier_name: 'Equatorial Relief Logistics',
+    status: 'In Stock'
+  },
+  {
+    id: 'inv-104',
+    sku: 'ADRA-FOD-OIL02',
+    item_name: 'Fortified Vegetable Cooking Oil (20L Food-Grade Jerrycans)',
+    category: 'Food Assistance',
+    quantity: 120,
+    unit: 'Jerrycans',
+    warehouse: 'Central Equatoria State Depot',
+    min_threshold: 150,
+    unit_cost: 28.50,
+    total_value: 3420.00,
+    batch_number: 'BATCH-2026-OIL-02',
+    expiry_date: '2027-08-31',
+    supplier_name: 'Equatorial Relief Logistics',
+    status: 'Low Stock'
+  },
+  {
+    id: 'inv-105',
+    sku: 'ADRA-FOD-BP5',
+    item_name: 'BP-5 High-Nutrition Emergency Compact Food Rations (Box of 24 Bars)',
+    category: 'Food Assistance',
+    quantity: 480,
+    unit: 'Cartons',
+    warehouse: 'Western Bahr el Ghazal State Depot',
+    min_threshold: 100,
+    unit_cost: 55.00,
+    total_value: 26400.00,
+    batch_number: 'BATCH-2026-BP5-09',
+    expiry_date: '2029-12-31',
+    supplier_name: 'Equatorial Relief Logistics',
+    status: 'In Stock'
+  },
+  {
+    id: 'inv-106',
+    sku: 'WASH-TAB-004',
+    item_name: 'Aquatabs Water Chlorination Tablets (Boxes of 100 strips)',
+    category: 'WASH (Water & Sanitation)',
+    quantity: 4800,
+    unit: 'Boxes',
+    warehouse: 'Central Equatoria State Depot',
+    min_threshold: 1000,
+    unit_cost: 4.50,
+    total_value: 21600.00,
+    batch_number: 'BATCH-2026-TAB-44',
+    expiry_date: '2028-06-30',
+    supplier_name: 'MedAid Kenya Pharmaceuticals',
+    status: 'In Stock'
+  },
+  {
+    id: 'inv-107',
+    sku: 'WASH-JCN-013',
+    item_name: 'Food-Grade 20L Water Jerricans with Tap',
+    category: 'WASH (Water & Sanitation)',
+    quantity: 120,
+    unit: 'Units',
+    warehouse: 'Central Equatoria State Depot',
+    min_threshold: 300,
+    unit_cost: 6.80,
+    total_value: 816.00,
+    batch_number: 'BATCH-2026-JCN-18',
+    expiry_date: 'N/A',
+    supplier_name: 'Equatorial Relief Logistics',
+    status: 'Low Stock'
+  },
+  {
+    id: 'inv-108',
+    sku: 'HLT-DIG-003',
+    item_name: 'Family Hygiene & Dignity Kits (Jerrycan, Soap, Towels, Pads)',
+    category: 'WASH (Water & Sanitation)',
+    quantity: 620,
+    unit: 'Kits',
+    warehouse: 'Eastern Equatoria State Depot',
+    min_threshold: 150,
+    unit_cost: 22.00,
+    total_value: 13640.00,
+    batch_number: 'BATCH-2026-HYG-12',
+    expiry_date: 'N/A',
+    supplier_name: 'Equatorial Relief Logistics',
+    status: 'In Stock'
+  },
+  {
+    id: 'inv-109',
+    sku: 'SHT-TRP-006',
+    item_name: 'Emergency Heavy-Duty Shelter Tarpaulins (4x5m UV-Resistant)',
+    category: 'Shelter & Non-Food Items',
+    quantity: 850,
+    unit: 'Tarpaulins',
+    warehouse: 'Jonglei State Depot',
+    min_threshold: 200,
+    unit_cost: 18.00,
+    total_value: 15300.00,
+    batch_number: 'BATCH-2026-TRP-03',
+    expiry_date: 'N/A',
+    supplier_name: 'Equatorial Relief Logistics',
+    status: 'In Stock'
+  },
+  {
+    id: 'inv-110',
+    sku: 'SHT-BLK-009',
+    item_name: 'Thermal Humanitarian Fleece Blankets (Bundles of 20)',
+    category: 'Shelter & Non-Food Items',
+    quantity: 420,
+    unit: 'Bundles',
+    warehouse: 'Jonglei State Depot',
+    min_threshold: 100,
+    unit_cost: 48.00,
+    total_value: 20160.00,
+    batch_number: 'BATCH-2026-BLK-15',
+    expiry_date: 'N/A',
+    supplier_name: 'Equatorial Relief Logistics',
+    status: 'In Stock'
+  },
+  {
+    id: 'inv-111',
+    sku: 'AGR-SD-002',
+    item_name: 'Certified Drought Sorghum & Maize Seeds (25kg bags)',
+    category: 'Agriculture & Livelihoods',
+    quantity: 1250,
+    unit: 'Bags',
+    warehouse: 'Eastern Equatoria State Depot',
+    min_threshold: 300,
+    unit_cost: 28.50,
+    total_value: 35625.00,
+    batch_number: 'BATCH-2026-SD-88',
+    expiry_date: '2027-12-31',
+    supplier_name: 'Simlaw Certified Seeds',
+    status: 'In Stock'
+  },
+  {
+    id: 'inv-112',
+    sku: 'EDU-KIT-014',
+    item_name: 'Student Educational & Literacy Kits (Backpacks, Books, Pens)',
+    category: 'Education & Youth',
+    quantity: 1100,
+    unit: 'Kits',
+    warehouse: 'Upper Nile State Depot',
+    min_threshold: 200,
+    unit_cost: 14.50,
+    total_value: 15950.00,
+    batch_number: 'BATCH-2026-EDU-02',
+    expiry_date: 'N/A',
+    supplier_name: 'Equatorial Relief Logistics',
+    status: 'In Stock'
+  }
 ];
+
+export const initialPurchaseOrders = [];
+
+export const initialDispatches = [];
+
+export const initialStockTransactions = [];
 
 export const initialSecuritySettings = {
   min_password_length: 10,

@@ -316,24 +316,29 @@ export function ProgrammeManagerDashboard({
   };
 
   const getAuditFinishedStatus = (r) => {
+    if (r.status === 'Rejected' || r.status_label === 'Rejected by PM' || r.returned_to_worker) {
+      return false;
+    }
     return Boolean(
       r.status === 'Assessment Submitted' ||
       r.status === 'Awaiting Program Manager Decision' ||
       r.status === 'Forwarded to Program Manager' ||
       r.status === 'Completed' ||
       r.status === 'Fulfilled' ||
-      r.assessment_code ||
+      (r.assessment_code && r.status !== 'Rejected') ||
       r.is_verified_on_ground === true
     );
   };
 
   const requestPipelineCounts = useMemo(() => {
     const all = scopedRequests.length;
-    const pendingSupervisor = scopedRequests.filter(r => !getSupervisorStatus(r) && r.status !== 'Rejected').length;
-    const supervisorAssigned = scopedRequests.filter(r => getSupervisorStatus(r) && !getFieldWorkerStatus(r) && !getAuditFinishedStatus(r)).length;
-    const workerInField = scopedRequests.filter(r => getFieldWorkerStatus(r) && !getAuditFinishedStatus(r)).length;
+    const isRejected = (r) => r.status === 'Rejected' || r.status_label === 'Rejected by PM' || r.returned_to_worker;
+    const pendingSupervisor = scopedRequests.filter(r => !getSupervisorStatus(r) && !isRejected(r)).length;
+    const supervisorAssigned = scopedRequests.filter(r => getSupervisorStatus(r) && !getFieldWorkerStatus(r) && !getAuditFinishedStatus(r) && !isRejected(r)).length;
+    const workerInField = scopedRequests.filter(r => getFieldWorkerStatus(r) && !getAuditFinishedStatus(r) && !isRejected(r)).length;
     const auditFinished = scopedRequests.filter(r => getAuditFinishedStatus(r)).length;
-    const disbursed = scopedRequests.filter(r => r.status === 'Completed' || r.status === 'Fulfilled' || r.status === 'Disbursed').length;
+    const rejected = scopedRequests.filter(r => isRejected(r)).length;
+    const disbursed = scopedRequests.filter(r => (r.status === 'Completed' || r.status === 'Fulfilled' || r.status === 'Disbursed') && !isRejected(r)).length;
 
     return {
       all,
@@ -341,24 +346,34 @@ export function ProgrammeManagerDashboard({
       supervisorAssigned,
       workerInField,
       auditFinished,
+      rejected,
       disbursed
     };
   }, [scopedRequests]);
 
   const facilitationCounts = useMemo(() => {
+    const isRej = r => r.status === 'Rejected by Program Manager' || 
+                       r.status === 'Rejected' || 
+                       r.stage === -1 || 
+                       Boolean(r.returned_to_worker) || 
+                       (typeof r.status === 'string' && r.status.toLowerCase().includes('reject'));
+
     const pendingPM = facilitations.filter(
-      r => r.status === 'Pending Program Manager Approval' || r.stage === 2 || r.status === 'Endorsed by Supervisor'
+      r => !isRej(r) && (r.status === 'Pending Program Manager Approval' || r.stage === 2 || r.status === 'Endorsed by Supervisor')
     ).length;
     const pendingFinance = facilitations.filter(
-      r => r.status === 'Approved (Pending Finance Disbursement)' || r.stage === 3 || r.status === 'Approved by Program Manager'
+      r => !isRej(r) && (r.status === 'Approved (Pending Finance Disbursement)' || r.stage === 3 || r.status === 'Approved by Program Manager')
     ).length;
     const disbursed = facilitations.filter(
-      r => r.status === 'Disbursed' || r.stage === 4 || r.status === 'Disbursed / Paid'
+      r => !isRej(r) && (r.status === 'Disbursed' || r.stage === 4 || r.status === 'Disbursed / Paid')
     ).length;
+    const rejected = facilitations.filter(r => isRej(r)).length;
+
     return {
       pending_pm: pendingPM,
       approved_pm: pendingFinance,
       disbursed: disbursed,
+      rejected: rejected,
       all: facilitations.length
     };
   }, [facilitations]);
@@ -554,6 +569,7 @@ export function ProgrammeManagerDashboard({
                     { id: 'Supervisor Assigned', label: 'Supervisor Assigned', count: requestPipelineCounts.supervisorAssigned, color: 'text-amber-800 bg-amber-100' },
                     { id: 'Field Worker Assigned', label: 'Worker in Field', count: requestPipelineCounts.workerInField, color: 'text-blue-800 bg-blue-100' },
                     { id: 'Audit Completed', label: 'Audit Finished', count: requestPipelineCounts.auditFinished, color: 'text-emerald-800 bg-emerald-100' },
+                    { id: 'Rejected', label: 'Rejected by PM', count: requestPipelineCounts.rejected, color: 'text-rose-800 bg-rose-100' },
                     { id: 'Disbursed', label: 'Disbursed / Done', count: requestPipelineCounts.disbursed, color: 'text-teal-800 bg-teal-100' }
                   ].map(sub => {
                     const isSubActive = activeTab === 'requests' && (
@@ -642,6 +658,7 @@ export function ProgrammeManagerDashboard({
                     { id: 'pending_pm', label: 'Pending Review', count: facilitationCounts.pending_pm, color: 'text-amber-800 bg-amber-100' },
                     { id: 'approved_pm', label: 'Authorized', count: facilitationCounts.approved_pm, color: 'text-blue-800 bg-blue-100' },
                     { id: 'disbursed', label: 'Disbursed', count: facilitationCounts.disbursed, color: 'text-emerald-800 bg-emerald-100' },
+                    { id: 'rejected', label: 'Rejected by PM', count: facilitationCounts.rejected, color: 'text-rose-800 bg-rose-100' },
                     { id: 'all', label: 'All Facilitations', count: facilitationCounts.all, color: 'text-slate-800 bg-slate-100' }
                   ].map(sub => {
                     const isSubActive = activeTab === 'facilitations' && facilitationStatusFilter === sub.id;

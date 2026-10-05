@@ -55,22 +55,33 @@ export function PMFacilitationsView({
         (req.location || '').toLowerCase().includes(q) ||
         (req.linked_beneficiary_name || '').toLowerCase().includes(q);
 
+      const isRej = req.status === 'Rejected by Program Manager' ||
+                    req.status === 'Rejected' ||
+                    req.stage === -1 ||
+                    Boolean(req.returned_to_worker) ||
+                    (typeof req.status === 'string' && req.status.toLowerCase().includes('reject'));
+
       let matchesStatus = true;
       if (activeFilter === 'pending_pm') {
         matchesStatus =
-          req.status === 'Pending Program Manager Approval' ||
+          !isRej &&
+          (req.status === 'Pending Program Manager Approval' ||
           req.stage === 2 ||
-          req.status === 'Endorsed by Supervisor';
+          req.status === 'Endorsed by Supervisor');
       } else if (activeFilter === 'approved_pm') {
         matchesStatus =
-          req.status === 'Approved (Pending Finance Disbursement)' ||
+          !isRej &&
+          (req.status === 'Approved (Pending Finance Disbursement)' ||
           req.stage === 3 ||
-          req.status === 'Approved by Program Manager';
+          req.status === 'Approved by Program Manager');
       } else if (activeFilter === 'disbursed') {
         matchesStatus =
-          req.stage === 4 ||
+          !isRej &&
+          (req.stage === 4 ||
           req.status === 'Disbursed / Paid' ||
-          req.status === 'Disbursed';
+          req.status === 'Disbursed');
+      } else if (activeFilter === 'rejected') {
+        matchesStatus = isRej;
       }
 
       return matchesSearch && matchesStatus;
@@ -86,6 +97,8 @@ export function PMFacilitationsView({
         return 'Authorized';
       case 'disbursed':
         return 'Disbursed';
+      case 'rejected':
+        return 'Rejected by PM';
       default:
         return 'All Facilitations';
     }
@@ -206,18 +219,27 @@ export function PMFacilitationsView({
         ) : (
           filteredRequests.map(req => {
             const isExpanded = expandedId === req.id;
-            const isPendingPM =
+            const isRejected = req.status === 'Rejected by Program Manager' ||
+                               req.status === 'Rejected' ||
+                               req.stage === -1 ||
+                               Boolean(req.returned_to_worker) ||
+                               (typeof req.status === 'string' && req.status.toLowerCase().includes('reject'));
+
+            const isPendingPM = !isRejected && (
               req.status === 'Pending Program Manager Approval' ||
               req.stage === 2 ||
-              req.status === 'Endorsed by Supervisor';
-            const isDisbursed =
+              req.status === 'Endorsed by Supervisor'
+            );
+            const isDisbursed = !isRejected && (
               req.status === 'Disbursed' ||
               req.stage === 4 ||
-              req.status === 'Disbursed / Paid';
-            const isPendingFinance =
+              req.status === 'Disbursed / Paid'
+            );
+            const isPendingFinance = !isRejected && (
               req.status === 'Approved (Pending Finance Disbursement)' ||
               req.stage === 3 ||
-              req.status === 'Approved by Program Manager';
+              req.status === 'Approved by Program Manager'
+            );
 
             return (
               <div
@@ -273,19 +295,34 @@ export function PMFacilitationsView({
                     </div>
                   )}
 
-                  {/* Status Badge if not pending */}
-                  {!isPendingPM && (
+                  {/* Status Badge if not pending or if rejected */}
+                  {(!isPendingPM || isRejected) && (
                     <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
                       <span className="text-slate-500 font-medium">Status:</span>
                       <span className={`font-bold px-2 py-0.5 rounded-md ${
-                        isDisbursed
+                        isRejected
+                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                          : isDisbursed
                           ? 'bg-emerald-100 text-emerald-800'
                           : isPendingFinance
                           ? 'bg-blue-100 text-blue-800'
                           : 'bg-slate-100 text-slate-700'
                       }`}>
-                        {req.status}
+                        {isRejected ? 'Rejected by PM' : req.status}
                       </span>
+                    </div>
+                  )}
+
+                  {/* Rejection Note Preview if rejected */}
+                  {isRejected && (req.pm_remarks || req.rejection_reason) && (
+                    <div className="bg-rose-50/80 p-2.5 rounded-xl border border-rose-200 text-[11px] text-rose-950 flex items-start gap-1.5">
+                      <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-rose-900 block">Rejection Reason:</span>
+                        <p className="italic text-rose-800">
+                          "{req.pm_remarks || req.rejection_reason}"
+                        </p>
+                      </div>
                     </div>
                   )}
 

@@ -50,17 +50,23 @@ export function FieldWorkerTasksView({
         (task.category && task.category.toLowerCase().includes(q))
       );
 
+      const isTaskRej = task.status === 'Rejected' || 
+                        task.status?.includes('Rejected') || 
+                        task.status_label?.includes('Rejected') || 
+                        task.status === 'Correction Required' || 
+                        Boolean(task.returned_to_worker);
+
       let matchStatus = true;
       if (statusFilter === 'pending') {
-        matchStatus = (task.status === 'Assigned to Field Worker' || task.status === 'Submitted' || task.status === 'Assessment In Progress') && task.status !== 'Rejected';
+        matchStatus = (task.status === 'Assigned to Field Worker' || task.status === 'Submitted' || task.status === 'Assessment In Progress') && !isTaskRej;
       } else if (statusFilter === 'in_progress') {
-        matchStatus = task.status === 'Assessment In Progress';
+        matchStatus = task.status === 'Assessment In Progress' && !isTaskRej;
       } else if (statusFilter === 'submitted') {
-        matchStatus = task.status === 'Assessment Submitted' || task.status === 'Awaiting Program Manager Decision';
+        matchStatus = (task.status === 'Assessment Submitted' || task.status === 'Awaiting Program Manager Decision') && !isTaskRej;
       } else if (statusFilter === 'rejected') {
-        matchStatus = task.status === 'Rejected' || task.status?.includes('Rejected') || task.status === 'Correction Required' || Boolean(task.returned_to_worker);
+        matchStatus = isTaskRej;
       } else if (statusFilter === 'completed') {
-        matchStatus = task.status === 'Completed' || task.status === 'Distributed' || task.status === 'Approved';
+        matchStatus = (task.status === 'Completed' || task.status === 'Distributed' || task.status === 'Approved') && !isTaskRej;
       }
 
       let matchUrgency = true;
@@ -78,30 +84,32 @@ export function FieldWorkerTasksView({
     setExpandedTaskId(prev => prev === taskId ? null : taskId);
   };
 
+  const isRejHelper = (t) => t.status === 'Rejected' || 
+                            t.status?.includes('Rejected') || 
+                            t.status_label?.includes('Rejected') || 
+                            t.status === 'Correction Required' || 
+                            Boolean(t.returned_to_worker);
+
   const pendingCount = tasks.filter(t => 
     (t.status === 'Assigned to Field Worker' || 
      t.status === 'Submitted' || 
      t.status === 'Assessment In Progress') &&
-    t.status !== 'Rejected' &&
-    !t.status?.includes('Rejected')
+    !isRejHelper(t)
   ).length;
 
   const submittedCount = tasks.filter(t => 
-    t.status === 'Assessment Submitted' || 
-    t.status === 'Awaiting Program Manager Decision'
+    (t.status === 'Assessment Submitted' || 
+     t.status === 'Awaiting Program Manager Decision') &&
+    !isRejHelper(t)
   ).length;
 
-  const rejectedCount = tasks.filter(t => 
-    t.status === 'Rejected' || 
-    t.status?.includes('Rejected') || 
-    t.status === 'Correction Required' ||
-    Boolean(t.returned_to_worker)
-  ).length;
+  const rejectedCount = tasks.filter(t => isRejHelper(t)).length;
 
   const completedCount = tasks.filter(t => 
-    t.status === 'Completed' || 
-    t.status === 'Distributed' || 
-    t.status === 'Approved'
+    (t.status === 'Completed' || 
+     t.status === 'Distributed' || 
+     t.status === 'Approved') &&
+    !isRejHelper(t)
   ).length;
 
   return (

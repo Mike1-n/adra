@@ -24,6 +24,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react';
+import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
 
 export function FieldAssessmentFormModal({
@@ -244,10 +245,10 @@ export function FieldAssessmentFormModal({
     }
   };
 
-  // Helper to compress uploaded images via canvas to ensure small footprint in localStorage
+  // Fast helper to compress uploaded images via canvas
   const compressImage = (file) => {
     return new Promise((resolve) => {
-      if (!file.type || !file.type.startsWith('image/')) {
+      if (!file || !file.type || !file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target?.result || '');
         reader.onerror = () => resolve('');
@@ -261,7 +262,7 @@ export function FieldAssessmentFormModal({
         img.onload = () => {
           let width = img.width;
           let height = img.height;
-          const maxDim = 1200;
+          const maxDim = 1000;
           if (width > maxDim || height > maxDim) {
             if (width > height) {
               height = Math.round((height * maxDim) / width);
@@ -276,7 +277,7 @@ export function FieldAssessmentFormModal({
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.68);
           resolve(dataUrl);
         };
         img.onerror = () => resolve(e.target?.result || '');
@@ -287,32 +288,67 @@ export function FieldAssessmentFormModal({
     });
   };
 
-  // Handle Photo Upload with compression
+  // Handle Photo Upload with Instant UI Preview + Parallel Background Supabase Storage
   const handlePhotoUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    for (const file of files) {
-      try {
-        const compressedUrl = await compressImage(file);
-        if (compressedUrl) {
-          const newPhoto = {
-            id: `photo-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            name: file.name,
-            title: file.name,
-            url: compressedUrl,
-            category: 'Field Evidence',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          };
-          setEvidencePhotos(prev => [...prev, newPhoto]);
-        }
-      } catch (err) {
-        console.error('Error reading photo:', err);
-      }
-    }
-
     if (fileInputRef.current) fileInputRef.current.value = '';
-    toast?.showToast?.(`${files.length} photo(s) added & processed`, 'success');
+
+    // 1. Instant Optimistic Preview (Renders on screen in < 10ms)
+    const newPendingPhotos = files.map((file, idx) => {
+      const tempId = `photo-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`;
+      let previewUrl = '';
+      try {
+        previewUrl = URL.createObjectURL(file);
+      } catch (err) {
+        previewUrl = '';
+      }
+      return {
+        id: tempId,
+        file,
+        name: file.name,
+        title: file.name,
+        url: previewUrl,
+        category: 'Field Evidence',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+    });
+
+    setEvidencePhotos(prev => [...prev, ...newPendingPhotos]);
+    toast?.showToast?.(`${files.length} photo(s) added`, 'info');
+
+    // 2. Process in background without blocking UI
+    Promise.all(newPendingPhotos.map(async (p) => {
+      try {
+        const file = p.file;
+        const [compressedDataUrl, storageResult] = await Promise.all([
+          compressImage(file),
+          db?.uploadStorageFile ? db.uploadStorageFile(file, {
+            bucket: 'field-evidence',
+            folder: 'photos',
+            fileName: file.name,
+            timeoutMs: 3500
+          }) : Promise.resolve(null)
+        ]);
+
+        const finalUrl = storageResult?.url || compressedDataUrl || p.url;
+
+        setEvidencePhotos(prev => prev.map(item => {
+          if (item.id === p.id) {
+            return {
+              ...item,
+              url: finalUrl,
+              storage_path: storageResult?.path || null,
+              storage_bucket: storageResult?.bucket || null
+            };
+          }
+          return item;
+        }));
+      } catch (err) {
+        console.warn('Background photo upload error:', err);
+      }
+    }));
   };
 
   // Remove Photo
@@ -320,42 +356,77 @@ export function FieldAssessmentFormModal({
     setEvidencePhotos(prev => prev.filter(p => p.id !== id));
   };
 
-  // Handle Document Upload (convert to base64 URL for storage and viewing)
+  // Handle Document Upload with Instant UI Preview + Parallel Background Supabase Storage
   const handleDocUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    for (const file of files) {
-      try {
-        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        const sizeStr = sizeMB >= 1 ? `${sizeMB} MB` : `${Math.round(file.size / 1024)} KB`;
-
-        const dataUrl = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (event) => resolve(event.target?.result || '');
-          reader.onerror = () => resolve('');
-          reader.readAsDataURL(file);
-        });
-
-        if (dataUrl) {
-          const newDoc = {
-            id: `doc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            name: file.name,
-            size: sizeStr,
-            type: file.type || 'Document',
-            url: dataUrl,
-            data_url: dataUrl,
-            date: new Date().toLocaleDateString()
-          };
-          setEvidenceDocs(prev => [...prev, newDoc]);
-        }
-      } catch (err) {
-        console.error('Error reading document:', err);
-      }
-    }
-
     if (docInputRef.current) docInputRef.current.value = '';
-    toast?.showToast?.(`${files.length} document(s) attached`, 'success');
+
+    // 1. Instant Optimistic Preview (Renders on screen in < 10ms)
+    const newPendingDocs = files.map((file, idx) => {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      const sizeStr = sizeMB >= 1 ? `${sizeMB} MB` : `${Math.round(file.size / 1024)} KB`;
+      const tempId = `doc-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`;
+      let previewUrl = '';
+      try {
+        previewUrl = URL.createObjectURL(file);
+      } catch (err) {
+        previewUrl = '';
+      }
+
+      return {
+        id: tempId,
+        file,
+        name: file.name,
+        size: sizeStr,
+        type: file.type || 'Document',
+        url: previewUrl,
+        data_url: previewUrl,
+        date: new Date().toLocaleDateString()
+      };
+    });
+
+    setEvidenceDocs(prev => [...prev, ...newPendingDocs]);
+    toast?.showToast?.(`${files.length} document(s) attached`, 'info');
+
+    // 2. Process in background without blocking UI
+    Promise.all(newPendingDocs.map(async (d) => {
+      try {
+        const file = d.file;
+        const [dataUrl, storageResult] = await Promise.all([
+          new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => resolve(event.target?.result || '');
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(file);
+          }),
+          db?.uploadStorageFile ? db.uploadStorageFile(file, {
+            bucket: 'field-evidence',
+            folder: 'documents',
+            fileName: file.name,
+            timeoutMs: 3500
+          }) : Promise.resolve(null)
+        ]);
+
+        const finalUrl = storageResult?.url || dataUrl || d.url;
+
+        setEvidenceDocs(prev => prev.map(item => {
+          if (item.id === d.id) {
+            return {
+              ...item,
+              url: finalUrl,
+              data_url: finalUrl,
+              storage_path: storageResult?.path || null,
+              storage_bucket: storageResult?.bucket || null
+            };
+          }
+          return item;
+        }));
+      } catch (err) {
+        console.warn('Background document upload error:', err);
+      }
+    }));
   };
 
   // Remove Document

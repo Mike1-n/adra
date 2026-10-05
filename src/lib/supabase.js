@@ -54,7 +54,11 @@ const STORAGE_KEYS = {
   SUPERVISOR_ACTIVITIES: 'adra_supervisor_activities',
   FIELD_WORKER_ACTIVITIES: 'adra_field_worker_activities',
   FIELD_WORKER_NOTIFICATIONS: 'adra_field_worker_notifications',
-  FIELD_FUNDING_REQUESTS: 'adra_field_funding_requests'
+  FIELD_FUNDING_REQUESTS: 'adra_field_funding_requests',
+  PURCHASE_ORDERS: 'adra_purchase_orders',
+  DISPATCHES: 'adra_dispatches',
+  STOCK_TRANSACTIONS: 'adra_stock_transactions',
+  WAREHOUSES: 'adra_warehouses'
 };
 
 function getLocalData(key, defaultData) {
@@ -89,8 +93,15 @@ function saveLocalData(key, data) {
 export function normalizeAssistanceRequest(r) {
   if (!r) return r;
 
-  let status = r.status || 'Submitted';
-  if (status === 'Pending' || status === 'Pending Review') {
+  const isRej = r.status === 'Rejected' || 
+                r.status_label === 'Rejected by PM' || 
+                Boolean(r.returned_to_worker) || 
+                (typeof r.status === 'string' && r.status.toLowerCase().includes('reject')) ||
+                (typeof r.status_label === 'string' && r.status_label.toLowerCase().includes('reject')) ||
+                (typeof r.review_notes === 'string' && (r.review_notes.toLowerCase().includes('reject') || r.review_notes.toLowerCase().includes('declined')));
+
+  let status = isRej ? 'Rejected' : (r.status || 'Submitted');
+  if (!isRej && (status === 'Pending' || status === 'Pending Review')) {
     status = 'Submitted';
   }
 
@@ -128,13 +139,24 @@ export function normalizeAssistanceRequest(r) {
   const assigned_field_worker_name = isPendingWorker ? null : rawWorker;
   const assigned_field_worker_id = isPendingWorker ? null : (r.assigned_field_worker_id || r.field_worker_id || null);
 
+  let extractedRejectionReason = r.rejection_reason;
+  if (!extractedRejectionReason && r.review_notes && typeof r.review_notes === 'string' && r.review_notes.toLowerCase().includes('reject')) {
+    extractedRejectionReason = r.review_notes.replace(/^Rejected by (Programme Manager|Program Manager|PM):\s*/i, '').trim();
+  }
+  if (!extractedRejectionReason && isRej) {
+    extractedRejectionReason = 'Application rejected during Programme Manager review. Returned for field re-assessment.';
+  }
+
   return {
     ...r,
     id,
     request_code,
-    status: (status === 'Assigned to Field Worker' && !assigned_field_worker_name) ? 'Assigned to Supervisor' : status,
-    status_label: r.status_label || (status === 'Submitted' ? 'Pending Review' : status),
-    status_stage: r.status_stage || (status === 'Submitted' ? 1 : (status === 'Under Review' ? 2 : 3)),
+    status: isRej ? 'Rejected' : ((status === 'Assigned to Field Worker' && !assigned_field_worker_name) ? 'Assigned to Supervisor' : status),
+    status_label: isRej ? 'Rejected by PM' : (r.status_label || (status === 'Submitted' ? 'Pending Review' : status)),
+    status_stage: isRej ? 6 : (r.status_stage || (status === 'Submitted' ? 1 : (status === 'Under Review' ? 2 : 3))),
+    returned_to_worker: isRej ? true : Boolean(r.returned_to_worker),
+    rejection_reason: isRej ? extractedRejectionReason : null,
+    review_notes: r.review_notes || (isRej ? `Rejected by Programme Manager: ${extractedRejectionReason}` : null),
     category,
     assistance_type,
     urgency,
@@ -798,7 +820,33 @@ export const db = {
 
     if (remoteData !== null) {
       const rawLocal = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, []);
-      const merged = [...remoteData];
+      const merged = remoteData.map(rem => {
+        const locMatch = (Array.isArray(rawLocal) ? rawLocal : []).find(loc => 
+          loc.id === rem.id || 
+          loc.request_code === rem.request_code ||
+          String(loc.id) === String(rem.id) ||
+          (loc.request_code && rem.request_code && loc.request_code === rem.request_code)
+        );
+        if (locMatch) {
+          const normRem = normalizeAssistanceRequest(rem);
+          const normLoc = normalizeAssistanceRequest(locMatch);
+          const isRemRejected = normRem.status === 'Rejected' || normRem.status_label === 'Rejected by PM' || Boolean(normRem.returned_to_worker);
+          const isLocRejected = normLoc.status === 'Rejected' || normLoc.status_label === 'Rejected by PM' || Boolean(normLoc.returned_to_worker);
+          const isAnyRejected = isRemRejected || isLocRejected;
+
+          return {
+            ...normRem,
+            ...normLoc,
+            status: isAnyRejected ? 'Rejected' : (normLoc.status || normRem.status),
+            status_label: isAnyRejected ? 'Rejected by PM' : (normLoc.status_label || normRem.status_label),
+            status_stage: isAnyRejected ? 6 : (normLoc.status_stage || normRem.status_stage),
+            rejection_reason: isAnyRejected ? (normLoc.rejection_reason || normRem.rejection_reason) : null,
+            review_notes: isAnyRejected ? (normLoc.review_notes || normRem.review_notes) : (normLoc.review_notes || normRem.review_notes),
+            returned_to_worker: isAnyRejected ? true : (normLoc.returned_to_worker ?? normRem.returned_to_worker)
+          };
+        }
+        return normalizeAssistanceRequest(rem);
+      });
       for (const loc of (Array.isArray(rawLocal) ? rawLocal : [])) {
         if (!isTestOrMock(loc) && !merged.some(r => r.id === loc.id || r.request_code === loc.request_code)) {
           merged.push(normalizeAssistanceRequest(loc));
@@ -1199,32 +1247,68 @@ export const db = {
     const reason = typeof options === 'string' ? options : (options.reason || '');
     const managerName = typeof options === 'object' && options.managerName ? options.managerName : 'Grace Ochieng';
     const all = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, mock.initialAssistanceRequests);
-    const target = all.find(r => r.id === id || r.request_code === id);
-    if (!target) throw new Error('Request not found');
+    const target = all.find(r => 
+      r.id === id || 
+      r.request_code === id ||
+      String(r.id) === String(id) ||
+      String(r.request_code) === String(id) ||
+      (r.request_code && String(id).includes(r.request_code)) ||
+      (r.id && String(id).includes(String(r.id))) ||
+      (typeof id === 'string' && r.beneficiary_name && id.toLowerCase().includes(r.beneficiary_name.toLowerCase()))
+    );
 
     const now = new Date().toISOString();
-    const updated = all.map(r => (r.id === id || r.request_code === id || (target && r.id === target.id)) ? {
-      ...r,
-      status: 'Rejected',
-      status_label: 'Rejected by PM',
-      status_stage: 6,
-      reviewed_by: `${managerName} (Programme Manager)`,
-      reviewed_at: now,
-      rejection_reason: reason,
-      review_notes: `Rejected by Programme Manager: ${reason}`,
-      returned_to_worker: true
-    } : r);
+    let hasMatched = false;
+    const updated = all.map(r => {
+      const isMatch = r.id === id || 
+                      r.request_code === id ||
+                      String(r.id) === String(id) ||
+                      String(r.request_code) === String(id) ||
+                      (target && (r.id === target.id || String(r.id) === String(target.id) || (r.request_code && r.request_code === target.request_code)));
+      if (isMatch) {
+        hasMatched = true;
+        return {
+          ...r,
+          status: 'Rejected',
+          status_label: 'Rejected by PM',
+          status_stage: 6,
+          reviewed_by: `${managerName} (Programme Manager)`,
+          reviewed_at: now,
+          rejection_reason: reason,
+          review_notes: `Rejected by Programme Manager: ${reason}`,
+          returned_to_worker: true
+        };
+      }
+      return r;
+    });
+
+    if (!hasMatched) {
+      updated.push({
+        id,
+        request_code: id,
+        status: 'Rejected',
+        status_label: 'Rejected by PM',
+        status_stage: 6,
+        reviewed_by: `${managerName} (Programme Manager)`,
+        reviewed_at: now,
+        rejection_reason: reason,
+        review_notes: `Rejected by Programme Manager: ${reason}`,
+        returned_to_worker: true
+      });
+    }
 
     saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
-    const finalTarget = updated.find(r => r.id === id || r.request_code === id || (target && r.id === target.id));
+    const finalTarget = updated.find(r => r.id === id || r.request_code === id || (target && r.id === target.id)) || updated[0];
 
     // Also update any matching field assessment in FIELD_ASSESSMENTS
     try {
       const allAssessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
       const updatedAssessments = allAssessments.map(a => {
-        const isMatch = (a.request_code && (a.request_code === target.request_code || a.request_code === target.id)) ||
-                        (a.request_id && (a.request_id === target.id || a.request_id === target.request_code)) ||
-                        (a.beneficiary_name && target.beneficiary_name && a.beneficiary_name.toLowerCase() === target.beneficiary_name.toLowerCase());
+        const isMatch = (target && a.request_code && (a.request_code === target.request_code || a.request_code === target.id)) ||
+                        (target && a.request_id && (a.request_id === target.id || a.request_id === target.request_code)) ||
+                        (a.request_code && (a.request_code === id || String(a.request_code) === String(id))) ||
+                        (a.request_id && (a.request_id === id || String(a.request_id) === String(id))) ||
+                        (target && a.beneficiary_name && target.beneficiary_name && a.beneficiary_name.toLowerCase() === target.beneficiary_name.toLowerCase());
         if (isMatch) {
           return {
             ...a,
@@ -1287,13 +1371,28 @@ export const db = {
           status_label: 'Rejected by PM',
           status_stage: 6,
           review_notes: `Rejected by PM: ${reason}`,
-          rejection_reason: reason,
           updated_at: now
         };
+        
+        let supUpdated = false;
         if (isUUID(finalTarget.id)) {
-          await supabase.from('assistance_requests').update(updates).eq('id', finalTarget.id);
-        } else if (finalTarget.request_code) {
-          await supabase.from('assistance_requests').update(updates).eq('request_code', finalTarget.request_code);
+          const { error } = await supabase.from('assistance_requests').update(updates).eq('id', finalTarget.id);
+          if (!error) supUpdated = true;
+        }
+        if (!supUpdated && finalTarget.request_code) {
+          const { error } = await supabase.from('assistance_requests').update(updates).eq('request_code', finalTarget.request_code);
+          if (!error) supUpdated = true;
+        }
+        if (!supUpdated && isUUID(id)) {
+          const { error } = await supabase.from('assistance_requests').update(updates).eq('id', id);
+          if (!error) supUpdated = true;
+        }
+        if (!supUpdated && typeof id === 'string') {
+          const { error } = await supabase.from('assistance_requests').update(updates).eq('request_code', id);
+          if (!error) supUpdated = true;
+        }
+        if (!supUpdated && finalTarget.beneficiary_name) {
+          await supabase.from('assistance_requests').update(updates).eq('beneficiary_name', finalTarget.beneficiary_name);
         }
       } catch (err) {
         console.warn('Supabase rejection update error:', err?.message);
@@ -2309,8 +2408,14 @@ export const db = {
         'Assigned to Field Worker',
         'Assessment In Progress',
         'Assessment Submitted',
-        'Correction Required'
-      ].includes(r.status);
+        'Correction Required',
+        'Rejected'
+      ].includes(r.status) || Boolean(r.returned_to_worker) || r.status_label === 'Rejected by PM';
+
+      // If no specific worker is assigned on the case yet or it matches general field stage
+      if (!r.assigned_field_worker_name || r.assigned_field_worker_name === 'Unassigned') {
+        return isFieldStage;
+      }
 
       return false;
     });
@@ -3163,41 +3268,68 @@ export const db = {
     return this.approveFieldFundingByPM(requestId, pmName, notes);
   },
 
-  async rejectFieldFundingByPM(requestId, param1 = 'Grace Ochieng', param2 = '') {
+  async rejectFieldFundingByPM(requestId, param1 = '', param2 = '') {
     // Robust argument handling for (requestId, reason, pmName) or (requestId, pmName, reason)
     let pmName = 'Grace Ochieng';
     let reason = 'Requisition declined by Program Manager.';
-    if (param1 && typeof param1 === 'string') {
-      if (param1.length > 20 || (param1.includes(' ') && (param1.includes('reject') || param1.includes('decline') || param1.includes('Please') || param1.includes('because') || param1.includes('not')))) {
+
+    if (param1 && param2) {
+      // (requestId, reason, pmName) or (requestId, pmName, reason)
+      if (param2.includes(' ') || param2.length > 25) {
+        reason = param2;
+        pmName = param1;
+      } else {
         reason = param1;
-        if (param2) pmName = param2;
+        pmName = param2;
+      }
+    } else if (param1) {
+      if (param1.length > 20 || param1.includes(' ') || param1.toLowerCase().includes('reject') || param1.toLowerCase().includes('not') || param1.toLowerCase().includes('decline')) {
+        reason = param1;
       } else {
         pmName = param1;
-        if (param2) reason = param2;
       }
     }
 
     const all = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
     const now = new Date().toISOString();
 
-    const updated = all.map(r => (r.id === requestId || r.request_code === requestId) ? {
-      ...r,
-      status: 'Rejected by Program Manager',
-      stage: -1,
-      returned_to_worker: true,
-      pm_rejected_by: pmName,
-      pm_rejected_at: now,
-      pm_remarks: reason,
-      pm_review: {
-        status: 'Rejected',
-        reviewed_by: pmName,
-        reviewed_at: now,
-        notes: reason
+    const updated = all.map(r => {
+      const isMatch = r.id === requestId || 
+                      r.request_code === requestId ||
+                      String(r.id) === String(requestId) ||
+                      String(r.request_code) === String(requestId) ||
+                      (r.id && String(requestId).includes(String(r.id))) ||
+                      (r.request_code && String(requestId).includes(r.request_code));
+      if (isMatch) {
+        return {
+          ...r,
+          status: 'Rejected',
+          status_label: 'Rejected by PM',
+          stage: -1,
+          returned_to_worker: true,
+          pm_rejected_by: pmName,
+          pm_rejected_at: now,
+          pm_remarks: reason,
+          rejection_reason: reason,
+          review_notes: `Rejected by Program Manager: ${reason}`,
+          pm_review: {
+            status: 'Rejected',
+            reviewed_by: pmName,
+            reviewed_at: now,
+            notes: reason
+          }
+        };
       }
-    } : r);
+      return r;
+    });
 
     saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
-    const target = updated.find(r => r.id === requestId || r.request_code === requestId);
+    const target = updated.find(r => 
+      r.id === requestId || 
+      r.request_code === requestId ||
+      String(r.id) === String(requestId) ||
+      String(r.request_code) === String(requestId)
+    ) || updated[0];
 
     // Create notifications for Field Worker & Supervisor
     try {
@@ -3867,17 +3999,20 @@ export const db = {
 
     if (isSupabaseConfigured) {
       try {
-        const payload = {
-          user_email: newLog.user_email,
-          action: newLog.action,
-          module: newLog.module,
-          record_id: newLog.record_id,
-          details: safeDetails,
-          created_at: newLog.created_at
-        };
-        await supabase.from('audit_logs').insert([payload]);
+        const sessionRes = await supabase.auth.getSession().catch(() => null);
+        if (sessionRes?.data?.session) {
+          const payload = {
+            user_email: newLog.user_email,
+            action: newLog.action,
+            module: newLog.module,
+            record_id: newLog.record_id,
+            details: safeDetails,
+            created_at: newLog.created_at
+          };
+          await supabase.from('audit_logs').insert([payload]);
+        }
       } catch (err) {
-        console.warn('Supabase audit log insert error:', err?.message);
+        // Silently continue to local storage audit
       }
     }
 
@@ -3888,6 +4023,7 @@ export const db = {
 
   // --- USERS & IAM ---
   async getUsers() {
+    let supabaseUsers = [];
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
@@ -3895,18 +4031,31 @@ export const db = {
           .select('*')
           .order('created_at', { ascending: false });
         if (!error && data && data.length > 0) {
-          saveLocalData(STORAGE_KEYS.USERS, data);
-          return data;
+          supabaseUsers = data;
         }
       } catch (e) {
         console.warn('Could not fetch profiles from Supabase:', e);
       }
     }
-    const stored = getLocalData(STORAGE_KEYS.USERS, null);
-    if (stored && Array.isArray(stored) && stored.length > 0) {
-      return stored;
-    }
-    return mock.demoAccounts || [];
+
+    const stored = getLocalData(STORAGE_KEYS.USERS, []);
+    const demo = mock.demoAccounts || [];
+
+    // Merge Supabase profiles, locally stored users, and demo accounts uniquely by email / id
+    const combined = [...supabaseUsers];
+    [...stored, ...demo].forEach(u => {
+      const uEmail = (u.email || '').toLowerCase().trim();
+      const exists = combined.some(c => 
+        (c.id && u.id && c.id === u.id) || 
+        (c.email && uEmail && c.email.toLowerCase().trim() === uEmail)
+      );
+      if (!exists) {
+        combined.push(u);
+      }
+    });
+
+    saveLocalData(STORAGE_KEYS.USERS, combined);
+    return combined;
   },
 
   async authenticateUser(identifier, password) {
@@ -3944,11 +4093,13 @@ export const db = {
       if (uUser && uUser === cleanId) return true;
 
       // Role shortcuts
-      if (cleanId === 'admin' && (uRole === 'administrator' || uEmail.includes('admin'))) return true;
-      if (cleanId === 'pm' && uRole.includes('program')) return true;
-      if (cleanId === 'po' && uRole.includes('project')) return true;
-      if (cleanId === 'supervisor' && uRole.includes('supervisor')) return true;
-      if (cleanId === 'field worker' && uRole.includes('field worker')) return true;
+      if ((cleanId === 'admin' || cleanId === 'administrator') && (uRole === 'administrator' || uEmail.includes('admin'))) return true;
+      if ((cleanId === 'pm' || cleanId === 'manager' || cleanId === 'program manager' || cleanId === 'programme manager') && (uRole.includes('program') || uEmail.includes('program'))) return true;
+      if ((cleanId === 'po' || cleanId === 'officer' || cleanId === 'project officer') && (uRole.includes('project') || uEmail.includes('project'))) return true;
+      if (cleanId === 'supervisor' && (uRole.includes('supervisor') || uEmail.includes('supervisor'))) return true;
+      if ((cleanId === 'field' || cleanId === 'worker' || cleanId === 'field worker') && (uRole.includes('field') || uEmail.includes('field'))) return true;
+      if ((cleanId === 'finance' || cleanId === 'fo' || cleanId === 'finance officer' || cleanId === 'finance manager') && (uRole.includes('finance') || uEmail.includes('finance'))) return true;
+      if ((cleanId === 'inventory' || cleanId === 'im' || cleanId === 'logistics' || cleanId === 'warehouse' || cleanId === 'inventory manager') && (uRole.includes('inventory') || uRole.includes('logistics') || uEmail.includes('inventory'))) return true;
       if (uRole && uRole === cleanId) return true;
 
       // Full name or first name match
@@ -3994,6 +4145,26 @@ export const db = {
           password: 'Password123!'
         };
       }
+    }
+
+    // 3. Fallback direct match against demoAccounts list
+    if (!matchedUser && mock.demoAccounts) {
+      matchedUser = mock.demoAccounts.find(d => {
+        const dEmail = (d.email || '').toLowerCase().trim();
+        const dUser = dEmail.split('@')[0];
+        const dRole = (d.role || '').toLowerCase().trim();
+        const dName = (d.full_name || '').toLowerCase().trim();
+
+        if (dEmail === cleanId || dUser === cleanId) return true;
+        if (dRole === cleanId || dName === cleanId || dName.includes(cleanId)) return true;
+        if ((cleanId === 'inventory' || cleanId === 'im' || cleanId === 'logistics' || cleanId === 'warehouse' || cleanId === 'inventory manager') && (dRole.includes('inventory') || dEmail.includes('inventory'))) return true;
+        if ((cleanId === 'admin' || cleanId === 'administrator') && dRole.includes('admin')) return true;
+        if ((cleanId === 'pm' || cleanId === 'program manager') && dRole.includes('program')) return true;
+        if ((cleanId === 'supervisor') && dRole.includes('supervisor')) return true;
+        if ((cleanId === 'field worker' || cleanId === 'field') && dRole.includes('field')) return true;
+        if ((cleanId === 'finance' || cleanId === 'fo' || cleanId === 'finance officer') && dRole.includes('finance')) return true;
+        return false;
+      });
     }
 
     if (!matchedUser) {
@@ -4406,7 +4577,32 @@ export const db = {
 
   // --- SUPPLIERS & VENDORS ---
   async getSuppliers() {
-    return getLocalData(STORAGE_KEYS.SUPPLIERS, mock.initialSuppliers);
+    const SEEDED_SUP_IDS = ['sup-1', 'sup-2', 'sup-3', 'sup-4', 'sup-5'];
+    const SEEDED_SUP_NAMES = [
+      'Equatorial Relief Logistics Ltd',
+      'Simlaw Certified Seeds South Sudan',
+      'Davis & Shirtliff Water Technologies SS',
+      'Juba Medical & Pharmaceuticals Supply',
+      'Nile River Barges & Heavy Logistics'
+    ];
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('suppliers').select('*').order('created_at', { ascending: false });
+        if (!error && data && data.length > 0) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Error fetching suppliers from Supabase:', err);
+      }
+    }
+    const current = getLocalData(STORAGE_KEYS.SUPPLIERS, null);
+    if (!current || current.length === 0) {
+      const initial = mock.initialSuppliers || [];
+      saveLocalData(STORAGE_KEYS.SUPPLIERS, initial);
+      return initial;
+    }
+    return current;
   },
 
   async createSupplier(data) {
@@ -4416,7 +4612,14 @@ export const db = {
       status: 'Active',
       rating: 5.0
     };
-    const current = getLocalData(STORAGE_KEYS.SUPPLIERS, mock.initialSuppliers);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('suppliers').insert([newSupplier]);
+      } catch (err) {
+        console.warn('Error saving supplier to Supabase:', err);
+      }
+    }
+    const current = await this.getSuppliers();
     const updated = [newSupplier, ...current];
     saveLocalData(STORAGE_KEYS.SUPPLIERS, updated);
     await this.logAudit({ action: 'CREATE', module: 'Supplier Management', record_id: newSupplier.id, details: `Registered supplier ${newSupplier.company_name}` });
@@ -4424,43 +4627,700 @@ export const db = {
   },
 
   async deleteSupplier(id) {
-    const current = getLocalData(STORAGE_KEYS.SUPPLIERS, mock.initialSuppliers);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('suppliers').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Error deleting supplier from Supabase:', err);
+      }
+    }
+    const current = await this.getSuppliers();
     const updated = current.filter(s => s.id !== id);
     saveLocalData(STORAGE_KEYS.SUPPLIERS, updated);
     await this.logAudit({ action: 'DELETE', module: 'Supplier Management', record_id: id, details: `Deleted supplier ${id}` });
     return true;
   },
 
-  // --- INVENTORY ---
+  // --- INVENTORY & STOCK MANAGEMENT (1.5.10) ---
   async getInventory() {
-    return getLocalData(STORAGE_KEYS.INVENTORY, mock.initialInventory);
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('inventory').select('*').order('created_at', { ascending: false });
+        if (!error && data && data.length > 0) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Error fetching inventory from Supabase:', err);
+      }
+    }
+    const current = getLocalData(STORAGE_KEYS.INVENTORY, null);
+    if (!current || current.length === 0) {
+      const initial = mock.initialInventory || [];
+      saveLocalData(STORAGE_KEYS.INVENTORY, initial);
+      return initial;
+    }
+    
+    // Auto-migrate older warehouse names and canonicalize items
+    const normalizeKey = (str) => (str || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]/g, '').trim();
+
+    let needsSave = false;
+    const migratedList = current.map(item => {
+      let wh = item.warehouse || '';
+      if (wh.includes('Juba Central')) { wh = 'Central Equatoria State Depot'; needsSave = true; }
+      else if (wh.includes('Kapoeta') || wh.includes('Torit')) { wh = 'Eastern Equatoria State Depot'; needsSave = true; }
+      else if (wh.includes('Wau')) { wh = 'Western Bahr el Ghazal State Depot'; needsSave = true; }
+      else if (wh.includes('Malakal')) { wh = 'Upper Nile State Depot'; needsSave = true; }
+      else if (wh.includes('Bor')) { wh = 'Jonglei State Depot'; needsSave = true; }
+      return { ...item, warehouse: wh };
+    });
+
+    // Consolidate duplicates within the same warehouse if any exist
+    const warehouseItemMap = new Map();
+    migratedList.forEach(item => {
+      const k = `${item.warehouse || 'General'}::${normalizeKey(item.item_name)}`;
+      if (!warehouseItemMap.has(k)) {
+        warehouseItemMap.set(k, { ...item });
+      } else {
+        const existing = warehouseItemMap.get(k);
+        existing.quantity = (Number(existing.quantity) || 0) + (Number(item.quantity) || 0);
+        existing.total_value = (Number(existing.total_value) || 0) + (Number(item.total_value) || 0);
+        needsSave = true;
+      }
+    });
+
+    const consolidated = Array.from(warehouseItemMap.values());
+    if (needsSave || consolidated.length !== current.length) {
+      saveLocalData(STORAGE_KEYS.INVENTORY, consolidated);
+      return consolidated;
+    }
+    return current;
   },
 
   async createInventoryItem(data) {
     const newItem = {
       id: `inv-${Date.now().toString().slice(-4)}`,
+      sku: data.sku || `SKU-${Date.now().toString().slice(-4)}`,
       ...data,
+      quantity: Number(data.quantity) || 0,
+      min_threshold: Number(data.min_threshold) || 10,
+      unit_cost: Number(data.unit_cost) || 0,
+      total_value: (Number(data.quantity) || 0) * (Number(data.unit_cost) || 0),
       status: Number(data.quantity) < Number(data.min_threshold || 10) ? 'Low Stock' : 'In Stock'
     };
-    const current = getLocalData(STORAGE_KEYS.INVENTORY, mock.initialInventory);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('inventory').insert([newItem]);
+      } catch (err) {
+        console.warn('Error inserting inventory to Supabase:', err);
+      }
+    }
+    const current = await this.getInventory();
     const updated = [newItem, ...current];
     saveLocalData(STORAGE_KEYS.INVENTORY, updated);
-    await this.logAudit({ action: 'CREATE', module: 'Inventory Management', record_id: newItem.id, details: `Created inventory item ${newItem.item_name}` });
+    await this.logAudit({ action: 'CREATE', module: 'Inventory Management', record_id: newItem.id, details: `Created inventory item ${newItem.item_name} (SKU: ${newItem.sku})` });
     return newItem;
   },
 
   async updateInventoryItem(id, data) {
-    const current = getLocalData(STORAGE_KEYS.INVENTORY, mock.initialInventory);
-    const updated = current.map(item => item.id === id ? { ...item, ...data } : item);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('inventory').update(data).eq('id', id);
+      } catch (err) {
+        console.warn('Error updating inventory item in Supabase:', err);
+      }
+    }
+    const current = await this.getInventory();
+    const updated = current.map(item => {
+      if (item.id === id) {
+        const qty = data.quantity !== undefined ? Number(data.quantity) : item.quantity;
+        const minThresh = data.min_threshold !== undefined ? Number(data.min_threshold) : (item.min_threshold || 10);
+        const unitCost = data.unit_cost !== undefined ? Number(data.unit_cost) : (item.unit_cost || 0);
+        return {
+          ...item,
+          ...data,
+          quantity: qty,
+          unit_cost: unitCost,
+          total_value: qty * unitCost,
+          status: qty <= 0 ? 'Out of Stock' : qty < minThresh ? 'Low Stock' : 'In Stock'
+        };
+      }
+      return item;
+    });
     saveLocalData(STORAGE_KEYS.INVENTORY, updated);
     return updated.find(item => item.id === id);
   },
 
   async deleteInventoryItem(id) {
-    const current = getLocalData(STORAGE_KEYS.INVENTORY, mock.initialInventory);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('inventory').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Error deleting inventory item from Supabase:', err);
+      }
+    }
+    const current = await this.getInventory();
     const updated = current.filter(item => item.id !== id);
     saveLocalData(STORAGE_KEYS.INVENTORY, updated);
+    await this.logAudit({ action: 'DELETE', module: 'Inventory Management', record_id: id, details: `Deleted inventory item ${id}` });
     return true;
+  },
+
+  async clearAllInventory() {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('inventory').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      } catch (err) {
+        console.warn('Error clearing inventory from Supabase:', err);
+      }
+    }
+    saveLocalData(STORAGE_KEYS.INVENTORY, []);
+    saveLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, []);
+    await this.logAudit({ action: 'CLEAR_ALL', module: 'Inventory Management', record_id: 'ALL', details: 'Cleared all inventory stock to empty catalog' });
+    return true;
+  },
+
+  // 1.5.10 Receive Stock (GRN - Goods Received Note)
+  async receiveStock(grnData) {
+    const {
+      item_id,
+      item_name,
+      category = 'Food Assistance',
+      quantity,
+      unit = 'Units',
+      warehouse,
+      supplier_name,
+      po_number = '',
+      batch_number = '',
+      expiry_date = 'N/A',
+      unit_cost = 0,
+      received_by = 'Gabriel Majok (Inventory Manager)',
+      notes = ''
+    } = grnData;
+
+    const qtyToAdd = Number(quantity) || 0;
+    const grnNumber = `GRN-SS-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+
+    const currentInventory = await this.getInventory();
+
+    // Normalization helper for accurate matching
+    const normalizeKey = (str) => (str || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]/g, '').trim();
+    const grnKey = normalizeKey(item_name);
+
+    // 1. Check if item already exists in this receiving warehouse
+    let targetItem = currentInventory.find(i => 
+      i.id === item_id || 
+      (i.warehouse === warehouse && (
+        (i.item_name && i.item_name.toLowerCase() === (item_name || '').toLowerCase()) ||
+        (grnKey && normalizeKey(i.item_name) === grnKey)
+      ))
+    );
+
+    let updatedInventory;
+    if (targetItem) {
+      const newQty = (Number(targetItem.quantity) || 0) + qtyToAdd;
+      const cost = Number(unit_cost) || targetItem.unit_cost || 0;
+      updatedInventory = currentInventory.map(i => i.id === targetItem.id ? {
+        ...i,
+        quantity: newQty,
+        total_value: newQty * cost,
+        batch_number: batch_number || i.batch_number,
+        expiry_date: expiry_date !== 'N/A' ? expiry_date : i.expiry_date,
+        supplier_name: supplier_name || i.supplier_name,
+        status: newQty < (i.min_threshold || 10) ? 'Low Stock' : 'In Stock'
+      } : i);
+    } else {
+      // 2. Look up global catalog to reuse exact canonical name, sku, unit, threshold if present in another depot
+      const globalMatch = currentInventory.find(i => 
+        (i.item_name && i.item_name.toLowerCase() === (item_name || '').toLowerCase()) ||
+        (grnKey && normalizeKey(i.item_name) === grnKey)
+      );
+
+      const canonicalName = globalMatch ? globalMatch.item_name : item_name;
+      const canonicalUnit = globalMatch ? globalMatch.unit : unit;
+      const canonicalCategory = globalMatch ? globalMatch.category : category;
+      const canonicalSku = globalMatch ? globalMatch.sku : `SKU-${Date.now().toString().slice(-4)}`;
+      const cost = Number(unit_cost) || (globalMatch ? globalMatch.unit_cost : 0) || 0;
+
+      const newItem = {
+        id: `inv-${Date.now().toString().slice(-4)}`,
+        sku: canonicalSku,
+        item_name: canonicalName,
+        category: canonicalCategory,
+        quantity: qtyToAdd,
+        unit: canonicalUnit,
+        warehouse,
+        min_threshold: globalMatch?.min_threshold || 50,
+        unit_cost: cost,
+        total_value: qtyToAdd * cost,
+        batch_number: batch_number || `BATCH-${Date.now().toString().slice(-4)}`,
+        expiry_date,
+        supplier_name,
+        status: 'In Stock'
+      };
+      updatedInventory = [newItem, ...currentInventory];
+      targetItem = newItem;
+    }
+    saveLocalData(STORAGE_KEYS.INVENTORY, updatedInventory);
+
+    // Record Stock Transaction
+    const newTx = {
+      id: `tx-${Date.now()}`,
+      transaction_type: 'GRN_RECEIPT',
+      reference_code: grnNumber,
+      item_name: targetItem.item_name,
+      quantity: qtyToAdd,
+      unit: targetItem.unit,
+      warehouse,
+      supplier_name,
+      po_number,
+      batch_number,
+      performed_by: received_by,
+      date: new Date().toISOString(),
+      notes: notes || `Goods Received Note: ${qtyToAdd} ${targetItem.unit} received from ${supplier_name || 'Vendor'}`
+    };
+    const currentTx = await this.getStockTransactions();
+    saveLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, [newTx, ...currentTx]);
+
+    // If linked to a PO, update PO status if fully received
+    if (po_number) {
+      const pos = await this.getPurchaseOrders();
+      const updatedPOs = pos.map(po => po.po_number === po_number ? {
+        ...po,
+        status: 'Received & Inspected',
+        grn_number: grnNumber,
+        inspected_date: new Date().toISOString().split('T')[0]
+      } : po);
+      saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updatedPOs);
+    }
+
+    await this.logAudit({
+      action: 'STOCK_RECEIPT',
+      module: 'Inventory Management',
+      record_id: grnNumber,
+      details: `Received ${qtyToAdd} ${targetItem.unit} of ${targetItem.item_name} at ${warehouse} (GRN: ${grnNumber})`
+    });
+
+    return { grnNumber, item: targetItem, transaction: newTx };
+  },
+
+  // 1.5.10 Stock Adjustment (Damage, Write-off, Variance, Inter-warehouse Transfer)
+  async adjustStock(adjData) {
+    const {
+      item_id,
+      adjustment_type = 'DAMAGE_SPOILAGE', // 'DAMAGE_SPOILAGE' | 'COUNT_RECONCILIATION' | 'WRITE_OFF' | 'TRANSFER'
+      quantity_change, // negative for loss/write-off, positive for count found
+      target_warehouse,
+      reason = '',
+      adjusted_by = 'Gabriel Majok (Inventory Manager)'
+    } = adjData;
+
+    const currentInventory = await this.getInventory();
+    const item = currentInventory.find(i => i.id === item_id);
+    if (!item) throw new Error('Inventory item not found');
+
+    const change = Number(quantity_change) || 0;
+    const newQty = Math.max(0, (Number(item.quantity) || 0) + change);
+    const adjCode = `ADJ-SS-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+
+    let updatedInventory = currentInventory.map(i => i.id === item_id ? {
+      ...i,
+      quantity: newQty,
+      total_value: newQty * (i.unit_cost || 0),
+      status: newQty <= 0 ? 'Out of Stock' : newQty < (i.min_threshold || 10) ? 'Low Stock' : 'In Stock'
+    } : i);
+
+    // If transfer, add to target warehouse
+    if (adjustment_type === 'TRANSFER' && target_warehouse && target_warehouse !== item.warehouse) {
+      const transferQty = Math.abs(change);
+      const destItem = updatedInventory.find(i => i.item_name && i.item_name.toLowerCase() === (item.item_name || '').toLowerCase() && i.warehouse === target_warehouse);
+      if (destItem) {
+        const destNewQty = (Number(destItem.quantity) || 0) + transferQty;
+        updatedInventory = updatedInventory.map(i => i.id === destItem.id ? {
+          ...i,
+          quantity: destNewQty,
+          total_value: destNewQty * (i.unit_cost || 0),
+          status: destNewQty < (i.min_threshold || 10) ? 'Low Stock' : 'In Stock'
+        } : i);
+      } else {
+        const newDestItem = {
+          ...item,
+          id: `inv-${Date.now().toString().slice(-4)}`,
+          sku: `SKU-${Date.now().toString().slice(-4)}`,
+          warehouse: target_warehouse,
+          quantity: transferQty,
+          total_value: transferQty * (item.unit_cost || 0),
+          status: 'In Stock'
+        };
+        updatedInventory.push(newDestItem);
+      }
+    }
+
+    saveLocalData(STORAGE_KEYS.INVENTORY, updatedInventory);
+
+    // Record Stock Transaction
+    const newTx = {
+      id: `tx-${Date.now()}`,
+      transaction_type: adjustment_type === 'TRANSFER' ? 'INTER_WAREHOUSE_TRANSFER' : 'STOCK_ADJUSTMENT',
+      reference_code: adjCode,
+      item_name: item.item_name,
+      quantity: change,
+      unit: item.unit,
+      warehouse: item.warehouse,
+      target_warehouse: target_warehouse || '',
+      performed_by: adjusted_by,
+      date: new Date().toISOString(),
+      notes: reason || `Stock adjustment (${adjustment_type}): ${change} ${item.unit}`
+    };
+    const currentTx = await this.getStockTransactions();
+    saveLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, [newTx, ...currentTx]);
+
+    await this.logAudit({
+      action: 'STOCK_ADJUSTMENT',
+      module: 'Inventory Management',
+      record_id: adjCode,
+      details: `Stock adjustment on ${item.item_name} at ${item.warehouse}: ${change > 0 ? '+' : ''}${change} ${item.unit} (${reason || adjustment_type})`
+    });
+
+    return { adjCode, item: updatedInventory.find(i => i.id === item_id), transaction: newTx };
+  },
+
+  // --- STATE WAREHOUSES & DEPOTS ---
+  async getWarehouses() {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('warehouses').select('*').order('created_at', { ascending: false });
+        if (!error && data && data.length >= 10) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Error fetching warehouses from Supabase:', err);
+      }
+    }
+    const current = getLocalData(STORAGE_KEYS.WAREHOUSES, null);
+    if (!current || current.length < 10 || !current.some(w => (w.name || '').includes('State Depot'))) {
+      const initial = mock.initialWarehouses || [];
+      saveLocalData(STORAGE_KEYS.WAREHOUSES, initial);
+      return initial;
+    }
+    return current;
+  },
+
+  async createWarehouse(data) {
+    const newWh = {
+      id: `wh-${Date.now().toString().slice(-4)}`,
+      code: `WH-${(data.name || 'DEP').slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-2)}`,
+      utilized_pct: 0,
+      item_count: 0,
+      total_stock_value: 0,
+      status: 'Operational',
+      ...data
+    };
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('warehouses').insert([newWh]);
+      } catch (err) {
+        console.warn('Error inserting warehouse to Supabase:', err);
+      }
+    }
+    const current = await this.getWarehouses();
+    const updated = [newWh, ...current];
+    saveLocalData(STORAGE_KEYS.WAREHOUSES, updated);
+    await this.logAudit({ action: 'CREATE', module: 'Warehouse Management', record_id: newWh.id, details: `Registered warehouse depot ${newWh.name}` });
+    return newWh;
+  },
+
+  async updateWarehouse(id, data) {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('warehouses').update(data).eq('id', id);
+      } catch (err) {
+        console.warn('Error updating warehouse in Supabase:', err);
+      }
+    }
+    const current = await this.getWarehouses();
+    const updated = current.map(wh => wh.id === id ? { ...wh, ...data } : wh);
+    saveLocalData(STORAGE_KEYS.WAREHOUSES, updated);
+    return updated.find(wh => wh.id === id);
+  },
+
+  // --- SUPPLIERS & PURCHASE ORDERS (1.5.9) ---
+  async getPurchaseOrders() {
+    const SEEDED_PO_IDS = ['po-1', 'po-2', 'po-3', 'po-4'];
+    const SEEDED_PO_NUMS = ['PO-SS-2026-0104', 'PO-SS-2026-0103', 'PO-SS-2026-0102', 'PO-SS-2026-0101'];
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('purchase_orders').select('*').order('created_at', { ascending: false });
+        if (!error && data) {
+          const cleanDb = data.filter(po => 
+            !SEEDED_PO_IDS.includes(po.id) && 
+            !SEEDED_PO_NUMS.includes(po.po_number)
+          );
+          return cleanDb;
+        }
+      } catch (err) {
+        console.warn('Error fetching purchase orders from Supabase:', err);
+      }
+    }
+    const current = getLocalData(STORAGE_KEYS.PURCHASE_ORDERS, mock.initialPurchaseOrders || []);
+    const clean = current.filter(po => 
+      !SEEDED_PO_IDS.includes(po.id) && 
+      !SEEDED_PO_NUMS.includes(po.po_number)
+    );
+    if (clean.length !== current.length) {
+      saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, clean);
+    }
+    return clean;
+  },
+
+  async createPurchaseOrder(poData) {
+    const newPO = {
+      id: `po-${Date.now().toString().slice(-4)}`,
+      po_number: `PO-SS-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
+      order_date: new Date().toISOString().split('T')[0],
+      status: 'Pending Delivery',
+      ...poData,
+      total_amount: Number(poData.total_amount) || 0
+    };
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('purchase_orders').insert([newPO]);
+      } catch (err) {
+        console.warn('Error inserting purchase order to Supabase:', err);
+      }
+    }
+    const current = await this.getPurchaseOrders();
+    const updated = [newPO, ...current];
+    saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
+    await this.logAudit({ action: 'CREATE_PO', module: 'Procurement & Suppliers', record_id: newPO.po_number, details: `Issued purchase order ${newPO.po_number} to ${newPO.supplier_name} ($${newPO.total_amount})` });
+    return newPO;
+  },
+
+  async updatePurchaseOrderStatus(id, status, notes = '') {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('purchase_orders').update({ status, notes }).or(`id.eq.${id},po_number.eq.${id}`);
+      } catch (err) {
+        console.warn('Error updating purchase order in Supabase:', err);
+      }
+    }
+    const current = await this.getPurchaseOrders();
+    const updated = current.map(po => po.id === id || po.po_number === id ? {
+      ...po,
+      status,
+      notes: notes ? `${po.notes ? po.notes + ' | ' : ''}${notes}` : po.notes
+    } : po);
+    saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
+    await this.logAudit({ action: 'UPDATE_PO', module: 'Procurement & Suppliers', record_id: id, details: `Updated PO status to ${status}` });
+    return updated.find(po => po.id === id || po.po_number === id);
+  },
+
+  // --- AID DISPATCHES & WAYBILLS (1.5.11) ---
+  async getDispatches() {
+    const SEEDED_DISP_IDS = ['disp-1', 'disp-2', 'disp-3', 'disp-4'];
+    const SEEDED_WAYBILLS = ['WAYBILL-SS-2026-0089', 'WAYBILL-SS-2026-0088', 'WAYBILL-SS-2026-0087', 'WAYBILL-SS-2026-0086'];
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('dispatches').select('*').order('created_at', { ascending: false });
+        if (!error && data) {
+          const cleanDb = data.filter(d => 
+            !SEEDED_DISP_IDS.includes(d.id) && 
+            !SEEDED_WAYBILLS.includes(d.waybill_number)
+          );
+          return cleanDb;
+        }
+      } catch (err) {
+        console.warn('Error fetching dispatches from Supabase:', err);
+      }
+    }
+    const current = getLocalData(STORAGE_KEYS.DISPATCHES, mock.initialDispatches || []);
+    const clean = current.filter(d => 
+      !SEEDED_DISP_IDS.includes(d.id) && 
+      !SEEDED_WAYBILLS.includes(d.waybill_number)
+    );
+    if (clean.length !== current.length) {
+      saveLocalData(STORAGE_KEYS.DISPATCHES, clean);
+    }
+    return clean;
+  },
+
+  async getWaybills() {
+    return this.getDispatches();
+  },
+
+  async createDispatch(dispatchData) {
+    const {
+      origin_warehouse,
+      destination,
+      project_name = 'Emergency Food Security & Livelihoods Resilience',
+      linked_request_id = '',
+      beneficiary_name = '',
+      transport_mode = 'ADRA Logistics Fleet Truck',
+      vehicle_reg = 'SSD-912A (6x6 MAN)',
+      driver_name = 'Deng Athuai',
+      driver_phone = '+211-925-110099',
+      items = [],
+      notes = '',
+      released_by = 'Gabriel Majok (Inventory Manager)'
+    } = dispatchData;
+
+    const waybillNumber = `WAYBILL-SS-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    const dispatchToken = `WB-${(destination || 'DISP').slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const newDispatch = {
+      id: `disp-${Date.now().toString().slice(-4)}`,
+      waybill_number: waybillNumber,
+      dispatch_token: dispatchToken,
+      origin_warehouse,
+      destination,
+      project_name,
+      linked_request_id,
+      beneficiary_name,
+      transport_mode,
+      vehicle_reg,
+      driver_name,
+      driver_phone,
+      dispatch_date: new Date().toISOString().split('T')[0],
+      items,
+      status: 'In Transit',
+      released_by,
+      received_by: 'Pending Field Distribution Receipt',
+      qr_token_verified: false,
+      notes
+    };
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('dispatches').insert([newDispatch]);
+      } catch (err) {
+        console.warn('Error saving dispatch to Supabase:', err);
+      }
+    }
+
+    // Deduct stock from origin warehouse
+    const currentInventory = await this.getInventory();
+    let updatedInventory = [...currentInventory];
+    const currentTx = await this.getStockTransactions();
+    let newTxList = [...currentTx];
+
+    items.forEach(itm => {
+      const matchIdx = updatedInventory.findIndex(i => 
+        ((i.item_name && itm.item_name && i.item_name.toLowerCase() === itm.item_name.toLowerCase()) || i.id === itm.item_id) && 
+        (!origin_warehouse || i.warehouse === origin_warehouse)
+      );
+      if (matchIdx !== -1) {
+        const target = updatedInventory[matchIdx];
+        const qtyToDeduct = Number(itm.quantity) || 0;
+        const remaining = Math.max(0, (Number(target.quantity) || 0) - qtyToDeduct);
+        updatedInventory[matchIdx] = {
+          ...target,
+          quantity: remaining,
+          total_value: remaining * (target.unit_cost || 0),
+          status: remaining <= 0 ? 'Out of Stock' : remaining < (target.min_threshold || 10) ? 'Low Stock' : 'In Stock'
+        };
+
+        newTxList.unshift({
+          id: `tx-${Date.now()}-${matchIdx}`,
+          transaction_type: 'DISPATCH_ISSUE',
+          reference_code: waybillNumber,
+          item_name: target.item_name,
+          quantity: -qtyToDeduct,
+          unit: target.unit,
+          warehouse: origin_warehouse,
+          performed_by: released_by,
+          date: new Date().toISOString(),
+          notes: `Dispatched to ${destination} via Waybill ${waybillNumber} (${vehicle_reg})`
+        });
+      }
+    });
+
+    saveLocalData(STORAGE_KEYS.INVENTORY, updatedInventory);
+    saveLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, newTxList);
+
+    const currentDispatches = await this.getDispatches();
+    saveLocalData(STORAGE_KEYS.DISPATCHES, [newDispatch, ...currentDispatches]);
+
+    // If linked to an assistance request, update request status with waybill and qr token
+    if (linked_request_id) {
+      try {
+        const reqs = await this.getAssistanceRequests();
+        const targetReq = reqs.find(r => r.id === linked_request_id || r.tracking_number === linked_request_id);
+        if (targetReq) {
+          await this.updateAssistanceRequest(targetReq.id, {
+            status: 'warehouse_dispatched',
+            qr_token: dispatchToken,
+            waybill_number: waybillNumber,
+            dispatch_date: new Date().toISOString()
+          });
+        }
+      } catch (e) {
+        console.warn('Could not link dispatch to assistance request:', e?.message);
+      }
+    }
+
+    await this.logAudit({
+      action: 'CREATE_WAYBILL',
+      module: 'Distribution & Logistics',
+      record_id: waybillNumber,
+      details: `Generated waybill ${waybillNumber} to ${destination} with ${items.length} relief line items`
+    });
+
+    return newDispatch;
+  },
+
+  async updateDispatchStatus(id, status, notes = '') {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('dispatches').update({
+          status,
+          notes,
+          qr_token_verified: status.includes('Delivered') || status.includes('Verified') ? true : undefined
+        }).or(`id.eq.${id},waybill_number.eq.${id}`);
+      } catch (err) {
+        console.warn('Error updating dispatch status in Supabase:', err);
+      }
+    }
+    const current = await this.getDispatches();
+    const updated = current.map(d => d.id === id || d.waybill_number === id ? {
+      ...d,
+      status,
+      qr_token_verified: status.includes('Delivered') || status.includes('Verified') ? true : d.qr_token_verified,
+      notes: notes ? `${d.notes ? d.notes + ' | ' : ''}${notes}` : d.notes
+    } : d);
+    saveLocalData(STORAGE_KEYS.DISPATCHES, updated);
+    await this.logAudit({ action: 'UPDATE_DISPATCH', module: 'Distribution & Logistics', record_id: id, details: `Updated dispatch status to ${status}` });
+    return updated.find(d => d.id === id || d.waybill_number === id);
+  },
+
+  // Stock Transactions Ledger (Audit Trail)
+  async getStockTransactions() {
+    const SEEDED_TX_IDS = ['tx-1', 'tx-2', 'tx-3', 'tx-4'];
+    const SEEDED_TX_CODES = ['GRN-SS-2026-0041', 'WAYBILL-SS-2026-0089', 'ADJ-SS-2026-0012', 'TRF-SS-2026-0008'];
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('stock_transactions').select('*').order('created_at', { ascending: false });
+        if (!error && data) {
+          const cleanDb = data.filter(tx => 
+            !SEEDED_TX_IDS.includes(tx.id) && 
+            !SEEDED_TX_CODES.includes(tx.reference_code)
+          );
+          return cleanDb;
+        }
+      } catch (err) {
+        console.warn('Error fetching stock transactions from Supabase:', err);
+      }
+    }
+    const current = getLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, mock.initialStockTransactions || []);
+    const clean = current.filter(tx => 
+      !SEEDED_TX_IDS.includes(tx.id) && 
+      !SEEDED_TX_CODES.includes(tx.reference_code)
+    );
+    if (clean.length !== current.length) {
+      saveLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, clean);
+    }
+    return clean;
   },
 
   // --- SECURITY SETTINGS ---
@@ -4856,5 +5716,83 @@ export const db = {
     });
 
     return results.slice(0, 30);
+  },
+
+  // Upload a File or Blob or Base64 to a Supabase Storage Bucket with fast timeout
+  async uploadStorageFile(fileOrData, { bucket = 'field-evidence', folder = 'assessments', fileName = null, timeoutMs = 3500 } = {}) {
+    if (!isSupabaseConfigured || !supabase || !supabase.storage) {
+      return null;
+    }
+
+    try {
+      let fileBody = fileOrData;
+      let name = fileName || (typeof fileOrData === 'object' && fileOrData?.name ? fileOrData.name : `evidence_${Date.now()}`);
+      let contentType = (typeof fileOrData === 'object' && fileOrData?.type) ? fileOrData.type : 'application/octet-stream';
+
+      // If base64 string
+      if (typeof fileOrData === 'string' && fileOrData.startsWith('data:')) {
+        const matches = fileOrData.match(/^data:([A-Za-z0-9-+.\/]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          contentType = matches[1];
+          const byteCharacters = atob(matches[2]);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          fileBody = new Blob([byteArray], { type: contentType });
+        }
+      }
+
+      const cleanName = name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const timestamp = Date.now();
+      const filePath = `${folder}/${timestamp}_${cleanName}`;
+
+      const attemptUpload = async (targetBucket) => {
+        try {
+          const { data, error } = await supabase.storage
+            .from(targetBucket)
+            .upload(filePath, fileBody, {
+              contentType,
+              cacheControl: '3600',
+              upsert: true
+            });
+
+          if (!error && data) {
+            const { data: publicUrlData } = supabase.storage
+              .from(targetBucket)
+              .getPublicUrl(filePath);
+
+            if (publicUrlData?.publicUrl) {
+              return {
+                url: publicUrlData.publicUrl,
+                path: filePath,
+                bucket: targetBucket,
+                name: cleanName,
+                size: fileBody.size || null,
+                type: contentType
+              };
+            }
+          }
+        } catch (e) {}
+        return null;
+      };
+
+      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs));
+
+      // Try candidate bucket with strict timeout limit
+      const primaryRes = await Promise.race([attemptUpload(bucket), timeoutPromise]);
+      if (primaryRes) return primaryRes;
+
+      if (bucket !== 'public') {
+        const publicRes = await Promise.race([attemptUpload('public'), timeoutPromise]);
+        if (publicRes) return publicRes;
+      }
+
+      return null;
+    } catch (err) {
+      console.warn('Supabase storage upload error:', err?.message || err);
+      return null;
+    }
   }
 };
