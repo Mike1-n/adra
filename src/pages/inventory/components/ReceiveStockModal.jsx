@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { X, PackagePlus, Building2, Truck, Calendar, DollarSign, CheckCircle2, ShieldAlert } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { X, PackagePlus, Building2, Truck, Calendar, DollarSign, CheckCircle2, ShieldAlert, Search, Package, Sparkles, ChevronDown } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 
 // Standard ADRA Knowledge Base for Instant Auto-Fill
@@ -43,10 +43,14 @@ export function ReceiveStockModal({
   suppliers = [],
   inventoryItems = [],
   purchaseOrders = [],
+  selectedItem = null,
   onReceiveSuccess
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const dropdownRef = useRef(null);
 
   // Combined master list of items (Live inventory + standard ADRA presets)
   const masterCommodities = useMemo(() => {
@@ -54,17 +58,27 @@ export function ReceiveStockModal({
 
     // 1. First add standard presets
     STANDARD_ADRA_PRESETS.forEach(p => {
-      map.set(p.item_name.toLowerCase(), p);
+      map.set(p.item_name.toLowerCase(), {
+        ...p,
+        isCatalog: true
+      });
     });
 
     // 2. Add or override with live inventory items
     inventoryItems.forEach(item => {
       if (item.item_name) {
-        map.set(item.item_name.toLowerCase(), {
+        const key = item.item_name.toLowerCase();
+        const existing = map.get(key);
+        map.set(key, {
+          id: item.id,
+          sku: item.sku,
           item_name: item.item_name,
           category: normalizeCategory(item.category),
-          unit: item.unit || 'Units',
-          unit_cost: item.unit_cost !== undefined ? item.unit_cost : 0
+          unit: item.unit || existing?.unit || 'Units',
+          unit_cost: item.unit_cost !== undefined ? item.unit_cost : (existing?.unit_cost || 0),
+          warehouse: item.warehouse || existing?.warehouse,
+          quantity: item.quantity,
+          isLiveStock: true
         });
       }
     });
@@ -81,44 +95,125 @@ export function ReceiveStockModal({
     batch_number: ''
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
-      setForm({
-        item_name: '',
-        category: 'Food Assistance',
-        quantity: '',
-        unit: 'Bags',
-        warehouse: warehouses[0]?.name || '',
-        batch_number: ''
-      });
+      if (selectedItem) {
+        setForm({
+          item_name: selectedItem.item_name || '',
+          category: normalizeCategory(selectedItem.category),
+          quantity: '',
+          unit: selectedItem.unit || 'Bags',
+          warehouse: selectedItem.warehouse || warehouses[0]?.name || '',
+          batch_number: selectedItem.batch_number || ''
+        });
+      } else {
+        setForm({
+          item_name: '',
+          category: 'Food Assistance',
+          quantity: '',
+          unit: 'Bags',
+          warehouse: warehouses[0]?.name || '',
+          batch_number: ''
+        });
+      }
+      setIsDropdownOpen(false);
+      setHighlightedIndex(-1);
     }
-  }, [isOpen, warehouses]);
+  }, [isOpen, selectedItem, warehouses]);
+
+  // Handle clicking outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filtered commodities based on user search query
+  const filteredCommodities = useMemo(() => {
+    const query = (form.item_name || '').trim().toLowerCase();
+    if (!query) {
+      return masterCommodities.slice(0, 8);
+    }
+    
+    // Split search into words for multi-word matching (e.g. "maize flour 25kg")
+    const words = query.split(/\s+/).filter(Boolean);
+
+    return masterCommodities.filter(c => {
+      const name = (c.item_name || '').toLowerCase();
+      const cat = (c.category || '').toLowerCase();
+      const sku = (c.sku || '').toLowerCase();
+      const unit = (c.unit || '').toLowerCase();
+      const wh = (c.warehouse || '').toLowerCase();
+
+      return words.every(w => 
+        name.includes(w) || 
+        cat.includes(w) || 
+        sku.includes(w) || 
+        unit.includes(w) ||
+        wh.includes(w)
+      );
+    });
+  }, [masterCommodities, form.item_name]);
 
   if (!isOpen) return null;
 
+  const selectCommodity = (commodity) => {
+    setForm(prev => ({
+      ...prev,
+      item_name: commodity.item_name,
+      category: normalizeCategory(commodity.category),
+      unit: commodity.unit || prev.unit,
+      warehouse: (commodity.warehouse && warehouses.some(w => w.name === commodity.warehouse)) 
+        ? commodity.warehouse 
+        : (prev.warehouse || warehouses[0]?.name || '')
+    }));
+    setIsDropdownOpen(false);
+    setHighlightedIndex(-1);
+  };
+
   const handleNameChange = (val) => {
-    const trimmed = (val || '').trim().toLowerCase();
-    
-    // Normalization helper
-    const norm = (s) => (s || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]/g, '').trim();
-    const valKey = norm(trimmed);
+    setForm(prev => ({ ...prev, item_name: val }));
+    setIsDropdownOpen(true);
+    setHighlightedIndex(-1);
 
-    // Search for match in master commodities
-    const matched = masterCommodities.find(c => {
-      const cName = (c.item_name || '').trim().toLowerCase();
-      const cKey = norm(cName);
-      return cName === trimmed || (valKey.length > 3 && (cKey === valKey || cKey.includes(valKey) || valKey.includes(cKey)));
-    });
-
-    if (matched && (val === matched.item_name || valKey.length > 5)) {
+    // If exact match found, auto-fill category & unit immediately
+    const exactMatch = masterCommodities.find(c => 
+      (c.item_name || '').toLowerCase() === (val || '').trim().toLowerCase()
+    );
+    if (exactMatch) {
       setForm(prev => ({
         ...prev,
-        item_name: val,
-        category: normalizeCategory(matched.category),
-        unit: matched.unit || prev.unit
+        category: normalizeCategory(exactMatch.category),
+        unit: exactMatch.unit || prev.unit
       }));
-    } else {
-      setForm(prev => ({ ...prev, item_name: val }));
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (!isDropdownOpen || filteredCommodities.length === 0) {
+      if (e.key === 'ArrowDown') {
+        setIsDropdownOpen(true);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex(prev => (prev < filteredCommodities.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex(prev => (prev > 0 ? prev - 1 : filteredCommodities.length - 1));
+    } else if (e.key === 'Enter') {
+      if (highlightedIndex >= 0 && highlightedIndex < filteredCommodities.length) {
+        e.preventDefault();
+        selectCommodity(filteredCommodities[highlightedIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsDropdownOpen(false);
     }
   };
 
@@ -149,17 +244,20 @@ export function ReceiveStockModal({
     const finalItemName = matched ? matched.item_name : form.item_name.trim();
     const finalCategory = matched ? normalizeCategory(matched.category) : form.category;
     const finalUnit = matched ? matched.unit : form.unit;
+    const finalCost = matched?.unit_cost !== undefined ? matched.unit_cost : 0;
 
     setLoading(true);
     try {
       if (onReceiveSuccess) {
         await onReceiveSuccess({
           ...form,
+          item_id: matched?.id || undefined,
           item_name: finalItemName,
           category: finalCategory,
           unit: finalUnit,
           quantity: Number(form.quantity),
-          unit_cost: 0,
+          unit_cost: finalCost,
+          batch_number: form.batch_number || '',
           expiry_date: 'N/A'
         });
       }
@@ -199,32 +297,128 @@ export function ReceiveStockModal({
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-3.5 max-h-[80vh] overflow-y-auto">
 
-          {/* Commodity Name Input with Autocomplete */}
-          <div>
+          {/* Commodity Name Input with Live Filter Dropdown */}
+          <div className="relative" ref={dropdownRef}>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-bold text-slate-700">
                 Commodity Name *
               </label>
-              <span className="text-[10px] text-[#006B56] font-medium">
-                Auto-fills category & unit
+              <span className="text-[10px] text-[#006B56] font-semibold flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                <span>Type to search & auto-fill</span>
               </span>
             </div>
-            <input
-              type="text"
-              list="commodity-catalog-suggestions"
-              value={form.item_name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              required
-              placeholder="e.g. Fortified Maize Flour (25kg Bags)..."
-              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none font-medium text-slate-900"
-            />
-            <datalist id="commodity-catalog-suggestions">
-              {masterCommodities.map(c => (
-                <option key={c.item_name} value={c.item_name}>
-                  {c.category} • {c.unit}
-                </option>
-              ))}
-            </datalist>
+
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <Search className="w-3.5 h-3.5" />
+              </div>
+              <input
+                type="text"
+                value={form.item_name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onFocus={() => setIsDropdownOpen(true)}
+                onKeyDown={handleKeyDown}
+                required
+                placeholder="Type to search e.g. Maize, Oil, Tarpaulin, Aquatabs..."
+                className="w-full pl-9 pr-8 py-2.5 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] focus:ring-2 focus:ring-[#006B56]/10 outline-none font-medium text-slate-900 shadow-2xs transition"
+              />
+              {form.item_name && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm(prev => ({ ...prev, item_name: '' }));
+                    setIsDropdownOpen(true);
+                  }}
+                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Interactive Search Dropdown Menu */}
+            {isDropdownOpen && (
+              <div className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-64 overflow-y-auto">
+                <div className="p-2 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                  <span className="flex items-center gap-1.5">
+                    <Package className="w-3.5 h-3.5 text-[#006B56]" />
+                    <span>Matching Commodities ({filteredCommodities.length})</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">Press ↵ or click to select</span>
+                </div>
+
+                {filteredCommodities.length > 0 ? (
+                  <div className="divide-y divide-slate-50">
+                    {filteredCommodities.map((c, idx) => {
+                      const isSelected = form.item_name === c.item_name;
+                      const isHighlighted = highlightedIndex === idx;
+                      return (
+                        <button
+                          key={`${c.item_name}-${c.warehouse || ''}-${idx}`}
+                          type="button"
+                          onClick={() => selectCommodity(c)}
+                          onMouseEnter={() => setHighlightedIndex(idx)}
+                          className={`w-full text-left px-3.5 py-2.5 transition flex items-center justify-between gap-3 cursor-pointer ${
+                            isHighlighted ? 'bg-emerald-50/80 text-emerald-950' : isSelected ? 'bg-slate-50 text-slate-900' : 'hover:bg-slate-50 text-slate-800'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold truncate block">
+                                {c.item_name}
+                              </span>
+                              {c.isLiveStock && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 shrink-0">
+                                  In Stock
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
+                              <span className="px-1.5 py-0.2 rounded bg-slate-100 font-medium">
+                                {c.category}
+                              </span>
+                              <span>•</span>
+                              <span className="font-mono font-semibold text-slate-600">
+                                {c.unit}
+                              </span>
+                              {c.warehouse && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate max-w-[150px] text-slate-400">
+                                    {c.warehouse}
+                                  </span>
+                                </>
+                              )}
+                              {c.quantity !== undefined && (
+                                <>
+                                  <span>•</span>
+                                  <span className="font-mono text-emerald-700 font-bold">
+                                    {Number(c.quantity).toLocaleString()} in depot
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="shrink-0">
+                            <CheckCircle2 className={`w-4 h-4 ${isSelected ? 'opacity-100 text-emerald-600' : isHighlighted ? 'opacity-70 text-emerald-500' : 'opacity-0'}`} />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-4 text-center">
+                    <p className="text-xs text-slate-600 font-medium">
+                      No predefined commodity matches "<span className="font-bold text-slate-900">{form.item_name}</span>"
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      You can continue with this new item name and specify category and unit below.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Category & Unit */}

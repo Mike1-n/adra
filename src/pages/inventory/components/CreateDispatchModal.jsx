@@ -1,6 +1,102 @@
-import React, { useState } from 'react';
-import { X, Truck, Plus, Trash2, CheckCircle2, ShieldCheck, MapPin, User, Package } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  X,
+  Truck,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  Package
+} from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
+
+// Helper: Smart Commodity Matcher based on Request Category
+function getRelevantCommodities(req, warehouseName, allInventory) {
+  if (!allInventory || allInventory.length === 0) return [];
+
+  // Filter for depot items
+  const depotItems = warehouseName 
+    ? allInventory.filter(i => i.warehouse === warehouseName)
+    : allInventory;
+  const pool = depotItems.length > 0 ? depotItems : allInventory;
+
+  if (!req) {
+    return pool.slice(0, 1).map(i => ({
+      item_id: i.id,
+      item_name: i.item_name,
+      quantity: 1,
+      unit: i.unit || 'Units'
+    }));
+  }
+
+  const reqCat = (req.category || req.assistance_type || '').toLowerCase();
+
+  // Find all items in pool that match the category
+  const matchingItems = pool.filter(i => {
+    const itemCat = (i.category || '').toLowerCase();
+    const itemName = (i.item_name || '').toLowerCase();
+
+    if (reqCat.includes('food')) {
+      return itemCat.includes('food') || itemName.includes('maize') || itemName.includes('flour') || itemName.includes('basket') || itemName.includes('oil') || itemName.includes('cereal') || itemName.includes('pulse') || itemName.includes('rice') || itemName.includes('bp-5');
+    }
+    if (reqCat.includes('wash') || reqCat.includes('water') || reqCat.includes('hygiene')) {
+      return itemCat.includes('wash') || itemCat.includes('water') || itemName.includes('water') || itemName.includes('jerrycan') || itemName.includes('jerrican') || itemName.includes('aquatab') || itemName.includes('hygiene') || itemName.includes('soap');
+    }
+    if (reqCat.includes('shelter') || reqCat.includes('nfi')) {
+      return itemCat.includes('shelter') || itemCat.includes('nfi') || itemName.includes('tarpaulin') || itemName.includes('blanket') || itemName.includes('tent');
+    }
+    if (reqCat.includes('agri') || reqCat.includes('seed') || reqCat.includes('livelihood')) {
+      return itemCat.includes('agri') || itemCat.includes('seed') || itemName.includes('seed') || itemName.includes('tool');
+    }
+    if (reqCat.includes('edu') || reqCat.includes('youth') || reqCat.includes('literacy')) {
+      return itemCat.includes('edu') || itemName.includes('kit') || itemName.includes('student') || itemName.includes('book');
+    }
+    return itemCat.includes(reqCat);
+  });
+
+  if (matchingItems.length > 0) {
+    const foodBasket = matchingItems.find(i => (i.item_name || '').toLowerCase().includes('basket'));
+    if (foodBasket) {
+      return [{
+        item_id: foodBasket.id,
+        item_name: foodBasket.item_name,
+        quantity: 1,
+        unit: foodBasket.unit || 'Baskets'
+      }];
+    }
+    return matchingItems.slice(0, 2).map(i => ({
+      item_id: i.id,
+      item_name: i.item_name,
+      quantity: 1,
+      unit: i.unit || 'Units'
+    }));
+  }
+
+  // Global fallback for category match if this depot doesn't have it
+  const globalMatching = allInventory.filter(i => {
+    const itemCat = (i.category || '').toLowerCase();
+    const itemName = (i.item_name || '').toLowerCase();
+    if (reqCat.includes('food')) return itemCat.includes('food') || itemName.includes('maize') || itemName.includes('basket');
+    if (reqCat.includes('water') || reqCat.includes('wash')) return itemCat.includes('wash') || itemName.includes('jerrycan');
+    if (reqCat.includes('shelter')) return itemCat.includes('shelter') || itemName.includes('tarpaulin');
+    return false;
+  });
+
+  if (globalMatching.length > 0) {
+    return [{
+      item_id: globalMatching[0].id,
+      item_name: globalMatching[0].item_name,
+      quantity: 1,
+      unit: globalMatching[0].unit || 'Units'
+    }];
+  }
+
+  return pool.slice(0, 1).map(i => ({
+    item_id: i.id,
+    item_name: i.item_name,
+    quantity: 1,
+    unit: i.unit || 'Units'
+  }));
+}
 
 export function CreateDispatchModal({
   isOpen,
@@ -8,54 +104,142 @@ export function CreateDispatchModal({
   warehouses = [],
   inventoryItems = [],
   approvedRequests = [],
+  preselectedRequest = null,
   onDispatchSuccess
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
-    origin_warehouse: warehouses[0]?.name || '',
+    origin_warehouse: '',
     destination: '',
     project_name: 'Emergency Relief Response',
     linked_request_id: '',
     beneficiary_name: '',
     transport_mode: 'ADRA Logistics Fleet Truck',
-    vehicle_reg: '',
-    driver_name: '',
-    driver_phone: '',
+    vehicle_reg: 'SSD-481-LOG',
+    driver_name: 'Deng Bol',
+    driver_phone: '+211-921-889911',
     notes: '',
-    items: [
-      {
-        item_id: inventoryItems[0]?.id || '',
-        item_name: inventoryItems[0]?.item_name || '',
-        quantity: '',
-        unit: inventoryItems[0]?.unit || 'Units'
-      }
-    ]
+    items: []
   });
+
+  // Available inventory items for selected warehouse
+  const depotInventory = useMemo(() => {
+    if (!form.origin_warehouse) return inventoryItems;
+    const filtered = inventoryItems.filter(i => i.warehouse === form.origin_warehouse);
+    return filtered.length > 0 ? filtered : inventoryItems;
+  }, [inventoryItems, form.origin_warehouse]);
+
+  // Sync on open or preselectedRequest change
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const initialReq = preselectedRequest || (approvedRequests.length > 0 ? approvedRequests[0] : null);
+
+    const defaultWarehouse = warehouses.find(w => {
+      if (!initialReq) return false;
+      const state = (initialReq.state || '').toLowerCase();
+      const loc = (initialReq.location || '').toLowerCase();
+      return (w.state && state && w.state.toLowerCase() === state) ||
+             (w.name && state && w.name.toLowerCase().includes(state)) ||
+             (w.location && loc && loc.includes(w.location.toLowerCase()));
+    })?.name || warehouses[0]?.name || '';
+
+    const autoItems = getRelevantCommodities(initialReq, defaultWarehouse, inventoryItems);
+
+    setForm({
+      origin_warehouse: defaultWarehouse,
+      destination: initialReq 
+        ? `${initialReq.location || [initialReq.county, initialReq.payam].filter(Boolean).join(', ') || initialReq.state || 'Field Hub'} Relief Centre`
+        : '',
+      project_name: initialReq?.project_name || initialReq?.programme_name || initialReq?.programme || 'Emergency Food Security & Livelihoods Resilience',
+      linked_request_id: initialReq ? (initialReq.id || initialReq.request_code || initialReq.tracking_number) : '',
+      beneficiary_name: initialReq ? `${initialReq.beneficiary_name || initialReq.full_name || 'Beneficiary'} (${initialReq.location || initialReq.payam || initialReq.state || 'Field'})` : '',
+      assigned_supervisor_id: initialReq?.assigned_supervisor_id || '',
+      assigned_supervisor_name: initialReq?.assigned_supervisor_name || '',
+      assigned_field_worker_id: initialReq?.assigned_field_worker_id || '',
+      assigned_field_worker_name: initialReq?.assigned_field_worker_name || '',
+      transport_mode: 'ADRA Logistics Fleet Truck',
+      vehicle_reg: 'SSD-481-LOG',
+      driver_name: 'Deng Bol',
+      driver_phone: '+211-921-889911',
+      notes: initialReq ? `Waybill for request ${initialReq.request_code || initialReq.id}.` : '',
+      items: autoItems
+    });
+  }, [isOpen, preselectedRequest, warehouses, inventoryItems, approvedRequests]);
 
   if (!isOpen) return null;
 
-  const handleLinkRequest = (e) => {
+  const handleLinkRequestChange = (e) => {
     const reqId = e.target.value;
     if (!reqId) {
-      setForm(prev => ({ ...prev, linked_request_id: '', beneficiary_name: '', destination: '' }));
-      return;
-    }
-    const req = approvedRequests.find(r => r.id === reqId || r.tracking_number === reqId);
-    if (req) {
       setForm(prev => ({
         ...prev,
-        linked_request_id: req.id || req.tracking_number,
+        linked_request_id: '',
+        beneficiary_name: '',
+        assigned_supervisor_id: '',
+        assigned_supervisor_name: '',
+        assigned_field_worker_id: '',
+        assigned_field_worker_name: '',
+        destination: ''
+      }));
+      return;
+    }
+
+    const req = approvedRequests.find(r => 
+      r.id === reqId || 
+      r.request_code === reqId || 
+      r.tracking_number === reqId ||
+      String(r.id) === String(reqId)
+    );
+
+    if (req) {
+      const matchingWh = warehouses.find(w => {
+        const state = (req.state || '').toLowerCase();
+        const loc = (req.location || '').toLowerCase();
+        return (w.state && state && w.state.toLowerCase() === state) ||
+               (w.name && state && w.name.toLowerCase().includes(state)) ||
+               (w.location && loc && loc.includes(w.location.toLowerCase()));
+      })?.name || form.origin_warehouse || warehouses[0]?.name || '';
+
+      const autoItems = getRelevantCommodities(req, matchingWh, inventoryItems);
+
+      setForm(prev => ({
+        ...prev,
+        linked_request_id: req.id || req.request_code || req.tracking_number,
         beneficiary_name: `${req.beneficiary_name || req.full_name || 'Beneficiary'} (${req.location || req.payam || req.state || 'Field'})`,
-        destination: `${req.location || req.payam || req.state || 'Field Distribution Hub'} Relief Centre`,
-        project_name: req.project_name || req.programme_name || prev.project_name
+        destination: `${req.location || [req.county, req.payam].filter(Boolean).join(', ') || req.state || 'Field Hub'} Relief Centre`,
+        project_name: req.project_name || req.programme_name || req.programme || prev.project_name,
+        assigned_supervisor_id: req.assigned_supervisor_id || prev.assigned_supervisor_id,
+        assigned_supervisor_name: req.assigned_supervisor_name || prev.assigned_supervisor_name,
+        assigned_field_worker_id: req.assigned_field_worker_id || prev.assigned_field_worker_id,
+        assigned_field_worker_name: req.assigned_field_worker_name || prev.assigned_field_worker_name,
+        origin_warehouse: matchingWh,
+        items: autoItems
       }));
     }
   };
 
+  const handleWarehouseChange = (e) => {
+    const newWh = e.target.value;
+    const req = approvedRequests.find(r => 
+      r.id === form.linked_request_id || 
+      r.request_code === form.linked_request_id || 
+      r.tracking_number === form.linked_request_id
+    );
+
+    const reAllocatedItems = getRelevantCommodities(req, newWh, inventoryItems);
+
+    setForm(prev => ({
+      ...prev,
+      origin_warehouse: newWh,
+      items: reAllocatedItems.length > 0 ? reAllocatedItems : prev.items
+    }));
+  };
+
   const handleAddItemLine = () => {
-    const defaultItem = inventoryItems[0];
+    const defaultItem = depotInventory[0] || inventoryItems[0];
     setForm(prev => ({
       ...prev,
       items: [
@@ -63,7 +247,7 @@ export function CreateDispatchModal({
         {
           item_id: defaultItem?.id || '',
           item_name: defaultItem?.item_name || '',
-          quantity: '',
+          quantity: 1,
           unit: defaultItem?.unit || 'Units'
         }
       ]
@@ -72,7 +256,7 @@ export function CreateDispatchModal({
 
   const handleRemoveItemLine = (idx) => {
     if (form.items.length === 1) {
-      toast.warning('A waybill manifest must have at least one commodity line item.');
+      toast.warning('A waybill must have at least one commodity line item.');
       return;
     }
     setForm(prev => ({
@@ -102,15 +286,15 @@ export function CreateDispatchModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.origin_warehouse) {
-      toast.error('Please select the origin warehouse depot.');
+      toast.error('Please select an origin warehouse depot.');
       return;
     }
     if (!form.destination.trim()) {
-      toast.error('Please specify the destination distribution point.');
+      toast.error('Please specify a destination point.');
       return;
     }
-    if (form.items.some(i => !i.item_name || !i.quantity || Number(i.quantity) <= 0)) {
-      toast.error('Please ensure all commodity lines have valid item names and quantities.');
+    if (form.items.length === 0 || form.items.some(i => !i.item_name || !i.quantity || Number(i.quantity) <= 0)) {
+      toast.error('Please specify valid commodity items and quantities.');
       return;
     }
 
@@ -125,7 +309,7 @@ export function CreateDispatchModal({
           }))
         });
       }
-      toast.success('Waybill generated successfully!');
+      toast.success('Waybill issued successfully!');
       onClose();
     } catch (err) {
       toast.error(err.message || 'Failed to issue waybill.');
@@ -136,69 +320,70 @@ export function CreateDispatchModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-4 sm:my-6 animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden my-4 animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
-        <div className="bg-[#006B56] p-4 sm:p-5 text-white flex items-center justify-between">
+        <div className="bg-[#006B56] px-5 py-3.5 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-white/10 shrink-0">
-              <Truck className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-extrabold text-base sm:text-lg leading-tight">Issue Humanitarian Waybill</h3>
-              <p className="text-xs text-emerald-100">Stage aid commodities for transport and dispatch</p>
-            </div>
+            <Truck className="w-5 h-5 text-emerald-200" />
+            <h3 className="font-bold text-base">Issue Humanitarian Waybill</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition cursor-pointer"
+            className="p-1 rounded-lg hover:bg-white/20 text-white/80 hover:text-white transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        {/* Clean Form */}
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
           
-          {/* Link to Approved PM Request if available */}
+          {/* 1. Linked Request */}
           {approvedRequests.length > 0 && (
-            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
-                <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                <span>Link to PM-Authorized Assistance Request (Optional)</span>
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Approved Beneficiary Request
+              </label>
               <select
                 value={form.linked_request_id}
-                onChange={handleLinkRequest}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-emerald-300 bg-white font-medium text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+                onChange={handleLinkRequestChange}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-900 outline-none focus:border-[#006B56]"
               >
-                <option value="">-- No Direct Link (Manual Logistics Convoy) --</option>
-                {approvedRequests.map(r => (
-                  <option key={r.id || r.tracking_number} value={r.id || r.tracking_number}>
-                    [{r.tracking_number || r.id}] {r.beneficiary_name || r.full_name} — {r.location || r.payam || 'Field'} ({r.category || 'Aid Delivery'})
-                  </option>
-                ))}
+                <option value="">-- Select or link an approved request --</option>
+                {approvedRequests.map(r => {
+                  const reqKey = r.id || r.request_code || r.tracking_number;
+                  const reqCode = r.request_code || r.tracking_number || r.id;
+                  const benName = r.beneficiary_name || r.full_name || 'Beneficiary';
+                  const loc = r.location || [r.county, r.payam].filter(Boolean).join(', ') || r.state || 'Field';
+                  const cat = r.category || r.assistance_type || 'Aid Delivery';
+                  return (
+                    <option key={reqKey} value={reqKey}>
+                      [{reqCode}] {benName} — {cat} ({loc})
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
 
-          {/* Route Section */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          {/* 2. Warehouse & Destination */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Origin Warehouse Depot *
+                Origin Depot *
               </label>
               <select
                 value={form.origin_warehouse}
-                onChange={(e) => setForm(prev => ({ ...prev, origin_warehouse: e.target.value }))}
+                onChange={handleWarehouseChange}
                 required
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none font-medium text-slate-900"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-900 outline-none focus:border-[#006B56]"
               >
-                <option value="">Select origin depot...</option>
+                <option value="">Select depot...</option>
                 {warehouses.map(w => (
                   <option key={w.id || w.code} value={w.name}>
-                    {w.name} ({w.location})
+                    {w.name}
                   </option>
                 ))}
               </select>
@@ -213,93 +398,17 @@ export function CreateDispatchModal({
                 value={form.destination}
                 onChange={(e) => setForm(prev => ({ ...prev, destination: e.target.value }))}
                 required
-                placeholder="e.g. Kapoeta South Relief Hub"
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none font-medium text-slate-900"
-              >
-              </input>
-            </div>
-          </div>
-
-          {/* Project & Transport Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Project Name
-              </label>
-              <input
-                type="text"
-                value={form.project_name}
-                onChange={(e) => setForm(prev => ({ ...prev, project_name: e.target.value }))}
-                placeholder="Project name..."
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none font-medium text-slate-900"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Transport Mode
-              </label>
-              <select
-                value={form.transport_mode}
-                onChange={(e) => setForm(prev => ({ ...prev, transport_mode: e.target.value }))}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none font-medium text-slate-900"
-              >
-                <option value="ADRA Logistics Fleet Truck">ADRA Logistics Fleet Truck</option>
-                <option value="UN Humanitarian Road Convoy">UN Humanitarian Road Convoy</option>
-                <option value="Riverine Barge Transport">Riverine Barge Transport</option>
-                <option value="UNHAS Humanitarian Air Cargo">UNHAS Humanitarian Air Cargo</option>
-                <option value="Local Commercial Logistics Partner">Local Commercial Logistics Partner</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Vehicle & Driver */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Vehicle Plate / Reg No
-              </label>
-              <input
-                type="text"
-                value={form.vehicle_reg}
-                onChange={(e) => setForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
-                placeholder="e.g. SSD-912A"
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none font-mono text-slate-900"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Driver / Lead Name
-              </label>
-              <input
-                type="text"
-                value={form.driver_name}
-                onChange={(e) => setForm(prev => ({ ...prev, driver_name: e.target.value }))}
-                placeholder="Driver full name"
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none font-medium text-slate-900"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Driver Contact / Sat Phone
-              </label>
-              <input
-                type="text"
-                value={form.driver_phone}
-                onChange={(e) => setForm(prev => ({ ...prev, driver_phone: e.target.value }))}
-                placeholder="+211..."
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none font-mono text-slate-900"
+                placeholder="e.g. Juba Central Relief Hub"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-900 outline-none focus:border-[#006B56]"
               />
             </div>
           </div>
 
-          {/* Staged Line Items List */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
+          {/* 3. Commodities to Dispatch */}
+          <div className="space-y-2 pt-1 border-t border-slate-100">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                Relief Commodities Manifest Lines ({form.items.length})
+              <label className="text-xs font-bold text-slate-700">
+                Commodities to Dispatch
               </label>
               <button
                 type="button"
@@ -307,44 +416,33 @@ export function CreateDispatchModal({
                 className="text-xs font-bold text-[#006B56] hover:text-[#005443] flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add Item Line</span>
+                <span>Add Item</span>
               </button>
             </div>
 
-            <div className="space-y-2.5">
-              {form.items.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="p-3 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-start sm:items-center gap-2.5"
-                >
-                  <div className="flex-1 w-full sm:w-auto">
-                    {inventoryItems.length > 0 ? (
+            <div className="space-y-2">
+              {form.items.map((item, idx) => {
+                const matched = inventoryItems.find(i => i.id === item.item_id || i.item_name === item.item_name);
+                const stock = matched ? matched.quantity : null;
+
+                return (
+                  <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                    <div className="flex-1 min-w-0">
                       <select
-                        value={item.item_id}
+                        value={item.item_id || depotInventory.find(i => i.item_name === item.item_name)?.id || ''}
                         onChange={(e) => handleItemLineChange(idx, 'item_id', e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-900 outline-none focus:border-[#006B56]"
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white font-medium text-slate-900 outline-none focus:border-[#006B56]"
                       >
-                        <option value="">Select commodity from catalog...</option>
-                        {inventoryItems.map(inv => (
+                        <option value="">Select item...</option>
+                        {depotInventory.map(inv => (
                           <option key={inv.id} value={inv.id}>
-                            {inv.item_name} ({inv.quantity} {inv.unit} in stock at {inv.warehouse})
+                            {inv.item_name} ({Number(inv.quantity).toLocaleString()} {inv.unit})
                           </option>
                         ))}
                       </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={item.item_name}
-                        onChange={(e) => handleItemLineChange(idx, 'item_name', e.target.value)}
-                        placeholder="Enter commodity item name..."
-                        required
-                        className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-900 outline-none focus:border-[#006B56]"
-                      />
-                    )}
-                  </div>
+                    </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <div className="w-24">
+                    <div className="w-20 shrink-0">
                       <input
                         type="number"
                         min="1"
@@ -352,49 +450,55 @@ export function CreateDispatchModal({
                         onChange={(e) => handleItemLineChange(idx, 'quantity', e.target.value)}
                         placeholder="Qty"
                         required
-                        className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-mono font-bold text-slate-900 text-right outline-none focus:border-[#006B56]"
+                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-200 bg-white font-mono font-bold text-slate-900 text-right outline-none focus:border-[#006B56]"
                       />
                     </div>
 
-                    <div className="w-20">
-                      <input
-                        type="text"
-                        value={item.unit}
-                        onChange={(e) => handleItemLineChange(idx, 'unit', e.target.value)}
-                        placeholder="Unit"
-                        className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-600 text-center"
-                      />
-                    </div>
+                    <span className="text-xs font-medium text-slate-600 w-16 truncate shrink-0">
+                      {item.unit || 'Units'}
+                    </span>
 
                     <button
                       type="button"
                       onClick={() => handleRemoveItemLine(idx)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                      className="p-1 rounded text-slate-400 hover:text-rose-600 transition cursor-pointer shrink-0"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
-          {/* Notes */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Convoy Security & Routing Notes (Optional)
-            </label>
-            <textarea
-              rows="2"
-              value={form.notes}
-              onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="UN security escort status, state checkpoint clearances, road accessibility notes..."
-              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none text-slate-800"
-            />
+          {/* 4. Compact Transport (Single Row) */}
+          <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-100 text-xs">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                Vehicle Plate
+              </label>
+              <input
+                type="text"
+                value={form.vehicle_reg}
+                onChange={(e) => setForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white font-mono text-slate-800"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                Driver Name
+              </label>
+              <input
+                type="text"
+                value={form.driver_name}
+                onChange={(e) => setForm(prev => ({ ...prev, driver_name: e.target.value }))}
+                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800"
+              />
+            </div>
           </div>
 
-          {/* Footer Actions */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          {/* Actions */}
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
@@ -408,10 +512,11 @@ export function CreateDispatchModal({
               className="px-5 py-2 rounded-xl bg-[#006B56] hover:bg-[#005443] text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer disabled:opacity-50"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>{loading ? 'Issuing...' : 'Generate & Issue Waybill'}</span>
+              <span>{loading ? 'Issuing...' : 'Issue Waybill'}</span>
             </button>
           </div>
         </form>
+
       </div>
     </div>
   );

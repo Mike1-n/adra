@@ -2389,7 +2389,133 @@ export const db = {
   // --- FIELD WORKER MODULE METHODS ---
   async getFieldWorkerAssignedRequests(workerId = null, workerName = null) {
     const allRequests = await this.getAssistanceRequests();
-    return allRequests.filter(r => {
+    const allDispatches = await this.getDispatches();
+
+    const knownWaybills = new Set();
+    const knownReqCodes = new Set();
+    const knownReqIds = new Set();
+
+    // Enrich existing requests with dispatch info
+    const enrichedRequests = allRequests.map(r => {
+      if (r.waybill_number) knownWaybills.add(r.waybill_number);
+      if (r.request_code) knownReqCodes.add(r.request_code);
+      if (r.id) knownReqIds.add(r.id);
+
+      const matchingDispatch = allDispatches.find(d => 
+        (d.waybill_number && d.waybill_number === r.waybill_number) ||
+        (d.linked_request_id && (d.linked_request_id === r.id || d.linked_request_id === r.request_code)) ||
+        (d.request_code && d.request_code === r.request_code)
+      );
+
+      if (matchingDispatch) {
+        const isCollected = matchingDispatch.status === 'Collected by Field Worker' || 
+                            matchingDispatch.status === 'goods_collected_by_field_worker' || 
+                            matchingDispatch.status === 'Collected' ||
+                            matchingDispatch.dispatch_status === 'Collected by Field Worker' ||
+                            Boolean(matchingDispatch.collected_by);
+        const isArrived = matchingDispatch.status === 'Arrived' || 
+                          matchingDispatch.status === 'goods_arrived_at_hub' ||
+                          matchingDispatch.dispatch_status === 'Arrived at Hub' ||
+                          matchingDispatch.status === 'Arrived at Hub';
+        const isDelivered = matchingDispatch.status === 'Delivered' || 
+                            matchingDispatch.status === 'Verified' ||
+                            matchingDispatch.status === 'Distributed';
+
+        return {
+          ...r,
+          waybill_number: matchingDispatch.waybill_number || r.waybill_number,
+          driver_name: matchingDispatch.driver_name || r.driver_name,
+          vehicle_number: matchingDispatch.vehicle_number || r.vehicle_number,
+          status: isDelivered ? (r.status === 'Distributed' || r.status === 'Completed' ? r.status : 'Distributed') :
+                  isCollected ? 'goods_collected_by_field_worker' :
+                  isArrived ? (r.status === 'goods_collected_by_field_worker' ? r.status : 'goods_arrived_at_hub') :
+                  r.status,
+          dispatch_status: isDelivered ? 'Distributed' :
+                           isCollected ? 'Collected by Field Worker' :
+                           isArrived ? 'Arrived at Hub' :
+                           (matchingDispatch.status || r.dispatch_status),
+          status_label: isDelivered ? 'Delivered & Verified' :
+                        isCollected ? 'Goods Collected - Out for Distribution' :
+                        isArrived ? 'Goods Arrived at Hub Store' :
+                        (r.status_label || matchingDispatch.status),
+          goods_collected_by: matchingDispatch.collected_by || r.goods_collected_by,
+          goods_collected_at: matchingDispatch.collected_at || r.goods_collected_at,
+          goods_handed_over_by: matchingDispatch.handed_over_by || r.goods_handed_over_by,
+          collected_by: matchingDispatch.collected_by || r.collected_by,
+          items: (r.items && r.items.length > 0) ? r.items : (matchingDispatch.items || [])
+        };
+      }
+      return r;
+    });
+
+    // Also include dispatches that do not have an existing assistance request
+    const unlinkedDispatchTasks = [];
+    allDispatches.forEach(d => {
+      const isAlreadyInRequests = (d.waybill_number && knownWaybills.has(d.waybill_number)) ||
+                                  (d.linked_request_id && (knownReqIds.has(d.linked_request_id) || knownReqCodes.has(d.linked_request_id))) ||
+                                  (d.request_code && knownReqCodes.has(d.request_code));
+      if (!isAlreadyInRequests) {
+        const isCollected = d.status === 'Collected by Field Worker' || 
+                            d.status === 'goods_collected_by_field_worker' || 
+                            d.status === 'Collected' ||
+                            d.dispatch_status === 'Collected by Field Worker' ||
+                            Boolean(d.collected_by);
+        const isArrived = d.status === 'Arrived' || 
+                          d.status === 'goods_arrived_at_hub' || 
+                          d.dispatch_status === 'Arrived at Hub' ||
+                          d.status === 'Arrived at Hub';
+        const isDelivered = d.status === 'Delivered' || 
+                            d.status === 'Verified' || 
+                            d.status === 'Distributed';
+
+        const syntheticTask = {
+          id: d.id || d.waybill_number,
+          request_code: d.request_code || `REQ-${d.waybill_number?.replace('WAYBILL-SS-', '').replace('WAYBILL-', '') || d.id}`,
+          waybill_number: d.waybill_number,
+          beneficiary_name: d.beneficiary_name || d.destination || 'Relief Commodities Hub Staging',
+          beneficiary_code: d.beneficiary_code || `BEN-${d.waybill_number?.replace('WAYBILL-SS-', '') || 'DIR'}`,
+          category: d.items?.[0]?.item_name || d.category || 'Relief Cargo',
+          items: d.items || [],
+          quantity: d.items?.[0]?.quantity || d.quantity || 1,
+          unit: d.items?.[0]?.unit || 'Units',
+          state: d.state || 'Central Equatoria',
+          county: d.county || 'Juba',
+          payam: d.payam || 'Juba Central',
+          boma: d.boma || 'Relief Centre',
+          location: d.destination || 'Juba Central, Central Equatoria Relief Centre',
+          status: isDelivered ? 'Distributed' :
+                  isCollected ? 'goods_collected_by_field_worker' :
+                  isArrived ? 'goods_arrived_at_hub' :
+                  (d.status === 'In Transit' ? 'warehouse_dispatched' : d.status || 'warehouse_dispatched'),
+          dispatch_status: isDelivered ? 'Distributed' :
+                           isCollected ? 'Collected by Field Worker' :
+                           isArrived ? 'Arrived at Hub' :
+                           (d.status || 'In Transit'),
+          status_label: isDelivered ? 'Delivered & Verified' :
+                        isCollected ? 'Goods Collected - Out for Distribution' :
+                        isArrived ? 'Goods Arrived at Hub Store' :
+                        (d.status || 'In Transit'),
+          assigned_field_worker_name: d.collected_by || d.assigned_field_worker_name || workerName || 'Field Officer',
+          assigned_field_worker_id: d.assigned_field_worker_id || workerId || 'fw-1',
+          collected_by: d.collected_by || (isCollected ? (workerName || 'Field Officer') : null),
+          collected_at: d.collected_at || d.updated_at || d.created_at,
+          goods_collected_by: d.collected_by || (isCollected ? (workerName || 'Field Officer') : null),
+          goods_collected_at: d.collected_at || d.updated_at || d.created_at,
+          goods_handed_over_by: d.handed_over_by || 'Supervisor',
+          handed_over_by: d.handed_over_by || 'Supervisor',
+          driver_name: d.driver_name,
+          vehicle_number: d.vehicle_number,
+          urgency: d.urgency || 'High',
+          created_at: d.created_at || new Date().toISOString(),
+          is_dispatch_cargo: true
+        };
+        unlinkedDispatchTasks.push(syntheticTask);
+      }
+    });
+
+    const combinedList = [...unlinkedDispatchTasks, ...enrichedRequests];
+
+    return combinedList.filter(r => {
       if (!workerId && !workerName) return true;
       const cleanName = workerName ? String(workerName).toLowerCase().trim() : '';
       const cleanId = workerId ? String(workerId).toLowerCase().trim() : '';
@@ -2399,21 +2525,38 @@ export const db = {
         r.assigned_field_worker_name.toLowerCase().includes(cleanName) ||
         cleanName.includes(r.assigned_field_worker_name.toLowerCase())
       );
+      const matchCollectedWorker = (r.collected_by && cleanName && (
+        r.collected_by.toLowerCase().includes(cleanName) ||
+        cleanName.includes(r.collected_by.toLowerCase())
+      )) || (r.goods_collected_by && cleanName && (
+        r.goods_collected_by.toLowerCase().includes(cleanName) ||
+        cleanName.includes(r.goods_collected_by.toLowerCase())
+      ));
 
       // If this request specifically matches this worker
-      if (matchWorkerId || matchWorkerName) return true;
+      if (matchWorkerId || matchWorkerName || matchCollectedWorker) return true;
 
-      // Also fallback if request is in field-worker active pipeline states
+      // Also fallback if request/dispatch is in field-worker active pipeline states
       const isFieldStage = [
         'Assigned to Field Worker',
         'Assessment In Progress',
         'Assessment Submitted',
         'Correction Required',
+        'warehouse_dispatched',
+        'goods_arrived_at_hub',
+        'goods_collected_by_field_worker',
+        'Collected by Field Worker',
+        'Approved',
+        'Completed',
+        'Distributed',
         'Rejected'
       ].includes(r.status) || Boolean(r.returned_to_worker) || r.status_label === 'Rejected by PM';
 
-      // If no specific worker is assigned on the case yet or it matches general field stage
-      if (!r.assigned_field_worker_name || r.assigned_field_worker_name === 'Unassigned') {
+      // If no specific worker is assigned on the case yet or generic assignment
+      if (!r.assigned_field_worker_name || 
+          r.assigned_field_worker_name === 'Unassigned' ||
+          r.assigned_field_worker_name === 'Field Worker' ||
+          r.assigned_field_worker_name === 'Field Officer') {
         return isFieldStage;
       }
 
@@ -2609,51 +2752,181 @@ export const db = {
     return newAssessment;
   },
 
-  async confirmAidDistribution({ requestId, requestCode, qrToken, notes, workerName = 'John Deng', workerId = 'fw-1', itemsDistributed = 'Emergency Food Basket & Water Purification Kits' }) {
+  async confirmAidDistribution({ 
+    requestId, 
+    requestCode, 
+    waybillNumber, 
+    qrToken, 
+    notes, 
+    workerName = 'John Deng', 
+    workerId = 'fw-1', 
+    itemsDistributed = 'Emergency Relief Package',
+    recipientName = '',
+    recipientPhone = '',
+    recipientRelationship = 'Self (Beneficiary)',
+    recipientSignature = 'Beneficiary Signed & Confirmed Receipt'
+  }) {
     const allRequests = await this.getAssistanceRequests();
+    const allDispatches = await this.getDispatches();
     const now = new Date().toISOString();
-    const target = allRequests.find(r => 
+    
+    // Find target in requests
+    let target = allRequests.find(r => 
       (requestId && r.id === requestId) || 
       (requestCode && r.request_code === requestCode) ||
+      (waybillNumber && r.waybill_number === waybillNumber) ||
       (qrToken && (r.qr_code === qrToken || r.request_code === qrToken || r.beneficiary_code === qrToken))
     );
 
-    if (!target) {
-      throw new Error(`No pending assistance request found matching token / code "${qrToken || requestCode || requestId}"`);
+    // If not found in requests, search in dispatches
+    let targetDispatch = allDispatches.find(d =>
+      (waybillNumber && d.waybill_number === waybillNumber) ||
+      (requestId && (d.id === requestId || d.waybill_number === requestId)) ||
+      (requestCode && d.request_code === requestCode)
+    );
+
+    // Prevent duplicate distribution if already distributed
+    const isTargetAlreadyDistributed = (target && (
+      target.status === 'Distributed' || 
+      target.status === 'Completed' || 
+      target.dispatch_status === 'Distributed' || 
+      Boolean(target.distributed_at) ||
+      Boolean(target.distribution_confirmed)
+    )) || (targetDispatch && (
+      targetDispatch.status === 'Delivered' || 
+      targetDispatch.status === 'Distributed' ||
+      targetDispatch.dispatch_status === 'Distributed' ||
+      Boolean(targetDispatch.distributed_at)
+    ));
+
+    if (isTargetAlreadyDistributed) {
+      const distDate = target?.distributed_at || targetDispatch?.distributed_at || now;
+      const formattedDate = new Date(distDate).toLocaleDateString('en-GB');
+      throw new Error(`This relief package was already distributed and confirmed received by ${target?.beneficiary_name || targetDispatch?.beneficiary_name || 'the beneficiary'} on ${formattedDate}. Duplicate distribution is not permitted.`);
     }
 
-    const updatedRequests = allRequests.map(r => (r.id === target.id || r.request_code === target.request_code) ? {
-      ...r,
-      status: 'Completed',
-      status_label: 'Aid Received',
-      status_stage: 7,
-      distributed_at: now,
-      distributed_by: workerName,
-      distribution_notes: notes || `Aid package physically disbursed and verified by Field Worker ${workerName}.`,
-      review_notes: `Aid successfully received by beneficiary on ${now.split('T')[0]}. Verified via Field QR Scanner.`,
-      updated_at: now
-    } : r);
+    if (!target && !targetDispatch) {
+      throw new Error(`No pending assistance request or dispatch found matching "${waybillNumber || requestCode || requestId}"`);
+    }
 
-    saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedRequests);
+    const effectiveBeneficiaryName = recipientName || target?.beneficiary_name || targetDispatch?.beneficiary_name || 'Beneficiary';
+    const effectiveBeneficiaryCode = target?.beneficiary_code || targetDispatch?.beneficiary_code || `BEN-${Date.now().toString().slice(-4)}`;
+    const effectiveCategory = target?.category || targetDispatch?.items?.[0]?.item_name || itemsDistributed || 'Relief Package';
+
+    // If target request exists, update it
+    if (target) {
+      const updatedRequests = allRequests.map(r => (r.id === target.id || r.request_code === target.request_code || (r.waybill_number && r.waybill_number === target.waybill_number)) ? {
+        ...r,
+        status: 'Distributed',
+        dispatch_status: 'Distributed',
+        status_label: 'Delivered & Confirmed',
+        status_stage: 7,
+        distributed_at: now,
+        distribution_date: now.split('T')[0],
+        distributed_by: workerName,
+        distribution_confirmed: true,
+        recipient_confirmed: true,
+        recipient_name: effectiveBeneficiaryName,
+        recipient_phone: recipientPhone || target.phone || target.beneficiary_phone || '',
+        recipient_relationship: recipientRelationship,
+        recipient_signature: recipientSignature,
+        distribution_notes: notes || `Aid package physically disbursed and confirmed received by ${effectiveBeneficiaryName}.`,
+        review_notes: `Aid successfully received and confirmed by beneficiary ${effectiveBeneficiaryName} on ${new Date().toLocaleDateString('en-GB')}.`,
+        updated_at: now
+      } : r);
+      saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedRequests);
+    } else if (targetDispatch) {
+      // Create completed request entry
+      const newReq = {
+        id: `req-${targetDispatch.id || Date.now()}`,
+        request_code: targetDispatch.request_code || `REQ-${targetDispatch.waybill_number?.replace('WAYBILL-SS-', '').replace('WAYBILL-', '') || Date.now()}`,
+        waybill_number: targetDispatch.waybill_number,
+        beneficiary_name: effectiveBeneficiaryName,
+        beneficiary_code: effectiveBeneficiaryCode,
+        category: effectiveCategory,
+        items: targetDispatch.items || [],
+        quantity: targetDispatch.items?.[0]?.quantity || targetDispatch.quantity || 1,
+        unit: targetDispatch.items?.[0]?.unit || 'Units',
+        state: targetDispatch.state || 'Central Equatoria',
+        county: targetDispatch.county || 'Juba',
+        payam: targetDispatch.payam || 'Juba Central',
+        boma: targetDispatch.boma || 'Relief Centre',
+        location: targetDispatch.destination || 'Juba Central Hub',
+        assigned_field_worker_name: workerName,
+        assigned_field_worker_id: workerId,
+        status: 'Distributed',
+        dispatch_status: 'Distributed',
+        status_label: 'Delivered & Confirmed',
+        status_stage: 7,
+        distributed_at: now,
+        distribution_date: now.split('T')[0],
+        distributed_by: workerName,
+        distribution_confirmed: true,
+        recipient_confirmed: true,
+        recipient_name: effectiveBeneficiaryName,
+        recipient_phone: recipientPhone || '',
+        recipient_relationship: recipientRelationship,
+        recipient_signature: recipientSignature,
+        distribution_notes: notes || `Aid package physically disbursed and confirmed received by ${effectiveBeneficiaryName}.`,
+        review_notes: `Aid successfully received and confirmed by beneficiary ${effectiveBeneficiaryName} on ${new Date().toLocaleDateString('en-GB')}.`,
+        created_at: targetDispatch.created_at || now,
+        updated_at: now
+      };
+      saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, [newReq, ...allRequests]);
+      target = newReq;
+    }
+
+    // Update dispatch record if exists
+    if (targetDispatch || target?.waybill_number) {
+      const matchWaybill = targetDispatch?.waybill_number || target?.waybill_number;
+      const updatedDispatches = allDispatches.map(d => {
+        if (d.waybill_number === matchWaybill || d.id === target?.id || d.linked_request_id === target?.id) {
+          return {
+            ...d,
+            status: 'Delivered',
+            dispatch_status: 'Distributed',
+            distributed_at: now,
+            distributed_by: workerName,
+            recipient_confirmed: true,
+            recipient_name: effectiveBeneficiaryName,
+            notes: `${d.notes ? d.notes + ' | ' : ''}Confirmed received by beneficiary ${effectiveBeneficiaryName} on ${new Date().toLocaleDateString('en-GB')}`
+          };
+        }
+        return d;
+      });
+      saveLocalData(STORAGE_KEYS.DISPATCHES, updatedDispatches);
+
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from('dispatches').update({
+            status: 'Delivered',
+            notes: `Confirmed received by beneficiary ${effectiveBeneficiaryName}`
+          }).or(`waybill_number.eq.${matchWaybill}`);
+        } catch (e) {}
+      }
+    }
 
     // Create record in interventions/distributions
     const allInterventions = getLocalData(STORAGE_KEYS.INTERVENTIONS, mock.initialInterventions || []);
     const newIntervention = {
       id: `int_${Date.now()}`,
       intervention_code: `INT-SS-${Date.now().toString().slice(-4)}`,
-      project_id: target.program_id || 'prg1',
-      project_name: target.program_name || target.programme_name || 'Emergency Food Security & Livelihoods Resilience',
-      beneficiary_id: target.beneficiary_id || 'ben-1',
-      beneficiary_name: target.beneficiary_name,
-      beneficiary_code: target.beneficiary_code,
-      intervention_type: target.category || 'Emergency Food Relief',
+      project_id: target?.program_id || 'prg1',
+      project_name: target?.program_name || target?.programme_name || 'Emergency Food Security & Livelihoods Resilience',
+      beneficiary_id: target?.beneficiary_id || effectiveBeneficiaryCode,
+      beneficiary_name: effectiveBeneficiaryName,
+      beneficiary_code: effectiveBeneficiaryCode,
+      intervention_type: effectiveCategory,
       date: now.split('T')[0],
       quantity: 1,
       unit: 'Package',
       status: 'Delivered',
-      location: target.location || `${target.state}, ${target.county}`,
+      location: target?.location || `${target?.state || 'Central Equatoria'}, ${target?.county || 'Juba'}`,
       disbursed_by: workerName,
-      details: notes || `Delivered ${itemsDistributed} to ${target.beneficiary_name} (${target.beneficiary_code})`
+      recipient_name: effectiveBeneficiaryName,
+      recipient_confirmed: true,
+      recipient_relationship: recipientRelationship,
+      details: notes || `Delivered ${itemsDistributed} to ${effectiveBeneficiaryName} (${effectiveBeneficiaryCode}) — Confirmed Received`
     };
     saveLocalData(STORAGE_KEYS.INTERVENTIONS, [newIntervention, ...allInterventions]);
 
@@ -2662,15 +2935,15 @@ export const db = {
       worker_id: workerId,
       worker_name: workerName,
       activity_type: 'Aid Distribution',
-      title: `Disbursement Verified: ${target.beneficiary_name}`,
-      details: `Physically disbursed aid (${target.category}) to ${target.beneficiary_name} (${target.beneficiary_code}) via token verification.`
+      title: `Disbursement Confirmed: ${effectiveBeneficiaryName}`,
+      details: `Physically disbursed aid (${effectiveCategory}) to ${effectiveBeneficiaryName} (${effectiveBeneficiaryCode}) — Received & Confirmed.`
     });
 
     await this.logAudit({
-      action: 'DISBURSE_AID',
+      action: 'DISBURSE_AID_CONFIRMED',
       module: 'Field Distribution',
-      record_id: target.request_code,
-      details: `Field Worker ${workerName} completed on-site aid distribution for ${target.beneficiary_name} (${target.request_code})`
+      record_id: target?.request_code || target?.waybill_number,
+      details: `Field Worker ${workerName} completed on-site aid distribution. Confirmed received by ${effectiveBeneficiaryName} (${target?.request_code || target?.waybill_number})`
     });
 
     return { success: true, request: target, intervention: newIntervention };
@@ -4592,6 +4865,17 @@ export const db = {
         if (!error && data && data.length > 0) {
           return data;
         }
+        if (!error && (!data || data.length === 0)) {
+          const initial = mock.initialSuppliers || [];
+          if (initial.length > 0) {
+            try {
+              await supabase.from('suppliers').insert(initial);
+              return initial;
+            } catch (seedErr) {
+              console.warn('Error auto-seeding suppliers to Supabase:', seedErr);
+            }
+          }
+        }
       } catch (err) {
         console.warn('Error fetching suppliers from Supabase:', err);
       }
@@ -4648,6 +4932,17 @@ export const db = {
         const { data, error } = await supabase.from('inventory').select('*').order('created_at', { ascending: false });
         if (!error && data && data.length > 0) {
           return data;
+        }
+        if (!error && (!data || data.length === 0)) {
+          const initial = mock.initialInventory || [];
+          if (initial.length > 0) {
+            try {
+              await supabase.from('inventory').insert(initial);
+              return initial;
+            } catch (seedErr) {
+              console.warn('Error auto-seeding inventory to Supabase:', seedErr);
+            }
+          }
         }
       } catch (err) {
         console.warn('Error fetching inventory from Supabase:', err);
@@ -4805,41 +5100,63 @@ export const db = {
     // Normalization helper for accurate matching
     const normalizeKey = (str) => (str || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]/g, '').trim();
     const grnKey = normalizeKey(item_name);
+    const targetWh = (warehouse || '').trim().toLowerCase();
 
     // 1. Check if item already exists in this receiving warehouse
-    let targetItem = currentInventory.find(i => 
-      i.id === item_id || 
-      (i.warehouse === warehouse && (
-        (i.item_name && i.item_name.toLowerCase() === (item_name || '').toLowerCase()) ||
-        (grnKey && normalizeKey(i.item_name) === grnKey)
-      ))
-    );
+    let targetItem = currentInventory.find(i => {
+      if (item_id && String(i.id) === String(item_id)) return true;
+      const iWh = (i.warehouse || '').trim().toLowerCase();
+      const iName = (i.item_name || '').trim().toLowerCase();
+      const iKey = normalizeKey(i.item_name);
+      const isSameWarehouse = !targetWh || iWh === targetWh || iWh.includes(targetWh) || targetWh.includes(iWh);
+      
+      const isNameMatch = (iName && iName === (item_name || '').trim().toLowerCase()) ||
+        (grnKey.length > 3 && (iKey === grnKey || iKey.includes(grnKey) || grnKey.includes(iKey)));
+
+      return isSameWarehouse && isNameMatch;
+    });
 
     let updatedInventory;
     if (targetItem) {
-      const newQty = (Number(targetItem.quantity) || 0) + qtyToAdd;
-      const cost = Number(unit_cost) || targetItem.unit_cost || 0;
-      updatedInventory = currentInventory.map(i => i.id === targetItem.id ? {
-        ...i,
+      const currentQty = Number(targetItem.quantity) || 0;
+      const newQty = currentQty + qtyToAdd;
+      const cost = Number(unit_cost) || Number(targetItem.unit_cost) || 0;
+      const updatedItem = {
+        ...targetItem,
         quantity: newQty,
+        unit_cost: cost,
         total_value: newQty * cost,
-        batch_number: batch_number || i.batch_number,
-        expiry_date: expiry_date !== 'N/A' ? expiry_date : i.expiry_date,
-        supplier_name: supplier_name || i.supplier_name,
-        status: newQty < (i.min_threshold || 10) ? 'Low Stock' : 'In Stock'
-      } : i);
+        batch_number: batch_number || targetItem.batch_number,
+        expiry_date: (expiry_date && expiry_date !== 'N/A') ? expiry_date : (targetItem.expiry_date || 'N/A'),
+        supplier_name: supplier_name || targetItem.supplier_name || 'Equatorial Relief Logistics',
+        status: newQty <= 0 ? 'Out of Stock' : (newQty < (targetItem.min_threshold || 10) ? 'Low Stock' : 'In Stock'),
+        updated_at: new Date().toISOString()
+      };
+
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from('inventory').update(updatedItem).eq('id', targetItem.id);
+        } catch (err) {
+          console.warn('Error updating inventory in Supabase:', err);
+        }
+      }
+
+      updatedInventory = currentInventory.map(i => i.id === targetItem.id ? updatedItem : i);
+      targetItem = updatedItem;
     } else {
       // 2. Look up global catalog to reuse exact canonical name, sku, unit, threshold if present in another depot
-      const globalMatch = currentInventory.find(i => 
-        (i.item_name && i.item_name.toLowerCase() === (item_name || '').toLowerCase()) ||
-        (grnKey && normalizeKey(i.item_name) === grnKey)
-      );
+      const globalMatch = currentInventory.find(i => {
+        const iName = (i.item_name || '').trim().toLowerCase();
+        const iKey = normalizeKey(i.item_name);
+        return (iName && iName === (item_name || '').trim().toLowerCase()) || 
+               (grnKey.length > 3 && (iKey === grnKey || iKey.includes(grnKey) || grnKey.includes(iKey)));
+      });
 
       const canonicalName = globalMatch ? globalMatch.item_name : item_name;
       const canonicalUnit = globalMatch ? globalMatch.unit : unit;
       const canonicalCategory = globalMatch ? globalMatch.category : category;
       const canonicalSku = globalMatch ? globalMatch.sku : `SKU-${Date.now().toString().slice(-4)}`;
-      const cost = Number(unit_cost) || (globalMatch ? globalMatch.unit_cost : 0) || 0;
+      const cost = Number(unit_cost) || (globalMatch ? Number(globalMatch.unit_cost) : 0) || 0;
 
       const newItem = {
         id: `inv-${Date.now().toString().slice(-4)}`,
@@ -4848,15 +5165,26 @@ export const db = {
         category: canonicalCategory,
         quantity: qtyToAdd,
         unit: canonicalUnit,
-        warehouse,
+        warehouse: warehouse || 'Central Equatoria State Depot',
         min_threshold: globalMatch?.min_threshold || 50,
         unit_cost: cost,
         total_value: qtyToAdd * cost,
         batch_number: batch_number || `BATCH-${Date.now().toString().slice(-4)}`,
-        expiry_date,
-        supplier_name,
-        status: 'In Stock'
+        expiry_date: expiry_date || 'N/A',
+        supplier_name: supplier_name || 'Equatorial Relief Logistics',
+        status: qtyToAdd <= 0 ? 'Out of Stock' : (qtyToAdd < (globalMatch?.min_threshold || 50) ? 'Low Stock' : 'In Stock'),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
+
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from('inventory').insert([newItem]);
+        } catch (err) {
+          console.warn('Error inserting inventory to Supabase:', err);
+        }
+      }
+
       updatedInventory = [newItem, ...currentInventory];
       targetItem = newItem;
     }
@@ -4870,14 +5198,23 @@ export const db = {
       item_name: targetItem.item_name,
       quantity: qtyToAdd,
       unit: targetItem.unit,
-      warehouse,
-      supplier_name,
+      warehouse: targetItem.warehouse,
+      supplier_name: targetItem.supplier_name || supplier_name || 'Vendor',
       po_number,
-      batch_number,
+      batch_number: targetItem.batch_number,
       performed_by: received_by,
       date: new Date().toISOString(),
-      notes: notes || `Goods Received Note: ${qtyToAdd} ${targetItem.unit} received from ${supplier_name || 'Vendor'}`
+      notes: notes || `Goods Received Note: +${qtyToAdd} ${targetItem.unit} received at ${targetItem.warehouse}`
     };
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('stock_transactions').insert([newTx]);
+      } catch (err) {
+        console.warn('Error recording stock transaction in Supabase:', err);
+      }
+    }
+
     const currentTx = await this.getStockTransactions();
     saveLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, [newTx, ...currentTx]);
 
@@ -4890,6 +5227,17 @@ export const db = {
         grn_number: grnNumber,
         inspected_date: new Date().toISOString().split('T')[0]
       } : po);
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from('purchase_orders').update({
+            status: 'Received & Inspected',
+            grn_number: grnNumber,
+            inspected_date: new Date().toISOString().split('T')[0]
+          }).eq('po_number', po_number);
+        } catch (err) {
+          console.warn('Error updating PO in Supabase:', err);
+        }
+      }
       saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updatedPOs);
     }
 
@@ -4955,6 +5303,23 @@ export const db = {
       }
     }
 
+    if (isSupabaseConfigured) {
+      try {
+        const itemToUpdate = updatedInventory.find(i => i.id === item_id);
+        if (itemToUpdate) {
+          await supabase.from('inventory').update(itemToUpdate).eq('id', item_id);
+        }
+        if (adjustment_type === 'TRANSFER' && target_warehouse) {
+          const destItem = updatedInventory.find(i => i.item_name && i.item_name.toLowerCase() === (item.item_name || '').toLowerCase() && i.warehouse === target_warehouse);
+          if (destItem) {
+            await supabase.from('inventory').upsert(destItem);
+          }
+        }
+      } catch (err) {
+        console.warn('Error updating inventory in Supabase:', err);
+      }
+    }
+
     saveLocalData(STORAGE_KEYS.INVENTORY, updatedInventory);
 
     // Record Stock Transaction
@@ -4971,6 +5336,15 @@ export const db = {
       date: new Date().toISOString(),
       notes: reason || `Stock adjustment (${adjustment_type}): ${change} ${item.unit}`
     };
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('stock_transactions').insert([newTx]);
+      } catch (err) {
+        console.warn('Error recording stock adjustment transaction in Supabase:', err);
+      }
+    }
+
     const currentTx = await this.getStockTransactions();
     saveLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, [newTx, ...currentTx]);
 
@@ -4991,6 +5365,17 @@ export const db = {
         const { data, error } = await supabase.from('warehouses').select('*').order('created_at', { ascending: false });
         if (!error && data && data.length >= 10) {
           return data;
+        }
+        if (!error && (!data || data.length === 0)) {
+          const initial = mock.initialWarehouses || [];
+          if (initial.length > 0) {
+            try {
+              await supabase.from('warehouses').insert(initial);
+              return initial;
+            } catch (seedErr) {
+              console.warn('Error auto-seeding warehouses to Supabase:', seedErr);
+            }
+          }
         }
       } catch (err) {
         console.warn('Error fetching warehouses from Supabase:', err);
@@ -5120,28 +5505,38 @@ export const db = {
     const SEEDED_DISP_IDS = ['disp-1', 'disp-2', 'disp-3', 'disp-4'];
     const SEEDED_WAYBILLS = ['WAYBILL-SS-2026-0089', 'WAYBILL-SS-2026-0088', 'WAYBILL-SS-2026-0087', 'WAYBILL-SS-2026-0086'];
 
+    const rawLocal = getLocalData(STORAGE_KEYS.DISPATCHES, mock.initialDispatches || []);
+    let remoteData = null;
+
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('dispatches').select('*').order('created_at', { ascending: false });
         if (!error && data) {
-          const cleanDb = data.filter(d => 
-            !SEEDED_DISP_IDS.includes(d.id) && 
-            !SEEDED_WAYBILLS.includes(d.waybill_number)
-          );
-          return cleanDb;
+          remoteData = data;
         }
       } catch (err) {
         console.warn('Error fetching dispatches from Supabase:', err);
       }
     }
-    const current = getLocalData(STORAGE_KEYS.DISPATCHES, mock.initialDispatches || []);
-    const clean = current.filter(d => 
+
+    const combined = [...(Array.isArray(rawLocal) ? rawLocal : [])];
+    if (remoteData && Array.isArray(remoteData)) {
+      remoteData.forEach(rem => {
+        const existingIdx = combined.findIndex(loc => loc.id === rem.id || (loc.waybill_number && rem.waybill_number && loc.waybill_number === rem.waybill_number));
+        if (existingIdx === -1) {
+          combined.push(rem);
+        } else {
+          combined[existingIdx] = { ...rem, ...combined[existingIdx] };
+        }
+      });
+    }
+
+    const clean = combined.filter(d => 
       !SEEDED_DISP_IDS.includes(d.id) && 
       !SEEDED_WAYBILLS.includes(d.waybill_number)
     );
-    if (clean.length !== current.length) {
-      saveLocalData(STORAGE_KEYS.DISPATCHES, clean);
-    }
+
+    saveLocalData(STORAGE_KEYS.DISPATCHES, clean);
     return clean;
   },
 
@@ -5156,14 +5551,47 @@ export const db = {
       project_name = 'Emergency Food Security & Livelihoods Resilience',
       linked_request_id = '',
       beneficiary_name = '',
+      assigned_supervisor_id = '',
+      assigned_supervisor_name = '',
+      assigned_field_worker_id = '',
+      assigned_field_worker_name = '',
       transport_mode = 'ADRA Logistics Fleet Truck',
-      vehicle_reg = 'SSD-912A (6x6 MAN)',
-      driver_name = 'Deng Athuai',
-      driver_phone = '+211-925-110099',
+      vehicle_reg = 'SSD-481-LOG',
+      driver_name = 'Deng Bol',
+      driver_phone = '+211-921-889911',
       items = [],
       notes = '',
       released_by = 'Gabriel Majok (Inventory Manager)'
     } = dispatchData;
+
+    let targetReq = null;
+    if (linked_request_id) {
+      try {
+        const reqs = await this.getAssistanceRequests();
+        targetReq = reqs.find(r => 
+          r.id === linked_request_id || 
+          r.request_code === linked_request_id || 
+          r.tracking_number === linked_request_id ||
+          String(r.id) === String(linked_request_id)
+        );
+      } catch (e) {
+        console.warn('Could not link dispatch to assistance request:', e?.message);
+      }
+    }
+
+    const effectiveSupervisorId = assigned_supervisor_id || targetReq?.assigned_supervisor_id || 'sup-1';
+    const effectiveSupervisorName = (assigned_supervisor_name && !assigned_supervisor_name.toLowerCase().includes('pending'))
+      ? assigned_supervisor_name 
+      : (targetReq?.assigned_supervisor_name && !targetReq.assigned_supervisor_name.toLowerCase().includes('pending'))
+      ? targetReq.assigned_supervisor_name
+      : 'Emmanuel Adeyemi';
+
+    const effectiveWorkerId = assigned_field_worker_id || targetReq?.assigned_field_worker_id || '';
+    const effectiveWorkerName = (assigned_field_worker_name && !assigned_field_worker_name.toLowerCase().includes('pending'))
+      ? assigned_field_worker_name
+      : (targetReq?.assigned_field_worker_name && !targetReq.assigned_field_worker_name.toLowerCase().includes('pending'))
+      ? targetReq.assigned_field_worker_name
+      : (targetReq?.assigned_field_worker_name || 'John Deng');
 
     const waybillNumber = `WAYBILL-SS-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
     const dispatchToken = `WB-${(destination || 'DISP').slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -5175,8 +5603,14 @@ export const db = {
       origin_warehouse,
       destination,
       project_name,
-      linked_request_id,
-      beneficiary_name,
+      linked_request_id: targetReq ? targetReq.id : linked_request_id,
+      request_code: targetReq ? targetReq.request_code : linked_request_id,
+      beneficiary_name: beneficiary_name || targetReq?.beneficiary_name || '',
+      beneficiary_code: targetReq?.beneficiary_code || '',
+      assigned_supervisor_id: effectiveSupervisorId,
+      assigned_supervisor_name: effectiveSupervisorName,
+      assigned_field_worker_id: effectiveWorkerId,
+      assigned_field_worker_name: effectiveWorkerName,
       transport_mode,
       vehicle_reg,
       driver_name,
@@ -5185,10 +5619,15 @@ export const db = {
       items,
       status: 'In Transit',
       released_by,
-      received_by: 'Pending Field Distribution Receipt',
+      received_by: `Pending Arrival Verification (${effectiveSupervisorName})`,
       qr_token_verified: false,
       notes
     };
+
+    // Immediately persist to local storage
+    const currentLocalDispatches = getLocalData(STORAGE_KEYS.DISPATCHES, []);
+    const updatedLocalDispatches = [newDispatch, ...currentLocalDispatches.filter(d => d.id !== newDispatch.id && d.waybill_number !== newDispatch.waybill_number)];
+    saveLocalData(STORAGE_KEYS.DISPATCHES, updatedLocalDispatches);
 
     if (isSupabaseConfigured) {
       try {
@@ -5213,14 +5652,19 @@ export const db = {
         const target = updatedInventory[matchIdx];
         const qtyToDeduct = Number(itm.quantity) || 0;
         const remaining = Math.max(0, (Number(target.quantity) || 0) - qtyToDeduct);
-        updatedInventory[matchIdx] = {
+        const updatedTarget = {
           ...target,
           quantity: remaining,
           total_value: remaining * (target.unit_cost || 0),
           status: remaining <= 0 ? 'Out of Stock' : remaining < (target.min_threshold || 10) ? 'Low Stock' : 'In Stock'
         };
+        updatedInventory[matchIdx] = updatedTarget;
 
-        newTxList.unshift({
+        if (isSupabaseConfigured) {
+          supabase.from('inventory').update(updatedTarget).eq('id', target.id).then(() => {}).catch(e => console.warn('Supabase stock deduction error:', e));
+        }
+
+        const newTxItem = {
           id: `tx-${Date.now()}-${matchIdx}`,
           transaction_type: 'DISPATCH_ISSUE',
           reference_code: waybillNumber,
@@ -5231,7 +5675,13 @@ export const db = {
           performed_by: released_by,
           date: new Date().toISOString(),
           notes: `Dispatched to ${destination} via Waybill ${waybillNumber} (${vehicle_reg})`
-        });
+        };
+
+        newTxList.unshift(newTxItem);
+
+        if (isSupabaseConfigured) {
+          supabase.from('stock_transactions').insert([newTxItem]).then(() => {}).catch(e => console.warn('Supabase transaction insert error:', e));
+        }
       }
     });
 
@@ -5242,31 +5692,353 @@ export const db = {
     saveLocalData(STORAGE_KEYS.DISPATCHES, [newDispatch, ...currentDispatches]);
 
     // If linked to an assistance request, update request status with waybill and qr token
-    if (linked_request_id) {
+    if (targetReq) {
       try {
-        const reqs = await this.getAssistanceRequests();
-        const targetReq = reqs.find(r => r.id === linked_request_id || r.tracking_number === linked_request_id);
-        if (targetReq) {
-          await this.updateAssistanceRequest(targetReq.id, {
-            status: 'warehouse_dispatched',
-            qr_token: dispatchToken,
-            waybill_number: waybillNumber,
-            dispatch_date: new Date().toISOString()
-          });
-        }
+        await this.updateAssistanceRequest(targetReq.id, {
+          status: 'warehouse_dispatched',
+          dispatch_status: 'In Transit',
+          status_label: 'Cargo In Transit from Warehouse',
+          qr_token: dispatchToken,
+          waybill_number: waybillNumber,
+          origin_warehouse: origin_warehouse,
+          destination_hub: destination,
+          dispatch_date: new Date().toISOString(),
+          driver_name: driver_name,
+          driver_phone: driver_phone,
+          vehicle_reg: vehicle_reg,
+          dispatched_items: items,
+          assigned_supervisor_id: effectiveSupervisorId,
+          assigned_supervisor_name: effectiveSupervisorName,
+          assigned_field_worker_id: effectiveWorkerId,
+          assigned_field_worker_name: effectiveWorkerName
+        });
       } catch (e) {
-        console.warn('Could not link dispatch to assistance request:', e?.message);
+        console.warn('Could not update assistance request with waybill details:', e?.message);
       }
     }
+
+    // Push notification to Supervisor
+    try {
+      const supNotif = {
+        id: `notif-sup-${Date.now()}`,
+        supervisor_id: effectiveSupervisorId,
+        title: '🚚 Relief Cargo Dispatched from Depot',
+        message: `Waybill ${waybillNumber} for ${newDispatch.beneficiary_name || 'beneficiary'} (${destination}) has departed ${origin_warehouse} via vehicle ${vehicle_reg} (Driver: ${driver_name}). Confirm arrival once received at hub.`,
+        type: 'DISPATCH_IN_TRANSIT',
+        waybill_number: waybillNumber,
+        request_code: targetReq?.request_code || linked_request_id,
+        created_at: new Date().toISOString(),
+        is_read: false
+      };
+      const supNotifs = getLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, mock.initialSupervisorNotifications || []);
+      saveLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, [supNotif, ...supNotifs]);
+    } catch (e) {}
+
+    // Push notification to Field Worker
+    try {
+      const fwNotif = {
+        id: `notif-fw-${Date.now()}`,
+        worker_id: effectiveWorkerId,
+        worker_name: effectiveWorkerName,
+        title: '🚚 Relief Supplies En Route to Distribution Point',
+        message: `Waybill ${waybillNumber} containing relief commodities has departed ${origin_warehouse}. Supervisor ${effectiveSupervisorName} will confirm cargo arrival at the hub before distribution.`,
+        type: 'DISPATCH_IN_TRANSIT',
+        waybill_number: waybillNumber,
+        request_code: targetReq?.request_code || linked_request_id,
+        created_at: new Date().toISOString(),
+        is_read: false
+      };
+      const fwNotifs = getLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, []);
+      saveLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, [fwNotif, ...fwNotifs]);
+    } catch (e) {}
 
     await this.logAudit({
       action: 'CREATE_WAYBILL',
       module: 'Distribution & Logistics',
       record_id: waybillNumber,
-      details: `Generated waybill ${waybillNumber} to ${destination} with ${items.length} relief line items`
+      details: `Generated waybill ${waybillNumber} to ${destination} tagged to Supervisor ${effectiveSupervisorName} & Field Worker ${effectiveWorkerName}`
     });
 
     return newDispatch;
+  },
+
+  async confirmDispatchArrival(requestIdOrWaybill, supervisorName = 'Emmanuel Adeyemi (Supervisor)', arrivalNotes = '') {
+    const allDispatches = await this.getDispatches();
+    const reqs = await this.getAssistanceRequests();
+
+    // Match dispatch
+    let targetDispatch = allDispatches.find(d => 
+      d.id === requestIdOrWaybill || 
+      d.waybill_number === requestIdOrWaybill || 
+      d.linked_request_id === requestIdOrWaybill ||
+      d.request_code === requestIdOrWaybill
+    );
+
+    // Match request
+    let targetReq = reqs.find(r => 
+      r.id === requestIdOrWaybill || 
+      r.request_code === requestIdOrWaybill || 
+      (targetDispatch && (r.id === targetDispatch.linked_request_id || r.request_code === targetDispatch.request_code || r.waybill_number === targetDispatch.waybill_number)) ||
+      (r.waybill_number && r.waybill_number === requestIdOrWaybill)
+    );
+
+    const now = new Date().toISOString();
+    const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const supCleanName = supervisorName || 'Emmanuel Adeyemi (Supervisor)';
+
+    // Update dispatch record
+    if (targetDispatch) {
+      const updatedDispatches = allDispatches.map(d => {
+        if (d.id === targetDispatch.id || d.waybill_number === targetDispatch.waybill_number) {
+          return {
+            ...d,
+            status: 'Arrived at Hub',
+            received_by: supCleanName,
+            arrival_date: now,
+            notes: arrivalNotes ? `${d.notes ? d.notes + ' | ' : ''}Arrival verified by ${supCleanName}: ${arrivalNotes}` : `${d.notes ? d.notes + ' | ' : ''}Arrival verified at hub by ${supCleanName}`
+          };
+        }
+        return d;
+      });
+      saveLocalData(STORAGE_KEYS.DISPATCHES, updatedDispatches);
+
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from('dispatches').update({
+            status: 'Arrived at Hub',
+            received_by: supCleanName
+          }).or(`id.eq.${targetDispatch.id},waybill_number.eq.${targetDispatch.waybill_number}`);
+        } catch (e) {
+          console.warn('Supabase update dispatch arrival error:', e);
+        }
+      }
+    }
+
+    // Update assistance request
+    if (targetReq) {
+      const updatedReq = await this.updateAssistanceRequest(targetReq.id, {
+        status: 'goods_arrived_at_hub',
+        dispatch_status: 'Arrived at Hub',
+        status_label: 'Goods Arrived at Hub - Ready for Distribution',
+        goods_arrived_at: now,
+        hub_verified_by: supCleanName,
+        hub_arrival_notes: arrivalNotes || `Cargo inspected and received in good condition at relief hub by ${supCleanName} at ${timeStr}.`
+      });
+
+      // Send notification to field worker
+      const fwNotif = {
+        id: `notif-fw-arrived-${Date.now()}`,
+        worker_id: targetReq.assigned_field_worker_id || targetDispatch?.assigned_field_worker_id,
+        worker_name: targetReq.assigned_field_worker_name || targetDispatch?.assigned_field_worker_name,
+        title: '📦 Relief Supplies Arrived at Hub!',
+        message: `Waybill ${targetReq.waybill_number || targetDispatch?.waybill_number || ''} has arrived at the relief hub and was verified by Supervisor ${supCleanName}. You can now proceed with beneficiary distribution.`,
+        type: 'CARGO_ARRIVED_AT_HUB',
+        waybill_number: targetReq.waybill_number || targetDispatch?.waybill_number,
+        request_code: targetReq.request_code,
+        created_at: now,
+        is_read: false
+      };
+      const fwNotifs = getLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, []);
+      saveLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, [fwNotif, ...fwNotifs]);
+
+      // Log supervisor activity
+      await this.logSupervisorActivity({
+        user_name: supCleanName,
+        action: 'CONFIRM_CARGO_ARRIVAL',
+        details: `Verified convoy arrival for Waybill ${targetReq.waybill_number || targetDispatch?.waybill_number || targetReq.request_code} at destination hub. Case ready for field distribution.`
+      });
+
+      await this.logAudit({
+        action: 'CONFIRM_HUB_ARRIVAL',
+        module: 'Distribution & Logistics',
+        record_id: targetReq.waybill_number || targetReq.request_code || targetReq.id,
+        details: `Supervisor ${supCleanName} verified cargo arrival for beneficiary ${targetReq.beneficiary_name} (${targetReq.request_code})`
+      });
+
+      return { success: true, request: updatedReq, dispatch: targetDispatch };
+    } else if (targetDispatch) {
+      const newReq = {
+        id: `req-${targetDispatch.id || Date.now()}`,
+        request_code: targetDispatch.request_code || `REQ-${targetDispatch.waybill_number?.replace('WAYBILL-SS-', '').replace('WAYBILL-', '') || Date.now()}`,
+        waybill_number: targetDispatch.waybill_number,
+        beneficiary_name: targetDispatch.beneficiary_name || targetDispatch.destination || 'Relief Commodities Hub Staging',
+        beneficiary_code: targetDispatch.beneficiary_code || `BEN-${targetDispatch.waybill_number?.replace('WAYBILL-SS-', '') || 'DIR'}`,
+        category: targetDispatch.items?.[0]?.item_name || targetDispatch.category || 'Relief Cargo',
+        items: targetDispatch.items || [],
+        quantity: targetDispatch.items?.[0]?.quantity || targetDispatch.quantity || 1,
+        unit: targetDispatch.items?.[0]?.unit || 'Units',
+        state: targetDispatch.state || 'Central Equatoria',
+        county: targetDispatch.county || 'Juba',
+        payam: targetDispatch.payam || 'Juba Central',
+        boma: targetDispatch.boma || 'Relief Centre',
+        location: targetDispatch.destination || 'Juba Central Hub',
+        assigned_field_worker_name: targetDispatch.assigned_field_worker_name || 'Field Officer',
+        assigned_field_worker_id: targetDispatch.assigned_field_worker_id || 'fw-1',
+        assigned_supervisor_name: supCleanName,
+        status: 'goods_arrived_at_hub',
+        dispatch_status: 'Arrived at Hub',
+        status_label: 'Goods Arrived at Hub - Ready for Distribution',
+        goods_arrived_at: now,
+        hub_verified_by: supCleanName,
+        hub_arrival_notes: arrivalNotes || `Cargo inspected and received in good condition at relief hub by ${supCleanName} at ${timeStr}.`,
+        urgency: targetDispatch.urgency || 'High',
+        created_at: now
+      };
+      saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, [newReq, ...reqs]);
+      return { success: true, request: newReq, dispatch: targetDispatch };
+    }
+
+    return { success: true };
+  },
+
+  async confirmGoodsCollection(requestIdOrWaybill, workerName = 'Field Worker', supervisorName = 'Emmanuel Adeyemi (Supervisor)', collectionNotes = '') {
+    const allDispatches = await this.getDispatches();
+    const reqs = await this.getAssistanceRequests();
+
+    // Match dispatch
+    let targetDispatch = allDispatches.find(d => 
+      d.id === requestIdOrWaybill || 
+      d.waybill_number === requestIdOrWaybill || 
+      d.linked_request_id === requestIdOrWaybill ||
+      d.request_code === requestIdOrWaybill
+    );
+
+    // Match request
+    let targetReq = reqs.find(r => 
+      r.id === requestIdOrWaybill || 
+      r.request_code === requestIdOrWaybill || 
+      (targetDispatch && (r.id === targetDispatch.linked_request_id || r.request_code === targetDispatch.request_code || r.waybill_number === targetDispatch.waybill_number)) ||
+      (r.waybill_number && r.waybill_number === requestIdOrWaybill)
+    );
+
+    const now = new Date().toISOString();
+    const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const supCleanName = supervisorName || 'Emmanuel Adeyemi (Supervisor)';
+    const workerCleanName = workerName || targetReq?.assigned_field_worker_name || targetDispatch?.assigned_field_worker_name || targetDispatch?.collected_by || 'Field Worker';
+
+    // Update dispatch record
+    if (targetDispatch) {
+      const updatedDispatches = allDispatches.map(d => {
+        if (d.id === targetDispatch.id || d.waybill_number === targetDispatch.waybill_number) {
+          return {
+            ...d,
+            status: 'Collected by Field Worker',
+            dispatch_status: 'Collected by Field Worker',
+            collected_by: workerCleanName,
+            collected_at: now,
+            handed_over_by: supCleanName,
+            notes: collectionNotes ? `${d.notes ? d.notes + ' | ' : ''}Collected by ${workerCleanName}: ${collectionNotes}` : `${d.notes ? d.notes + ' | ' : ''}Collected by ${workerCleanName}`
+          };
+        }
+        return d;
+      });
+      saveLocalData(STORAGE_KEYS.DISPATCHES, updatedDispatches);
+
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from('dispatches').update({
+            status: 'Collected by Field Worker',
+            notes: `Collected by ${workerCleanName}`
+          }).or(`id.eq.${targetDispatch.id},waybill_number.eq.${targetDispatch.waybill_number}`);
+        } catch (e) {
+          console.warn('Supabase update dispatch collection error:', e);
+        }
+      }
+    }
+
+    // Update assistance request
+    if (targetReq) {
+      const updatedReq = await this.updateAssistanceRequest(targetReq.id, {
+        status: 'goods_collected_by_field_worker',
+        dispatch_status: 'Collected by Field Worker',
+        status_label: 'Goods Collected - Out for Distribution',
+        goods_collected_at: now,
+        goods_collected_by: workerCleanName,
+        goods_handed_over_by: supCleanName,
+        hub_collection_notes: collectionNotes || `Commodities issued and handed over to Field Worker ${workerCleanName} by ${supCleanName} at ${timeStr}.`
+      });
+
+      // Send notification to field worker
+      const fwNotif = {
+        id: `notif-fw-collected-${Date.now()}`,
+        worker_id: targetReq.assigned_field_worker_id || targetDispatch?.assigned_field_worker_id,
+        worker_name: workerCleanName,
+        title: '✓ Goods Collected from Hub Store',
+        message: `Relief commodities for ${targetReq.beneficiary_name || targetReq.request_code} have been formally handed over to you by Supervisor ${supCleanName}. You can now proceed to scan beneficiary QR and distribute.`,
+        type: 'CARGO_COLLECTED_FOR_DISTRIBUTION',
+        waybill_number: targetReq.waybill_number || targetDispatch?.waybill_number,
+        request_code: targetReq.request_code,
+        created_at: now,
+        is_read: false
+      };
+      const fwNotifs = getLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, []);
+      saveLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, [fwNotif, ...fwNotifs]);
+
+      // Log supervisor activity
+      await this.logSupervisorActivity({
+        user_name: supCleanName,
+        action: 'HANDOVER_GOODS_TO_FIELD_WORKER',
+        details: `Handed over relief commodities (Waybill ${targetReq.waybill_number || targetDispatch?.waybill_number || targetReq.request_code}) to Field Officer ${workerCleanName} for beneficiary ${targetReq.beneficiary_name}.`
+      });
+
+      await this.logAudit({
+        action: 'HANDOVER_GOODS_TO_FIELD_WORKER',
+        module: 'Distribution & Logistics',
+        record_id: targetReq.waybill_number || targetReq.request_code || targetReq.id,
+        details: `Supervisor ${supCleanName} handed over relief supplies to Field Worker ${workerCleanName} for beneficiary ${targetReq.beneficiary_name} (${targetReq.request_code})`
+      });
+
+      return { success: true, request: updatedReq, dispatch: targetDispatch };
+    } else if (targetDispatch) {
+      const newReq = {
+        id: `req-${targetDispatch.id || Date.now()}`,
+        request_code: targetDispatch.request_code || `REQ-${targetDispatch.waybill_number?.replace('WAYBILL-SS-', '').replace('WAYBILL-', '') || Date.now()}`,
+        waybill_number: targetDispatch.waybill_number,
+        beneficiary_name: targetDispatch.beneficiary_name || targetDispatch.destination || 'Relief Commodities Hub Staging',
+        beneficiary_code: targetDispatch.beneficiary_code || `BEN-${targetDispatch.waybill_number?.replace('WAYBILL-SS-', '') || 'DIR'}`,
+        category: targetDispatch.items?.[0]?.item_name || targetDispatch.category || 'Relief Cargo',
+        items: targetDispatch.items || [],
+        quantity: targetDispatch.items?.[0]?.quantity || targetDispatch.quantity || 1,
+        unit: targetDispatch.items?.[0]?.unit || 'Units',
+        state: targetDispatch.state || 'Central Equatoria',
+        county: targetDispatch.county || 'Juba',
+        payam: targetDispatch.payam || 'Juba Central',
+        boma: targetDispatch.boma || 'Relief Centre',
+        location: targetDispatch.destination || 'Juba Central Hub',
+        assigned_field_worker_name: workerCleanName,
+        assigned_field_worker_id: targetDispatch.assigned_field_worker_id || 'fw-1',
+        assigned_supervisor_name: supCleanName,
+        status: 'goods_collected_by_field_worker',
+        dispatch_status: 'Collected by Field Worker',
+        status_label: 'Goods Collected - Out for Distribution',
+        goods_collected_at: now,
+        goods_collected_by: workerCleanName,
+        goods_handed_over_by: supCleanName,
+        hub_collection_notes: collectionNotes || `Commodities issued and handed over to Field Worker ${workerCleanName} by ${supCleanName} at ${timeStr}.`,
+        urgency: targetDispatch.urgency || 'High',
+        created_at: now
+      };
+      saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, [newReq, ...reqs]);
+
+      const fwNotif = {
+        id: `notif-fw-collected-${Date.now()}`,
+        worker_id: targetDispatch.assigned_field_worker_id || 'fw-1',
+        worker_name: workerCleanName,
+        title: '✓ Goods Collected from Hub Store',
+        message: `Relief commodities (${targetDispatch.waybill_number}) have been handed over to you by Supervisor ${supCleanName}. Ready for beneficiary distribution.`,
+        type: 'CARGO_COLLECTED_FOR_DISTRIBUTION',
+        waybill_number: targetDispatch.waybill_number,
+        request_code: newReq.request_code,
+        created_at: now,
+        is_read: false
+      };
+      const fwNotifs = getLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, []);
+      saveLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, [fwNotif, ...fwNotifs]);
+
+      return { success: true, request: newReq, dispatch: targetDispatch };
+    }
+
+    return { success: true };
   },
 
   async updateDispatchStatus(id, status, notes = '') {

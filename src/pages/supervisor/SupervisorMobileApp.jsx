@@ -18,7 +18,9 @@ import {
   Settings,
   ArrowLeft,
   ChevronRight,
-  Banknote
+  Banknote,
+  Truck,
+  PackageCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/supabase';
@@ -28,6 +30,7 @@ import { useToast } from '../../context/ToastContext';
 import { SupervisorDashboardView } from './components/SupervisorDashboardView';
 import { SupervisorAssignmentsView } from './components/SupervisorAssignmentsView';
 import { SupervisorAssignmentDetailsView } from './components/SupervisorAssignmentDetailsView';
+import { SupervisorDispatchesView } from './components/SupervisorDispatchesView';
 import { SupervisorTeamView } from './components/SupervisorTeamView';
 import { SupervisorWorkerDetailsView } from './components/SupervisorWorkerDetailsView';
 import { SupervisorReportReviewView } from './components/SupervisorReportReviewView';
@@ -36,6 +39,7 @@ import { SupervisorNotificationsView } from './components/SupervisorNotification
 import { SupervisorActivityHistoryView } from './components/SupervisorActivityHistoryView';
 import { SupervisorProfileView } from './components/SupervisorProfileView';
 import { SupervisorFacilitationsView } from './components/SupervisorFacilitationsView';
+import { WaybillDetailModal } from '../inventory/components/WaybillDetailModal';
 
 export function SupervisorMobileApp({
   currentUser,
@@ -46,16 +50,20 @@ export function SupervisorMobileApp({
   const { logout, quickSwitchRole } = useAuth();
   const toast = useToast();
 
-  // Navigation states: 'dashboard' | 'assignments' | 'team' | 'facilitations' | 'reports' | 'beneficiaries' | 'activities' | 'profile'
+  // Navigation states: 'dashboard' | 'assignments' | 'dispatches' | 'team' | 'facilitations' | 'reports' | 'beneficiaries' | 'activities' | 'profile'
   const [activeTab, setActiveTab] = useState('dashboard');
   
-  // Assignments sub-status filter: 'pending' | 'assigned' | 'in_progress' | 'completed'
+  // Sub-status filters for collapsible modules
   const [assignmentsStatusTab, setAssignmentsStatusTab] = useState('pending');
-  const [isAssignmentsExpanded, setIsAssignmentsExpanded] = useState(true);
-
-  // Facilitations sub-status filter: 'pending' | 'in_progress' | 'disbursed' | 'rejected' | 'all'
+  const [dispatchesStatusTab, setDispatchesStatusTab] = useState('ALL');
   const [facilitationsStatusTab, setFacilitationsStatusTab] = useState('pending');
-  const [isFacilitationsExpanded, setIsFacilitationsExpanded] = useState(true);
+
+  // Accordion state: only one section can be open at a time ('assignments' | 'dispatches' | 'facilitations' | null)
+  const [expandedSection, setExpandedSection] = useState('assignments');
+
+  const toggleAccordion = (sectionId) => {
+    setExpandedSection(prev => (prev === sectionId ? null : sectionId));
+  };
 
   // Auxiliary subview state: null | 'assignment_details' | 'worker_details' | 'report_review' | 'notifications' | 'profile'
   const [activeSubview, setActiveSubview] = useState(null);
@@ -65,9 +73,11 @@ export function SupervisorMobileApp({
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [selectedAssessment, setSelectedAssessment] = useState(null);
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState(null);
+  const [selectedWaybillModal, setSelectedWaybillModal] = useState(null);
 
   // Data state
   const [assignments, setAssignments] = useState([]);
+  const [dispatches, setDispatches] = useState([]);
   const [fieldWorkers, setFieldWorkers] = useState([]);
   const [assessments, setAssessments] = useState([]);
   const [facilitations, setFacilitations] = useState([]);
@@ -99,6 +109,7 @@ export function SupervisorMobileApp({
 
       const [
         assignsData,
+        dispatchesData,
         workersData,
         assessData,
         fundingData,
@@ -107,6 +118,7 @@ export function SupervisorMobileApp({
         bensData
       ] = await Promise.all([
         db.getSupervisorAssignments(supervisorId),
+        db.getDispatches ? db.getDispatches() : [],
         db.getFieldWorkers(supervisorId),
         db.getFieldAssessments(supervisorId),
         db.getFieldFundingRequests ? db.getFieldFundingRequests(null, supervisorId) : [],
@@ -116,6 +128,7 @@ export function SupervisorMobileApp({
       ]);
 
       setAssignments(assignsData || []);
+      setDispatches(dispatchesData || []);
       setFieldWorkers(workersData || []);
       setAssessments(assessData || []);
       setFacilitations(fundingData || []);
@@ -205,6 +218,63 @@ export function SupervisorMobileApp({
     await loadData(activeSupervisor);
   };
 
+  // Handler: Confirm Relief Cargo Arrival at Hub
+  const handleConfirmArrival = async (item, arrivalNotes = '') => {
+    try {
+      const supName = activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi (Supervisor)';
+      await db.confirmDispatchArrival(
+        item.id || item.request_code || item.waybill_number,
+        supName,
+        arrivalNotes
+      );
+      toast.success(`Cargo arrival confirmed for ${item.beneficiary_name || item.request_code}! Field Officer has been notified.`);
+      await loadData(activeSupervisor, true);
+      if (selectedAssignment) {
+        setSelectedAssignment(prev => prev ? {
+          ...prev,
+          status: 'goods_arrived_at_hub',
+          dispatch_status: 'Arrived at Hub',
+          status_label: 'Goods Arrived at Hub - Ready for Distribution',
+          goods_arrived_at: new Date().toISOString(),
+          hub_verified_by: supName
+        } : null);
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to confirm cargo arrival.');
+    }
+  };
+
+  // Handler: Handover Cargo to Field Worker (Mark Collected)
+  const handleHandoverToFieldWorker = async (item, workerName, notes = '') => {
+    try {
+      const supName = activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi (Supervisor)';
+      const targetWorker = workerName || item.assigned_field_worker_name || item.driver_name || 'Field Officer';
+      await db.confirmGoodsCollection(
+        item.id || item.request_code || item.waybill_number,
+        targetWorker,
+        supName,
+        notes
+      );
+      toast.success(`Relief supplies marked as collected by ${targetWorker}!`);
+      await loadData(activeSupervisor, true);
+      const freshDispatches = await (db.getDispatches ? db.getDispatches() : []);
+      setDispatches(freshDispatches || []);
+      if (selectedAssignment) {
+        setSelectedAssignment(prev => prev ? {
+          ...prev,
+          status: 'goods_collected_by_field_worker',
+          dispatch_status: 'Collected by Field Worker',
+          status_label: 'Goods Collected - Out for Distribution',
+          goods_collected_at: new Date().toISOString(),
+          goods_collected_by: targetWorker,
+          goods_handed_over_by: supName
+        } : null);
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to record handover.');
+    }
+  };
+
   // Handler: Update Profile
   const handleUpdateProfile = async (id, data) => {
     await db.updateUser(id, data);
@@ -278,6 +348,31 @@ export function SupervisorMobileApp({
 
   const pendingFacilitationsCount = facilitationCounts.pending;
 
+  // Dispatches count calculation for sidebar badges and filters
+  const dispatchCounts = useMemo(() => {
+    let inTransit = 0;
+    let arrived = 0;
+    let collected = 0;
+
+    dispatches.forEach(d => {
+      const st = (d.status || '').toLowerCase().trim();
+      const dst = (d.dispatch_status || '').toLowerCase().trim();
+      const isCol = st.includes('collect') || dst.includes('collect');
+      const isArr = !isCol && (st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
+      const isTrans = !isCol && !isArr && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit' || Boolean(d.waybill_number));
+
+      if (isCol) {
+        collected++;
+      } else if (isArr) {
+        arrived++;
+      } else if (isTrans) {
+        inTransit++;
+      }
+    });
+
+    return { total: dispatches.length, inTransit, arrived, collected };
+  }, [dispatches]);
+
   // Render Subview or Tab Content
   const renderContent = () => {
     if (loading) {
@@ -299,6 +394,8 @@ export function SupervisorMobileApp({
             onBack={() => setActiveSubview(null)}
             onAssignWorker={handleAssignFieldWorker}
             onReassignWorker={handleReassignWorker}
+            onConfirmArrival={handleConfirmArrival}
+            onHandoverToWorker={handleHandoverToFieldWorker}
             onOpenReport={() => {
               const ass = assessments.find(a => a.request_id === selectedAssignment.id || a.request_code === selectedAssignment.request_code);
               if (ass) {
@@ -445,6 +542,8 @@ export function SupervisorMobileApp({
                 setActiveSubview('assignment_details');
               }}
               onAssignFieldWorker={handleAssignFieldWorker}
+              onConfirmArrival={handleConfirmArrival}
+              onHandoverToWorker={handleHandoverToFieldWorker}
               onOpenReport={(item) => {
                 const ass = assessments.find(a => a.request_id === item.id || a.request_code === item.request_code);
                 if (ass) {
@@ -452,6 +551,28 @@ export function SupervisorMobileApp({
                   setActiveSubview('report_review');
                 }
               }}
+            />
+          </div>
+        );
+
+      case 'dispatches':
+        return (
+          <div className="p-4">
+            <SupervisorDispatchesView
+              dispatches={dispatches}
+              assignments={assignments}
+              statusFilter={dispatchesStatusTab}
+              onStatusFilterChange={setDispatchesStatusTab}
+              onConfirmArrival={async (item, notes) => {
+                await handleConfirmArrival(item, notes);
+                const freshDispatches = await (db.getDispatches ? db.getDispatches() : []);
+                setDispatches(freshDispatches || []);
+              }}
+              onHandoverToWorker={async (item, notes) => {
+                await handleHandoverToFieldWorker(item, item.assigned_field_worker_name, notes);
+              }}
+              onOpenWaybillDetail={(dispatch) => setSelectedWaybillModal(dispatch)}
+              activeSupervisorName={activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi'}
             />
           </div>
         );
@@ -524,6 +645,7 @@ export function SupervisorMobileApp({
   const sidebarNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'assignments', label: 'Assignments', icon: ClipboardList, badge: pendingAssignmentsCount > 0 ? pendingAssignmentsCount : null, badgeColor: 'bg-amber-500' },
+    { id: 'dispatches', label: 'Aid Dispatches & Goods', icon: Truck, badge: dispatchCounts.inTransit > 0 ? dispatchCounts.inTransit : null, badgeColor: 'bg-amber-500' },
     { id: 'facilitations', label: 'Facilitations', icon: Banknote, badge: pendingFacilitationsCount > 0 ? pendingFacilitationsCount : null, badgeColor: 'bg-amber-500' },
     { id: 'team', label: 'Field Team (5 Workers)', icon: Users, badge: fieldWorkers.length, badgeColor: 'bg-emerald-600' },
     { id: 'reports', label: 'Field Assessments', icon: FileCheck, badge: pendingReportsCount > 0 ? pendingReportsCount : null, badgeColor: 'bg-purple-600' },
@@ -637,12 +759,13 @@ export function SupervisorMobileApp({
                 const isActive = !activeSubview && activeTab === item.id;
 
                 if (item.id === 'assignments') {
+                  const isExpanded = expandedSection === 'assignments';
                   return (
                     <div key={item.id} className="space-y-1">
                       <button
                         type="button"
                         onClick={() => {
-                          setIsAssignmentsExpanded(!isAssignmentsExpanded);
+                          toggleAccordion('assignments');
                           if (activeTab !== 'assignments' || activeSubview) {
                             setActiveSubview(null);
                             setActiveTab('assignments');
@@ -665,7 +788,7 @@ export function SupervisorMobileApp({
                               {assignmentCounts.pending}
                             </span>
                           )}
-                          {isAssignmentsExpanded ? (
+                          {isExpanded ? (
                             <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                           ) : (
                             <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
@@ -673,7 +796,7 @@ export function SupervisorMobileApp({
                         </div>
                       </button>
 
-                      {isAssignmentsExpanded && (
+                      {isExpanded && (
                         <div className="pl-3 pr-1 py-1 space-y-1 mt-0.5 border-l-2 border-emerald-400 ml-4">
                           {/* Pending */}
                           <button
@@ -682,7 +805,6 @@ export function SupervisorMobileApp({
                               setActiveSubview(null);
                               setActiveTab('assignments');
                               setAssignmentsStatusTab('pending');
-                              setIsSidebarOpen(false);
                             }}
                             className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
                               !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'pending'
@@ -710,7 +832,6 @@ export function SupervisorMobileApp({
                               setActiveSubview(null);
                               setActiveTab('assignments');
                               setAssignmentsStatusTab('assigned');
-                              setIsSidebarOpen(false);
                             }}
                             className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
                               !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'assigned'
@@ -738,7 +859,6 @@ export function SupervisorMobileApp({
                               setActiveSubview(null);
                               setActiveTab('assignments');
                               setAssignmentsStatusTab('in_progress');
-                              setIsSidebarOpen(false);
                             }}
                             className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
                               !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'in_progress'
@@ -766,7 +886,6 @@ export function SupervisorMobileApp({
                               setActiveSubview(null);
                               setActiveTab('assignments');
                               setAssignmentsStatusTab('completed');
-                              setIsSidebarOpen(false);
                             }}
                             className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
                               !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'completed'
@@ -794,7 +913,6 @@ export function SupervisorMobileApp({
                               setActiveSubview(null);
                               setActiveTab('assignments');
                               setAssignmentsStatusTab('rejected');
-                              setIsSidebarOpen(false);
                             }}
                             className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
                               !activeSubview && activeTab === 'assignments' && assignmentsStatusTab === 'rejected'
@@ -820,13 +938,167 @@ export function SupervisorMobileApp({
                   );
                 }
 
-                if (item.id === 'facilitations') {
+                if (item.id === 'dispatches') {
+                  const isExpanded = expandedSection === 'dispatches';
                   return (
                     <div key={item.id} className="space-y-1">
                       <button
                         type="button"
                         onClick={() => {
-                          setIsFacilitationsExpanded(!isFacilitationsExpanded);
+                          toggleAccordion('dispatches');
+                          if (activeTab !== 'dispatches' || activeSubview) {
+                            setActiveSubview(null);
+                            setActiveTab('dispatches');
+                          }
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          !activeSubview && activeTab === 'dispatches'
+                            ? 'bg-emerald-50 text-[#006B56] border border-emerald-300/80 font-black shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <Icon className={`w-4 h-4 ${!activeSubview && activeTab === 'dispatches' ? 'text-[#006B56]' : 'text-slate-400'}`} />
+                          <span>{item.label}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {dispatchCounts.inTransit > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500 text-white">
+                              {dispatchCounts.inTransit}
+                            </span>
+                          )}
+                          {isExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                          )}
+                        </div>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="pl-3 pr-1 py-1 space-y-1 mt-0.5 border-l-2 border-[#006B56] ml-4">
+                          {/* All Dispatches */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('dispatches');
+                              setDispatchesStatusTab('ALL');
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'ALL'
+                                ? 'bg-[#006B56] text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'ALL' ? 'bg-white' : 'bg-[#006B56]'}`} />
+                              <span>All Dispatches</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'ALL'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {dispatchCounts.total}
+                            </span>
+                          </button>
+
+                          {/* In Transit (En Route) */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('dispatches');
+                              setDispatchesStatusTab('IN_TRANSIT');
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'IN_TRANSIT'
+                                ? 'bg-amber-600 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'IN_TRANSIT' ? 'bg-white' : 'bg-amber-500'}`} />
+                              <span>In Transit (En Route)</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'IN_TRANSIT'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {dispatchCounts.inTransit}
+                            </span>
+                          </button>
+
+                          {/* Arrived at Hub */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('dispatches');
+                              setDispatchesStatusTab('ARRIVED');
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'ARRIVED'
+                                ? 'bg-emerald-600 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'ARRIVED' ? 'bg-white' : 'bg-emerald-500'}`} />
+                              <span>Arrived at Hub</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'ARRIVED'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {dispatchCounts.arrived}
+                            </span>
+                          </button>
+
+                          {/* Collected (With Field Worker) */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubview(null);
+                              setActiveTab('dispatches');
+                              setDispatchesStatusTab('COLLECTED');
+                            }}
+                            className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
+                              !activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'COLLECTED'
+                                ? 'bg-blue-600 text-white font-black shadow-xs'
+                                : 'text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${!activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'COLLECTED' ? 'bg-white' : 'bg-blue-500'}`} />
+                              <span>Collected (With Worker)</span>
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              !activeSubview && activeTab === 'dispatches' && dispatchesStatusTab === 'COLLECTED'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {dispatchCounts.collected}
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                if (item.id === 'facilitations') {
+                  const isExpanded = expandedSection === 'facilitations';
+                  return (
+                    <div key={item.id} className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          toggleAccordion('facilitations');
                           if (activeTab !== 'facilitations' || activeSubview) {
                             setActiveSubview(null);
                             setActiveTab('facilitations');
@@ -849,7 +1121,7 @@ export function SupervisorMobileApp({
                               {facilitationCounts.pending}
                             </span>
                           )}
-                          {isFacilitationsExpanded ? (
+                          {isExpanded ? (
                             <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                           ) : (
                             <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
@@ -857,7 +1129,7 @@ export function SupervisorMobileApp({
                         </div>
                       </button>
 
-                      {isFacilitationsExpanded && (
+                      {isExpanded && (
                         <div className="pl-3 pr-1 py-1 space-y-1 mt-0.5 border-l-2 border-amber-400 ml-4">
                           {/* Pending */}
                           <button
@@ -866,7 +1138,6 @@ export function SupervisorMobileApp({
                               setActiveSubview(null);
                               setActiveTab('facilitations');
                               setFacilitationsStatusTab('pending');
-                              setIsSidebarOpen(false);
                             }}
                             className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
                               !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'pending'
@@ -894,7 +1165,6 @@ export function SupervisorMobileApp({
                               setActiveSubview(null);
                               setActiveTab('facilitations');
                               setFacilitationsStatusTab('in_progress');
-                              setIsSidebarOpen(false);
                             }}
                             className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
                               !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'in_progress'
@@ -908,7 +1178,7 @@ export function SupervisorMobileApp({
                             </span>
                             <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
                               !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'in_progress'
-                                ? 'bg-white/20 text-white'
+                                ? 'bg-purple-100 text-purple-800'
                                 : 'bg-purple-100 text-purple-800'
                             }`}>
                               {facilitationCounts.in_progress}
@@ -922,7 +1192,6 @@ export function SupervisorMobileApp({
                               setActiveSubview(null);
                               setActiveTab('facilitations');
                               setFacilitationsStatusTab('disbursed');
-                              setIsSidebarOpen(false);
                             }}
                             className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
                               !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'disbursed'
@@ -950,7 +1219,6 @@ export function SupervisorMobileApp({
                               setActiveSubview(null);
                               setActiveTab('facilitations');
                               setFacilitationsStatusTab('rejected');
-                              setIsSidebarOpen(false);
                             }}
                             className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
                               !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'rejected'
@@ -978,7 +1246,6 @@ export function SupervisorMobileApp({
                               setActiveSubview(null);
                               setActiveTab('facilitations');
                               setFacilitationsStatusTab('all');
-                              setIsSidebarOpen(false);
                             }}
                             className={`w-full text-left py-1.5 px-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-between cursor-pointer ${
                               !activeSubview && activeTab === 'facilitations' && facilitationsStatusTab === 'all'
@@ -1210,6 +1477,27 @@ export function SupervisorMobileApp({
       <main className="flex-1 pb-8 overflow-y-auto">
         {renderContent()}
       </main>
+
+      {/* Official Waybill Receipt Detail Modal */}
+      {selectedWaybillModal && (
+        <WaybillDetailModal
+          dispatch={selectedWaybillModal}
+          isOpen={Boolean(selectedWaybillModal)}
+          onClose={() => setSelectedWaybillModal(null)}
+          onConfirmArrival={async (dispatch) => {
+            await handleConfirmArrival(dispatch);
+            const freshDispatches = await (db.getDispatches ? db.getDispatches() : []);
+            setDispatches(freshDispatches || []);
+            setSelectedWaybillModal(null);
+          }}
+          onHandoverToWorker={async (dispatch) => {
+            await handleHandoverToFieldWorker(dispatch, dispatch.assigned_field_worker_name);
+            const freshDispatches = await (db.getDispatches ? db.getDispatches() : []);
+            setDispatches(freshDispatches || []);
+            setSelectedWaybillModal(null);
+          }}
+        />
+      )}
 
       </div>
     </div>

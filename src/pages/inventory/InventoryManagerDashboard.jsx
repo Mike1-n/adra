@@ -34,6 +34,7 @@ import { useToast } from '../../context/ToastContext';
 // Subviews
 import { InventoryStockView } from './components/InventoryStockView';
 import { InventoryDispatchesView } from './components/InventoryDispatchesView';
+import { IssueWaybillView } from './components/IssueWaybillView';
 import { InventorySuppliersView } from './components/InventorySuppliersView';
 import { InventoryResourcesView } from './components/InventoryResourcesView';
 import { InventoryWarehousesView } from './components/InventoryWarehousesView';
@@ -58,6 +59,7 @@ export function InventoryManagerDashboard({
   // Active Tab: 'stock' | 'dispatches' | 'suppliers' | 'resources' | 'warehouses' | 'reports'
   const [activeTab, setActiveTab] = useState('stock');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDispatchesMenuOpen, setIsDispatchesMenuOpen] = useState(true);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [showDrawerRoleSwitcher, setShowDrawerRoleSwitcher] = useState(false);
   const [selectedDepotScope, setSelectedDepotScope] = useState('ALL');
@@ -76,6 +78,7 @@ export function InventoryManagerDashboard({
 
   // Modal States
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
+  const [selectedReceiveItem, setSelectedReceiveItem] = useState(null);
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   const [selectedAdjustItem, setSelectedAdjustItem] = useState(null);
   const [dispatchModalOpen, setDispatchModalOpen] = useState(false);
@@ -134,15 +137,84 @@ export function InventoryManagerDashboard({
     toast.success('Inventory & logistics state synchronized');
   };
 
-  // Filter PM-approved requests that are staged for warehouse dispatch
+  // Selected request to dispatch
+  const [selectedDispatchReq, setSelectedDispatchReq] = useState(null);
+
+  // Filter PM-approved requests that are staged for warehouse dispatch (excluding already assigned waybills)
   const approvedRequestsForDispatch = useMemo(() => {
-    return assistanceRequests.filter(r => 
-      r.status === 'approved_by_pm' || 
-      r.status === 'endorsed' || 
-      r.status === 'supervisor_approved' ||
-      (r.verification_status === 'Approved' && !r.qr_token)
-    );
-  }, [assistanceRequests]);
+    // Collect all request identifiers that have already been dispatched in a waybill
+    const dispatchedKeys = new Set();
+    dispatches.forEach(d => {
+      if (d.linked_request_id) dispatchedKeys.add(String(d.linked_request_id).toLowerCase().trim());
+      if (d.request_code) dispatchedKeys.add(String(d.request_code).toLowerCase().trim());
+      if (d.beneficiary_code) dispatchedKeys.add(String(d.beneficiary_code).toLowerCase().trim());
+      if (d.beneficiary_name) {
+        const cleanName = d.beneficiary_name.split('(')[0].toLowerCase().trim();
+        if (cleanName) dispatchedKeys.add(cleanName);
+      }
+    });
+
+    return assistanceRequests.filter(r => {
+      if (!r) return false;
+      const rId = String(r.id || '').toLowerCase().trim();
+      const rCode = String(r.request_code || r.tracking_number || '').toLowerCase().trim();
+      const rBenName = String(r.beneficiary_name || r.full_name || '').toLowerCase().trim();
+
+      // If already linked to an issued waybill dispatch, remove immediately from staging queue
+      if (dispatchedKeys.has(rId) || dispatchedKeys.has(rCode) || (rBenName && dispatchedKeys.has(rBenName))) {
+        return false;
+      }
+
+      const status = (r.status || '').toLowerCase().trim();
+      const statusLabel = (r.status_label || '').toLowerCase().trim();
+      const verStatus = (r.verification_status || '').toLowerCase().trim();
+      const dst = (r.dispatch_status || '').toLowerCase().trim();
+      const stage = Number(r.status_stage || r.stage || 0);
+
+      // Exclude already dispatched / completed items
+      const isDispatched = 
+        status === 'dispatched' || 
+        status === 'warehouse_dispatched' || 
+        status === 'in transit' ||
+        status === 'delivered' || 
+        status === 'completed' ||
+        dst === 'in transit' ||
+        dst.includes('transit') ||
+        dst.includes('arrived') ||
+        dst.includes('deliver') ||
+        Boolean(r.dispatched_at || r.waybill_number || r.qr_token);
+
+      if (isDispatched) return false;
+
+      // Exclude rejected items
+      const isRejected = 
+        status === 'rejected' || 
+        status.includes('reject') || 
+        statusLabel.includes('reject') || 
+        Boolean(r.returned_to_worker) || 
+        stage === 6 || stage === -1;
+
+      if (isRejected) return false;
+
+      // Match all approved / assigned / endorsed states
+      const isApproved =
+        status === 'approved' ||
+        status === 'approved_by_pm' ||
+        status === 'approved by program manager' ||
+        status === 'assigned to supervisor' ||
+        status === 'assigned to field worker' ||
+        status === 'endorsed' ||
+        status === 'endorsed by supervisor' ||
+        status === 'supervisor_approved' ||
+        status.includes('approved') ||
+        status.includes('endors') ||
+        status.includes('assigned') ||
+        verStatus === 'approved' ||
+        stage >= 2;
+
+      return isApproved;
+    });
+  }, [assistanceRequests, dispatches]);
 
   // Handlers for Modals & Data Operations
   const handleReceiveStock = async (grnData) => {
@@ -165,6 +237,10 @@ export function InventoryManagerDashboard({
     const res = await db.createDispatch(dispData);
     const updated = await db.getInventory();
     setInventory([...updated]);
+    const updatedDispatches = await db.getDispatches();
+    setDispatches([...updatedDispatches]);
+    const updatedRequests = await db.getAssistanceRequests();
+    setAssistanceRequests([...updatedRequests]);
     await loadData();
     return res;
   };
@@ -213,7 +289,9 @@ export function InventoryManagerDashboard({
 
   const handleNavClick = (tabId) => {
     setActiveTab(tabId);
-    setIsSidebarOpen(false);
+    if (tabId === 'dispatches') {
+      setIsDispatchesMenuOpen(true);
+    }
   };
 
   const roles = [
@@ -226,25 +304,48 @@ export function InventoryManagerDashboard({
     { role: 'Beneficiary', label: 'Beneficiary', desc: 'Community Portal' }
   ];
 
+  const [dispatchStatusFilter, setDispatchStatusFilter] = useState('ALL');
+
   const lowStockAlertsCount = useMemo(() => {
     return inventory.filter(i => i.status === 'Low Stock' || (i.quantity > 0 && i.quantity < (i.min_threshold || 10))).length;
   }, [inventory]);
 
   const inTransitWaybillsCount = useMemo(() => {
-    return dispatches.filter(d => d.status === 'In Transit').length;
+    return dispatches.filter(d => {
+      const st = (d.status || '').toLowerCase().trim();
+      const dst = (d.dispatch_status || '').toLowerCase().trim();
+      return st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit';
+    }).length;
   }, [dispatches]);
+
+  const deliveredWaybillsCount = useMemo(() => {
+    return dispatches.filter(d => {
+      const st = (d.status || '').toLowerCase().trim();
+      const dst = (d.dispatch_status || '').toLowerCase().trim();
+      return st.includes('deliver') || st.includes('arrived') || st === 'goods_arrived_at_hub' || dst.includes('arrived');
+    }).length;
+  }, [dispatches]);
+
+  const stagedWaybillsCount = useMemo(() => {
+    return approvedRequestsForDispatch.length;
+  }, [approvedRequestsForDispatch]);
 
   const activeTabTitle = useMemo(() => {
     switch (activeTab) {
       case 'stock': return 'Stock Catalog';
-      case 'dispatches': return 'Aid Dispatches & Waybills';
+      case 'dispatches': 
+        if (dispatchStatusFilter === 'IN_TRANSIT') return 'Aid Dispatches — Active In-Transit Convoys';
+        if (dispatchStatusFilter === 'DELIVERED') return 'Aid Dispatches — Delivered & Confirmed at Hubs';
+        if (dispatchStatusFilter === 'STAGED') return 'Aid Dispatches — PM-Authorized Staging Queue';
+        return 'Aid Dispatches & Waybills — All Manifests';
+      case 'dispatches-issue': return 'Issue Aid Waybill & Commodity Release';
       case 'suppliers': return 'Suppliers & Purchase Orders';
       case 'resources': return 'Fleet & Capital Assets';
       case 'warehouses': return 'State Relief Depots';
       case 'reports': return 'Reports & Audit Ledger';
       default: return 'Logistics & Supply Chain';
     }
-  }, [activeTab]);
+  }, [activeTab, dispatchStatusFilter]);
 
   return (
     <div className="min-h-screen bg-slate-100 flex font-sans text-slate-800 relative">
@@ -362,27 +463,155 @@ export function InventoryManagerDashboard({
           </button>
 
           {/* Aid Dispatches & Waybills */}
-          <button
-            type="button"
-            onClick={() => handleNavClick('dispatches')}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
-              activeTab === 'dispatches'
-                ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <div className="flex items-center space-x-2.5">
-              <Truck className={`w-4 h-4 ${activeTab === 'dispatches' ? 'text-white' : 'text-blue-600'}`} />
-              <span>Aid Dispatches & Waybills</span>
+          <div className="space-y-1">
+            <div
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition ${
+                activeTab === 'dispatches'
+                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('dispatches');
+                  setIsDispatchesMenuOpen(true);
+                }}
+                className="flex items-center space-x-2.5 min-w-0 flex-1 text-left cursor-pointer"
+              >
+                <Truck className={`w-4 h-4 shrink-0 ${activeTab === 'dispatches' ? 'text-white' : 'text-blue-600'}`} />
+                <span className="truncate">Aid Dispatches & Waybills</span>
+              </button>
+
+              <div className="flex items-center gap-1 shrink-0 ml-1">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                  activeTab === 'dispatches' ? 'bg-white text-[#006B56]' : 'bg-emerald-100 text-emerald-900'
+                }`}>
+                  {dispatches.length}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDispatchesMenuOpen(prev => !prev);
+                  }}
+                  className={`p-1 rounded-md transition hover:bg-black/10 cursor-pointer ${
+                    activeTab === 'dispatches' ? 'text-white' : 'text-slate-400 hover:text-slate-700'
+                  }`}
+                  title={isDispatchesMenuOpen ? 'Collapse sub-menu' : 'Expand sub-menu'}
+                >
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    isDispatchesMenuOpen ? 'rotate-180' : ''
+                  }`} />
+                </button>
+              </div>
             </div>
-            {approvedRequestsForDispatch.length > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                activeTab === 'dispatches' ? 'bg-white text-[#006B56]' : 'bg-emerald-100 text-emerald-900'
-              }`}>
-                {approvedRequestsForDispatch.length}
-              </span>
+
+            {/* Collapsible Sub-Filters & Quick Action for Dispatches */}
+            {isDispatchesMenuOpen && (
+              <div className="pl-3 pr-1 py-1.5 space-y-1.5 bg-slate-50/90 rounded-xl border border-slate-200/80 my-1">
+                <div className="space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('dispatches');
+                      setDispatchStatusFilter('ALL');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      activeTab === 'dispatches' && dispatchStatusFilter === 'ALL'
+                        ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>All</span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                      {dispatches.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('dispatches');
+                      setDispatchStatusFilter('IN_TRANSIT');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      activeTab === 'dispatches' && dispatchStatusFilter === 'IN_TRANSIT'
+                        ? 'bg-amber-100/90 text-amber-950 shadow-2xs border border-amber-300 font-extrabold'
+                        : 'text-amber-900/80 hover:text-amber-950 hover:bg-amber-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      In Transit
+                    </span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-200/80 text-amber-950 font-black">
+                      {inTransitWaybillsCount}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('dispatches');
+                      setDispatchStatusFilter('DELIVERED');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      activeTab === 'dispatches' && dispatchStatusFilter === 'DELIVERED'
+                        ? 'bg-emerald-100/90 text-emerald-950 shadow-2xs border border-emerald-300 font-extrabold'
+                        : 'text-emerald-900/80 hover:text-emerald-950 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                      Delivered
+                    </span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-emerald-200/80 text-emerald-950 font-black">
+                      {deliveredWaybillsCount}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('dispatches');
+                      setDispatchStatusFilter('STAGED');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      activeTab === 'dispatches' && dispatchStatusFilter === 'STAGED'
+                        ? 'bg-indigo-100/90 text-indigo-950 shadow-2xs border border-indigo-300 font-extrabold'
+                        : 'text-indigo-900/80 hover:text-indigo-950 hover:bg-indigo-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                      Staged
+                    </span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-indigo-200/80 text-indigo-950 font-black">
+                      {stagedWaybillsCount}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Dedicated Issue Waybill Sub-Page Link */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('dispatches-issue');
+                  }}
+                  className={`w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer mt-1 ${
+                    activeTab === 'dispatches-issue'
+                      ? 'bg-[#006B56] text-white ring-2 ring-emerald-400'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Issue Waybill</span>
+                </button>
+              </div>
             )}
-          </button>
+          </div>
 
           {/* Suppliers & Purchase Orders */}
           <button
@@ -694,27 +923,50 @@ export function InventoryManagerDashboard({
           <>
             {/* View 1: Stock Catalog */}
             {activeTab === 'stock' && (
-              <InventoryStockView
-                inventory={inventory}
-                warehouses={warehouses}
-                onOpenReceiveModal={() => setReceiveModalOpen(true)}
-                onOpenAdjustModal={() => {
-                  setSelectedAdjustItem(null);
-                  setAdjustModalOpen(true);
-                }}
-                onDeleteItem={handleDeleteInventoryItem}
-                onClearAllStock={handleClearAllStock}
-              />
-            )}
+               <InventoryStockView
+                 inventory={inventory}
+                 warehouses={warehouses}
+                 onOpenReceiveModal={(item) => {
+                   setSelectedReceiveItem(item && item.item_name ? item : null);
+                   setReceiveModalOpen(true);
+                 }}
+                 onOpenAdjustModal={(item) => {
+                   setSelectedAdjustItem(item || null);
+                   setAdjustModalOpen(true);
+                 }}
+                 onDeleteItem={handleDeleteInventoryItem}
+                 onClearAllStock={handleClearAllStock}
+               />
+             )}
 
             {/* View 2: Aid Dispatches & Waybills */}
             {activeTab === 'dispatches' && (
               <InventoryDispatchesView
                 dispatches={dispatches}
                 approvedRequests={approvedRequestsForDispatch}
-                onOpenCreateDispatchModal={() => setDispatchModalOpen(true)}
+                statusFilter={dispatchStatusFilter}
+                onStatusFilterChange={setDispatchStatusFilter}
+                onOpenCreateDispatchModal={(req) => {
+                  setSelectedDispatchReq(req || null);
+                  setActiveTab('dispatches-issue');
+                }}
                 onOpenWaybillDetail={handleOpenWaybillDetail}
                 onUpdateDispatchStatus={handleUpdateDispatchStatus}
+              />
+            )}
+
+            {/* View 2B: Dedicated Issue Waybill Page */}
+            {activeTab === 'dispatches-issue' && (
+              <IssueWaybillView
+                warehouses={warehouses}
+                inventoryItems={inventory}
+                approvedRequests={approvedRequestsForDispatch}
+                onDispatchSuccess={async (dispData) => {
+                  await handleCreateDispatch(dispData);
+                  setActiveTab('dispatches');
+                  setDispatchStatusFilter('IN_TRANSIT');
+                }}
+                onCancel={() => setActiveTab('dispatches')}
               />
             )}
 
@@ -762,11 +1014,15 @@ export function InventoryManagerDashboard({
       {/* Receive Stock Modal */}
       <ReceiveStockModal
         isOpen={receiveModalOpen}
-        onClose={() => setReceiveModalOpen(false)}
+        onClose={() => {
+          setReceiveModalOpen(false);
+          setSelectedReceiveItem(null);
+        }}
         warehouses={warehouses}
         suppliers={suppliers}
         inventoryItems={inventory}
         purchaseOrders={purchaseOrders}
+        selectedItem={selectedReceiveItem}
         onReceiveSuccess={handleReceiveStock}
       />
 
@@ -786,10 +1042,14 @@ export function InventoryManagerDashboard({
       {/* Create Waybill Dispatch Modal */}
       <CreateDispatchModal
         isOpen={dispatchModalOpen}
-        onClose={() => setDispatchModalOpen(false)}
+        onClose={() => {
+          setDispatchModalOpen(false);
+          setSelectedDispatchReq(null);
+        }}
         warehouses={warehouses}
         inventoryItems={inventory}
         approvedRequests={approvedRequestsForDispatch}
+        preselectedRequest={selectedDispatchReq}
         onDispatchSuccess={handleCreateDispatch}
       />
 

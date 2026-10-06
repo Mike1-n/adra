@@ -22,7 +22,10 @@ import {
   UserX,
   ChevronDown,
   Image as ImageIcon,
-  FileCheck
+  FileCheck,
+  Truck,
+  PackageCheck,
+  Package
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 
@@ -31,6 +34,8 @@ export function SupervisorAssignmentDetailsView({
   fieldWorkers,
   onBack,
   onReassignWorker,
+  onConfirmArrival,
+  onHandoverToWorker,
   onViewBeneficiary,
   onViewActivity
 }) {
@@ -273,6 +278,125 @@ export function SupervisorAssignmentDetailsView({
             <p className="text-[11px] text-rose-800">
               The case has been routed back to Field Officer <strong>{assignedWorker?.name || assignment.assigned_field_worker_name || 'assigned officer'}</strong> for physical verification and resubmission.
             </p>
+          </div>
+        )}
+
+        {/* HUMANITARIAN CONVOY DISPATCH & HUB RECEIPT CARD */}
+        {(assignment.waybill_number || assignment.status === 'warehouse_dispatched' || assignment.status === 'goods_arrived_at_hub' || assignment.dispatch_status) && (
+          <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                  assignment.status === 'goods_arrived_at_hub' || assignment.dispatch_status === 'Arrived at Hub'
+                    ? 'bg-emerald-100 text-[#006B56]'
+                    : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {assignment.status === 'goods_arrived_at_hub' || assignment.dispatch_status === 'Arrived at Hub' ? (
+                    <PackageCheck className="w-5 h-5 text-[#006B56]" />
+                  ) : (
+                    <Truck className="w-5 h-5 text-amber-700" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h3 className="text-xs font-black text-slate-900">
+                      Humanitarian Dispatch Waybill
+                    </h3>
+                    <span className="text-[10px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                      #{assignment.waybill_number || 'WAYBILL-SS-2026-9102'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Depot stock allocation & convoy logistics
+                  </p>
+                </div>
+              </div>
+
+              <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border shrink-0 ${
+                assignment.status === 'goods_arrived_at_hub' || assignment.dispatch_status === 'Arrived at Hub'
+                  ? 'bg-emerald-50 text-[#006B56] border-emerald-200'
+                  : 'bg-amber-50 text-amber-800 border-amber-200'
+              }`}>
+                {assignment.dispatch_status || (assignment.status === 'goods_arrived_at_hub' ? 'Arrived at Hub' : 'In Transit')}
+              </span>
+            </div>
+
+            {/* Logistics Route Details */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Origin Depot</span>
+                <span className="font-bold text-slate-800 truncate block mt-0.5">
+                  {assignment.origin_warehouse || 'Central Equatoria State Depot'}
+                </span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Destination Hub</span>
+                <span className="font-bold text-slate-800 truncate block mt-0.5">
+                  {assignment.destination_hub || `${assignment.county || 'Field'} Relief Centre`}
+                </span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Fleet Vehicle</span>
+                <span className="font-mono font-bold text-slate-800 block mt-0.5">
+                  {assignment.vehicle_reg || 'SSD-481-LOG'}
+                </span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Convoy Driver</span>
+                <span className="font-bold text-slate-800 truncate block mt-0.5">
+                  {assignment.driver_name || 'Deng Bol'} ({assignment.driver_phone || '+211-921-889911'})
+                </span>
+              </div>
+            </div>
+
+            {/* Arrival verification status / Action */}
+            {assignment.status === 'goods_collected_by_field_worker' || assignment.dispatch_status === 'Collected by Field Worker' ? (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-1 text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                  <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                  <span>Relief Commodities Handed Over to Field Officer</span>
+                </div>
+                <p className="text-[11px] text-blue-800">
+                  Collected by <strong>{assignment.goods_collected_by || assignedWorker?.name || assignment.assigned_field_worker_name || 'Field Officer'}</strong> on {assignment.goods_collected_at ? new Date(assignment.goods_collected_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : 'Recent'}. Field Officer is now conducting distribution with beneficiary QR scanning.
+                </p>
+              </div>
+            ) : assignment.status === 'goods_arrived_at_hub' || assignment.dispatch_status === 'Arrived at Hub' ? (
+              <div className="space-y-2">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1 text-xs">
+                  <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+                    <CheckCircle2 className="w-4 h-4 text-[#006B56]" />
+                    <span>Cargo Arrived & Received at Relief Hub</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800">
+                    Verified by <strong>{assignment.hub_verified_by || 'Emmanuel Adeyemi (Supervisor)'}</strong> on {assignment.goods_arrived_at ? new Date(assignment.goods_arrived_at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : 'Recent'}. Ready for handover to Field Officer.
+                  </p>
+                </div>
+
+                {onHandoverToWorker && (
+                  <button
+                    type="button"
+                    onClick={() => onHandoverToWorker(assignment, assignedWorker?.name || assignment.assigned_field_worker_name)}
+                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-xs flex items-center justify-center gap-2 transition cursor-pointer active:scale-98"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>Handover to {assignedWorker?.name || assignment.assigned_field_worker_name || 'Field Officer'}</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="pt-1">
+                {onConfirmArrival && (
+                  <button
+                    type="button"
+                    onClick={() => onConfirmArrival(assignment)}
+                    className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-[#006B56] hover:from-emerald-700 hover:to-[#005544] text-white text-xs font-black rounded-xl shadow-md hover:shadow-lg flex items-center justify-center gap-2 transition cursor-pointer active:scale-98"
+                  >
+                    <PackageCheck className="w-4 h-4" />
+                    <span>Confirm Goods Arrived at Relief Hub</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 

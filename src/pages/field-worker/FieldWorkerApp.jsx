@@ -23,7 +23,10 @@ import {
   FileCheck,
   UserCheck,
   DollarSign,
-  Banknote
+  Banknote,
+  PackageCheck,
+  Package,
+  Truck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/supabase';
@@ -65,6 +68,7 @@ export function FieldWorkerApp({
   const [selectedTaskForAssessment, setSelectedTaskForAssessment] = useState(null);
   const [selectedProjectForAudit, setSelectedProjectForAudit] = useState(null);
   const [showScannerModal, setShowScannerModal] = useState(false);
+  const [selectedTaskForDistribution, setSelectedTaskForDistribution] = useState(null);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showFundingModal, setShowFundingModal] = useState(false);
   const [selectedTaskForFunding, setSelectedTaskForFunding] = useState(null);
@@ -210,6 +214,20 @@ export function FieldWorkerApp({
     return res;
   };
 
+  const handleCollectGoods = async (task) => {
+    try {
+      await db.confirmGoodsCollection(
+        task.id || task.request_code || task.waybill_number,
+        worker?.name || currentUser?.full_name || 'Field Officer',
+        task.assigned_supervisor_name || 'Supervisor'
+      );
+      toast.success(`Relief supplies for ${task.beneficiary_name || task.request_code} marked as collected from hub store!`);
+      await loadData(worker);
+    } catch (err) {
+      toast.error(err.message || 'Failed to record goods collection.');
+    }
+  };
+
   const handleRegisterBeneficiary = async (benData) => {
     const res = await db.createBeneficiary(benData);
     await loadData(worker);
@@ -235,13 +253,52 @@ export function FieldWorkerApp({
                                 t.status === 'Correction Required' ||
                                 Boolean(t.returned_to_worker);
 
+  const isDeliveredHelper = (t) => !isTaskRejected(t) && (
+    t.status === 'Distributed' || 
+    t.status === 'Completed' ||
+    t.dispatch_status === 'Distributed' ||
+    t.dispatch_status === 'Delivered' ||
+    Boolean(t.distributed_at) ||
+    Boolean(t.distribution_date) ||
+    Boolean(t.distribution_confirmed) ||
+    Boolean(t.recipient_confirmed)
+  );
+
+  const isCustodyHelper = (t) => !isTaskRejected(t) && !isDeliveredHelper(t) && (
+    t.status === 'goods_collected_by_field_worker' || 
+    t.dispatch_status === 'Collected by Field Worker' ||
+    t.status === 'Collected' ||
+    t.dispatch_status === 'Collected' ||
+    t.status?.toLowerCase().includes('collected') ||
+    t.dispatch_status?.toLowerCase().includes('collected')
+  );
+
+  const isHubHelper = (t) => !isTaskRejected(t) && !isDeliveredHelper(t) && !isCustodyHelper(t) && (
+    t.status === 'goods_arrived_at_hub' || 
+    t.status === 'warehouse_dispatched' || 
+    t.status === 'Arrived' ||
+    t.dispatch_status === 'In Transit' || 
+    t.dispatch_status === 'Arrived at Hub' ||
+    t.dispatch_status === 'Arrived' ||
+    t.status?.toLowerCase().includes('arrived') ||
+    t.dispatch_status?.toLowerCase().includes('arrived')
+  );
+
   const pendingTasksCount = useMemo(() => {
     return tasks.filter(t => 
       (t.status === 'Assigned to Field Worker' || 
        t.status === 'Submitted' || 
        t.status === 'Assessment In Progress') &&
-      !isTaskRejected(t)
+      !isTaskRejected(t) && !isHubHelper(t) && !isCustodyHelper(t) && !isDeliveredHelper(t)
     ).length;
+  }, [tasks]);
+
+  const inCustodyTasksCount = useMemo(() => {
+    return tasks.filter(t => isCustodyHelper(t)).length;
+  }, [tasks]);
+
+  const hubReadyTasksCount = useMemo(() => {
+    return tasks.filter(t => isHubHelper(t)).length;
   }, [tasks]);
 
   const submittedTasksCount = useMemo(() => {
@@ -257,12 +314,7 @@ export function FieldWorkerApp({
   }, [tasks]);
 
   const completedTasksCount = useMemo(() => {
-    return tasks.filter(t => 
-      (t.status === 'Completed' || 
-       t.status === 'Distributed' || 
-       t.status === 'Approved') &&
-      !isTaskRejected(t)
-    ).length;
+    return tasks.filter(t => isDeliveredHelper(t)).length;
   }, [tasks]);
 
   const activeFundingCount = useMemo(() => {
@@ -409,6 +461,11 @@ export function FieldWorkerApp({
                   <span className="font-extrabold text-slate-900">Assigned Field Tasks</span>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  {inCustodyTasksCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-600 text-white">
+                      {inCustodyTasksCount} In Custody
+                    </span>
+                  )}
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200/80">
                     {tasks.length} Cases
                   </span>
@@ -423,6 +480,7 @@ export function FieldWorkerApp({
               {/* Sub-items under Assigned (Clean flat list without cards) */}
               {isTasksExpanded && (
                 <div className="pl-3 pr-1 py-0.5 space-y-0.5 border-l-2 border-slate-200 ml-4 my-1">
+                  {/* 1. All Tasks */}
                   <button
                     type="button"
                     onClick={() => {
@@ -449,6 +507,7 @@ export function FieldWorkerApp({
                     </span>
                   </button>
 
+                  {/* 2. Pending Audit (Case assigned -> Needs assessment) */}
                   <button
                     type="button"
                     onClick={() => {
@@ -475,6 +534,7 @@ export function FieldWorkerApp({
                     </span>
                   </button>
 
+                  {/* 3. Submitted (Audit sent for Supervisor/PM review) */}
                   <button
                     type="button"
                     onClick={() => {
@@ -484,24 +544,24 @@ export function FieldWorkerApp({
                     }}
                     className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
                       activeTab === 'tasks' && taskStatusFilter === 'submitted'
-                        ? 'bg-blue-50 text-blue-900 font-bold'
+                        ? 'bg-purple-50 text-purple-900 font-bold'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'tasks' && taskStatusFilter === 'submitted' ? 'bg-blue-600' : 'bg-slate-400'}`} />
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'tasks' && taskStatusFilter === 'submitted' ? 'bg-purple-600' : 'bg-slate-400'}`} />
                       <span>Submitted</span>
                     </div>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                       activeTab === 'tasks' && taskStatusFilter === 'submitted'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-purple-600 text-white'
                         : 'text-slate-500'
                     }`}>
                       {submittedTasksCount}
                     </span>
                   </button>
 
-                  {/* Returned / Rejected */}
+                  {/* 4. Returned / Rejected (Corrections requested) */}
                   <button
                     type="button"
                     onClick={() => {
@@ -528,6 +588,61 @@ export function FieldWorkerApp({
                     </span>
                   </button>
 
+                  {/* 5. Hub Store Cargo (Relief supplies dispatched & arrived at Hub) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('tasks');
+                      setTaskStatusFilter('hub_ready');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                      activeTab === 'tasks' && taskStatusFilter === 'hub_ready'
+                        ? 'bg-emerald-600 text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'tasks' && taskStatusFilter === 'hub_ready' ? 'bg-white' : 'bg-emerald-500'}`} />
+                      <span>📦 Hub Store Cargo</span>
+                    </div>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      activeTab === 'tasks' && taskStatusFilter === 'hub_ready'
+                        ? 'bg-white/20 text-white'
+                        : (hubReadyTasksCount > 0 ? 'bg-emerald-100 text-emerald-800 font-black' : 'text-slate-500')
+                    }`}>
+                      {hubReadyTasksCount}
+                    </span>
+                  </button>
+
+                  {/* 6. In Custody / Collected by Field Worker (Handed over by Supervisor -> In worker's custody) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('tasks');
+                      setTaskStatusFilter('in_custody');
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                      activeTab === 'tasks' && taskStatusFilter === 'in_custody'
+                        ? 'bg-blue-600 text-white font-black shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'tasks' && taskStatusFilter === 'in_custody' ? 'bg-white' : 'bg-blue-500'}`} />
+                      <span>✓ In Custody (Collected)</span>
+                    </div>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      activeTab === 'tasks' && taskStatusFilter === 'in_custody'
+                        ? 'bg-white/20 text-white'
+                        : (inCustodyTasksCount > 0 ? 'bg-blue-100 text-blue-800 font-black' : 'text-slate-500')
+                    }`}>
+                      {inCustodyTasksCount}
+                    </span>
+                  </button>
+
+                  {/* 7. Delivered (QR token scanned & items handed over to beneficiary) */}
                   <button
                     type="button"
                     onClick={() => {
@@ -557,6 +672,35 @@ export function FieldWorkerApp({
               )}
             </div>
 
+            {/* In Custody / Collected Goods Quick Sidebar Link */}
+            {inCustodyTasksCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('tasks');
+                  setTaskStatusFilter('in_custody');
+                  setIsSidebarOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'tasks' && taskStatusFilter === 'in_custody'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-blue-50/80 text-blue-900 border border-blue-200/80 hover:bg-blue-100'
+                }`}
+              >
+                <div className="flex items-center space-x-2.5">
+                  <PackageCheck className={`w-4 h-4 ${activeTab === 'tasks' && taskStatusFilter === 'in_custody' ? 'text-white' : 'text-blue-600'}`} />
+                  <span>Collected Goods (In Custody)</span>
+                </div>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-black min-w-[24px] text-center shadow-xs ${
+                  activeTab === 'tasks' && taskStatusFilter === 'in_custody'
+                    ? 'bg-white text-blue-600'
+                    : 'bg-blue-600 text-white'
+                }`}>
+                  {inCustodyTasksCount}
+                </span>
+              </button>
+            )}
+
             {/* Household Registry */}
             <button
               type="button"
@@ -583,21 +727,22 @@ export function FieldWorkerApp({
               </span>
             </button>
 
-            {/* Scan Aid QR Token */}
+            {/* Distribute Aid Packages */}
             <button
               type="button"
               onClick={() => {
+                setSelectedTaskForDistribution(null);
                 setShowScannerModal(true);
                 setIsSidebarOpen(false);
               }}
               className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 hover:text-slate-950 hover:bg-slate-100 transition-all cursor-pointer"
             >
               <div className="flex items-center space-x-2.5">
-                <QrCode className="w-4 h-4 text-slate-500" />
-                <span>Scan Aid QR Token</span>
+                <PackageCheck className="w-4 h-4 text-emerald-600" />
+                <span>Distribute Aid Packages</span>
               </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
-                Scan
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                Distribute
               </span>
             </button>
 
@@ -922,11 +1067,14 @@ export function FieldWorkerApp({
 
               <button
                 type="button"
-                onClick={() => setShowScannerModal(true)}
-                title="Scan QR Token"
-                className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition border border-blue-200/70"
+                onClick={() => {
+                  setSelectedTaskForDistribution(null);
+                  setShowScannerModal(true);
+                }}
+                title="Distribute Aid Package"
+                className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition border border-emerald-200/70"
               >
-                <QrCode className="w-4 h-4" />
+                <PackageCheck className="w-4 h-4" />
               </button>
 
               <button
@@ -969,7 +1117,14 @@ export function FieldWorkerApp({
                     setSelectedTaskForAssessment(task);
                     setShowAssessmentModal(true);
                   }}
-                  onOpenScanner={() => setShowScannerModal(true)}
+                  onDistribute={(task = null) => {
+                    setSelectedTaskForDistribution(task);
+                    setShowScannerModal(true);
+                  }}
+                  onOpenScanner={(task = null) => {
+                    setSelectedTaskForDistribution(task);
+                    setShowScannerModal(true);
+                  }}
                   onOpenRegisterBeneficiary={() => setShowRegisterModal(true)}
                   onOpenFundingRequest={(task = null) => {
                     setSelectedTaskForFunding(task);
@@ -999,7 +1154,15 @@ export function FieldWorkerApp({
                     setSelectedTaskForAssessment(task);
                     setShowAssessmentModal(true);
                   }}
-                  onOpenScanner={() => setShowScannerModal(true)}
+                  onCollectGoods={handleCollectGoods}
+                  onDistribute={(task) => {
+                    setSelectedTaskForDistribution(task);
+                    setShowScannerModal(true);
+                  }}
+                  onOpenScanner={(task) => {
+                    setSelectedTaskForDistribution(task);
+                    setShowScannerModal(true);
+                  }}
                   onRequestFacilitation={(task) => {
                     setSelectedTaskForFunding(task);
                     setActiveTab('funding');
@@ -1086,9 +1249,13 @@ export function FieldWorkerApp({
         {showScannerModal && (
           <FieldDistributionScannerModal
             isOpen={showScannerModal}
-            onClose={() => setShowScannerModal(false)}
+            onClose={() => {
+              setShowScannerModal(false);
+              setSelectedTaskForDistribution(null);
+            }}
             worker={worker}
             tasks={tasks}
+            selectedTask={selectedTaskForDistribution}
             onConfirmDistribution={handleConfirmDistribution}
           />
         )}

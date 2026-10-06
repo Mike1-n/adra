@@ -348,3 +348,157 @@ export function exportVoucherPDF(item) {
   doc.save(`ADRA_Payment_Voucher_${voucherCode}.pdf`);
 }
 
+/**
+ * Generate official Waybill / Dispatch Receipt PDF
+ */
+export function exportWaybillPDF(dispatch) {
+  if (!dispatch) return;
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'pt',
+    format: 'a4'
+  });
+
+  const waybillNo = dispatch.waybill_number || 'WAYBILL-SS';
+  const dispatchToken = dispatch.dispatch_token || 'WB-TOKEN';
+
+  // 1. ADRA Green Banner Header
+  doc.setFillColor(0, 107, 86); // #006B56
+  doc.rect(0, 0, 595, 75, 'F');
+
+  // Title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(255, 255, 255);
+  doc.text('ADRA SOUTH SUDAN', 40, 36);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(209, 250, 229);
+  doc.text('HUMANITARIAN RELIEF DISPATCH & WAYBILL RECEIPT', 40, 54);
+
+  // Right Header Token Badge
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(255, 255, 255);
+  doc.text(waybillNo, 555, 36, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(209, 250, 229);
+  doc.text(`Token: ${dispatchToken}  |  ${dispatch.dispatch_date || 'Today'}`, 555, 54, { align: 'right' });
+
+  let currentY = 95;
+
+  // 2. Logistics & Route Summary
+  doc.autoTable({
+    startY: currentY,
+    head: [['LOGISTICS & DISPATCH METADATA', 'VALUE / DETAILS']],
+    body: [
+      ['Waybill Reference', `${waybillNo} (${dispatchToken})`],
+      ['Dispatch Date', dispatch.dispatch_date || 'N/A'],
+      ['Origin Warehouse / Depot', dispatch.origin_warehouse || 'Central Equatoria State Depot'],
+      ['Destination Relief Hub', dispatch.destination || 'Field Relief Distribution Centre'],
+      ['Beneficiary / Allocation', dispatch.beneficiary_name ? `${dispatch.beneficiary_name}` : 'Humanitarian Aid Relief Allocation'],
+      ['Convoy Driver', dispatch.driver_name || 'Deng Bol'],
+      ['Vehicle Plate / Reg No', dispatch.vehicle_reg || 'SSD-481-LOG'],
+      ['Current Status', dispatch.status || 'In Transit'],
+      ['Authorized Release Officer', dispatch.released_by || 'Warehouse Officer']
+    ],
+    theme: 'grid',
+    headStyles: {
+      fillColor: [51, 65, 85],
+      textColor: 255,
+      fontSize: 9,
+      fontStyle: 'bold'
+    },
+    bodyStyles: {
+      fontSize: 8.5,
+      textColor: [30, 41, 59]
+    },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 160, fillColor: [248, 250, 252] },
+      1: { cellWidth: 355 }
+    },
+    margin: { left: 40, right: 40 }
+  });
+
+  currentY = doc.lastAutoTable.finalY + 20;
+
+  // 3. Staged Commodities Manifest Table
+  const items = dispatch.items && dispatch.items.length > 0 ? dispatch.items : [
+    { item_name: 'Relief Aid Bundle', quantity: 1, unit: 'Kit' }
+  ];
+
+  doc.autoTable({
+    startY: currentY,
+    head: [['#', 'COMMODITY DESCRIPTION', 'QUANTITY', 'UNIT', 'STATUS']],
+    body: items.map((item, idx) => [
+      idx + 1,
+      item.item_name || 'Humanitarian Relief Item',
+      Number(item.quantity || 0).toLocaleString(),
+      item.unit || 'pcs',
+      'Dispatched'
+    ]),
+    theme: 'striped',
+    headStyles: {
+      fillColor: [0, 107, 86],
+      textColor: 255,
+      fontSize: 9,
+      fontStyle: 'bold'
+    },
+    bodyStyles: {
+      fontSize: 8.5,
+      textColor: [30, 41, 59]
+    },
+    columnStyles: {
+      0: { cellWidth: 30, halign: 'center', fontStyle: 'bold' },
+      1: { cellWidth: 285 },
+      2: { cellWidth: 70, halign: 'right', fontStyle: 'bold', textColor: [0, 107, 86] },
+      3: { cellWidth: 60, halign: 'center' },
+      4: { cellWidth: 70, halign: 'center', fontStyle: 'bold' }
+    },
+    margin: { left: 40, right: 40 }
+  });
+
+  currentY = doc.lastAutoTable.finalY + 30;
+
+  // 4. Sign-Off & Verification
+  doc.autoTable({
+    startY: currentY,
+    head: [['1. DISPATCHED BY (WAREHOUSE OFFICER)', '2. RECEIVED & VERIFIED BY (FIELD OFFICER)']],
+    body: [
+      [
+        `Officer: ${dispatch.released_by || 'Gabriel Majok'}\nRole: Inventory Manager\nStatus: DISPATCHED & VERIFIED`,
+        `Receiving Officer: ${dispatch.supervisor_name || 'Field Supervisor'}\nStatus: PENDING ARRIVAL / VERIFIED`
+      ]
+    ],
+    theme: 'grid',
+    headStyles: {
+      fillColor: [241, 245, 249],
+      textColor: [51, 65, 85],
+      fontSize: 8.5,
+      fontStyle: 'bold'
+    },
+    bodyStyles: {
+      fontSize: 8,
+      textColor: [51, 65, 85]
+    },
+    margin: { left: 40, right: 40 }
+  });
+
+  // Footer
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    `Official Electronic Waybill Manifest #${waybillNo} • ADRA South Sudan Humanitarian ERP System`,
+    40,
+    810
+  );
+
+  doc.save(`ADRA_Waybill_${waybillNo}.pdf`);
+}
+
+

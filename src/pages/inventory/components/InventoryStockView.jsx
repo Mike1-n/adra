@@ -476,6 +476,14 @@ export function InventoryStockView({
                         <div className="flex items-center justify-end gap-0.5 sm:gap-1">
                           <button
                             type="button"
+                            onClick={() => onOpenReceiveModal(item)}
+                            title="Receive more stock for this commodity"
+                            className="p-1 sm:p-1.5 rounded-lg text-[#006B56] hover:text-[#005443] hover:bg-emerald-50 transition cursor-pointer"
+                          >
+                            <PackagePlus className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => onOpenAdjustModal(item)}
                             title="Adjust stock count"
                             className="p-1 sm:p-1.5 rounded-lg text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition cursor-pointer"

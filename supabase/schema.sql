@@ -409,3 +409,170 @@ CREATE POLICY "Allow authenticated insert on assistance_requests" ON public.assi
 DROP POLICY IF EXISTS "Allow authenticated update on assistance_requests" ON public.assistance_requests;
 CREATE POLICY "Allow authenticated update on assistance_requests" ON public.assistance_requests FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 
+-- ----------------------------------------------------------------------------
+-- 14. STATE WAREHOUSES & DEPOTS TABLE
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.warehouses (
+    id TEXT PRIMARY KEY,
+    code TEXT,
+    name TEXT NOT NULL,
+    location TEXT,
+    manager_name TEXT,
+    contact_phone TEXT,
+    capacity_sqm NUMERIC DEFAULT 0,
+    utilized_pct NUMERIC DEFAULT 0,
+    status TEXT DEFAULT 'Active',
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_warehouses_name ON public.warehouses(name);
+ALTER TABLE public.warehouses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow authenticated read on warehouses" ON public.warehouses;
+CREATE POLICY "Allow authenticated read on warehouses" ON public.warehouses FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated write on warehouses" ON public.warehouses;
+CREATE POLICY "Allow authenticated write on warehouses" ON public.warehouses FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- ----------------------------------------------------------------------------
+-- 15. SUPPLIERS TABLE
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.suppliers (
+    id TEXT PRIMARY KEY,
+    company_name TEXT NOT NULL,
+    category TEXT,
+    contact_person TEXT,
+    phone TEXT,
+    email TEXT,
+    status TEXT DEFAULT 'Active',
+    rating NUMERIC(3,2) DEFAULT 5.0,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_suppliers_name ON public.suppliers(company_name);
+ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow authenticated read on suppliers" ON public.suppliers;
+CREATE POLICY "Allow authenticated read on suppliers" ON public.suppliers FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated write on suppliers" ON public.suppliers;
+CREATE POLICY "Allow authenticated write on suppliers" ON public.suppliers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- ----------------------------------------------------------------------------
+-- 16. INVENTORY & STOCK ITEMS TABLE
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.inventory (
+    id TEXT PRIMARY KEY,
+    sku TEXT,
+    item_name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    quantity NUMERIC NOT NULL DEFAULT 0,
+    unit TEXT NOT NULL,
+    warehouse TEXT NOT NULL,
+    min_threshold NUMERIC DEFAULT 10,
+    unit_cost NUMERIC(12,2) DEFAULT 0.00,
+    total_value NUMERIC(14,2) DEFAULT 0.00,
+    batch_number TEXT,
+    expiry_date TEXT,
+    supplier_name TEXT,
+    status TEXT DEFAULT 'In Stock',
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_inventory_warehouse ON public.inventory(warehouse);
+CREATE INDEX IF NOT EXISTS idx_inventory_item_name ON public.inventory(item_name);
+CREATE INDEX IF NOT EXISTS idx_inventory_status ON public.inventory(status);
+ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow authenticated read on inventory" ON public.inventory;
+CREATE POLICY "Allow authenticated read on inventory" ON public.inventory FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated write on inventory" ON public.inventory;
+CREATE POLICY "Allow authenticated write on inventory" ON public.inventory FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- ----------------------------------------------------------------------------
+-- 17. STOCK TRANSACTIONS LEDGER
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.stock_transactions (
+    id TEXT PRIMARY KEY,
+    transaction_type TEXT NOT NULL,
+    reference_code TEXT,
+    item_name TEXT NOT NULL,
+    quantity NUMERIC NOT NULL,
+    unit TEXT,
+    warehouse TEXT,
+    target_warehouse TEXT,
+    supplier_name TEXT,
+    po_number TEXT,
+    batch_number TEXT,
+    performed_by TEXT,
+    date TIMESTAMPTZ DEFAULT NOW(),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_tx_warehouse ON public.stock_transactions(warehouse);
+CREATE INDEX IF NOT EXISTS idx_stock_tx_type ON public.stock_transactions(transaction_type);
+ALTER TABLE public.stock_transactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow authenticated read on stock_transactions" ON public.stock_transactions;
+CREATE POLICY "Allow authenticated read on stock_transactions" ON public.stock_transactions FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated write on stock_transactions" ON public.stock_transactions;
+CREATE POLICY "Allow authenticated write on stock_transactions" ON public.stock_transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- ----------------------------------------------------------------------------
+-- 18. PURCHASE ORDERS TABLE
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.purchase_orders (
+    id TEXT PRIMARY KEY,
+    po_number TEXT NOT NULL UNIQUE,
+    supplier_name TEXT,
+    item_name TEXT,
+    category TEXT,
+    quantity NUMERIC,
+    unit TEXT,
+    unit_cost NUMERIC(12,2),
+    total_amount NUMERIC(14,2),
+    destination_warehouse TEXT,
+    order_date DATE,
+    expected_delivery DATE,
+    status TEXT DEFAULT 'Pending Delivery',
+    issued_by TEXT,
+    grn_number TEXT,
+    inspected_date DATE,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow authenticated read on purchase_orders" ON public.purchase_orders;
+CREATE POLICY "Allow authenticated read on purchase_orders" ON public.purchase_orders FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated write on purchase_orders" ON public.purchase_orders;
+CREATE POLICY "Allow authenticated write on purchase_orders" ON public.purchase_orders FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- ----------------------------------------------------------------------------
+-- 19. DISPATCHES & WAYBILLS TABLE
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.dispatches (
+    id TEXT PRIMARY KEY,
+    waybill_number TEXT NOT NULL UNIQUE,
+    dispatch_token TEXT,
+    origin_warehouse TEXT,
+    destination TEXT,
+    project_name TEXT,
+    linked_request_id TEXT,
+    beneficiary_name TEXT,
+    transport_mode TEXT,
+    vehicle_reg TEXT,
+    driver_name TEXT,
+    driver_phone TEXT,
+    dispatch_date DATE,
+    items JSONB DEFAULT '[]'::jsonb,
+    status TEXT DEFAULT 'In Transit',
+    released_by TEXT,
+    received_by TEXT,
+    qr_token_verified BOOLEAN DEFAULT FALSE,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+ALTER TABLE public.dispatches ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow authenticated read on dispatches" ON public.dispatches;
+CREATE POLICY "Allow authenticated read on dispatches" ON public.dispatches FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated write on dispatches" ON public.dispatches;
+CREATE POLICY "Allow authenticated write on dispatches" ON public.dispatches FOR ALL TO authenticated USING (true) WITH CHECK (true);
+

@@ -19,7 +19,10 @@ import {
   DollarSign,
   Receipt,
   Wallet,
-  Banknote
+  Banknote,
+  Truck,
+  PackageCheck,
+  Package
 } from 'lucide-react';
 
 export function FieldWorkerDashboardView({
@@ -33,6 +36,7 @@ export function FieldWorkerDashboardView({
   onUpdateDutyStatus,
   onNavigateTab,
   onStartAssessment,
+  onDistribute,
   onOpenScanner,
   onOpenRegisterBeneficiary,
   onOpenFundingRequest,
@@ -43,6 +47,21 @@ export function FieldWorkerDashboardView({
     t.status === 'Assigned to Field Worker' || 
     t.status === 'Assessment In Progress' ||
     t.status === 'Correction Required'
+  );
+
+  const inTransitTasks = tasks.filter(t => 
+    t.status === 'warehouse_dispatched' || 
+    t.dispatch_status === 'In Transit'
+  );
+
+  const arrivedAtHubTasks = tasks.filter(t => 
+    t.status === 'goods_arrived_at_hub' || 
+    t.dispatch_status === 'Arrived at Hub'
+  );
+
+  const inCustodyTasks = tasks.filter(t => 
+    t.status === 'goods_collected_by_field_worker' || 
+    t.dispatch_status === 'Collected by Field Worker'
   );
 
   const completedToday = assessments.filter(a => {
@@ -204,17 +223,17 @@ export function FieldWorkerDashboardView({
             <span className="text-[10px] font-extrabold text-amber-800 mt-0.5">Requisition</span>
           </button>
 
-          {/* Scan QR Token */}
+          {/* Distribute Aid Packages */}
           <button
             type="button"
-            onClick={onOpenScanner}
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-blue-50/90 hover:bg-blue-100/90 transition border border-blue-300/90 text-center group shadow-2xs cursor-pointer"
+            onClick={() => onDistribute ? onDistribute() : (onOpenScanner && onOpenScanner())}
+            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-emerald-50/90 hover:bg-emerald-100/90 transition border border-emerald-300/90 text-center group shadow-2xs cursor-pointer"
           >
-            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center mb-1.5 shadow-xs group-hover:scale-105 transition">
-              <QrCode className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-xl bg-[#006B56] text-white flex items-center justify-center mb-1.5 shadow-xs group-hover:scale-105 transition">
+              <PackageCheck className="w-4 h-4" />
             </div>
-            <span className="text-xs font-black text-blue-950 leading-tight">Scan QR Token</span>
-            <span className="text-[10px] font-extrabold text-blue-800 mt-0.5">Disbursement</span>
+            <span className="text-xs font-black text-emerald-950 leading-tight">Distribute Aid</span>
+            <span className="text-[10px] font-extrabold text-[#006B56] mt-0.5">Direct Handover</span>
           </button>
 
           {/* Register Household */}
@@ -231,6 +250,127 @@ export function FieldWorkerDashboardView({
           </button>
         </div>
       </div>
+
+      {/* RELIEF GOODS PIPELINE & HUB ARRIVALS (IN CUSTODY / ARRIVED / IN TRANSIT) */}
+      {(inCustodyTasks.length > 0 || arrivedAtHubTasks.length > 0 || inTransitTasks.length > 0) && (
+        <div className="bg-white rounded-2xl p-4 border border-emerald-200 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <h3 className="text-sm font-bold text-slate-900">Relief Cargo & Custody Pipeline</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigateTab ? onNavigateTab('tasks', inCustodyTasks.length > 0 ? 'in_custody' : 'hub_ready') : onNavigateTab('tasks')}
+              className="text-xs font-bold text-[#006B56] hover:underline flex items-center gap-0.5"
+            >
+              View Queue ({inCustodyTasks.length + arrivedAtHubTasks.length + inTransitTasks.length})
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {/* In Custody / Collected by Field Worker */}
+            {inCustodyTasks.slice(0, 2).map(task => (
+              <div
+                key={`custody-${task.id || task.request_code}`}
+                className="p-3 rounded-xl bg-blue-50/90 border border-blue-300 space-y-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-xs font-black text-blue-950 block">
+                        ✓ In Your Custody — Ready for Distribution
+                      </span>
+                      <p className="text-[11px] text-blue-900 font-bold mt-0.5">
+                        {task.beneficiary_name} (#{task.request_code}) • {task.category || 'Relief Package'}
+                      </p>
+                      <p className="text-[10px] text-blue-700 font-medium">
+                        Handed over by Supervisor {task.goods_handed_over_by || task.hub_verified_by || 'Supervisor'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-blue-200 text-blue-950 rounded-md shrink-0">
+                    In Custody
+                  </span>
+                </div>
+
+                {(onDistribute || onOpenScanner) && (
+                  <button
+                    type="button"
+                    onClick={() => onDistribute ? onDistribute(task) : onOpenScanner(task)}
+                    className="w-full py-1.5 bg-gradient-to-r from-emerald-600 to-[#006B56] hover:from-emerald-700 hover:to-[#005544] text-white text-xs font-black rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer"
+                  >
+                    <PackageCheck className="w-3.5 h-3.5" />
+                    <span>Confirm Distribution</span>
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {/* Arrived and ready for collection */}
+            {arrivedAtHubTasks.slice(0, 2).map(task => (
+              <div
+                key={`arrived-${task.id || task.request_code}`}
+                className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-300 space-y-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2">
+                    <PackageCheck className="w-4 h-4 text-[#006B56] shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-xs font-black text-[#006B56] block">
+                        📦 Goods Arrived at Hub — Verified by Supervisor
+                      </span>
+                      <p className="text-[11px] text-emerald-900 font-bold mt-0.5">
+                        {task.beneficiary_name} (#{task.request_code}) • {task.category || 'Relief Package'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-emerald-200 text-emerald-950 rounded-md shrink-0">
+                    Ready to Collect
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab ? onNavigateTab('tasks', 'hub_ready') : onNavigateTab('tasks')}
+                  className="w-full py-1.5 bg-[#006B56] hover:bg-[#005a48] text-white text-xs font-black rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer"
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>View & Collect from Hub Store</span>
+                </button>
+              </div>
+            ))}
+
+            {/* In transit convoys */}
+            {inTransitTasks.slice(0, 2).map(task => (
+              <div
+                key={`transit-${task.id || task.request_code}`}
+                className="p-3 rounded-xl bg-amber-50/80 border border-amber-300 flex items-start justify-between gap-2"
+              >
+                <div className="flex items-start gap-2">
+                  <Truck className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-xs font-black text-amber-950 block">
+                      🚚 Relief Cargo In Transit (Waybill #{task.waybill_number || 'DISP'})
+                    </span>
+                    <p className="text-[11px] text-amber-900 font-medium mt-0.5">
+                      {task.beneficiary_name} • En route from {task.origin_warehouse || 'Depot'}
+                    </p>
+                    <p className="text-[10px] text-amber-800">
+                      Supervisor {task.assigned_supervisor_name || 'Supervisor'} will mark arrived once at hub.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-amber-200 text-amber-950 rounded-md shrink-0">
+                  In Transit
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 4. URGENT 48h SLA FIELD CASES QUEUE */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs">

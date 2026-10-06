@@ -15,7 +15,10 @@ import {
   Inbox,
   User,
   FileCheck,
-  RefreshCw
+  RefreshCw,
+  Truck,
+  PackageCheck,
+  Package
 } from 'lucide-react';
 import { SupervisorAssignWorkerModal } from './SupervisorAssignWorkerModal';
 
@@ -24,6 +27,8 @@ export function SupervisorAssignmentsView({
   fieldWorkers = [],
   onSelectAssignment,
   onAssignFieldWorker,
+  onConfirmArrival,
+  onHandoverToWorker,
   onOpenReport,
   initialStatusTab = 'pending',
   onStatusTabChange
@@ -293,6 +298,94 @@ export function SupervisorAssignmentsView({
                     </span>
                   </div>
                 </div>
+
+                {/* Convoy In-Transit Banner & Confirm Arrival */}
+                {(item.status === 'warehouse_dispatched' || item.dispatch_status === 'In Transit' || (item.waybill_number && item.status !== 'goods_arrived_at_hub' && item.dispatch_status !== 'Arrived at Hub' && item.status !== 'Completed' && item.status !== 'Distributed')) && (
+                  <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-3 space-y-2.5 shadow-2xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+                          <Truck className="w-4 h-4 text-amber-700" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-black text-amber-950 text-xs">
+                              Convoy In Transit
+                            </span>
+                            <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-200/90 px-1.5 py-0.2 rounded">
+                              #{item.waybill_number}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-amber-900 mt-1 leading-snug">
+                            Stock released from <strong>{item.origin_warehouse || 'Depot'}</strong> via {item.vehicle_reg || 'Fleet Truck'}.
+                          </p>
+                          <p className="text-[10px] text-amber-800 font-medium mt-0.5">
+                            Driver: <strong>{item.driver_name || 'Deng Bol'}</strong> ({item.driver_phone || '+211-921-889911'})
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {onConfirmArrival && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onConfirmArrival(item);
+                        }}
+                        className="w-full py-2 bg-gradient-to-r from-emerald-600 to-[#006B56] hover:from-emerald-700 hover:to-[#005544] text-white text-xs font-black rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-98"
+                      >
+                        <PackageCheck className="w-4 h-4" />
+                        <span>Confirm Goods Arrived at Hub</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Goods Arrived Verified Banner */}
+                {(item.status === 'goods_arrived_at_hub' || item.dispatch_status === 'Arrived at Hub') && (
+                  <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 space-y-2 text-xs shadow-2xs">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-[#006B56] shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <span className="font-black text-[#006B56] block text-xs">
+                          📦 Goods Arrived at Hub — Verified
+                        </span>
+                        <span className="text-[11px] text-emerald-800 block mt-0.5">
+                          Verified by <strong>{item.hub_verified_by || 'Supervisor'}</strong> on {item.goods_arrived_at ? new Date(item.goods_arrived_at).toLocaleDateString('en-GB') : 'Recent'}. Field Officer notified for distribution.
+                        </span>
+                      </div>
+                    </div>
+                    {onHandoverToWorker && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onHandoverToWorker(item);
+                        }}
+                        className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      >
+                        <UserCheck className="w-3.5 h-3.5" />
+                        <span>Handover to {item.assigned_field_worker_name || 'Field Officer'}</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Goods Collected Banner */}
+                {(item.status === 'goods_collected_by_field_worker' || item.dispatch_status === 'Collected by Field Worker') && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 flex items-start gap-2 text-xs shadow-2xs">
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <span className="font-black text-blue-900 block text-xs">
+                        ✓ Handed Over / Collected by {item.goods_collected_by || item.assigned_field_worker_name || 'Field Officer'}
+                      </span>
+                      <span className="text-[11px] text-blue-800 block mt-0.5">
+                        Field officer is in custody of commodities and conducting field distribution.
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Location Hierarchy */}
                 <div className="flex items-start space-x-2 text-xs text-slate-600">

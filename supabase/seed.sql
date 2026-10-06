@@ -95,3 +95,45 @@ INSERT INTO public.audit_logs (id, user_email, action, module, record_id, detail
 (gen_random_uuid(), 'project.officer@adra.org', 'CREATE', 'Interventions', 'INT-2025-001', '{"type": "Agricultural Support", "beneficiary": "Grace Akinyi Omolo"}'::jsonb, NOW() - INTERVAL '25 days'),
 (gen_random_uuid(), 'finance.officer@adra.org', 'CREATE', 'Finance', 'EXP-2025-001', '{"amount": 92500, "category": "Direct Activity Costs"}'::jsonb, NOW() - INTERVAL '20 days'),
 (gen_random_uuid(), 'me.officer@adra.org', 'UPDATE', 'M&E', 'IND-DRCSA-01', '{"indicator": "IND-DRCSA-01", "new_actual": 2450}'::jsonb, NOW() - INTERVAL '5 days');
+
+-- 11. Insert State Warehouses & Depots
+INSERT INTO public.warehouses (id, code, name, location, manager_name, contact_phone, capacity_sqm, utilized_pct, status) VALUES
+('wh-1', 'DEP-CEQ-01', 'Central Equatoria State Depot', 'Central Equatoria State, Juba Port Zone', 'Gabriel Majok', '+211-920-000008', 4500, 68, 'Active'),
+('wh-2', 'DEP-EEQ-02', 'Eastern Equatoria State Depot', 'Eastern Equatoria State, Torit / Kapoeta Hub', 'Mary Naita', '+211-923-440055', 2400, 61, 'Active'),
+('wh-3', 'DEP-WEQ-03', 'Western Equatoria State Depot', 'Western Equatoria State, Yambio Base', 'Emmanuel Kenyi', '+211-925-660077', 2200, 45, 'Active'),
+('wh-4', 'DEP-JON-04', 'Jonglei State Depot', 'Jonglei State, Bor River Port', 'James Manyok', '+211-924-550066', 3000, 58, 'Active'),
+('wh-5', 'DEP-UNI-05', 'Unity State Depot', 'Unity State, Bentiu Humanitarian Base', 'Gatluak Biel', '+211-926-770088', 2600, 50, 'Active'),
+('wh-6', 'DEP-UPN-06', 'Upper Nile State Depot', 'Upper Nile State, Malakal River Port', 'Peter Chol', '+211-921-110022', 3200, 54, 'Active'),
+('wh-7', 'DEP-LAK-07', 'Lakes State Depot', 'Lakes State, Rumbek Central Hub', 'Daniel Mabor', '+211-927-880099', 2500, 48, 'Active'),
+('wh-8', 'DEP-WAR-08', 'Warrap State Depot', 'Warrap State, Kuajok Supply Base', 'Deng Deng', '+211-928-990011', 2300, 52, 'Active'),
+('wh-9', 'DEP-NBG-09', 'Northern Bahr el Ghazal State Depot', 'Northern Bahr el Ghazal State, Aweil Town', 'Garang Akok', '+211-929-110033', 2700, 56, 'Active'),
+('wh-10', 'DEP-WBG-10', 'Western Bahr el Ghazal State Depot', 'Western Bahr el Ghazal State, Wau Town', 'Santino Alier', '+211-922-330044', 2800, 42, 'Active')
+ON CONFLICT (id) DO NOTHING;
+
+-- 12. Insert Suppliers
+INSERT INTO public.suppliers (id, company_name, category, contact_person, phone, email, status, rating) VALUES
+('sup-1', 'Davis & Shirtliff Water Technologies', 'WASH (Water & Sanitation)', 'Eng. Paul Kilonzo', '+254-733-678901', 'humanitarian@dayliff.com', 'Active', 5.0),
+('sup-2', 'MedAid Kenya Pharmaceuticals', 'WASH (Water & Sanitation)', 'Dr. James Kariuki', '+254-700-112233', 'supplies@medaid.ke', 'Active', 4.9),
+('sup-3', 'Nutriset Humanitarian Supplies', 'Food Assistance', 'Claire Dubois', '+33-2-35-12-34-56', 'relief-orders@nutriset.fr', 'Active', 5.0),
+('sup-4', 'Simlaw Certified Seeds', 'Agriculture & Livelihoods', 'Faith Waweru', '+254-722-456789', 'orders@simlaw.co.ke', 'Active', 4.8),
+('sup-5', 'Equatorial Relief Logistics', 'Shelter & Non-Food Items', 'Hassan Gedi', '+254-711-234567', 'procurement@africasupplies.com', 'Active', 4.8)
+ON CONFLICT (id) DO NOTHING;
+
+-- 13. Insert Inventory Items
+INSERT INTO public.inventory (id, sku, item_name, category, quantity, unit, warehouse, min_threshold, unit_cost, total_value, batch_number, expiry_date, supplier_name, status) VALUES
+('inv-101', 'FOD-MZ-011', 'Fortified Maize Flour (25kg Bags)', 'Food Assistance', 3600, 'Bags', 'Eastern Equatoria State Depot', 600, 28.50, 102600.00, 'BATCH-2026-FOD-55', '2027-03-31', 'Equatorial Relief Logistics', 'In Stock'),
+('inv-102', 'FOD-PLS-012', 'Yellow Split Peas / Pulses (10kg Bags)', 'Food Assistance', 80, 'Bags', 'Eastern Equatoria State Depot', 250, 16.20, 1296.00, 'BATCH-2026-PLS-22', '2027-02-28', 'Equatorial Relief Logistics', 'Low Stock'),
+('inv-103', 'ADRA-FOD-FB01', 'Emergency Household Food Basket (Maize Flour, Beans, Rice, Oil, Salt)', 'Food Assistance', 950, 'Baskets', 'Central Equatoria State Depot', 150, 42.00, 39900.00, 'BATCH-2026-FOD-01', '2027-06-30', 'Equatorial Relief Logistics', 'In Stock'),
+('inv-104', 'ADRA-FOD-OIL02', 'Fortified Vegetable Cooking Oil (20L Food-Grade Jerrycans)', 'Food Assistance', 120, 'Jerrycans', 'Central Equatoria State Depot', 150, 28.50, 3420.00, 'BATCH-2026-OIL-02', '2027-08-31', 'Equatorial Relief Logistics', 'Low Stock'),
+('inv-105', 'ADRA-FOD-BP5', 'BP-5 High-Nutrition Emergency Compact Food Rations (Box of 24 Bars)', 'Food Assistance', 480, 'Cartons', 'Western Bahr el Ghazal State Depot', 100, 55.00, 26400.00, 'BATCH-2026-BP5-09', '2029-12-31', 'Equatorial Relief Logistics', 'In Stock'),
+('inv-106', 'WASH-TAB-004', 'Aquatabs Water Chlorination Tablets (Boxes of 100 strips)', 'WASH (Water & Sanitation)', 4800, 'Boxes', 'Central Equatoria State Depot', 1000, 4.50, 21600.00, 'BATCH-2026-TAB-44', '2028-06-30', 'MedAid Kenya Pharmaceuticals', 'In Stock'),
+('inv-107', 'WASH-JCN-013', 'Food-Grade 20L Water Jerricans with Tap', 'WASH (Water & Sanitation)', 120, 'Units', 'Central Equatoria State Depot', 300, 6.80, 816.00, 'BATCH-2026-JCN-18', 'N/A', 'Equatorial Relief Logistics', 'Low Stock'),
+('inv-108', 'HLT-DIG-003', 'Family Hygiene & Dignity Kits (Jerrycan, Soap, Towels, Pads)', 'WASH (Water & Sanitation)', 620, 'Kits', 'Eastern Equatoria State Depot', 150, 22.00, 13640.00, 'BATCH-2026-HYG-12', 'N/A', 'Equatorial Relief Logistics', 'In Stock'),
+('inv-109', 'SHT-TRP-006', 'Emergency Heavy-Duty Shelter Tarpaulins (4x5m UV-Resistant)', 'Shelter & Non-Food Items', 850, 'Tarpaulins', 'Jonglei State Depot', 200, 18.00, 15300.00, 'BATCH-2026-TRP-03', 'N/A', 'Equatorial Relief Logistics', 'In Stock'),
+('inv-110', 'SHT-BLK-009', 'Thermal Humanitarian Fleece Blankets (Bundles of 20)', 'Shelter & Non-Food Items', 420, 'Bundles', 'Jonglei State Depot', 100, 48.00, 20160.00, 'BATCH-2026-BLK-15', 'N/A', 'Equatorial Relief Logistics', 'In Stock'),
+('inv-111', 'AGR-SD-002', 'Certified Drought Sorghum & Maize Seeds (25kg bags)', 'Agriculture & Livelihoods', 1250, 'Bags', 'Eastern Equatoria State Depot', 300, 28.50, 35625.00, 'BATCH-2026-SD-88', '2027-12-31', 'Simlaw Certified Seeds', 'In Stock'),
+('inv-112', 'EDU-KIT-014', 'Student Educational & Literacy Kits (Backpacks, Books, Pens)', 'Education & Youth', 1100, 'Kits', 'Upper Nile State Depot', 200, 14.50, 15950.00, 'BATCH-2026-EDU-02', 'N/A', 'Equatorial Relief Logistics', 'In Stock')
+ON CONFLICT (id) DO UPDATE SET 
+  quantity = EXCLUDED.quantity,
+  total_value = EXCLUDED.total_value,
+  status = EXCLUDED.status;
