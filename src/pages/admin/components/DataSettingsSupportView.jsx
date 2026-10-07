@@ -46,7 +46,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
     country_office: '',
     registration_number: '',
     tax_pin: '',
-    default_currency: 'USD ($)',
+    default_currency: 'SSP (SSP)',
     fiscal_year_start: 'January 1',
     contact_email: '',
     contact_phone: '',
@@ -310,6 +310,7 @@ export function DataSettingsSupportView({ initialTab = 'settings' }) {
                   onChange={(e) => setSettingsForm({ ...settingsForm, default_currency: e.target.value })}
                   className="adra-select text-xs sm:text-sm font-medium"
                 >
+                  <option value="SSP (SSP)">SSP (SSP) - South Sudanese Pound</option>
                   <option value="USD ($)">USD ($) - US Dollar</option>
                   <option value="KES (KSh)">KES (KSh) - Kenya Shillings</option>
                   <option value="EUR (€)">EUR (€) - Euro</option>

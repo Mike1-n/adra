@@ -6,13 +6,13 @@ export function cn(...inputs) {
 }
 
 export function formatCurrency(amount) {
-  if (amount === undefined || amount === null || isNaN(amount)) return '$0.00';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
+  if (amount === undefined || amount === null || isNaN(amount)) return 'SSP 0';
+  const num = Number(amount);
+  const formatted = num.toLocaleString('en-US', {
+    minimumFractionDigits: num % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  });
+  return `SSP ${formatted}`;
 }
 
 export function formatDate(dateString) {

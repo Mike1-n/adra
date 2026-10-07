@@ -40,6 +40,9 @@ import { FinanceMobileApp } from './pages/finance/FinanceMobileApp';
 // Dedicated Inventory & Logistics Manager Portal (Section 1.5.10 & 1.5.11)
 import { InventoryManagerDashboard } from './pages/inventory/InventoryManagerDashboard';
 
+// Specialized Supplier Portal
+import { SupplierPortalApp } from './pages/supplier/SupplierPortalApp';
+
 export function App() {
   const { currentUser, logout, quickSwitchRole } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -106,7 +109,6 @@ export function App() {
       return;
     }
 
-    // Field staff role routes
     if (currentUser.role === 'Finance Officer' || currentUser.role === 'Finance Manager') {
       setCurrentTab('finance');
       setAppMode('finance_mobile');
@@ -114,6 +116,10 @@ export function App() {
     } else if (currentUser.role === 'Inventory Manager' || currentUser.role === 'Logistics Officer') {
       setCurrentTab('inventory');
       setAppMode('inventory_manager');
+      return;
+    } else if (currentUser.role === 'Supplier') {
+      setCurrentTab('supplier');
+      setAppMode('supplier_portal');
       return;
     } else if (currentUser.role === 'M&E Officer') {
       setCurrentTab('me');
@@ -211,12 +217,25 @@ export function App() {
     );
   }
 
+  // If Supplier logs in or switches to Supplier mode:
+  if (currentUser.role === 'Supplier' || appMode === 'supplier_portal' || currentTab === 'supplier') {
+    return (
+      <SupplierPortalApp
+        currentUser={currentUser}
+        onLogout={logout}
+        onSwitchRole={quickSwitchRole}
+        onBackToFieldApp={() => setCurrentTab('dashboard')}
+      />
+    );
+  }
+
   const tabTitles = {
     dashboard: 'Field Operations Dashboard',
     supervisor: 'Supervisor Mobile App',
     field_worker: 'Field Worker Application',
     programs: 'Programme Manager Dashboard',
     inventory: 'Inventory & Logistics Command Hub',
+    supplier: 'Approved Supplier Portal',
     projects: 'Project Portfolio',
     beneficiaries: 'Beneficiary Management',
     activities: 'Project Activities',
@@ -232,6 +251,15 @@ export function App() {
 
   const renderContent = () => {
     switch (currentTab) {
+      case 'supplier':
+        return (
+          <SupplierPortalApp
+            currentUser={currentUser}
+            onLogout={logout}
+            onSwitchRole={quickSwitchRole}
+            onBackToFieldApp={() => setCurrentTab('dashboard')}
+          />
+        );
       case 'beneficiary_portal':
         return <BeneficiaryMobileApp onSwitchToFieldApp={() => setCurrentTab('dashboard')} />;
       case 'field_worker':

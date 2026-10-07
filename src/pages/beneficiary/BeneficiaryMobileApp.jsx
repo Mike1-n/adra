@@ -41,6 +41,7 @@ import { FeedbackComplaintsView } from './components/FeedbackComplaintsView';
 import { BeneficiaryProfileView } from './components/BeneficiaryProfileView';
 import { HelpSupportContactView } from './components/HelpSupportContactView';
 import { SecuritySettingsView } from './components/SecuritySettingsView';
+import { AdraLogo } from '../../components/common/AdraLogo';
 
 export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
   const { currentUser, logout, login } = useAuth();
@@ -269,38 +270,19 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
   const renderSidebarContent = (isDrawer = false) => (
     <div className="flex flex-col h-full bg-white select-none">
       {/* Brand Header */}
-      <div className="h-16 px-4 flex items-center justify-between border-b border-slate-200 bg-[#006B56] text-white shrink-0">
-        <div
+      <div className="h-16 px-4 flex items-center justify-between border-b border-slate-200 bg-white text-slate-900 shrink-0">
+        <AdraLogo
+          isCollapsed={false}
+          subtitle="Community"
+          description="South Sudan Portal"
           onClick={() => handleNavClick('dashboard')}
-          className="flex items-center gap-2.5 cursor-pointer"
-        >
-          {/* Circular ADRA Emblem */}
-          <svg viewBox="0 0 100 100" className="w-8 h-8 text-white shrink-0" fill="currentColor">
-            <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="6" />
-            <circle cx="50" cy="28" r="6" />
-            <circle cx="33" cy="40" r="5.5" />
-            <circle cx="67" cy="40" r="5.5" />
-            <path d="M50,38c-6,0-12,4-14,9a18,18,0,0,0,28,0C62,42,56,38,50,38Z" />
-            <path d="M33,48c-4,0-8,3-10,6a15,15,0,0,0,19,0C39,51,36,48,33,48Z" />
-            <path d="M67,48c-4,0-8,3-10,6a15,15,0,0,0,19,0C75,51,71,48,67,48Z" />
-            <path d="M28,68 Q50,60 72,68" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-            <path d="M22,76 Q50,68 78,76" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-          </svg>
-          <div className="flex flex-col">
-            <span className="font-extrabold text-base tracking-tight leading-none font-serif">
-              ADRA
-            </span>
-            <span className="text-[10px] text-white/80 font-medium leading-tight mt-0.5 tracking-wide">
-              South Sudan Portal
-            </span>
-          </div>
-        </div>
+        />
 
         {isDrawer && (
           <button
             type="button"
             onClick={() => setIsSidebarOpen(false)}
-            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
             aria-label="Close sidebar"
           >
             <X className="w-5 h-5" />

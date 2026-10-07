@@ -37,8 +37,8 @@ import { FieldWorkerDashboardView } from './components/FieldWorkerDashboardView'
 import { FieldWorkerTasksView } from './components/FieldWorkerTasksView';
 import { FieldWorkerActivitiesView } from './components/FieldWorkerActivitiesView';
 import { FieldWorkerBeneficiariesView } from './components/FieldWorkerBeneficiariesView';
-import { FieldWorkerProfileView } from './components/FieldWorkerProfileView';
 import { FieldFundingListView } from './components/FieldFundingListView';
+import { AdraLogo } from '../../components/common/AdraLogo';
 
 // Field Worker Modals
 import { FieldAssessmentFormModal } from './components/FieldAssessmentFormModal';
@@ -352,20 +352,12 @@ export function FieldWorkerApp({
           }`}
         >
           {/* 1. Drawer Header Brand (Fixed Top) */}
-          <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-7 h-7 rounded-xl bg-[#006B56] text-white flex items-center justify-center font-black text-xs shadow-xs">
-                ADRA
-              </div>
-              <div>
-                <span className="font-extrabold text-sm tracking-tight text-[#006B56] block leading-tight">
-                  ADRA Field App
-                </span>
-                <span className="text-[10px] text-slate-500 font-semibold block">
-                  Humanitarian Field Ops
-                </span>
-              </div>
-            </div>
+          <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+            <AdraLogo
+              isCollapsed={false}
+              subtitle="Field App"
+              description="Humanitarian Field Ops"
+            />
 
             <button
               type="button"

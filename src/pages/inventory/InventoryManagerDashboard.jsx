@@ -23,13 +23,15 @@ import {
   ArrowRightLeft,
   TrendingUp,
   Layers,
-  Search,
   Bell,
-  Home
+  Home,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { db } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { AdraLogo } from '../../components/common/AdraLogo';
 
 // Subviews
 import { InventoryStockView } from './components/InventoryStockView';
@@ -60,6 +62,8 @@ export function InventoryManagerDashboard({
   const [activeTab, setActiveTab] = useState('stock');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDispatchesMenuOpen, setIsDispatchesMenuOpen] = useState(true);
+  const [isSuppliersMenuOpen, setIsSuppliersMenuOpen] = useState(true);
+  const [supplierSubTab, setSupplierSubTab] = useState('all'); // 'all' | 'stage1' | 'stage2' | 'stage3' | 'stage4' | 'suppliers'
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [showDrawerRoleSwitcher, setShowDrawerRoleSwitcher] = useState(false);
   const [selectedDepotScope, setSelectedDepotScope] = useState('ALL');
@@ -247,6 +251,46 @@ export function InventoryManagerDashboard({
 
   const handleCreatePO = async (poData) => {
     const res = await db.createPurchaseOrder(poData);
+    const updated = await db.getPurchaseOrders();
+    setPurchaseOrders([...updated]);
+    await loadData();
+    return res;
+  };
+
+  const handleSupplierDispatch = async (id, dispatchData) => {
+    const res = await db.supplierDispatchPO(id, dispatchData);
+    const updated = await db.getPurchaseOrders();
+    setPurchaseOrders([...updated]);
+    await loadData();
+    return res;
+  };
+
+  const handleConfirmReceipt = async (id, grnData) => {
+    const res = await db.confirmAndReceivePO(id, grnData);
+    const updated = await db.getPurchaseOrders();
+    setPurchaseOrders([...updated]);
+    await loadData();
+    return res;
+  };
+
+  const handlePaySupplier = async (id, paymentData) => {
+    const res = await db.paySupplierPO(id, paymentData);
+    const updated = await db.getPurchaseOrders();
+    setPurchaseOrders([...updated]);
+    await loadData();
+    return res;
+  };
+
+  const handleRejectAndReturnPO = async (id, returnData) => {
+    const res = await db.rejectAndReturnPO(id, returnData);
+    const updated = await db.getPurchaseOrders();
+    setPurchaseOrders([...updated]);
+    await loadData();
+    return res;
+  };
+
+  const handleCreateSupplier = async (supplierData) => {
+    const res = await db.createSupplier(supplierData);
     await loadData();
     return res;
   };
@@ -330,6 +374,37 @@ export function InventoryManagerDashboard({
     return approvedRequestsForDispatch.length;
   }, [approvedRequestsForDispatch]);
 
+  const getPOStage = (po) => {
+    if (po.stage) return Number(po.stage);
+    if (po.status === 'Paid & Settled' || po.payment_status === 'Paid') return 4;
+    if (po.status?.includes('Received') || po.status?.includes('Confirmed') || po.grn_number) return 3;
+    if (po.status?.includes('Transit') || po.status?.includes('Supplied') || po.waybill_number) return 2;
+    return 1;
+  };
+
+  const poPipelineStats = useMemo(() => {
+    let stage1Count = 0;
+    let stage2Count = 0;
+    let stage3Count = 0;
+    let stage4Count = 0;
+
+    purchaseOrders.forEach(po => {
+      const st = getPOStage(po);
+      if (st === 1) stage1Count++;
+      else if (st === 2) stage2Count++;
+      else if (st === 3) stage3Count++;
+      else if (st === 4) stage4Count++;
+    });
+
+    return {
+      total: purchaseOrders.length,
+      stage1Count,
+      stage2Count,
+      stage3Count,
+      stage4Count
+    };
+  }, [purchaseOrders]);
+
   const activeTabTitle = useMemo(() => {
     switch (activeTab) {
       case 'stock': return 'Stock Catalog';
@@ -339,13 +414,19 @@ export function InventoryManagerDashboard({
         if (dispatchStatusFilter === 'STAGED') return 'Aid Dispatches — PM-Authorized Staging Queue';
         return 'Aid Dispatches & Waybills — All Manifests';
       case 'dispatches-issue': return 'Issue Aid Waybill & Commodity Release';
-      case 'suppliers': return 'Suppliers & Purchase Orders';
+      case 'suppliers':
+        if (supplierSubTab === 'stage1') return 'Suppliers & POs — 1. Requested (Awaiting Supply)';
+        if (supplierSubTab === 'stage2') return 'Suppliers & POs — 2. In Transit (Vendor Dispatched)';
+        if (supplierSubTab === 'stage3') return 'Suppliers & POs — 3. GRN Received (Pending Payment)';
+        if (supplierSubTab === 'stage4') return 'Suppliers & POs — 4. Paid & Settled';
+        if (supplierSubTab === 'suppliers') return 'Suppliers Directory & Vendor Partners';
+        return 'Suppliers & Purchase Orders — All Manifests';
       case 'resources': return 'Fleet & Capital Assets';
       case 'warehouses': return 'State Relief Depots';
       case 'reports': return 'Reports & Audit Ledger';
       default: return 'Logistics & Supply Chain';
     }
-  }, [activeTab, dispatchStatusFilter]);
+  }, [activeTab, dispatchStatusFilter, supplierSubTab]);
 
   return (
     <div className="min-h-screen bg-slate-100 flex font-sans text-slate-800 relative">
@@ -365,20 +446,12 @@ export function InventoryManagerDashboard({
         }`}
       >
         {/* 1. Drawer Header Brand */}
-        <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-7 h-7 rounded-xl bg-[#006B56] text-white flex items-center justify-center font-black text-xs shadow-xs">
-              ADRA
-            </div>
-            <div>
-              <span className="font-extrabold text-sm tracking-tight text-[#006B56] block leading-tight">
-                ADRA Logistics Hub
-              </span>
-              <span className="text-[10px] text-slate-500 font-semibold block">
-                Warehouse & Stock Control
-              </span>
-            </div>
-          </div>
+        <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+          <AdraLogo
+            isCollapsed={false}
+            subtitle="Logistics"
+            description="Warehouse & Stock Control"
+          />
 
           <button
             type="button"
@@ -614,23 +687,193 @@ export function InventoryManagerDashboard({
           </div>
 
           {/* Suppliers & Purchase Orders */}
-          <button
-            type="button"
-            onClick={() => handleNavClick('suppliers')}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
-              activeTab === 'suppliers'
-                ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <div className="flex items-center space-x-2.5">
-              <ShoppingCart className={`w-4 h-4 ${activeTab === 'suppliers' ? 'text-white' : 'text-teal-600'}`} />
-              <span>Suppliers & Purchase Orders</span>
+          <div className="space-y-1">
+            <div
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition ${
+                activeTab === 'suppliers'
+                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('suppliers');
+                  setIsSuppliersMenuOpen(true);
+                }}
+                className="flex items-center space-x-2.5 min-w-0 flex-1 text-left cursor-pointer"
+              >
+                <ShoppingCart className={`w-4 h-4 shrink-0 ${activeTab === 'suppliers' ? 'text-white' : 'text-teal-600'}`} />
+                <span className="truncate">Suppliers & Purchase Orders</span>
+              </button>
+
+              <div className="flex items-center gap-1 shrink-0 ml-1">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                  activeTab === 'suppliers' ? 'bg-white text-[#006B56]' : 'bg-slate-100 text-slate-700'
+                }`}>
+                  {purchaseOrders.length}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsSuppliersMenuOpen(prev => !prev);
+                  }}
+                  className={`p-1 rounded-md transition hover:bg-black/10 cursor-pointer ${
+                    activeTab === 'suppliers' ? 'text-white' : 'text-slate-400 hover:text-slate-700'
+                  }`}
+                  title={isSuppliersMenuOpen ? 'Collapse sub-menu' : 'Expand sub-menu'}
+                >
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    isSuppliersMenuOpen ? 'rotate-180' : ''
+                  }`} />
+                </button>
+              </div>
             </div>
-            <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded-md">
-              {purchaseOrders.length}
-            </span>
-          </button>
+
+            {/* Collapsible Sub-Filters for Suppliers & Purchase Orders */}
+            {isSuppliersMenuOpen && (
+              <div className="pl-3 pr-1 py-1.5 space-y-1.5 bg-slate-50/90 rounded-xl border border-slate-200/80 my-1">
+                <div className="space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('suppliers');
+                      setSupplierSubTab('all');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      activeTab === 'suppliers' && supplierSubTab === 'all'
+                        ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>All Orders</span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                      {poPipelineStats.total}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('suppliers');
+                      setSupplierSubTab('stage1');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      activeTab === 'suppliers' && supplierSubTab === 'stage1'
+                        ? 'bg-amber-100/90 text-amber-950 shadow-2xs border border-amber-300 font-extrabold'
+                        : 'text-amber-900/80 hover:text-amber-950 hover:bg-amber-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      Requested
+                    </span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-200/80 text-amber-950 font-black">
+                      {poPipelineStats.stage1Count}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('suppliers');
+                      setSupplierSubTab('stage2');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      activeTab === 'suppliers' && supplierSubTab === 'stage2'
+                        ? 'bg-blue-100/90 text-blue-950 shadow-2xs border border-blue-300 font-extrabold'
+                        : 'text-blue-900/80 hover:text-blue-950 hover:bg-blue-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                      In Transit
+                    </span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-blue-200/80 text-blue-950 font-black">
+                      {poPipelineStats.stage2Count}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('suppliers');
+                      setSupplierSubTab('stage3');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      activeTab === 'suppliers' && supplierSubTab === 'stage3'
+                        ? 'bg-emerald-100/90 text-emerald-950 shadow-2xs border border-emerald-300 font-extrabold'
+                        : 'text-emerald-900/80 hover:text-emerald-950 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#006B56]" />
+                      GRN Received
+                    </span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-emerald-200/80 text-emerald-950 font-black">
+                      {poPipelineStats.stage3Count}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('suppliers');
+                      setSupplierSubTab('stage4');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      activeTab === 'suppliers' && supplierSubTab === 'stage4'
+                        ? 'bg-teal-100/90 text-teal-950 shadow-2xs border border-teal-300 font-extrabold'
+                        : 'text-teal-900/80 hover:text-teal-950 hover:bg-teal-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-teal-600" />
+                      Paid
+                    </span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-teal-200/80 text-teal-950 font-black">
+                      {poPipelineStats.stage4Count}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('suppliers');
+                      setSupplierSubTab('suppliers');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      activeTab === 'suppliers' && supplierSubTab === 'suppliers'
+                        ? 'bg-[#006B56]/10 text-[#006B56] shadow-2xs border border-[#006B56]/30 font-extrabold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                      Suppliers Directory
+                    </span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                      {suppliers.length}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Quick Action: Request Supplies */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPoModalOpen(true);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer mt-1 bg-[#006B56] hover:bg-[#005443] text-white"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Request Supplies</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Fleet & Capital Resources */}
           <button
@@ -970,13 +1213,25 @@ export function InventoryManagerDashboard({
               />
             )}
 
-            {/* View 3: Suppliers & Purchase Orders */}
+            {/* View 3: Suppliers & Purchase Orders (4-Stage Lifecycle) */}
             {activeTab === 'suppliers' && (
               <InventorySuppliersView
                 suppliers={suppliers}
                 purchaseOrders={purchaseOrders}
+                warehouses={warehouses}
+                subTab={supplierSubTab}
+                onSubTabChange={setSupplierSubTab}
                 onOpenCreatePOModal={() => setPoModalOpen(true)}
-                onOpenReceiveStockFromPO={handleOpenReceiveFromPO}
+                onSupplierDispatch={handleSupplierDispatch}
+                onConfirmReceipt={handleConfirmReceipt}
+                onPaySupplier={handlePaySupplier}
+                onRejectAndReturnPO={handleRejectAndReturnPO}
+                onCreateSupplier={handleCreateSupplier}
+                onDeletePO={async (id) => {
+                  await db.deletePurchaseOrder(id);
+                  toast.success('Purchase Order deleted');
+                  await loadData();
+                }}
               />
             )}
 

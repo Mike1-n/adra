@@ -55,14 +55,11 @@ export function FinanceVoucherModal({
         <div className="flex items-center justify-between pb-1 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
             {/* ADRA Logo */}
-            <div className="w-10 h-10 rounded-xl bg-[#006B56] p-1 flex items-center justify-center shadow-xs shrink-0">
-              <svg viewBox="0 0 100 100" fill="none" className="w-full h-full">
-                <rect width="100" height="100" rx="20" fill="#047857"/>
-                <path d="M50 15L78 35V65L50 85L22 65V35L50 15Z" stroke="#34D399" strokeWidth="6" fill="#064E3B"/>
-                <path d="M50 30L65 42V60L50 70L35 60V42L50 30Z" fill="#10B981"/>
-                <circle cx="50" cy="50" r="8" fill="#FFFFFF"/>
-              </svg>
-            </div>
+            <img
+              src="/images/adra-logo-expanded.png"
+              alt="ADRA Logo"
+              className="h-10 w-auto object-contain shrink-0"
+            />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-black text-slate-900 tracking-tight">ADRA</span>

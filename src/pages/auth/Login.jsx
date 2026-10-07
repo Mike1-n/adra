@@ -162,20 +162,11 @@ export function Login({ onLoginSuccess }) {
             {isSignUp && (
               <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
                 <div className="flex items-center gap-2">
-                  <svg viewBox="0 0 100 100" className="w-7 h-7 text-[#006B56] shrink-0" fill="currentColor">
-                    <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="6" />
-                    <circle cx="50" cy="28" r="6" />
-                    <circle cx="33" cy="40" r="5.5" />
-                    <circle cx="67" cy="40" r="5.5" />
-                    <path d="M50,38c-6,0-12,4-14,9a18,18,0,0,0,28,0C62,42,56,38,50,38Z" />
-                    <path d="M33,48c-4,0-8,3-10,6a15,15,0,0,0,19,0C39,51,36,48,33,48Z" />
-                    <path d="M67,48c-4,0-8,3-10,6a15,15,0,0,0,19,0C75,51,71,48,67,48Z" />
-                    <path d="M28,68 Q50,60 72,68" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-                    <path d="M22,76 Q50,68 78,76" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-                  </svg>
-                  <span className="font-extrabold text-lg tracking-tight text-[#006B56] font-serif">
-                    ADRA
-                  </span>
+                  <img
+                    src="/images/adra-logo-expanded.png"
+                    alt="ADRA Logo"
+                    className="h-9 w-auto object-contain"
+                  />
                 </div>
 
                 <button
@@ -275,22 +266,13 @@ export function Login({ onLoginSuccess }) {
                 {/* Form Header (Distinct for Login vs Sign Up) */}
                 {!isSignUp ? (
                   <div className="pt-2 pb-1 text-center">
-                    {/* Centered ADRA Emblem Logo + Wordmark */}
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                      <svg viewBox="0 0 100 100" className="w-12 h-12 text-[#006B56] shrink-0" fill="currentColor">
-                        <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="6" />
-                        <circle cx="50" cy="28" r="6" />
-                        <circle cx="33" cy="40" r="5.5" />
-                        <circle cx="67" cy="40" r="5.5" />
-                        <path d="M50,38c-6,0-12,4-14,9a18,18,0,0,0,28,0C62,42,56,38,50,38Z" />
-                        <path d="M33,48c-4,0-8,3-10,6a15,15,0,0,0,19,0C39,51,36,48,33,48Z" />
-                        <path d="M67,48c-4,0-8,3-10,6a15,15,0,0,0,19,0C75,51,71,48,67,48Z" />
-                        <path d="M28,68 Q50,60 72,68" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-                        <path d="M22,76 Q50,68 78,76" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-                      </svg>
-                      <span className="font-extrabold text-3xl tracking-tight text-[#006B56] font-serif">
-                        ADRA
-                      </span>
+                    {/* Centered Official ADRA Logo */}
+                    <div className="flex items-center justify-center mb-3">
+                      <img
+                        src="/images/adra-logo-expanded.png"
+                        alt="ADRA Logo"
+                        className="h-16 w-auto object-contain"
+                      />
                     </div>
 
                     {/* Welcome Back & Humanitarian Assistance App */}
@@ -465,6 +447,16 @@ export function Login({ onLoginSuccess }) {
                           className="px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-[11px] font-bold border border-indigo-200 text-center transition cursor-pointer"
                         >
                           📦 Inventory Mgr
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIdentifier('procurement@africasupplies.com');
+                            setPassword('Password123!');
+                          }}
+                          className="px-2 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-900 text-[11px] font-bold border border-orange-200 text-center transition cursor-pointer"
+                        >
+                          🚚 Supplier
                         </button>
                         <button
                           type="button"

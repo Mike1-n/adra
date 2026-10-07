@@ -484,7 +484,7 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
               </select>
             </div>
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">Budget Allocation ($ USD)</label>
+              <label className="block font-semibold text-slate-800 mb-1">Budget Allocation (SSP)</label>
               <input
                 type="number"
                 required

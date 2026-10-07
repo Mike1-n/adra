@@ -669,13 +669,9 @@ export const initialLocations = [];
 
 export const initialApprovals = [];
 
-export const initialSuppliers = [
-  { id: 'sup-1', company_name: 'Davis & Shirtliff Water Technologies', category: 'WASH (Water & Sanitation)', contact_person: 'Eng. Paul Kilonzo', phone: '+254-733-678901', email: 'humanitarian@dayliff.com', status: 'Active', rating: 5.0 },
-  { id: 'sup-2', company_name: 'MedAid Kenya Pharmaceuticals', category: 'WASH (Water & Sanitation)', contact_person: 'Dr. James Kariuki', phone: '+254-700-112233', email: 'supplies@medaid.ke', status: 'Active', rating: 4.9 },
-  { id: 'sup-3', company_name: 'Nutriset Humanitarian Supplies', category: 'Food Assistance', contact_person: 'Claire Dubois', phone: '+33-2-35-12-34-56', email: 'relief-orders@nutriset.fr', status: 'Active', rating: 5.0 },
-  { id: 'sup-4', company_name: 'Simlaw Certified Seeds', category: 'Agriculture & Livelihoods', contact_person: 'Faith Waweru', phone: '+254-722-456789', email: 'orders@simlaw.co.ke', status: 'Active', rating: 4.8 },
-  { id: 'sup-5', company_name: 'Equatorial Relief Logistics', category: 'Shelter & Non-Food Items', contact_person: 'Hassan Gedi', phone: '+254-711-234567', email: 'procurement@africasupplies.com', status: 'Active', rating: 4.8 }
-];
+export const initialSuppliers = [];
+
+export const initialPurchaseOrders = [];
 
 export const initialInventory = [
   {
@@ -871,8 +867,6 @@ export const initialInventory = [
     status: 'In Stock'
   }
 ];
-
-export const initialPurchaseOrders = [];
 
 export const initialDispatches = [];
 

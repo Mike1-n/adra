@@ -24,6 +24,7 @@ import { db } from '../lib/supabase';
 import { formatCurrency, formatDate, generateCode, calculatePercentage } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { FinanceSupplierPaymentsView } from './finance/components/FinanceSupplierPaymentsView';
 
 const BUDGET_CATEGORIES = [
   'Direct Activity Costs',
@@ -43,9 +44,11 @@ export function FinancePage() {
   const [expenditures, setExpenditures] = useState([]);
   const [projects, setProjects] = useState([]);
   const [fieldFundingRequests, setFieldFundingRequests] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState('expenditures'); // 'expenditures' | 'budgets' | 'field_funding'
+  const [activeTab, setActiveTab] = useState('expenditures'); // 'expenditures' | 'budgets' | 'field_funding' | 'supplier_payments'
   const [search, setSearch] = useState('');
   const [projectFilter, setProjectFilter] = useState('ALL');
 
@@ -85,21 +88,31 @@ export function FinancePage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [bgList, expList, projList, fundingList] = await Promise.all([
+      const [bgList, expList, projList, fundingList, poList, supList] = await Promise.all([
         db.getBudgets(),
         db.getExpenditures(),
         db.getProjects(),
-        db.getFieldFundingRequests ? db.getFieldFundingRequests() : []
+        db.getFieldFundingRequests ? db.getFieldFundingRequests() : [],
+        db.getPurchaseOrders ? db.getPurchaseOrders() : [],
+        db.getSuppliers ? db.getSuppliers() : []
       ]);
-      setBudgets(bgList);
-      setExpenditures(expList);
-      setProjects(projList);
+      setBudgets(bgList || []);
+      setExpenditures(expList || []);
+      setProjects(projList || []);
       setFieldFundingRequests(fundingList || []);
+      setPurchaseOrders(poList || []);
+      setSuppliers(supList || []);
     } catch (err) {
       toast.error('Failed to load finance ledger.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePaySupplier = async (poId, paymentData) => {
+    const res = await db.paySupplierPO(poId, paymentData);
+    await loadData();
+    return res;
   };
 
   useEffect(() => {
@@ -336,6 +349,19 @@ export function FinancePage() {
               {fieldFundingRequests.length}
             </span>
           </button>
+          <button
+            onClick={() => setActiveTab('supplier_payments')}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 ${
+              activeTab === 'supplier_payments'
+                ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span>Supplier Invoices & PO Settlements</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-teal-500/20 text-teal-300 font-bold border border-teal-500/30">
+              {purchaseOrders.filter(p => p.stage === 3 || (p.status && p.status.includes('Received'))).length}
+            </span>
+          </button>
         </div>
 
         {/* Project Selector Filter */}
@@ -457,7 +483,7 @@ export function FinancePage() {
             </table>
           </div>
         </Card>
-      ) : (
+      ) : activeTab === 'field_funding' ? (
         /* Field Cash Requisitions Table */
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
@@ -540,7 +566,14 @@ export function FinancePage() {
             </table>
           </div>
         </Card>
-      )}
+      ) : activeTab === 'supplier_payments' ? (
+        <FinanceSupplierPaymentsView
+          purchaseOrders={purchaseOrders}
+          suppliers={suppliers}
+          onPaySupplier={handlePaySupplier}
+          onRefresh={loadData}
+        />
+      ) : null}
 
       {/* Add Budget Modal */}
       <Modal
@@ -579,7 +612,7 @@ export function FinancePage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Allocated Amount ($ USD)</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">Allocated Amount (SSP)</label>
             <input
               type="number"
               value={budgetForm.allocated_amount}
@@ -673,7 +706,7 @@ export function FinancePage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Amount ($ USD)</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Amount (SSP)</label>
               <input
                 type="number"
                 value={expForm.amount}

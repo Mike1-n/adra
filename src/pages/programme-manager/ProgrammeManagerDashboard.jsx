@@ -30,7 +30,8 @@ import {
   ArrowRightLeft,
   FolderKanban,
   Building2,
-  Boxes
+  Boxes,
+  MessageSquare
 } from 'lucide-react';
 import { db, normalizeAssistanceRequest } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -45,8 +46,9 @@ import { PMResourcesView } from './components/PMResourcesView';
 import { PMReportsView } from './components/PMReportsView';
 import { PMFeedbackView } from './components/PMFeedbackView';
 import { PMNotificationsView } from './components/PMNotificationsView';
-import { PMProfileView } from './components/PMProfileView';
 import { PMFacilitationsView } from './components/PMFacilitationsView';
+import { PMProfileView } from './components/PMProfileView';
+import { AdraLogo } from '../../components/common/AdraLogo';
 
 export function ProgrammeManagerDashboard({
   currentUser,
@@ -73,8 +75,19 @@ export function ProgrammeManagerDashboard({
   const [facilitationStatusFilter, setFacilitationStatusFilter] = useState('pending_pm');
 
   // Collapsible Accordion States for Sidebar Drawer Sub-menus
-  const [isRequestsExpanded, setIsRequestsExpanded] = useState(true);
+  const [isRequestsExpanded, setIsRequestsExpanded] = useState(false);
   const [isFacilitationsExpanded, setIsFacilitationsExpanded] = useState(false);
+  const [isReportsExpanded, setIsReportsExpanded] = useState(false);
+  const [selectedReportType, setSelectedReportType] = useState('requests');
+
+  // Auto-collapse sidebar sub-menus when drawer is opened
+  useEffect(() => {
+    if (isSidebarOpen) {
+      setIsRequestsExpanded(false);
+      setIsFacilitationsExpanded(false);
+      setIsReportsExpanded(false);
+    }
+  }, [isSidebarOpen]);
 
   // Direct Review State (if navigated from Dashboard Recent Requests)
   const [selectedRequestToReview, setSelectedRequestToReview] = useState(null);
@@ -424,20 +437,12 @@ export function ProgrammeManagerDashboard({
           }`}
         >
           {/* 1. Drawer Header Brand */}
-          <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-7 h-7 rounded-xl bg-[#006B56] text-white flex items-center justify-center font-black text-xs shadow-xs">
-                ADRA
-              </div>
-              <div>
-                <span className="font-extrabold text-sm tracking-tight text-[#006B56] block leading-tight">
-                  ADRA PM App
-                </span>
-                <span className="text-[10px] text-slate-500 font-semibold block">
-                  Programme Management Hub
-                </span>
-              </div>
-            </div>
+          <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+            <AdraLogo
+              isCollapsed={false}
+              subtitle="PM Hub"
+              description="Programme Management"
+            />
 
             <button
               type="button"
@@ -448,54 +453,7 @@ export function ProgrammeManagerDashboard({
             </button>
           </div>
 
-          {/* 2. Manager Profile Card */}
-          <div className="p-2.5 border-b border-slate-100 bg-slate-50/50 shrink-0">
-            <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 shadow-2xs">
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center text-xs font-black shrink-0 shadow-xs">
-                  {(currentUser?.full_name || currentUser?.name || 'PM')
-                    .split(' ')
-                    .map(n => n[0])
-                    .join('')
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </div>
-                <div className="min-w-0">
-                  <span className="font-extrabold text-xs text-slate-900 block truncate">
-                    {currentUser?.full_name || currentUser?.name || 'Grace Ochieng'}
-                  </span>
-                  <span className="text-[10px] text-purple-700 font-bold block truncate">
-                    Programme Manager
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Scope Filter inside drawer */}
-            <div className="mt-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase px-1 block mb-1">
-                Programme Scope
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedProgrammeScope}
-                  onChange={(e) => {
-                    setSelectedProgrammeScope(e.target.value);
-                    setIsSidebarOpen(false);
-                  }}
-                  className="w-full pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none focus:ring-1 focus:ring-[#006B56] cursor-pointer appearance-none truncate shadow-2xs"
-                >
-                  <option value="ALL">All Programmes</option>
-                  {programmes.map(p => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Navigation List (Streamlined Essential Views) */}
+          {/* 2. Navigation List (Streamlined Essential Views) */}
           <div className="flex-1 overflow-y-auto p-2.5 space-y-1 text-xs font-semibold">
             {/* Overview / Dashboard */}
             <button
@@ -690,88 +648,96 @@ export function ProgrammeManagerDashboard({
               )}
             </div>
 
-            {/* Active Programmes */}
-            <button
-              type="button"
-              onClick={() => handleNavClick('programmes')}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
-                activeTab === 'programmes'
-                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <Briefcase className={`w-4 h-4 ${activeTab === 'programmes' ? 'text-white' : 'text-slate-500'}`} />
-                <span>Programmes Portfolio</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded-md">
-                {programmes.length}
-              </span>
-            </button>
+            {/* Reports & Analytics with Collapsible Sub-Categories */}
+            <div className="space-y-0.5">
+              <div
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
+                  activeTab === 'reports'
+                    ? 'bg-[#006B56] text-white font-bold shadow-xs'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <div
+                  onClick={() => {
+                    handleNavClick('reports');
+                    setIsReportsExpanded(true);
+                  }}
+                  className="flex items-center space-x-2.5 flex-1 min-w-0"
+                >
+                  <BarChart3 className={`w-4 h-4 ${activeTab === 'reports' ? 'text-white' : 'text-[#006B56]'}`} />
+                  <span className="truncate">Reports & Auditing</span>
+                </div>
 
-            {/* Field Supervisors */}
-            <button
-              type="button"
-              onClick={() => handleNavClick('supervisors')}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
-                activeTab === 'supervisors'
-                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <Users className={`w-4 h-4 ${activeTab === 'supervisors' ? 'text-white' : 'text-slate-500'}`} />
-                <span>Field Supervisors</span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsReportsExpanded(prev => !prev);
+                    }}
+                    className={`p-1 rounded-lg transition hover:bg-black/10 cursor-pointer ${
+                      activeTab === 'reports' ? 'text-white' : 'text-slate-400'
+                    }`}
+                    title={isReportsExpanded ? 'Collapse sub-reports' : 'Expand sub-reports'}
+                  >
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isReportsExpanded ? 'rotate-180' : ''
+                    }`} />
+                  </button>
+                </div>
               </div>
-              <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded-md">
-                {supervisors.length}
-              </span>
-            </button>
 
-            {/* Reports & Analytics (Consolidated Operations Hub) */}
-            <button
-              type="button"
-              onClick={() => handleNavClick('reports')}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
-                activeTab === 'reports'
-                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <BarChart3 className={`w-4 h-4 ${activeTab === 'reports' ? 'text-white' : 'text-slate-500'}`} />
-                <span>Reports & Analytics</span>
-              </div>
-            </button>
-
-            <div className="pt-2 pb-1 border-t border-slate-100 my-1" />
-
-            {/* Notifications */}
-            <button
-              type="button"
-              onClick={() => handleNavClick('notifications')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
-                activeTab === 'notifications'
-                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <Bell className={`w-4 h-4 ${activeTab === 'notifications' ? 'text-white' : 'text-slate-500'}`} />
-                <span>Notifications</span>
-              </div>
-              {unreadCount > 0 && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-rose-500 text-white shadow-2xs">
-                  {unreadCount}
-                </span>
+              {/* Collapsible Report Sub-Categories */}
+              {isReportsExpanded && (
+                <div className="pl-6 pr-1 py-1 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                  {[
+                    { id: 'requests', label: 'Assistance Requests', count: requests.length, icon: FileText },
+                    { id: 'beneficiaries', label: 'Beneficiary Registry', count: beneficiaries.length, icon: Users },
+                    { id: 'distributions', label: 'Aid Distributions', count: distributions.length, icon: Truck },
+                    { id: 'programmes', label: 'Programme Performance', count: programmes.length, icon: Layers },
+                    { id: 'activities', label: 'Field Activities', count: activities.length, icon: Activity },
+                    { id: 'resources', label: 'Resource Utilization', count: resources.length, icon: Package },
+                    { id: 'supervisors', label: 'Supervisor Performance', count: supervisors.length, icon: UserCheck },
+                    { id: 'feedback', label: 'Feedback & Accountability', count: feedback.length, icon: MessageSquare }
+                  ].map(sub => {
+                    const isSubActive = activeTab === 'reports' && selectedReportType === sub.id;
+                    const SubIcon = sub.icon;
+                    return (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedReportType(sub.id);
+                          setActiveTab('reports');
+                          setIsSidebarOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                          isSubActive
+                            ? 'bg-emerald-50 text-[#006B56] font-bold border border-emerald-200 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-[#006B56]' : 'text-slate-400'}`} />
+                          <span className="truncate">{sub.label}</span>
+                        </div>
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-black shrink-0 ${
+                          isSubActive ? 'bg-emerald-200/80 text-emerald-950' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {sub.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
-            </button>
+            </div>
 
-            {/* Manager Profile & Settings */}
+            {/* Profile & Settings */}
             <button
               type="button"
               onClick={() => handleNavClick('profile')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
                 activeTab === 'profile'
                   ? 'bg-[#006B56] text-white font-bold shadow-xs'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
@@ -784,60 +750,8 @@ export function ProgrammeManagerDashboard({
             </button>
           </div>
 
-          {/* 4. Drawer Footer: Switch Role & Logout */}
-          <div className="p-3 border-t border-slate-100 bg-slate-50 space-y-2 shrink-0">
-            {/* Quick Role Switcher */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
-                className="w-full py-1.5 px-2.5 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-between border border-slate-200 transition cursor-pointer shadow-2xs"
-              >
-                <span className="flex items-center space-x-1.5">
-                  <ArrowRightLeft className="w-3.5 h-3.5 text-[#006B56]" />
-                  <span>Switch Role</span>
-                </span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </button>
-
-              {showRoleSwitcher && (
-                <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-50 text-xs animate-in fade-in">
-                  <div className="px-3 py-1.5 border-b border-slate-100 text-[9px] uppercase font-black text-slate-400">
-                    Switch Operational Role
-                  </div>
-                  {[
-                    { role: 'Program Manager', label: 'Program Manager' },
-                    { role: 'Supervisor', label: 'Supervisor' },
-                    { role: 'Field Worker', label: 'Field Worker' },
-                    { role: 'Beneficiary', label: 'Beneficiary' },
-                    { role: 'Finance Officer', label: 'Finance Officer' },
-                    { role: 'Administrator', label: 'Administrator' }
-                  ].map(r => (
-                    <button
-                      key={r.role}
-                      type="button"
-                      onClick={async () => {
-                        setShowRoleSwitcher(false);
-                        setIsSidebarOpen(false);
-                        if (onSwitchRole) {
-                          await onSwitchRole(r.role);
-                        } else if (quickSwitchRole) {
-                          await quickSwitchRole(r.role);
-                        }
-                      }}
-                      className={`w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center justify-between text-xs cursor-pointer ${
-                        r.role === 'Program Manager' ? 'bg-emerald-50 text-[#006B56] font-bold' : 'text-slate-700'
-                      }`}
-                    >
-                      <span>{r.label}</span>
-                      {r.role === 'Program Manager' && <span className="w-1.5 h-1.5 rounded-full bg-[#006B56]" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Logout Button in Drawer */}
+          {/* 3. Drawer Footer: Sign Out */}
+          <div className="p-3 border-t border-slate-100 bg-slate-50 shrink-0">
             <button
               type="button"
               onClick={handleLogout}
@@ -1093,6 +1007,8 @@ export function ProgrammeManagerDashboard({
                   supervisors={supervisors}
                   feedback={feedback}
                   activities={scopedActivities}
+                  activeReportType={selectedReportType}
+                  onSelectReportType={setSelectedReportType}
                 />
               )}
 
@@ -1110,6 +1026,7 @@ export function ProgrammeManagerDashboard({
                 <PMProfileView
                   currentUser={currentUser}
                   programmes={programmes}
+                  onLogout={handleLogout}
                 />
               )}
             </>

@@ -4851,42 +4851,23 @@ export const db = {
   // --- SUPPLIERS & VENDORS ---
   async getSuppliers() {
     const SEEDED_SUP_IDS = ['sup-1', 'sup-2', 'sup-3', 'sup-4', 'sup-5'];
-    const SEEDED_SUP_NAMES = [
-      'Equatorial Relief Logistics Ltd',
-      'Simlaw Certified Seeds South Sudan',
-      'Davis & Shirtliff Water Technologies SS',
-      'Juba Medical & Pharmaceuticals Supply',
-      'Nile River Barges & Heavy Logistics'
-    ];
-
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('suppliers').select('*').order('created_at', { ascending: false });
-        if (!error && data && data.length > 0) {
-          return data;
-        }
-        if (!error && (!data || data.length === 0)) {
-          const initial = mock.initialSuppliers || [];
-          if (initial.length > 0) {
-            try {
-              await supabase.from('suppliers').insert(initial);
-              return initial;
-            } catch (seedErr) {
-              console.warn('Error auto-seeding suppliers to Supabase:', seedErr);
-            }
-          }
+        if (!error && data) {
+          const userOnly = data.filter(s => !SEEDED_SUP_IDS.includes(s.id));
+          return userOnly;
         }
       } catch (err) {
         console.warn('Error fetching suppliers from Supabase:', err);
       }
     }
-    const current = getLocalData(STORAGE_KEYS.SUPPLIERS, null);
-    if (!current || current.length === 0) {
-      const initial = mock.initialSuppliers || [];
-      saveLocalData(STORAGE_KEYS.SUPPLIERS, initial);
-      return initial;
+    const current = getLocalData(STORAGE_KEYS.SUPPLIERS, []);
+    const cleanList = (current || []).filter(s => !SEEDED_SUP_IDS.includes(s.id) && s.company_name !== 'Equatorial Relief Logistics Ltd');
+    if (cleanList.length !== (current || []).length) {
+      saveLocalData(STORAGE_KEYS.SUPPLIERS, cleanList);
     }
-    return current;
+    return cleanList;
   },
 
   async createSupplier(data) {
@@ -4908,6 +4889,21 @@ export const db = {
     saveLocalData(STORAGE_KEYS.SUPPLIERS, updated);
     await this.logAudit({ action: 'CREATE', module: 'Supplier Management', record_id: newSupplier.id, details: `Registered supplier ${newSupplier.company_name}` });
     return newSupplier;
+  },
+
+  async updateSupplier(id, data) {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('suppliers').update(data).eq('id', id);
+      } catch (err) {
+        console.warn('Error updating supplier in Supabase:', err);
+      }
+    }
+    const current = await this.getSuppliers();
+    const updated = current.map(s => s.id === id ? { ...s, ...data } : s);
+    saveLocalData(STORAGE_KEYS.SUPPLIERS, updated);
+    await this.logAudit({ action: 'UPDATE', module: 'Supplier Management', record_id: id, details: `Updated supplier details for ${id}` });
+    return updated.find(s => s.id === id);
   },
 
   async deleteSupplier(id) {
@@ -5428,57 +5424,393 @@ export const db = {
     return updated.find(wh => wh.id === id);
   },
 
-  // --- SUPPLIERS & PURCHASE ORDERS (1.5.9) ---
+  // --- SUPPLIERS & PURCHASE ORDERS (4-STAGE FULL LIFECYCLE) ---
+  // Stage 1: Inventory Manager requests supplies (Create PO)
+  // Stage 2: Supplier supplies goods (Supplier Dispatch & Invoice)
+  // Stage 3: Inventory Manager confirms goods (GRN & Stock Received)
+  // Stage 4: Finance pays supplier (Payment Settlement & Expenditure)
   async getPurchaseOrders() {
-    const SEEDED_PO_IDS = ['po-1', 'po-2', 'po-3', 'po-4'];
-    const SEEDED_PO_NUMS = ['PO-SS-2026-0104', 'PO-SS-2026-0103', 'PO-SS-2026-0102', 'PO-SS-2026-0101'];
+    const isOldSeed = (po) => {
+      if (!po) return true;
+      const num = String(po.po_number || '').trim();
+      const id = String(po.id || '').trim();
+      const legacyNums = ['PO-SS-2026-0101', 'PO-SS-2026-0102', 'PO-SS-2026-0103', 'PO-SS-2026-0104'];
+      const legacyIds = ['po-0101', 'po-0102', 'po-0103', 'po-0104', 'po-1', 'po-2', 'po-3', 'po-4'];
+      return legacyNums.includes(num) || legacyIds.includes(id);
+    };
+
+    const localList = getLocalData(STORAGE_KEYS.PURCHASE_ORDERS, []);
 
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('purchase_orders').select('*').order('created_at', { ascending: false });
-        if (!error && data) {
-          const cleanDb = data.filter(po => 
-            !SEEDED_PO_IDS.includes(po.id) && 
-            !SEEDED_PO_NUMS.includes(po.po_number)
-          );
-          return cleanDb;
+        if (!error && Array.isArray(data)) {
+          const merged = data.filter(po => !isOldSeed(po)).map(dbPo => {
+            const localMatch = (localList || []).find(l => l.id === dbPo.id || l.po_number === dbPo.po_number) || {};
+            
+            let stage = localMatch.stage || dbPo.stage;
+            if (stage === undefined || stage === null) {
+              if (dbPo.status === 'Returned & Rejected' || dbPo.status?.includes('Return') || dbPo.status?.includes('Reject')) stage = -1;
+              else if (dbPo.status === 'Paid & Settled' || dbPo.status === 'Paid') stage = 4;
+              else if (dbPo.grn_number || dbPo.status === 'Goods Received & Confirmed' || dbPo.status === 'Fully Received') stage = 3;
+              else if (dbPo.status === 'Supplied & In Transit' || dbPo.status === 'In Transit') stage = 2;
+              else stage = 1;
+            }
+
+            return {
+              ...localMatch,
+              ...dbPo,
+              id: dbPo.id || localMatch.id,
+              po_number: dbPo.po_number || localMatch.po_number,
+              supplier_name: dbPo.supplier_name || localMatch.supplier_name || 'Vendor',
+              item_name: dbPo.item_name || localMatch.item_name || 'Humanitarian Supplies',
+              quantity: dbPo.quantity ?? localMatch.quantity ?? 1,
+              unit: dbPo.unit || localMatch.unit || 'Units',
+              category: dbPo.category || localMatch.category || 'General Supplies',
+              total_amount: Number(dbPo.total_amount ?? localMatch.total_amount ?? 0),
+              warehouse_destination: dbPo.destination_warehouse || dbPo.warehouse_destination || localMatch.warehouse_destination || 'Central Equatoria State Depot',
+              destination_warehouse: dbPo.destination_warehouse || dbPo.warehouse_destination || localMatch.destination_warehouse || 'Central Equatoria State Depot',
+              order_date: dbPo.order_date || localMatch.order_date,
+              expected_delivery: dbPo.expected_delivery || localMatch.expected_delivery,
+              status: dbPo.status || localMatch.status || 'Pending Supplier Supply',
+              stage,
+              requested_by: dbPo.issued_by || localMatch.requested_by || 'Gabriel Majok (Inventory Manager)',
+              items_summary: dbPo.item_name ? `${dbPo.quantity || ''} ${dbPo.unit || ''} ${dbPo.item_name}`.trim() : (localMatch.items_summary || 'Humanitarian Supplies')
+            };
+          });
+
+          // Also include pure local purchase orders
+          (localList || []).filter(po => !isOldSeed(po)).forEach(locPo => {
+            if (!merged.some(m => m.id === locPo.id || m.po_number === locPo.po_number)) {
+              merged.push(locPo);
+            }
+          });
+
+          saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, merged);
+          return merged;
         }
       } catch (err) {
         console.warn('Error fetching purchase orders from Supabase:', err);
       }
     }
-    const current = getLocalData(STORAGE_KEYS.PURCHASE_ORDERS, mock.initialPurchaseOrders || []);
-    const clean = current.filter(po => 
-      !SEEDED_PO_IDS.includes(po.id) && 
-      !SEEDED_PO_NUMS.includes(po.po_number)
-    );
-    if (clean.length !== current.length) {
-      saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, clean);
+    const cleanList = (localList || []).filter(po => !isOldSeed(po));
+    if (cleanList.length !== (localList || []).length) {
+      saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, cleanList);
     }
-    return clean;
+    return cleanList;
   },
 
-  async createPurchaseOrder(poData) {
-    const newPO = {
-      id: `po-${Date.now().toString().slice(-4)}`,
-      po_number: `PO-SS-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
-      order_date: new Date().toISOString().split('T')[0],
-      status: 'Pending Delivery',
-      ...poData,
-      total_amount: Number(poData.total_amount) || 0
-    };
+  async deletePurchaseOrder(id) {
     if (isSupabaseConfigured) {
       try {
-        await supabase.from('purchase_orders').insert([newPO]);
+        await supabase.from('purchase_orders').delete().or(`id.eq.${id},po_number.eq.${id}`);
+      } catch (err) {
+        console.warn('Error deleting purchase order from Supabase:', err);
+      }
+    }
+    const current = await this.getPurchaseOrders();
+    const updated = current.filter(po => po.id !== id && po.po_number !== id);
+    saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
+    await this.logAudit({ action: 'DELETE_PO', module: 'Procurement & Suppliers', record_id: id, details: `Deleted purchase order ${id}` });
+    return true;
+  },
+
+  // Stage 1: Inventory Manager asks for supplies
+  async createPurchaseOrder(poData) {
+    const timestamp = Date.now();
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const poNumber = poData.po_number || `PO-SS-${new Date().getFullYear()}-${randomSuffix}`;
+    const id = poData.id || `po_req_${timestamp}_${randomSuffix}`;
+    
+    let newPO = {
+      id,
+      po_number: poNumber,
+      order_date: poData.order_date || new Date().toISOString().split('T')[0],
+      status: 'Pending Supplier Supply',
+      stage: 1,
+      requested_by: poData.requested_by || 'Gabriel Majok (Inventory Manager)',
+      requested_at: new Date().toISOString(),
+      supplier_name: poData.supplier_name || 'Vendor',
+      supplier_id: poData.supplier_id || null,
+      supplier_email: poData.supplier_email || null,
+      supplier_phone: poData.supplier_phone || null,
+      item_name: poData.item_name || 'Humanitarian Supplies',
+      category: poData.category || 'General Supplies',
+      quantity: Number(poData.quantity) || 1,
+      unit: poData.unit || 'Units',
+      items_summary: poData.items_summary || `${poData.quantity || 1} ${poData.unit || 'Units'} ${poData.item_name || 'Supplies'}`,
+      warehouse_destination: poData.warehouse_destination || poData.destination_warehouse || 'Central Equatoria State Depot',
+      destination_warehouse: poData.warehouse_destination || poData.destination_warehouse || 'Central Equatoria State Depot',
+      expected_delivery: poData.expected_delivery || null,
+      total_amount: Number(poData.total_amount) || 0,
+      notes: poData.notes || null,
+      ...poData
+    };
+
+    if (isSupabaseConfigured) {
+      try {
+        const supabasePayload = {
+          id: newPO.id,
+          po_number: newPO.po_number,
+          supplier_name: newPO.supplier_name,
+          item_name: newPO.item_name,
+          category: newPO.category,
+          quantity: Number(newPO.quantity) || 1,
+          unit: newPO.unit || 'Units',
+          unit_cost: Number(newPO.unit_cost) || 0,
+          total_amount: Number(newPO.total_amount) || 0,
+          destination_warehouse: newPO.warehouse_destination || 'Central Equatoria State Depot',
+          order_date: newPO.order_date,
+          status: newPO.status,
+          issued_by: newPO.requested_by,
+          notes: newPO.notes || null
+        };
+
+        if (newPO.expected_delivery) {
+          supabasePayload.expected_delivery = newPO.expected_delivery;
+        }
+
+        const { data, error } = await supabase.from('purchase_orders').insert([supabasePayload]).select().single();
+        if (!error && data) {
+          newPO = { ...newPO, ...data, stage: 1, warehouse_destination: data.destination_warehouse || newPO.warehouse_destination };
+        } else if (error) {
+          console.warn('Supabase purchase_orders insert notice (falling back to local):', error.message);
+        }
       } catch (err) {
         console.warn('Error inserting purchase order to Supabase:', err);
       }
     }
     const current = await this.getPurchaseOrders();
-    const updated = [newPO, ...current];
+    const updated = [newPO, ...current.filter(p => p.id !== newPO.id && p.po_number !== newPO.po_number)];
     saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
-    await this.logAudit({ action: 'CREATE_PO', module: 'Procurement & Suppliers', record_id: newPO.po_number, details: `Issued purchase order ${newPO.po_number} to ${newPO.supplier_name} ($${newPO.total_amount})` });
+    await this.logAudit({
+      action: 'CREATE_PO',
+      module: 'Procurement & Suppliers',
+      record_id: newPO.po_number,
+      details: `[Stage 1: Requested] Issued purchase order ${newPO.po_number} for ${newPO.quantity} ${newPO.unit} ${newPO.item_name} to ${newPO.supplier_name} for destination ${newPO.warehouse_destination}`
+    });
     return newPO;
+  },
+
+  // Stage 2: Supplier supplies the goods (Supplier Dispatch & Invoicing)
+  async supplierDispatchPO(id, dispatchData = {}) {
+    const {
+      supplier_invoice_number = `INV-SUP-${Date.now().toString().slice(-4)}`,
+      waybill_number = `DISP-SUP-${Date.now().toString().slice(-4)}`,
+      carrier_name = 'Nile Express Logistics Ltd',
+      driver_name = '',
+      driver_phone = '',
+      dispatched_at = new Date().toISOString(),
+      supplier_notes = '',
+      unit_cost = 0,
+      total_amount = 0
+    } = dispatchData;
+
+    const patch = {
+      status: 'Supplied & In Transit',
+      stage: 2,
+      supplier_invoice_number,
+      waybill_number,
+      carrier_name,
+      driver_name,
+      driver_phone,
+      dispatched_at,
+      supplier_notes,
+      unit_cost: Number(unit_cost) || 0,
+      total_amount: Number(total_amount) || 0
+    };
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('purchase_orders')
+          .update({
+            status: 'Supplied & In Transit',
+            unit_cost: Number(unit_cost) || 0,
+            total_amount: Number(total_amount) || 0,
+            notes: (supplier_notes ? `${supplier_notes} | ` : '') + `Waybill: ${waybill_number}, Carrier: ${carrier_name}, Invoice: ${supplier_invoice_number}`
+          })
+          .or(`id.eq.${id},po_number.eq.${id}`);
+      } catch (err) {
+        console.warn('Error updating supplier dispatch in Supabase:', err);
+      }
+    }
+
+    const current = await this.getPurchaseOrders();
+    const updated = current.map(po => (po.id === id || po.po_number === id) ? { ...po, ...patch } : po);
+    saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
+    const targetPO = updated.find(po => po.id === id || po.po_number === id);
+
+    await this.logAudit({
+      action: 'SUPPLIER_DISPATCH',
+      module: 'Procurement & Suppliers',
+      record_id: targetPO?.po_number || id,
+      details: `[Stage 2: Supplied] Supplier ${targetPO?.supplier_name || 'Vendor'} supplied goods for PO ${targetPO?.po_number || id} (Invoice: ${supplier_invoice_number}, Carrier: ${carrier_name}, Amount: $${Number(total_amount || targetPO?.total_amount || 0).toLocaleString()})`
+    });
+
+    return targetPO;
+  },
+
+  // Stage 3: Inventory Manager confirms goods receipt (GRN & Warehouse Stocking)
+  async confirmAndReceivePO(id, grnData = {}) {
+    const currentPOs = await this.getPurchaseOrders();
+    const targetPO = currentPOs.find(po => po.id === id || po.po_number === id);
+    if (!targetPO) throw new Error('Purchase order not found.');
+
+    const grnNumber = `GRN-SS-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    const destinationWh = grnData.receiving_warehouse || grnData.warehouse || targetPO.warehouse_destination || targetPO.destination_warehouse || 'Central Equatoria State Depot';
+    const inspectedBy = grnData.inspected_by || 'Gabriel Majok (Inventory Manager)';
+    const inspectedDate = grnData.inspected_date || new Date().toISOString().split('T')[0];
+
+    // Automatically receive items into inventory
+    const itemName = grnData.item_name || targetPO.item_name || targetPO.items_summary || 'Humanitarian Relief Supplies';
+    const quantity = Number(grnData.quantity || targetPO.quantity) || 500;
+    const unit = grnData.unit || targetPO.unit || 'Units';
+    const category = grnData.category || targetPO.category || 'Food Assistance';
+    const unitCost = Number(grnData.unit_cost) || (quantity > 0 ? (Number(targetPO.total_amount) / quantity) : 0);
+
+    await this.receiveStock({
+      item_name: itemName,
+      category,
+      quantity,
+      unit,
+      warehouse: destinationWh,
+      supplier_name: targetPO.supplier_name,
+      po_number: targetPO.po_number,
+      batch_number: grnData.batch_number || `BATCH-${Date.now().toString().slice(-4)}`,
+      expiry_date: grnData.expiry_date || 'N/A',
+      unit_cost: unitCost,
+      received_by: inspectedBy,
+      notes: grnData.notes || `Received & confirmed against PO ${targetPO.po_number}`
+    });
+
+    const patch = {
+      status: 'Goods Received & Confirmed',
+      stage: 3,
+      grn_number: grnNumber,
+      inspected_by: inspectedBy,
+      inspected_date: inspectedDate,
+      receiving_warehouse: destinationWh,
+      destination_warehouse: destinationWh,
+      warehouse_destination: destinationWh,
+      inspection_status: 'PASSED_VERIFIED',
+      grn_notes: grnData.notes || `Goods inspected and confirmed at ${destinationWh}. Stock credited to depot.`
+    };
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('purchase_orders')
+          .update({
+            status: 'Goods Received & Confirmed',
+            grn_number: grnNumber,
+            inspected_date: inspectedDate,
+            destination_warehouse: destinationWh,
+            notes: (targetPO?.notes ? `${targetPO.notes} | ` : '') + `GRN: ${grnNumber}, Inspected by: ${inspectedBy}`
+          })
+          .or(`id.eq.${id},po_number.eq.${id}`);
+      } catch (err) {
+        console.warn('Error confirming PO receipt in Supabase:', err);
+      }
+    }
+
+    const updated = (await this.getPurchaseOrders()).map(po => (po.id === id || po.po_number === id) ? { ...po, ...patch } : po);
+    saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
+
+    await this.logAudit({
+      action: 'INVENTORY_CONFIRMATION',
+      module: 'Procurement & Suppliers',
+      record_id: targetPO.po_number,
+      details: `[Stage 3: Confirmed] Inventory confirmed goods receipt for PO ${targetPO.po_number} at ${destinationWh} (GRN: ${grnNumber}). Ready for Finance Payment.`
+    });
+
+    return updated.find(po => po.id === id || po.po_number === id);
+  },
+
+  // Stage 4: Finance pays the supplier (Payment Settlement & Expenditure Entry)
+  async paySupplierPO(id, paymentData = {}) {
+    const currentPOs = await this.getPurchaseOrders();
+    const targetPO = currentPOs.find(po => po.id === id || po.po_number === id);
+    if (!targetPO) throw new Error('Purchase order not found.');
+
+    const paymentAmount = Number(paymentData.paid_amount || targetPO.total_amount) || 0;
+    const paymentMethod = paymentData.payment_method || 'Bank Wire Transfer (Stanbic Bank)';
+    const paymentRef = paymentData.payment_reference || `TX-EFT-${Date.now().toString().slice(-6)}`;
+    const voucherNo = paymentData.payment_voucher_number || `PV-SS-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    const paidBy = paymentData.paid_by || 'Alex Morgan (Finance Officer)';
+    const paidDate = paymentData.paid_date || new Date().toISOString().split('T')[0];
+    const notes = paymentData.notes || `Settlement disbursed against verified GRN ${targetPO.grn_number || ''} and Invoice ${targetPO.supplier_invoice_number || ''}.`;
+
+    const patch = {
+      status: 'Paid & Settled',
+      stage: 4,
+      payment_status: 'Paid',
+      payment_method: paymentMethod,
+      payment_reference: paymentRef,
+      payment_voucher_number: voucherNo,
+      paid_amount: paymentAmount,
+      total_amount: paymentAmount,
+      paid_by: paidBy,
+      paid_date: paidDate,
+      payment_notes: notes
+    };
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('purchase_orders')
+          .update({
+            status: 'Paid & Settled',
+            total_amount: paymentAmount,
+            notes: (targetPO?.notes ? `${targetPO.notes} | ` : '') + `Voucher: ${voucherNo}, Ref: ${paymentRef}, Method: ${paymentMethod}`
+          })
+          .or(`id.eq.${id},po_number.eq.${id}`);
+      } catch (err) {
+        console.warn('Error recording PO payment in Supabase:', err);
+      }
+    }
+
+    const updated = (await this.getPurchaseOrders()).map(po => (po.id === id || po.po_number === id) ? { ...po, ...patch } : po);
+    saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
+
+    // Record an official Expenditure entry in Finance ledger
+    try {
+      await this.createExpenditure({
+        expenditure_code: `EXP-SUP-${Date.now().toString().slice(-4)}`,
+        project_id: targetPO.project_id || 'pr1',
+        category: 'Equipment & Supplies',
+        description: `Supplier Payout: PO ${targetPO.po_number} to ${targetPO.supplier_name} (Invoice: ${targetPO.supplier_invoice_number || 'N/A'}, GRN: ${targetPO.grn_number || 'Confirmed'})`,
+        amount: paymentAmount,
+        expenditure_date: paidDate,
+        voucher_reference: voucherNo,
+        receipt_url: `https://adra.org/vouchers/${voucherNo}.pdf`
+      });
+    } catch (expErr) {
+      console.warn('Notice: Could not link finance expenditure:', expErr);
+    }
+
+    // Update supplier lifetime statistics
+    try {
+      const suppliers = await this.getSuppliers();
+      const sup = suppliers.find(s => s.id === targetPO.supplier_id || s.company_name === targetPO.supplier_name);
+      if (sup) {
+        await this.updateSupplier(sup.id, {
+          goods_supplied_count: (Number(sup.goods_supplied_count) || 0) + 1,
+          total_payout_usd: (Number(sup.total_payout_usd) || 0) + paymentAmount
+        });
+      }
+    } catch (supErr) {
+      console.warn('Notice: Could not update supplier stats:', supErr);
+    }
+
+    await this.logAudit({
+      action: 'SUPPLIER_PAYMENT',
+      module: 'Finance & Grants',
+      record_id: voucherNo,
+      details: `[Stage 4: Paid] Finance disbursed $${paymentAmount.toLocaleString()} to ${targetPO.supplier_name} for PO ${targetPO.po_number} (Ref: ${paymentRef}, Voucher: ${voucherNo})`
+    });
+
+    return updated.find(po => po.id === id || po.po_number === id);
   },
 
   async updatePurchaseOrderStatus(id, status, notes = '') {
@@ -5497,6 +5829,57 @@ export const db = {
     } : po);
     saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
     await this.logAudit({ action: 'UPDATE_PO', module: 'Procurement & Suppliers', record_id: id, details: `Updated PO status to ${status}` });
+    return updated.find(po => po.id === id || po.po_number === id);
+  },
+
+  // Stage Rejection / Return: Inventory Manager rejects and returns goods to vendor
+  async rejectAndReturnPO(id, returnData = {}) {
+    const currentPOs = await this.getPurchaseOrders();
+    const targetPO = currentPOs.find(po => po.id === id || po.po_number === id);
+    if (!targetPO) throw new Error('Purchase order not found.');
+
+    const returnNumber = `RET-SUP-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    const returnReason = returnData.reason || 'Goods Damaged / Failed Quality Inspection';
+    const returnNotes = returnData.notes || 'Consignment rejected and returned to vendor upon warehouse inspection.';
+    const returnedBy = returnData.returned_by || 'Gabriel Majok (Inventory Manager)';
+    const returnedDate = returnData.returned_date || new Date().toISOString().split('T')[0];
+
+    const patch = {
+      status: 'Returned & Rejected',
+      stage: -1,
+      is_returned: true,
+      return_number: returnNumber,
+      return_reason: returnReason,
+      returned_by: returnedBy,
+      returned_date: returnedDate,
+      return_notes: returnNotes,
+      inspection_status: 'FAILED_REJECTED'
+    };
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('purchase_orders')
+          .update({
+            status: 'Returned & Rejected',
+            notes: (targetPO?.notes ? `${targetPO.notes} | ` : '') + `RETURNED: ${returnNumber} (${returnReason}). ${returnNotes}`
+          })
+          .or(`id.eq.${id},po_number.eq.${id}`);
+      } catch (err) {
+        console.warn('Error recording PO return in Supabase:', err);
+      }
+    }
+
+    const updated = (await this.getPurchaseOrders()).map(po => (po.id === id || po.po_number === id) ? { ...po, ...patch } : po);
+    saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
+
+    await this.logAudit({
+      action: 'PO_REJECTED_RETURNED',
+      module: 'Procurement & Suppliers',
+      record_id: targetPO.po_number,
+      details: `[Goods Return] Rejected & returned PO ${targetPO.po_number} to ${targetPO.supplier_name} (Reason: ${returnReason}, Ref: ${returnNumber})`
+    });
+
     return updated.find(po => po.id === id || po.po_number === id);
   },
 

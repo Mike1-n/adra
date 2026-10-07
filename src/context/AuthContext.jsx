@@ -88,7 +88,9 @@ export function AuthProvider({ children }) {
         im: 'inventory.manager@adra.org',
         logistics: 'inventory.manager@adra.org',
         warehouse: 'inventory.manager@adra.org',
-        beneficiary: 'mary.nyambura@adra.community'
+        beneficiary: 'mary.nyambura@adra.community',
+        supplier: 'procurement@africasupplies.com',
+        vendor: 'procurement@africasupplies.com'
       };
 
       let candidateEmail = cleanIdent.includes('@') ? cleanIdent : ROLE_SHORTCUT_EMAILS[cleanLower];

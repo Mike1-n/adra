@@ -9,13 +9,11 @@ import {
   Phone,
   ShieldCheck,
   Receipt,
-  Download,
   ChevronDown,
   ChevronUp,
   X,
-  Sparkles,
-  ArrowRight,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Info
 } from 'lucide-react';
 
 export function FinanceDisbursementsView({
@@ -28,25 +26,6 @@ export function FinanceDisbursementsView({
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState(null);
-
-  // Tab counts
-  const pendingRequests = useMemo(() => {
-    return requests.filter(
-      r => r.status === 'Approved (Pending Finance Disbursement)' ||
-           r.stage === 3 ||
-           r.status === 'Approved by Program Manager' ||
-           r.status === 'Pending Finance Disbursement'
-    );
-  }, [requests]);
-
-  const disbursedRequests = useMemo(() => {
-    return requests.filter(
-      r => r.stage === 4 || r.status === 'Disbursed' || r.status === 'Disbursed / Paid'
-    );
-  }, [requests]);
-
-  const pendingTotal = pendingRequests.reduce((sum, r) => sum + Number(r.amount || 0), 0);
-  const disbursedTotal = disbursedRequests.reduce((sum, r) => sum + Number(r.amount || 0), 0);
 
   // Filtered list based on activeFilter from Sidebar
   const filteredList = useMemo(() => {
@@ -90,6 +69,10 @@ export function FinanceDisbursementsView({
     }
   }, [activeFilter]);
 
+  const toggleExpand = (id) => {
+    setExpandedId(prev => (prev === id ? null : id));
+  };
+
   return (
     <div className="space-y-3.5 pb-16 animate-in fade-in duration-150">
       
@@ -131,30 +114,10 @@ export function FinanceDisbursementsView({
         </div>
       </div>
 
-      {/* 2. SUMMARY STRIP */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-3 px-4 flex items-center justify-between shadow-xs">
-        <div>
-          <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-            {activeFilter === 'pending_finance' ? 'Ready For Immediate Payout' : activeFilter === 'disbursed' ? 'Total Disbursed' : 'Facilitations Total'}
-          </span>
-          <div className="text-base font-black text-emerald-400">
-            SSP {activeFilter === 'pending_finance' ? pendingTotal.toLocaleString() : activeFilter === 'disbursed' ? disbursedTotal.toLocaleString() : (pendingTotal + disbursedTotal).toLocaleString()}
-          </div>
-        </div>
-        <div className="text-right">
-          <span className="text-[10px] font-bold text-slate-300 block">
-            {filteredList.length} Requisition{filteredList.length === 1 ? '' : 's'}
-          </span>
-          <span className="text-[10px] text-slate-400">
-            Authorized by PM
-          </span>
-        </div>
-      </div>
-
-      {/* 3. REQUISITIONS LIST */}
-      <div className="space-y-3">
+      {/* 2. REQUISITIONS VIEW */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
         {filteredList.length === 0 ? (
-          <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-2 shadow-2xs">
+          <div className="p-8 text-center space-y-2">
             <div className="w-10 h-10 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
               <Banknote className="w-5 h-5" />
             </div>
@@ -166,197 +129,284 @@ export function FinanceDisbursementsView({
             </p>
           </div>
         ) : (
-          filteredList.map(req => {
-            const isExpanded = expandedId === req.id;
-            const isReadyForPayout =
-              req.status === 'Approved (Pending Finance Disbursement)' ||
-              req.stage === 3 ||
-              req.status === 'Approved by Program Manager' ||
-              req.status === 'Pending Finance Disbursement';
+          <>
+            {/* 2A. CLEAN PHONE MODE: NUMBERED • NAME • AMOUNT • ACTION + VIEW BAR */}
+            <div className="block md:hidden divide-y divide-slate-100">
+              {filteredList.map((req, idx) => {
+                const isExpanded = expandedId === req.id;
+                const isReadyForPayout =
+                  req.status === 'Approved (Pending Finance Disbursement)' ||
+                  req.stage === 3 ||
+                  req.status === 'Approved by Program Manager' ||
+                  req.status === 'Pending Finance Disbursement';
 
-            const isDisbursed = req.stage === 4 || req.status === 'Disbursed' || req.status === 'Disbursed / Paid';
-            const payoutPhone = req.payout_phone || req.field_worker_phone || req.recipient_phone;
-            const preferredMethod = req.preferred_payout || req.payout_channel || 'm-Gurush Mobile Money';
+                const isDisbursed = req.stage === 4 || req.status === 'Disbursed' || req.status === 'Disbursed / Paid';
+                const payoutPhone = req.payout_phone || req.field_worker_phone || req.recipient_phone;
+                const preferredMethod = req.preferred_payout || req.payout_channel || 'm-Gurush Mobile Money';
 
-            return (
-              <div
-                key={req.id}
-                className={`bg-white rounded-3xl border transition shadow-2xs overflow-hidden ${
-                  isReadyForPayout
-                    ? 'border-amber-200/90 ring-1 ring-amber-100/80'
-                    : isDisbursed
-                    ? 'border-emerald-200'
-                    : 'border-slate-200'
-                }`}
-              >
-                <div className="p-4 space-y-3">
-                  {/* Top: Worker & Code */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-black text-slate-900 truncate">
-                          {req.field_worker_name || req.worker_name || 'Field Worker'}
+                return (
+                  <div key={req.id} className="bg-white transition">
+                    
+                    {/* Clean compact main row */}
+                    <div className="p-3.5 flex items-center justify-between gap-2.5">
+                      {/* Number badge & Worker Name */}
+                      <div className="min-w-0 flex-1 flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-black flex items-center justify-center shrink-0 border border-slate-200">
+                          {idx + 1}
                         </span>
-                        <span className="font-mono text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md font-bold">
-                          {req.request_code || req.id}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-slate-400" />
-                          <span className="truncate">{req.location || req.payam || req.state || 'Field Mission'}</span>
-                        </span>
-                        <span>•</span>
-                        <span>{new Date(req.created_at || req.date || Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <div className="text-base font-black text-[#006B56] tracking-tight">
-                        SSP {Number(req.amount || 0).toLocaleString()}
-                      </div>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded block text-center ${
-                        isDisbursed
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : isReadyForPayout
-                          ? 'bg-amber-100 text-amber-900'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}>
-                        {isDisbursed ? 'PAID & VOUCHERED' : 'READY FOR PAYOUT'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Payout Channel Strip */}
-                  <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-1.5 text-slate-700">
-                      <Smartphone className="w-3.5 h-3.5 text-[#006B56]" />
-                      <span className="font-medium truncate max-w-[140px]">{preferredMethod}</span>
-                    </div>
-                    {payoutPhone && (
-                      <a
-                        href={`tel:${payoutPhone}`}
-                        className="flex items-center gap-1 text-[11px] font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded-lg border border-slate-200"
-                      >
-                        <Phone className="w-3 h-3 text-[#006B56]" />
-                        <span>{payoutPhone}</span>
-                      </a>
-                    )}
-                  </div>
-
-                  {/* Purpose Narrative */}
-                  <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                    {req.purpose || req.title || req.reason || 'Operational mission facilitation and field outreach stipend.'}
-                  </p>
-
-                  {/* Supervisor & PM Endorsement Badges */}
-                  <div className="space-y-1.5 text-[11px]">
-                    {req.supervisor_remarks && (
-                      <div className="bg-emerald-50/70 p-2 rounded-xl border border-emerald-100 text-emerald-950 flex items-start gap-1.5">
-                        <ShieldCheck className="w-3.5 h-3.5 text-[#006B56] shrink-0 mt-0.5" />
-                        <p className="italic">
-                          <span className="font-bold">{req.supervisor_endorsed_by || 'Supervisor'}: </span>
-                          "{req.supervisor_remarks}"
-                        </p>
-                      </div>
-                    )}
-                    {req.pm_remarks && (
-                      <div className="bg-teal-50/70 p-2 rounded-xl border border-teal-100 text-teal-950 flex items-start gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-teal-700 shrink-0 mt-0.5" />
-                        <p className="italic">
-                          <span className="font-bold">{req.pm_approved_by || 'PM Grace'}: </span>
-                          "{req.pm_remarks}"
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Disbursed Voucher Info (if paid) */}
-                  {isDisbursed && req.finance_disbursement && (
-                    <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-200/80 text-xs text-emerald-950 space-y-2">
-                      <div className="flex items-center justify-between font-black text-emerald-900">
-                        <div className="flex items-center gap-1.5">
-                          <Receipt className="w-3.5 h-3.5 text-[#006B56]" />
-                          <span>Disbursement Voucher</span>
+                        <div className="min-w-0 truncate">
+                          <span className="text-xs font-black text-slate-900 block truncate">
+                            {req.field_worker_name || req.worker_name || 'Field Worker'}
+                          </span>
+                          <span className="font-mono text-[10px] text-slate-500 font-bold">
+                            {req.request_code || req.id}
+                          </span>
                         </div>
-                        <span className="font-mono text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-md font-bold border border-emerald-200">
-                          {req.finance_disbursement.voucher_reference || 'VOUCH-PAID'}
-                        </span>
                       </div>
-                      
-                      <div className="text-[11px] text-slate-600 flex items-center justify-between">
-                        <span>Txn: <strong className="font-mono text-slate-800">{req.finance_disbursement.transaction_ref || 'TXN-OK'}</strong></span>
-                        <span className="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-emerald-100">
-                          ✓ Settled
+
+                      {/* Amount & Status */}
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-black text-[#006B56] block font-mono">
+                          SSP {Number(req.amount || 0).toLocaleString()}
+                        </span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase inline-block ${
+                          isDisbursed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'
+                        }`}>
+                          {isDisbursed ? 'Paid' : 'Ready'}
                         </span>
                       </div>
 
-                      {/* View Receipt Button */}
-                      <button
-                        type="button"
-                        onClick={() => onViewVoucher(req)}
-                        className="w-full py-2 bg-[#006B56] hover:bg-[#005242] text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-xs transition active:scale-98 cursor-pointer"
-                      >
-                        <Receipt className="w-3.5 h-3.5" />
-                        <span>View Receipt</span>
-                      </button>
+                      {/* Direct Action Button */}
+                      <div className="shrink-0">
+                        {isReadyForPayout && onOpenDisburse ? (
+                          <button
+                            type="button"
+                            onClick={() => onOpenDisburse(req)}
+                            className="px-3 py-1.5 bg-[#006B56] hover:bg-[#005242] text-white font-bold text-xs rounded-xl shadow-2xs transition active:scale-95 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Banknote className="w-3.5 h-3.5" />
+                            <span>Pay</span>
+                          </button>
+                        ) : isDisbursed && onViewVoucher ? (
+                          <button
+                            type="button"
+                            onClick={() => onViewVoucher(req)}
+                            className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-2xs transition active:scale-95 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                            <span>Voucher</span>
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
-                  )}
 
-                  {/* ACTION: Disburse Payout Button */}
-                  {isReadyForPayout && (
+                    {/* View Bar toggle */}
                     <button
                       type="button"
-                      onClick={() => onOpenDisburse(req)}
-                      className="w-full py-2.5 bg-gradient-to-r from-[#006B56] to-emerald-600 hover:from-[#005242] hover:to-emerald-700 text-white font-black text-xs rounded-2xl shadow-xs active:scale-98 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      onClick={() => toggleExpand(req.id)}
+                      className="w-full py-1.5 px-3.5 bg-slate-50/70 hover:bg-slate-100 text-slate-500 hover:text-slate-800 text-[11px] font-semibold flex items-center justify-between transition cursor-pointer border-t border-slate-100"
                     >
-                      <Banknote className="w-4 h-4" />
-                      <span>Execute Disbursement & Generate Voucher</span>
+                      <span className="flex items-center gap-1">
+                        <Info className="w-3 h-3 text-slate-400" />
+                        <span>{isExpanded ? 'Hide Details' : 'View More Information'}</span>
+                      </span>
+                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     </button>
-                  )}
 
-                  {/* Accordion line-items toggle */}
-                  <button
-                    type="button"
-                    onClick={() => setExpandedId(isExpanded ? null : req.id)}
-                    className="w-full pt-1.5 text-slate-500 hover:text-slate-800 text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer border-t border-slate-100"
-                  >
-                    <span>{isExpanded ? 'Hide Line Items' : 'View Itemized Breakdown'}</span>
-                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-
-                {/* Detailed line items */}
-                {isExpanded && (
-                  <div className="p-3.5 bg-slate-50 border-t border-slate-200/80 text-xs space-y-2">
-                    {req.breakdown && req.breakdown.length > 0 ? (
-                      <div className="rounded-2xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden shadow-2xs">
-                        {req.breakdown.map((item, idx) => (
-                          <div key={idx} className="p-2.5 flex items-center justify-between text-[11px]">
-                            <div>
-                              <span className="font-bold text-slate-800 block">
-                                {item.item || item.description || `Line Item #${idx + 1}`}
-                              </span>
-                              <span className="text-[10px] text-slate-500">
-                                {item.category || req.category || 'Operational Facilitation'}
-                              </span>
+                    {/* Expanded details container */}
+                    {isExpanded && (
+                      <div className="p-3.5 bg-slate-50/90 border-t border-slate-100 text-xs space-y-2 animate-in fade-in-50 duration-150">
+                        {/* Date, Location, and Channel */}
+                        <div className="grid grid-cols-2 gap-2 text-[11px]">
+                          <div className="p-2 rounded-xl bg-white border border-slate-200/80 space-y-0.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Mission Location</span>
+                            <div className="flex items-center gap-1 font-semibold text-slate-800">
+                              <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span className="truncate">{req.location || req.payam || req.state || 'Field Depot'}</span>
                             </div>
-                            <span className="font-black text-slate-900">
-                              SSP {Number(item.total || item.amount || 0).toLocaleString()}
+                            <span className="text-[10px] text-slate-500 block">
+                              {new Date(req.created_at || req.date || Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
                             </span>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600">
-                        Direct mission facilitation stipend without sub-lines.
+
+                          <div className="p-2 rounded-xl bg-white border border-slate-200/80 space-y-0.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Payout Channel</span>
+                            <div className="flex items-center gap-1 font-semibold text-slate-800">
+                              <Smartphone className="w-3 h-3 text-[#006B56]" />
+                              <span className="truncate">{preferredMethod}</span>
+                            </div>
+                            {payoutPhone && (
+                              <a href={`tel:${payoutPhone}`} className="font-mono text-[10px] font-bold text-slate-700 block">
+                                {payoutPhone}
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Purpose */}
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 text-[11px] text-slate-700">
+                          <span className="font-bold text-slate-900 block mb-0.5">Facilitation Purpose:</span>
+                          <p className="leading-relaxed">
+                            {req.purpose || req.title || 'Direct field operational facilitation stipend.'}
+                          </p>
+                        </div>
+
+                        {/* Remarks / Endorsements */}
+                        {req.pm_remarks && (
+                          <div className="p-2 rounded-xl bg-teal-50 border border-teal-100 text-[11px] text-teal-950 flex items-start gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-teal-700 shrink-0 mt-0.5" />
+                            <p className="italic">
+                              <span className="font-bold">{req.pm_approved_by || 'PM'}: </span>
+                              "{req.pm_remarks}"
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Line items breakdown if available */}
+                        {req.breakdown && req.breakdown.length > 0 && (
+                          <div className="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden text-[11px]">
+                            <div className="px-2.5 py-1 bg-slate-50 font-bold text-slate-600 text-[10px] uppercase">
+                              Itemized Breakdown
+                            </div>
+                            {req.breakdown.map((item, idx) => (
+                              <div key={idx} className="p-2 flex items-center justify-between">
+                                <span className="font-medium text-slate-800 truncate">{item.item || item.description}</span>
+                                <span className="font-mono font-bold text-slate-900 shrink-0 ml-2">
+                                  SSP {Number(item.total || item.amount || 0).toLocaleString()}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            );
-          })
+                );
+              })}
+            </div>
+
+            {/* 2B. DESKTOP / TABLET DATA TABLE (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-700">
+                    <th className="py-3 px-3 text-center w-10">#</th>
+                    <th className="py-3 px-4">Req # & Date</th>
+                    <th className="py-3 px-4">Field Worker</th>
+                    <th className="py-3 px-4">Location & Purpose</th>
+                    <th className="py-3 px-4">Payout Channel</th>
+                    <th className="py-3 px-4">Amount</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredList.map((req, idx) => {
+                    const isReadyForPayout =
+                      req.status === 'Approved (Pending Finance Disbursement)' ||
+                      req.stage === 3 ||
+                      req.status === 'Approved by Program Manager' ||
+                      req.status === 'Pending Finance Disbursement';
+
+                    const isDisbursed = req.stage === 4 || req.status === 'Disbursed' || req.status === 'Disbursed / Paid';
+                    const payoutPhone = req.payout_phone || req.field_worker_phone || req.recipient_phone;
+                    const preferredMethod = req.preferred_payout || req.payout_channel || 'm-Gurush';
+
+                    return (
+                      <tr key={req.id} className="hover:bg-slate-50/60 transition">
+                        {/* Number Index */}
+                        <td className="py-3.5 px-3 align-top text-center text-slate-400 font-mono font-bold text-[11px]">
+                          {idx + 1}
+                        </td>
+
+                        {/* Req Code & Date */}
+                        <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                          <span className="font-mono font-bold text-slate-900 block">
+                            {req.request_code || req.id}
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {new Date(req.created_at || req.date || Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </td>
+
+                        {/* Field Worker */}
+                        <td className="py-3.5 px-4 align-top">
+                          <span className="font-bold text-slate-900 block">
+                            {req.field_worker_name || req.worker_name || 'Field Worker'}
+                          </span>
+                          {payoutPhone && (
+                            <span className="font-mono text-[11px] text-slate-500 block">
+                              {payoutPhone}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Location & Purpose */}
+                        <td className="py-3.5 px-4 align-top max-w-[220px]">
+                          <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-800">
+                            <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span className="truncate">{req.location || req.payam || req.state || 'Field Depot'}</span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                            {req.purpose || req.title || 'Field facilitation'}
+                          </p>
+                        </td>
+
+                        {/* Payout Channel */}
+                        <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                            <Smartphone className="w-3 h-3 text-[#006B56]" />
+                            <span>{preferredMethod}</span>
+                          </span>
+                        </td>
+
+                        {/* Amount */}
+                        <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                          <span className="font-mono font-black text-[#006B56] text-xs">
+                            SSP {Number(req.amount || 0).toLocaleString()}
+                          </span>
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            isDisbursed
+                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                              : 'bg-amber-100 text-amber-900 border border-amber-200'
+                          }`}>
+                            {isDisbursed ? 'Disbursed' : 'PM Approved'}
+                          </span>
+                        </td>
+
+                        {/* Action */}
+                        <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                          {isReadyForPayout && onOpenDisburse ? (
+                            <button
+                              type="button"
+                              onClick={() => onOpenDisburse(req)}
+                              className="px-3 py-1.5 rounded-xl bg-[#006B56] hover:bg-[#005242] text-white font-bold text-xs inline-flex items-center gap-1 shadow-2xs transition active:scale-95 cursor-pointer"
+                            >
+                              <Banknote className="w-3.5 h-3.5" />
+                              <span>Disburse</span>
+                            </button>
+                          ) : isDisbursed && onViewVoucher ? (
+                            <button
+                              type="button"
+                              onClick={() => onViewVoucher(req)}
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs inline-flex items-center gap-1 shadow-2xs transition active:scale-95 cursor-pointer"
+                            >
+                              <Receipt className="w-3.5 h-3.5" />
+                              <span>Voucher</span>
+                            </button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

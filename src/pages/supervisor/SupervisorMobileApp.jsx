@@ -37,9 +37,9 @@ import { SupervisorReportReviewView } from './components/SupervisorReportReviewV
 import { SupervisorBeneficiariesView } from './components/SupervisorBeneficiariesView';
 import { SupervisorNotificationsView } from './components/SupervisorNotificationsView';
 import { SupervisorActivityHistoryView } from './components/SupervisorActivityHistoryView';
-import { SupervisorProfileView } from './components/SupervisorProfileView';
 import { SupervisorFacilitationsView } from './components/SupervisorFacilitationsView';
 import { WaybillDetailModal } from '../inventory/components/WaybillDetailModal';
+import { AdraLogo } from '../../components/common/AdraLogo';
 
 export function SupervisorMobileApp({
   currentUser,
@@ -675,23 +675,12 @@ export function SupervisorMobileApp({
           <div className="flex flex-col h-full justify-between overflow-y-auto">
             <div>
               {/* Drawer Header Brand */}
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <div className="flex items-center space-x-2.5">
-                <svg viewBox="0 0 100 100" className="w-7 h-7 text-[#006B56] shrink-0" fill="currentColor">
-                  <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="6" />
-                  <circle cx="50" cy="28" r="6" />
-                  <circle cx="33" cy="40" r="5.5" />
-                  <circle cx="67" cy="40" r="5.5" />
-                  <path d="M50,38c-6,0-12,4-14,9a18,18,0,0,0,28,0C62,42,56,38,50,38Z" />
-                  <path d="M33,48c-4,0-8,3-10,6a15,15,0,0,0,19,0C39,51,36,48,33,48Z" />
-                  <path d="M67,48c-4,0-8,3-10,6a15,15,0,0,0,19,0C75,51,71,48,67,48Z" />
-                  <path d="M28,68 Q50,60 72,68" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-                  <path d="M22,76 Q50,68 78,76" stroke="currentColor" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-                </svg>
-                <span className="font-extrabold text-lg tracking-tight text-[#006B56] font-serif">
-                  ADRA
-                </span>
-              </div>
+            <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-white">
+              <AdraLogo
+                isCollapsed={false}
+                subtitle="Supervisor"
+                description="Field Operations Hub"
+              />
 
               <button
                 type="button"

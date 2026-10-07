@@ -358,7 +358,7 @@ export function ProjectsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Total Budget ($ USD)</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Total Budget (SSP)</label>
               <input
                 type="number"
                 value={formData.budget}

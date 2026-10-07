@@ -33,7 +33,7 @@ export function InventoryReportsView({
     let filename = `ADRA_Inventory_${reportType}_${timestamp}.csv`;
 
     if (reportType === 'stock_balance') {
-      headers = ['SKU', 'Item Name', 'Category', 'Warehouse', 'Quantity', 'Unit', 'Unit Cost (USD)', 'Total Value (USD)', 'Batch Number', 'Expiry Date', 'Status'];
+      headers = ['SKU', 'Item Name', 'Category', 'Warehouse', 'Quantity', 'Unit', 'Unit Cost (SSP)', 'Total Value (SSP)', 'Batch Number', 'Expiry Date', 'Status'];
       const filtered = selectedWarehouse === 'ALL' ? inventory : inventory.filter(i => i.warehouse === selectedWarehouse);
       rows = filtered.map(i => [
         `"${i.sku || i.id}"`,

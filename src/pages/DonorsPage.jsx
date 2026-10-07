@@ -348,7 +348,7 @@ export function DonorsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Funding Commitment ($ USD)</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Funding Commitment (SSP)</label>
               <input
                 type="number"
                 value={donorForm.funding_amount}
