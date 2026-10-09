@@ -33,9 +33,11 @@ import {
   Sparkles,
   Phone,
   Image as ImageIcon,
-  FileCheck
+  FileCheck,
+  Download
 } from 'lucide-react';
 import { formatDate } from '../../../lib/utils';
+import { exportToPDF } from '../../../lib/reportGenerator';
 
 export function PMAssistanceRequestsView({
   requests = [],
@@ -87,7 +89,7 @@ export function PMAssistanceRequestsView({
 
   // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+  const itemsPerPage = 10;
   const [sortField, setSortField] = useState('created_at');
   const [sortDirection, setSortDirection] = useState('desc');
 
@@ -1430,11 +1432,83 @@ export function PMAssistanceRequestsView({
     );
   }
 
+  // Export Assistance Requests to PDF
+  const handleExportPDF = () => {
+    if (!filteredRequests || filteredRequests.length === 0) {
+      alert('No requests available to export.');
+      return;
+    }
+
+    const columns = [
+      { header: 'Request Code', key: 'display_code' },
+      { header: 'Beneficiary Name', key: 'display_name' },
+      { header: 'Category / Assistance', key: 'display_category' },
+      { header: 'Location / State', key: 'display_loc' },
+      { header: 'Status', key: 'display_status' }
+    ];
+
+    const data = filteredRequests.map(r => {
+      const isRejected = r.status === 'Rejected' || r.status_label === 'Rejected by PM' || Boolean(r.returned_to_worker);
+      const statusText = isRejected ? 'Rejected' : r.status === 'Submitted' ? 'Submitted (Pending Supervisor)' : (r.status || 'Submitted');
+      const b = getBeneficiary(r.beneficiary_id);
+
+      return {
+        display_code: r.request_code || r.id || 'ADR-REQ',
+        display_name: r.beneficiary_name || b?.full_name || 'Beneficiary',
+        display_category: r.assistance_type || r.category || 'Food Assistance',
+        display_loc: r.state || b?.state || 'Eastern Equatoria',
+        display_status: statusText
+      };
+    });
+
+    exportToPDF({
+      title: 'ADRA SOUTH SUDAN - ASSISTANCE REQUESTS DOSSIER',
+      subtitle: `Filter: ${filterStatus} • Total Count: ${filteredRequests.length} records • Generated: ${new Date().toLocaleString()}`,
+      columns,
+      data,
+      fileName: `ADRA_SS_assistance_requests_${new Date().toISOString().slice(0, 10)}.pdf`,
+      summary: [
+        { label: 'Total Requests', value: String(filteredRequests.length) },
+        { label: 'Filter Scope', value: filterStatus === 'ALL' ? 'All Requests' : filterStatus },
+        { label: 'Report Date', value: new Date().toLocaleDateString() }
+      ]
+    });
+  };
+
+  // Export Assistance Requests to CSV
+  const handleExportCSV = () => {
+    if (!filteredRequests || filteredRequests.length === 0) {
+      alert('No requests available to export.');
+      return;
+    }
+    const rows = [
+      ['Request Code', 'Beneficiary Name', 'Category', 'Location', 'Status', 'Date']
+    ];
+    filteredRequests.forEach(r => {
+      const b = getBeneficiary(r.beneficiary_id);
+      rows.push([
+        r.request_code || r.id,
+        r.beneficiary_name || b?.full_name || 'Beneficiary',
+        r.assistance_type || r.category || 'Food Assistance',
+        r.state || b?.state || 'Eastern Equatoria',
+        r.status || 'Submitted',
+        new Date(r.created_at || Date.now()).toLocaleDateString()
+      ]);
+    });
+    const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.map(x => `"${(x || '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', `ADRA_SS_assistance_requests_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-3.5">
-      {/* 1. SEARCH BAR & QUICK FILTERS BUTTON */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+      {/* 1. SEARCH BAR & QUICK FILTERS & PDF/CSV EXPORT */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -1466,6 +1540,28 @@ export function PMAssistanceRequestsView({
           <Filter className="w-4 h-4" />
           <span className="hidden sm:inline">Filters</span>
         </button>
+
+        {/* Visible PDF & CSV Download Buttons */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-xl shadow-xs transition cursor-pointer active:scale-95"
+            title="Download Official PDF Report"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>PDF</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#006B56] border border-emerald-200/80 text-xs font-bold rounded-xl transition cursor-pointer shadow-2xs active:scale-95"
+            title="Download CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. ACTIVE QUEUE STATUS INDICATOR */}
@@ -1547,184 +1643,97 @@ export function PMAssistanceRequestsView({
         </div>
       )}
 
-      {/* 4. REQUESTS CARD LIST WITH AUDIT & CUSTODY PIPELINE */}
+      {/* 4. CLEAN & SIMPLE REQUESTS TABLE */}
       {paginatedRequests.length === 0 ? (
-        <div className="bg-white p-8 rounded-3xl border border-slate-200/90 text-center space-y-2">
+        <div className="bg-white p-12 rounded-3xl border border-slate-200/90 text-center space-y-2">
           <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
             <FileText className="w-6 h-6" />
           </div>
-          <h3 className="text-xs font-bold text-slate-800">No assistance requests found</h3>
-          <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+          <h3 className="text-sm font-bold text-slate-800">No assistance requests found</h3>
+          <p className="text-xs text-slate-500 max-w-xs mx-auto">
             Try adjusting your search query, status tabs, or region filters.
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {paginatedRequests.map((r) => {
-            const supInfo = getSupervisorStatus(r);
-            const workerInfo = getFieldWorkerStatus(r);
-            const auditInfo = getAuditStatus(r);
-            const isRejected = r.status === 'Rejected' || r.status_label === 'Rejected by PM' || Boolean(r.returned_to_worker) || (typeof r.status === 'string' && r.status.toLowerCase().includes('reject'));
-            const isPendingPM = !supInfo.isAssigned && !isRejected;
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden max-w-5xl mx-auto">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-2 px-3 w-36">Request Code</th>
+                  <th className="py-2 px-3">Beneficiary</th>
+                  <th className="py-2 px-3">Category</th>
+                  <th className="py-2 px-3 w-28">Status</th>
+                  <th className="py-2 px-3 w-20 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paginatedRequests.map((r) => {
+                  const isRejected = r.status === 'Rejected' || r.status_label === 'Rejected by PM' || Boolean(r.returned_to_worker) || (typeof r.status === 'string' && r.status.toLowerCase().includes('reject'));
+                  const categoryText = (r.assistance_type || r.category || 'Food Assistance').split(',')[0].trim();
 
-            return (
-              <div
-                key={r.id || r.request_code}
-                className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs hover:border-[#006B56]/50 transition-all space-y-3.5"
-              >
-                {/* Header Row: Code, Priority, Date */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black text-[#006B56] bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200/80">
-                      {r.request_code || r.id}
-                    </span>
-                    <span className="text-[11px] font-medium text-slate-500">
-                      {r.created_at ? formatDate(r.created_at) : 'Recent'}
-                    </span>
-                  </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    r.priority === 'Critical' ? 'bg-red-50 text-red-700 border-red-200' :
-                    r.priority === 'High' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                    'bg-slate-50 text-slate-700 border-slate-200'
-                  }`}>
-                    {r.priority || 'Standard'} Priority
-                  </span>
-                </div>
-
-                {/* Beneficiary & Need Description */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="text-sm font-black text-slate-900 truncate">
-                      {r.beneficiary_name}
-                    </h4>
-                    <span className="text-xs font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md shrink-0">
-                      {r.household_members || 5} Members
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 font-medium truncate">
-                    <strong className="text-slate-800">Category: </strong>{r.assistance_type || r.category}
-                  </p>
-                  <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span className="truncate">{r.location || `${r.county || 'Juba'}, ${r.state || 'Central Equatoria'}`}</span>
-                  </p>
-                </div>
-
-                {/* 3-STAGE CHAIN OF CUSTODY & AUDIT PIPELINE */}
-                <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/70 space-y-2">
-                  <div className="flex items-center justify-between text-[11px] border-b border-slate-200/60 pb-1.5">
-                    <span className="font-extrabold text-slate-600 uppercase tracking-wider text-[9px] flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#006B56]" />
-                      <span>Audit & Custody Chain</span>
-                    </span>
-                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${auditInfo.badgeClass}`}>
-                      {auditInfo.shortLabel}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                    {/* 1. Supervisor */}
-                    <div className="flex items-start gap-1.5 bg-white p-2 rounded-lg border border-slate-200/60 shadow-2xs min-w-0">
-                      <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
-                        supInfo.isAssigned ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'
-                      }`}>
-                        {supInfo.isAssigned ? <UserCheck className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">1. State Supervisor</span>
-                        <span className={`text-[11px] font-black block truncate ${
-                          supInfo.isAssigned ? 'text-slate-900' : isRejected ? 'text-slate-500' : 'text-amber-800'
-                        }`}>
-                          {supInfo.isAssigned ? supInfo.name : isRejected ? 'None (Rejected)' : 'Unassigned (Action Req.)'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 2. Field Worker */}
-                    <div className="flex items-start gap-1.5 bg-white p-2 rounded-lg border border-slate-200/60 shadow-2xs min-w-0">
-                      <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
-                        workerInfo.isAssigned ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
-                      }`}>
-                        {workerInfo.isAssigned ? <User className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">2. Field Worker</span>
-                        <span className={`text-[11px] font-bold block truncate ${
-                          workerInfo.isAssigned ? 'text-slate-900' : 'text-slate-500'
-                        }`}>
-                          {workerInfo.name}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 3. Field Audit Status */}
-                    <div className="flex items-start gap-1.5 bg-white p-2 rounded-lg border border-slate-200/60 shadow-2xs min-w-0">
-                      <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
-                        auditInfo.isFinished ? 'bg-emerald-100 text-emerald-700' : 
-                        auditInfo.isRejected ? 'bg-rose-100 text-rose-700' :
-                        auditInfo.isInProgress ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
-                      }`}>
-                        {auditInfo.isFinished ? <CheckCircle2 className="w-3.5 h-3.5" /> : auditInfo.isRejected ? <XCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">3. Field Audit</span>
-                        <span className={`text-[11px] font-bold block truncate ${
-                          auditInfo.isFinished ? 'text-[#006B56] font-black' : 
-                          auditInfo.isRejected ? 'text-rose-700 font-black' :
-                          auditInfo.isInProgress ? 'text-blue-700 font-bold' : 'text-slate-500'
-                        }`}>
-                          {auditInfo.label}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer Controls */}
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs gap-2">
-                  <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
-                    isRejected ? 'bg-rose-50 text-rose-800 border-rose-200' :
-                    r.status === 'Approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
-                    r.status === 'In Progress' ? 'bg-blue-50 text-blue-800 border-blue-200' :
-                    r.status === 'Completed' ? 'bg-emerald-800 text-white border-emerald-900' :
-                    r.status === 'Info Requested' ? 'bg-orange-50 text-orange-800 border-orange-200' :
-                    'bg-amber-50 text-amber-800 border-amber-200'
-                  }`}>
-                    {isRejected ? 'Rejected by PM' : r.status}
-                  </span>
-
-                  <div className="flex items-center gap-2">
-                    {isPendingPM && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveModalRequest(r);
-                          setDecisionAction('assign');
-                        }}
-                        className="px-3.5 py-1.5 bg-[#006B56] hover:bg-[#005544] text-white text-xs font-black rounded-xl shadow-xs active:scale-95 transition flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <UserPlus className="w-3.5 h-3.5" />
-                        <span>Assign Supervisor</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
+                  return (
+                    <tr
+                      key={r.id || r.request_code}
                       onClick={() => {
                         setActiveModalRequest(r);
                         setDecisionAction(null);
                         setDecisionError('');
                       }}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition active:scale-95 flex items-center gap-1 cursor-pointer"
+                      className="hover:bg-slate-50 cursor-pointer transition-colors"
                     >
-                      <Eye className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Details & Dossier</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                      {/* 1. Request Code */}
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span className="font-mono text-xs font-bold text-[#006B56]">
+                          {r.request_code || r.id}
+                        </span>
+                      </td>
+
+                      {/* 2. Beneficiary */}
+                      <td className="py-2 px-3 font-bold text-slate-900 text-xs whitespace-nowrap">
+                        {r.beneficiary_name}
+                      </td>
+
+                      {/* 3. Category */}
+                      <td className="py-2 px-3 text-xs text-slate-600 font-medium whitespace-nowrap">
+                        {categoryText}
+                      </td>
+
+                      {/* 4. Status */}
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border ${
+                          isRejected ? 'bg-rose-50 text-rose-800 border-rose-200' :
+                          r.status === 'Approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                          r.status === 'In Progress' ? 'bg-blue-50 text-blue-800 border-blue-200' :
+                          r.status === 'Completed' ? 'bg-emerald-800 text-white border-emerald-900' :
+                          r.status === 'Info Requested' ? 'bg-orange-50 text-orange-800 border-orange-200' :
+                          'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}>
+                          {isRejected ? 'Rejected' : r.status}
+                        </span>
+                      </td>
+
+                      {/* 5. Action */}
+                      <td className="py-2 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveModalRequest(r);
+                            setDecisionAction(null);
+                            setDecisionError('');
+                          }}
+                          className="px-2.5 py-1 bg-[#006B56] hover:bg-[#005544] text-white text-[11px] font-bold rounded-lg transition active:scale-95 inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>View</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

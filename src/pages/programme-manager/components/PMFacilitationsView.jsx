@@ -14,10 +14,13 @@ import {
   X,
   SlidersHorizontal,
   FileCheck,
-  Eye
+  Eye,
+  Download,
+  FileText
 } from 'lucide-react';
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
+import { exportToPDF, exportVoucherPDF } from '../../../lib/reportGenerator';
 
 export function PMFacilitationsView({
   requests = [],
@@ -39,6 +42,9 @@ export function PMFacilitationsView({
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewError, setReviewError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Requisition Full Details Modal State
+  const [selectedDetailReq, setSelectedDetailReq] = useState(null);
 
   // Field Truth Report Viewer Modal State
   const [viewingReport, setViewingReport] = useState(null);
@@ -160,11 +166,88 @@ export function PMFacilitationsView({
     }
   };
 
+  // Export Requisitions to PDF
+  const handleExportPDF = () => {
+    if (!filteredRequests || filteredRequests.length === 0) {
+      toast.info('No facilitations to export.');
+      return;
+    }
+
+    const columns = [
+      { header: 'Req Code', key: 'display_code' },
+      { header: 'Field Worker', key: 'field_worker_name' },
+      { header: 'Amount (SSP)', key: 'display_amount' },
+      { header: 'Date', key: 'display_date' },
+      { header: 'Status', key: 'display_status' }
+    ];
+
+    const data = filteredRequests.map(r => {
+      const isRejected = r.status === 'Rejected by Program Manager' || r.status === 'Rejected' || r.stage === -1 || Boolean(r.returned_to_worker);
+      const isPendingPM = !isRejected && (r.status === 'Pending Program Manager Approval' || r.stage === 2 || r.status === 'Endorsed by Supervisor');
+      const isDisbursed = !isRejected && (r.status === 'Disbursed' || r.stage === 4 || r.status === 'Disbursed / Paid');
+      const isPendingFinance = !isRejected && (r.status === 'Approved by Program Manager' || r.status === 'Approved by PM' || r.stage === 3);
+
+      const statusText = isRejected ? 'Rejected' : isDisbursed ? 'Disbursed' : isPendingFinance ? 'Finance Queue' : isPendingPM ? 'Pending PM' : (r.status || 'Pending');
+
+      return {
+        display_code: r.request_code || r.id || 'REQ-001',
+        field_worker_name: r.field_worker_name || r.worker_name || 'Field Officer',
+        display_amount: `SSP ${Number(r.amount || 0).toLocaleString()}`,
+        display_date: new Date(r.created_at || Date.now()).toLocaleDateString(),
+        display_status: statusText
+      };
+    });
+
+    const totalSSP = filteredRequests.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+    exportToPDF({
+      title: 'ADRA SOUTH SUDAN - FIELD FACILITATIONS & REQUISITIONS',
+      subtitle: `Filter: ${filterLabel} • Total Count: ${filteredRequests.length} records • Generated: ${new Date().toLocaleString()}`,
+      columns,
+      data,
+      fileName: `ADRA_SS_facilitations_${activeFilter}_${new Date().toISOString().slice(0, 10)}.pdf`,
+      summary: [
+        { label: 'Total Requisitions', value: String(filteredRequests.length) },
+        { label: 'Total Value', value: `SSP ${totalSSP.toLocaleString()}` },
+        { label: 'Filter Scope', value: filterLabel }
+      ]
+    });
+    toast.success('PDF report downloaded successfully.');
+  };
+
+  // Export Requisitions to CSV
+  const handleExportCSV = () => {
+    if (!filteredRequests || filteredRequests.length === 0) {
+      toast.info('No facilitations to export.');
+      return;
+    }
+    const rows = [
+      ['Req Code', 'Field Worker', 'Amount (SSP)', 'Date', 'Status', 'Purpose']
+    ];
+    filteredRequests.forEach(r => {
+      rows.push([
+        r.request_code || r.id,
+        r.field_worker_name || 'Field Officer',
+        r.amount || 0,
+        new Date(r.created_at || Date.now()).toLocaleDateString(),
+        r.status || 'Pending',
+        r.purpose || r.description || ''
+      ]);
+    });
+    const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.map(x => `"${(x || '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', `ADRA_SS_facilitations_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-3 pb-8 animate-in fade-in duration-150">
       
-      {/* 1. Status Filter Chip & Search */}
-      <div className="flex items-center gap-2">
+      {/* 1. Status Filter Chip & Search & PDF / CSV Export */}
+      <div className="flex flex-wrap items-center gap-2">
         {onOpenSidebar && (
           <button
             type="button"
@@ -181,7 +264,7 @@ export function PMFacilitationsView({
         )}
 
         {/* Compact Search Bar */}
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-[180px]">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -200,242 +283,322 @@ export function PMFacilitationsView({
             </button>
           )}
         </div>
+
+        {/* Visible PDF & CSV Download Buttons */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-xl shadow-xs transition cursor-pointer active:scale-95"
+            title="Download PDF Report"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>PDF</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#006B56] border border-emerald-200/80 text-xs font-bold rounded-xl transition cursor-pointer shadow-2xs active:scale-95"
+            title="Download CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>CSV</span>
+          </button>
+        </div>
       </div>
 
-      {/* 3. Streamlined Requisitions List */}
-      <div className="space-y-2.5">
-        {filteredRequests.length === 0 ? (
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center space-y-2 shadow-2xs">
-            <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto text-slate-400">
-              <Banknote className="w-5 h-5" />
-            </div>
-            <h4 className="text-xs font-bold text-slate-800">No Facilitations Found</h4>
-            <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
-              {activeFilter === 'pending_pm'
-                ? 'No requisitions currently awaiting your approval.'
-                : 'No records matching the selected status or search.'}
-            </p>
+      {/* 3. CLEAN & SIMPLE REQUISITIONS TABLE */}
+      {filteredRequests.length === 0 ? (
+        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-2 shadow-2xs">
+          <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
+            <Banknote className="w-6 h-6" />
           </div>
-        ) : (
-          filteredRequests.map(req => {
-            const isExpanded = expandedId === req.id;
-            const isRejected = req.status === 'Rejected by Program Manager' ||
-                               req.status === 'Rejected' ||
-                               req.stage === -1 ||
-                               Boolean(req.returned_to_worker) ||
-                               (typeof req.status === 'string' && req.status.toLowerCase().includes('reject'));
+          <h4 className="text-sm font-bold text-slate-800">No Facilitations Found</h4>
+          <p className="text-xs text-slate-500 max-w-xs mx-auto">
+            {activeFilter === 'pending_pm'
+              ? 'No requisitions currently awaiting your approval.'
+              : 'No records matching the selected status or search.'}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden max-w-5xl mx-auto">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-2 px-3 w-36">Req Code</th>
+                  <th className="py-2 px-3">Field Worker</th>
+                  <th className="py-2 px-3">Amount</th>
+                  <th className="py-2 px-3 w-28">Status</th>
+                  <th className="py-2 px-3 w-20 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredRequests.map(req => {
+                  const isRejected = req.status === 'Rejected by Program Manager' ||
+                                     req.status === 'Rejected' ||
+                                     req.stage === -1 ||
+                                     Boolean(req.returned_to_worker) ||
+                                     (typeof req.status === 'string' && req.status.toLowerCase().includes('reject'));
 
-            const isPendingPM = !isRejected && (
-              req.status === 'Pending Program Manager Approval' ||
-              req.stage === 2 ||
-              req.status === 'Endorsed by Supervisor'
-            );
-            const isDisbursed = !isRejected && (
-              req.status === 'Disbursed' ||
-              req.stage === 4 ||
-              req.status === 'Disbursed / Paid'
-            );
-            const isPendingFinance = !isRejected && (
-              req.status === 'Approved (Pending Finance Disbursement)' ||
-              req.stage === 3 ||
-              req.status === 'Approved by Program Manager'
-            );
+                  const isPendingPM = !isRejected && (
+                    req.status === 'Pending Program Manager Approval' ||
+                    req.stage === 2 ||
+                    req.status === 'Endorsed by Supervisor'
+                  );
+                  const isDisbursed = !isRejected && (
+                    req.status === 'Disbursed' ||
+                    req.stage === 4 ||
+                    req.status === 'Disbursed / Paid'
+                  );
+                  const isPendingFinance = !isRejected && (
+                    req.status === 'Approved (Pending Finance Disbursement)' ||
+                    req.stage === 3 ||
+                    req.status === 'Approved by Program Manager'
+                  );
 
-            return (
-              <div
-                key={req.id}
-                className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden transition"
-              >
-                <div className="p-3.5 space-y-2.5">
-                  
-                  {/* Top Row: Worker & Amount */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-black text-slate-900 truncate">
-                          {req.field_worker_name || 'Field Worker'}
-                        </span>
-                        <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded">
+                  return (
+                    <tr
+                      key={req.id}
+                      onClick={() => setSelectedDetailReq(req)}
+                      className="hover:bg-slate-50 cursor-pointer transition-colors"
+                    >
+                      {/* 1. Req Code */}
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span className="font-mono text-xs font-bold text-[#006B56]">
                           {req.id || req.request_code}
                         </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
-                        <span className="flex items-center gap-0.5 truncate">
-                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                          <span className="truncate">{req.location || 'Field'}</span>
-                        </span>
-                        <span>•</span>
-                        <span>{new Date(req.created_at || req.date || Date.now()).toLocaleDateString()}</span>
-                      </div>
-                    </div>
+                      </td>
 
-                    <div className="text-right shrink-0">
-                      <div className="text-base font-black text-[#006B56]">
+                      {/* 2. Field Worker */}
+                      <td className="py-2 px-3 font-bold text-slate-900 text-xs whitespace-nowrap">
+                        {req.field_worker_name || 'Field Worker'}
+                      </td>
+
+                      {/* 3. Amount */}
+                      <td className="py-2 px-3 whitespace-nowrap font-bold text-xs text-[#006B56]">
                         SSP {Number(req.amount || 0).toLocaleString()}
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-medium">
-                        via {req.payout_channel || 'm-Gurush'}
-                      </div>
-                    </div>
-                  </div>
+                      </td>
 
-                  {/* Purpose */}
-                  <p className="text-xs text-slate-700 leading-snug font-medium">
-                    {req.purpose || req.title || req.reason || 'Operational facilitation and transport'}
-                  </p>
-
-                  {/* Supervisor Note Preview (if exists) */}
-                  {req.supervisor_remarks && (
-                    <div className="bg-emerald-50/60 p-2 rounded-xl border border-emerald-100 text-[11px] text-emerald-950 flex items-start gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#006B56] shrink-0 mt-0.5" />
-                      <p className="italic">
-                        <span className="font-bold">{req.supervisor_endorsed_by || 'Supervisor'}: </span>
-                        "{req.supervisor_remarks}"
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Status Badge if not pending or if rejected */}
-                  {(!isPendingPM || isRejected) && (
-                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
-                      <span className="text-slate-500 font-medium">Status:</span>
-                      <span className={`font-bold px-2 py-0.5 rounded-md ${
-                        isRejected
-                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                          : isDisbursed
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : isPendingFinance
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}>
-                        {isRejected ? 'Rejected by PM' : req.status}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Rejection Note Preview if rejected */}
-                  {isRejected && (req.pm_remarks || req.rejection_reason) && (
-                    <div className="bg-rose-50/80 p-2.5 rounded-xl border border-rose-200 text-[11px] text-rose-950 flex items-start gap-1.5">
-                      <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-bold text-rose-900 block">Rejection Reason:</span>
-                        <p className="italic text-rose-800">
-                          "{req.pm_remarks || req.rejection_reason}"
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* POST-DISBURSEMENT ASSESSMENT & TRUTH REPORT STATUS */}
-                  {isDisbursed && (
-                    <div className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 font-bold text-emerald-950 text-[11px]">
-                          <ShieldCheck className="w-3.5 h-3.5 text-[#006B56]" />
-                          <span>Field Verification Assessment</span>
-                        </div>
-                        <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full ${
-                          req.post_disbursement_assessment
-                            ? 'bg-emerald-200 text-[#006B56]'
-                            : 'bg-amber-100 text-amber-900 border border-amber-300'
+                      {/* 4. Status */}
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border ${
+                          isRejected
+                            ? 'bg-rose-50 text-rose-800 border-rose-200'
+                            : isDisbursed
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : isPendingFinance
+                            ? 'bg-blue-50 text-blue-800 border-blue-200'
+                            : isPendingPM
+                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            : 'bg-slate-50 text-slate-700 border-slate-200'
                         }`}>
-                          {req.post_disbursement_assessment ? '✓ Verified True on Ground' : '⏳ In Field Assessment'}
+                          {isRejected ? 'Rejected' : isPendingPM ? 'Pending Review' : isPendingFinance ? 'Authorized' : isDisbursed ? 'Disbursed' : req.status}
                         </span>
-                      </div>
+                      </td>
 
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        {req.post_disbursement_assessment
-                          ? `Field officer ${req.post_disbursement_assessment.assessed_by || req.field_worker_name} submitted formal assessment (${req.post_disbursement_assessment.assessment_code}) confirming beneficiary assignment is true and genuine.`
-                          : `Facilitation disbursed. Field officer ${req.field_worker_name} is conducting on-site assessment for ${req.linked_beneficiary_name || 'the beneficiary'} to confirm assignment truth.`}
-                      </p>
-
-                      {req.post_disbursement_assessment && (
+                      {/* 5. Action */}
+                      <td className="py-2 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
-                          onClick={() => setViewingReport(req.post_disbursement_assessment)}
-                          className="w-full py-1.5 px-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
+                          onClick={() => setSelectedDetailReq(req)}
+                          className="px-2.5 py-1 bg-[#006B56] hover:bg-[#005544] text-white text-[11px] font-bold rounded-lg transition active:scale-95 inline-flex items-center gap-1 cursor-pointer shadow-2xs"
                         >
-                          <FileCheck className="w-3.5 h-3.5" />
-                          <span>View Field Assessment Truth Report</span>
+                          <Eye className="w-3 h-3" />
+                          <span>View</span>
                         </button>
-                      )}
-                    </div>
-                  )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-                  {/* Quick Action Buttons (Only when Pending PM) */}
-                  {isPendingPM && (
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenReview(req, 'reject')}
-                        className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 active:scale-98 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1 cursor-pointer"
-                      >
-                        <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                        <span>Reject</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleOpenReview(req, 'approve')}
-                        className="w-full py-2 bg-[#006B56] hover:bg-[#005242] text-white active:scale-98 text-xs font-bold rounded-xl shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                        <span>Authorize</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Minimal Details Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => setExpandedId(isExpanded ? null : req.id)}
-                    className="w-full pt-1 text-slate-500 hover:text-slate-800 text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer"
-                  >
-                    <span>{isExpanded ? 'Hide Details' : 'View Item Breakdown'}</span>
-                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  </button>
+      {/* REQUISITION DETAILS & BREAKDOWN MODAL */}
+      {selectedDetailReq && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 my-auto max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="font-mono text-xs font-bold text-[#006B56] bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/80">
+                  {selectedDetailReq.id || selectedDetailReq.request_code}
+                </span>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    Facilitation Requisition Details
+                  </h3>
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    {new Date(selectedDetailReq.created_at || selectedDetailReq.date || Date.now()).toLocaleDateString()} &bull; {selectedDetailReq.location || 'Field'}
+                  </span>
                 </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDetailReq(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-                {/* Expanded Item Breakdown */}
-                {isExpanded && (
-                  <div className="p-3 bg-slate-50 border-t border-slate-100 text-xs space-y-2">
-                    {req.breakdown && req.breakdown.length > 0 ? (
-                      <div className="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden">
-                        {req.breakdown.map((item, idx) => (
-                          <div key={idx} className="p-2 flex items-center justify-between text-[11px]">
-                            <div>
-                              <span className="font-bold text-slate-800">
-                                {item.item || item.description || `Item #${idx + 1}`}
-                              </span>
-                              <div className="text-[10px] text-slate-500">
-                                Qty: {item.quantity || 1} × SSP {Number(item.unit_price || item.unitCost || 0).toLocaleString()}
-                              </div>
-                            </div>
-                            <span className="font-black text-slate-900">
-                              SSP {Number(item.total || item.amount || 0).toLocaleString()}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="p-2 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600">
-                        No itemized lines attached. Direct facilitation.
-                      </div>
-                    )}
-
-                    {req.recipient_phone && (
-                      <div className="flex items-center gap-1.5 text-[11px] text-slate-600 px-1">
-                        <Phone className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Recipient Phone: <strong className="text-slate-900 font-mono">{req.recipient_phone}</strong></span>
-                      </div>
-                    )}
-                  </div>
+            {/* Quick Vital Cards */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                <span className="text-slate-400 text-[10px] block font-bold uppercase tracking-wider">Field Officer</span>
+                <span className="font-bold text-slate-900 text-sm mt-0.5 block">{selectedDetailReq.field_worker_name || 'Field Worker'}</span>
+                {selectedDetailReq.recipient_phone && (
+                  <span className="text-[11px] text-slate-500 font-mono mt-0.5 block">Phone: {selectedDetailReq.recipient_phone}</span>
                 )}
               </div>
-            );
-          })
-        )}
-      </div>
+              <div className="p-3 bg-emerald-50/70 rounded-2xl border border-emerald-200">
+                <span className="text-emerald-800 text-[10px] block font-bold uppercase tracking-wider">Requested Amount</span>
+                <span className="font-black text-[#006B56] text-base mt-0.5 block">
+                  SSP {Number(selectedDetailReq.amount || 0).toLocaleString()}
+                </span>
+                <span className="text-[10px] text-emerald-700 font-medium">Payout: {selectedDetailReq.payout_channel || 'm-Gurush'}</span>
+              </div>
+            </div>
+
+            {/* Purpose & Justification */}
+            <div className="space-y-1 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
+              <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                Requisition Purpose &amp; Justification
+              </span>
+              <p className="text-slate-800 leading-relaxed font-medium italic">
+                "{selectedDetailReq.purpose || selectedDetailReq.title || selectedDetailReq.reason || 'Operational logistics and community guide facilitation.'}"
+              </p>
+            </div>
+
+            {/* Supervisor Remarks */}
+            {selectedDetailReq.supervisor_remarks && (
+              <div className="bg-emerald-50/60 p-3 rounded-2xl border border-emerald-200 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-950 text-[11px]">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#006B56]" />
+                  <span>Supervisor Endorsement ({selectedDetailReq.supervisor_endorsed_by || 'Supervisor'}):</span>
+                </div>
+                <p className="text-slate-800 italic text-[11px] leading-relaxed">
+                  "{selectedDetailReq.supervisor_remarks}"
+                </p>
+              </div>
+            )}
+
+            {/* Rejection Reason if rejected */}
+            {(selectedDetailReq.status === 'Rejected by Program Manager' || selectedDetailReq.status === 'Rejected' || selectedDetailReq.stage === -1) && (selectedDetailReq.pm_remarks || selectedDetailReq.rejection_reason) && (
+              <div className="bg-rose-50/90 p-3 rounded-2xl border border-rose-200 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-rose-900 text-[11px]">
+                  <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Program Manager Rejection Reason:</span>
+                </div>
+                <p className="text-rose-800 italic text-[11px] leading-relaxed">
+                  "{selectedDetailReq.pm_remarks || selectedDetailReq.rejection_reason}"
+                </p>
+              </div>
+            )}
+
+            {/* Itemized Lines Breakdown */}
+            <div className="space-y-2">
+              <span className="text-[11px] font-black uppercase text-slate-400 block tracking-wider">
+                Itemized Line Breakdown
+              </span>
+              {selectedDetailReq.breakdown && selectedDetailReq.breakdown.length > 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden shadow-2xs">
+                  {selectedDetailReq.breakdown.map((item, idx) => (
+                    <div key={idx} className="p-2.5 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="font-bold text-slate-900">
+                          {item.item || item.description || `Item #${idx + 1}`}
+                        </span>
+                        <div className="text-[10px] text-slate-500">
+                          Qty: {item.quantity || 1} &times; SSP {Number(item.unit_price || item.unitCost || 0).toLocaleString()}
+                        </div>
+                      </div>
+                      <span className="font-black text-slate-900 text-xs">
+                        SSP {Number(item.total || item.amount || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500 italic">
+                  Direct operational facilitation allocation.
+                </div>
+              )}
+            </div>
+
+            {/* Post-Disbursement Assessment Button */}
+            {selectedDetailReq.post_disbursement_assessment && (
+              <button
+                type="button"
+                onClick={() => {
+                  setViewingReport(selectedDetailReq.post_disbursement_assessment);
+                }}
+                className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
+              >
+                <FileCheck className="w-4 h-4" />
+                <span>View Field Assessment Truth Report</span>
+              </button>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDetailReq(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportVoucherPDF(selectedDetailReq)}
+                  className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#006B56] border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                  title="Download Official PDF Voucher"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>PDF Voucher</span>
+                </button>
+              </div>
+
+              {/* If pending, provide review buttons directly inside modal */}
+              {selectedDetailReq.status !== 'Rejected by Program Manager' &&
+               selectedDetailReq.status !== 'Rejected' &&
+               selectedDetailReq.stage !== -1 &&
+               (selectedDetailReq.status === 'Pending Program Manager Approval' || selectedDetailReq.stage === 2 || selectedDetailReq.status === 'Endorsed by Supervisor') && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const req = selectedDetailReq;
+                      setSelectedDetailReq(null);
+                      handleOpenReview(req, 'reject');
+                    }}
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const req = selectedDetailReq;
+                      setSelectedDetailReq(null);
+                      handleOpenReview(req, 'approve');
+                    }}
+                    className="px-4 py-2 bg-[#006B56] hover:bg-[#005544] text-white text-xs font-bold rounded-xl shadow-2xs transition cursor-pointer flex items-center gap-1"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Authorize</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. Clean Review Modal */}
       {showReviewModal && selectedRequest && (

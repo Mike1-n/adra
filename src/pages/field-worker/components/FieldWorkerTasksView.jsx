@@ -155,136 +155,7 @@ export function FieldWorkerTasksView({
   return (
     <div className="space-y-3.5 pb-12 animate-in fade-in duration-200">
       
-      {/* 1. FLAT TAB BAR: All Tasks -> Pending Audit -> Submitted -> Returned / Rejected -> Hub Cargo -> In Custody -> Delivered */}
-      <div className="flex items-center space-x-1 border-b border-slate-200 px-1 overflow-x-auto no-scrollbar">
-        {/* 1. All Tasks */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter('all')}
-          className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 border-b-2 cursor-pointer ${
-            statusFilter === 'all'
-              ? 'border-[#006B56] text-[#006B56]'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>All Tasks</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            statusFilter === 'all' ? 'bg-emerald-100 text-[#006B56]' : 'bg-slate-100 text-slate-500'
-          }`}>
-            {tasks.length}
-          </span>
-        </button>
-
-        {/* 2. Pending Audit */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter('pending')}
-          className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 border-b-2 cursor-pointer ${
-            statusFilter === 'pending'
-              ? 'border-amber-600 text-amber-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>Pending Audit</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            statusFilter === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'
-          }`}>
-            {pendingCount}
-          </span>
-        </button>
-
-        {/* 3. Submitted */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter('submitted')}
-          className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 border-b-2 cursor-pointer ${
-            statusFilter === 'submitted'
-              ? 'border-purple-600 text-purple-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>Submitted</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            statusFilter === 'submitted' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-500'
-          }`}>
-            {submittedCount}
-          </span>
-        </button>
-
-        {/* 4. Returned / Rejected */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter('rejected')}
-          className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 border-b-2 cursor-pointer ${
-            statusFilter === 'rejected'
-              ? 'border-rose-600 text-rose-700'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>Returned / Rejected</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            statusFilter === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-500'
-          }`}>
-            {rejectedCount}
-          </span>
-        </button>
-
-        {/* 5. Hub Goods Ready for Collection */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter('hub_ready')}
-          className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 border-b-2 cursor-pointer ${
-            statusFilter === 'hub_ready'
-              ? 'border-emerald-600 text-emerald-800'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>📦 Hub Store Cargo</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            statusFilter === 'hub_ready' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
-          }`}>
-            {hubReadyCount}
-          </span>
-        </button>
-
-        {/* 6. In Custody (Collected by Field Worker) */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter('in_custody')}
-          className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 border-b-2 cursor-pointer ${
-            statusFilter === 'in_custody'
-              ? 'border-blue-600 text-blue-800'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>✓ In Custody</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            statusFilter === 'in_custody' ? 'bg-blue-600 text-white' : (inCustodyCount > 0 ? 'bg-blue-100 text-blue-800 font-black' : 'bg-slate-100 text-slate-500')
-          }`}>
-            {inCustodyCount}
-          </span>
-        </button>
-
-        {/* 7. Delivered / Completed */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter('completed')}
-          className={`pb-2 px-2 text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 border-b-2 cursor-pointer ${
-            statusFilter === 'completed'
-              ? 'border-emerald-700 text-emerald-800'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>Delivered</span>
-          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            statusFilter === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
-          }`}>
-            {completedCount}
-          </span>
-        </button>
-      </div>
-
-      {/* 2. SEARCH INPUT */}
+      {/* SEARCH INPUT */}
       <div className="relative">
         <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
         <input
@@ -313,7 +184,7 @@ export function FieldWorkerTasksView({
           </div>
           <h3 className="text-sm font-bold text-slate-800">No matching assignments found</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Try adjusting your search criteria or switch status filter tabs above.
+            Try adjusting your search criteria or select another filter from the sidebar menu.
           </p>
         </div>
       ) : (
@@ -498,20 +369,6 @@ export function FieldWorkerTasksView({
                           </button>
                         )}
 
-                        {(isCollected || isArrivedAtHub) && (onDistribute || onOpenScanner) && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onDistribute) onDistribute(task);
-                              else if (onOpenScanner) onOpenScanner(task);
-                            }}
-                            className="px-3 py-1.5 bg-[#006B56] hover:bg-[#005a48] text-white text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
-                          >
-                            <PackageCheck className="w-3.5 h-3.5" />
-                            <span>Distribute</span>
-                          </button>
-                        )}
 
                         {isPending && (
                           <button

@@ -291,121 +291,75 @@ export function SupervisorReportReviewView({
               )}
             </div>
           ) : (
-            filteredAssessments.map(item => {
-              const finding = item.verification_finding || 'VERIFIED_TRUE';
-              const findingConfig = {
-                'VERIFIED_TRUE': { label: 'Verified True', bg: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
-                'DISCREPANCY': { label: 'Discrepancy Noted', bg: 'bg-amber-100 text-amber-900 border-amber-300' },
-                'NOT_ELIGIBLE': { label: 'Not Eligible / Relocated', bg: 'bg-rose-100 text-rose-900 border-rose-300' }
-              }[finding] || { label: 'Field Audited', bg: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
-
-              return (
-                <div
-                  key={item.id || item.assessment_code}
-                  onClick={() => setSelectedAssessment(item)}
-                  className="bg-white rounded-2xl p-4 shadow-2xs border border-slate-200/80 hover:border-purple-300 hover:shadow-xs transition-all cursor-pointer space-y-3 group"
-                >
-                  {/* Top Bar: Code, Status & Ground Finding */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs font-black text-[#006B56] font-mono">
-                        {item.assessment_code}
-                      </span>
-                      {item.request_code && (
-                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                          {item.request_code}
-                        </span>
-                      )}
-                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${findingConfig.bg}`}>
-                        {findingConfig.label}
-                      </span>
-                    </div>
-
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${statusStyles[item.status] || 'bg-slate-100 text-slate-700'}`}>
-                      {item.status}
-                    </span>
-                  </div>
-
-                  {/* Beneficiary & Field Worker */}
-                  <div>
-                    <h3 className="text-sm font-black text-slate-900 group-hover:text-[#006B56] transition-colors">
-                      {item.beneficiary_name}
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                      <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>Audited by <strong>{item.field_worker_name || 'Field Officer'}</strong></span>
-                      <span>&bull;</span>
-                      <span className="font-mono text-[11px]">{item.date_conducted || (item.submission_date ? new Date(item.submission_date).toLocaleDateString('en-GB') : 'Recent')}</span>
-                    </p>
-                  </div>
-
-                  {/* Findings Snippet */}
-                  <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1 text-slate-600 border border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 font-semibold">Recommended Aid:</span>
-                      <span className="font-bold text-slate-900 truncate max-w-[180px]">
-                        {item.recommended_aid || item.assistance_requested || 'Emergency Relief Package'}
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-1 pt-1 text-slate-600 border-t border-slate-200/60">
-                      <MapPin className="w-3.5 h-3.5 text-[#006B56] shrink-0 mt-0.5" />
-                      <span className="truncate">{item.location || 'Kapoeta South, Eastern Equatoria'}</span>
-                    </div>
-                    {item.ground_situation_report && (
-                      <p className="pt-1 text-[11px] text-slate-700 italic line-clamp-2 border-t border-slate-200/50">
-                        "{item.ground_situation_report}"
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Evidence Thumbnails / Documents count */}
-                  <div className="flex items-center justify-between pt-1">
-                    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
-                      {item.evidence_photos && item.evidence_photos.length > 0 && (
-                        <span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md">
-                          <ImageIcon className="w-3 h-3 text-emerald-700" />
-                          <span>{item.evidence_photos.length} Photos</span>
-                        </span>
-                      )}
-                      <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md">
-                        Score: {item.vulnerability_score || 85}/100
-                      </span>
-                    </div>
-
-                    {(() => {
-                      const isItemForwarded = [
-                        'Forwarded to Program Manager',
-                        'Forwarded',
-                        'Awaiting Program Manager Decision',
-                        'Approved',
-                        'Dispatched',
-                        'Completed',
-                        'Delivered',
-                        'Closed'
-                      ].includes(item.status) || Boolean(item.forwarded_to_pm || item.forwarded_to_pm_at || item.forwarded_at);
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden max-w-5xl mx-auto">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="py-2 px-3 w-36">Audit Code</th>
+                      <th className="py-2 px-3">Beneficiary</th>
+                      <th className="py-2 px-3">Field Worker</th>
+                      <th className="py-2 px-3 w-32">Finding</th>
+                      <th className="py-2 px-3 w-20 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredAssessments.map(item => {
+                      const finding = item.verification_finding || 'VERIFIED_TRUE';
+                      const findingConfig = {
+                        'VERIFIED_TRUE': { label: 'Verified True', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+                        'DISCREPANCY': { label: 'Discrepancy', bg: 'bg-amber-50 text-amber-800 border-amber-200' },
+                        'NOT_ELIGIBLE': { label: 'Not Eligible', bg: 'bg-rose-50 text-rose-800 border-rose-200' }
+                      }[finding] || { label: 'Audited', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
 
                       return (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedAssessment(item);
-                          }}
-                          className={`inline-flex items-center gap-1 text-xs font-black transition ${
-                            isItemForwarded
-                              ? 'text-purple-700 hover:text-purple-900 group-hover:underline'
-                              : 'text-[#006B56] hover:text-[#005544] group-hover:underline'
-                          }`}
+                        <tr
+                          key={item.id || item.assessment_code}
+                          onClick={() => setSelectedAssessment(item)}
+                          className="hover:bg-slate-50 cursor-pointer transition-colors"
                         >
-                          <span>{isItemForwarded ? 'View Dossier' : 'Review Dossier'}</span>
-                          {isItemForwarded ? <Lock className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
+                          {/* 1. Audit Code */}
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <span className="font-mono text-xs font-bold text-[#006B56]">
+                              {item.assessment_code || item.id}
+                            </span>
+                          </td>
+
+                          {/* 2. Beneficiary */}
+                          <td className="py-2 px-3 font-bold text-slate-900 text-xs whitespace-nowrap">
+                            {item.beneficiary_name}
+                          </td>
+
+                          {/* 3. Field Worker */}
+                          <td className="py-2 px-3 text-xs text-slate-600 font-medium whitespace-nowrap">
+                            {item.field_worker_name || 'Field Officer'}
+                          </td>
+
+                          {/* 4. Finding */}
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border ${findingConfig.bg}`}>
+                              {findingConfig.label}
+                            </span>
+                          </td>
+
+                          {/* 5. Action */}
+                          <td className="py-2 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedAssessment(item)}
+                              className="px-2.5 py-1 bg-[#006B56] hover:bg-[#005544] text-white text-[11px] font-bold rounded-lg transition active:scale-95 inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>View</span>
+                            </button>
+                          </td>
+                        </tr>
                       );
-                    })()}
-                  </div>
-                </div>
-              );
-            })
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </div>
       </div>

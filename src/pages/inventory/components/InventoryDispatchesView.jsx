@@ -42,7 +42,6 @@ export function InventoryDispatchesView({
   const [viewMode, setViewMode] = useState('table'); // Default to table form
   const statusFilter = externalStatusFilter !== undefined ? externalStatusFilter : internalStatusFilter;
   const setStatusFilter = onStatusFilterChange || setInternalStatusFilter;
-  const [isStagedExpanded, setIsStagedExpanded] = useState(true);
 
   const filteredDispatches = useMemo(() => {
     return dispatches.filter(d => {
@@ -94,224 +93,113 @@ export function InventoryDispatchesView({
   return (
     <div className="space-y-4 sm:space-y-5">
       
-      {/* 1. METRICS SUMMARY ROW (CLICKABLE STAT CARDS) */}
+      {/* 1. METRICS SUMMARY ROW (CLICKABLE STAT CARDS WITH DISTINCT COLOURS) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+        
+        {/* Metric 1: Total Waybills (Blue Theme) */}
         <button
           type="button"
           onClick={() => setStatusFilter('ALL')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs ${
             statusFilter === 'ALL'
-              ? 'bg-blue-50/70 border-blue-300 ring-2 ring-blue-500/20 shadow-xs'
-              : 'bg-white border-slate-200/80 hover:border-slate-300 shadow-xs'
+              ? 'bg-blue-100/80 border-blue-400 ring-2 ring-blue-500/20'
+              : 'bg-blue-50/50 border-blue-200/80 hover:bg-blue-50 hover:border-blue-300'
           }`}
         >
           <div className="space-y-0.5 min-w-0">
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">
+            <span className="text-[10px] sm:text-[11px] font-extrabold text-blue-700 uppercase tracking-wider block truncate">
               Total Waybills
             </span>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-lg sm:text-xl font-black text-slate-900">{stats.totalWaybills}</span>
-              <span className="text-xs font-semibold text-slate-500">Manifests</span>
+              <span className="text-lg sm:text-xl font-black text-blue-950">{stats.totalWaybills}</span>
+              <span className="text-xs font-bold text-blue-600">Manifests</span>
             </div>
-            <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">Aid convoys issued</span>
+            <span className="text-[10px] sm:text-[11px] text-blue-500/90 block truncate">Aid convoys issued</span>
           </div>
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 ml-2">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 ml-2 shadow-xs">
             <Truck className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
         </button>
 
+        {/* Metric 2: In Transit (Amber Theme) */}
         <button
           type="button"
           onClick={() => setStatusFilter('IN_TRANSIT')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs ${
             statusFilter === 'IN_TRANSIT'
-              ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-500/20 shadow-xs'
-              : 'bg-white border-slate-200/80 hover:border-slate-300 shadow-xs'
+              ? 'bg-amber-100/80 border-amber-400 ring-2 ring-amber-500/20'
+              : 'bg-amber-50/50 border-amber-200/80 hover:bg-amber-50 hover:border-amber-300'
           }`}
         >
           <div className="space-y-0.5 min-w-0">
-            <span className="text-[10px] sm:text-[11px] font-bold text-amber-800 uppercase tracking-wider block truncate">
+            <span className="text-[10px] sm:text-[11px] font-extrabold text-amber-800 uppercase tracking-wider block truncate">
               In Transit
             </span>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-lg sm:text-xl font-black text-amber-900">{stats.inTransitCount}</span>
-              <span className="text-xs font-semibold text-amber-700">En Route</span>
+              <span className="text-lg sm:text-xl font-black text-amber-950">{stats.inTransitCount}</span>
+              <span className="text-xs font-bold text-amber-700">En Route</span>
             </div>
-            <span className="text-[10px] sm:text-[11px] text-amber-600 block truncate">Active field convoys</span>
+            <span className="text-[10px] sm:text-[11px] text-amber-600/90 block truncate">Active field convoys</span>
           </div>
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 ml-2">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 ml-2 shadow-xs">
             <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
         </button>
 
+        {/* Metric 3: Delivered (Emerald Theme) */}
         <button
           type="button"
           onClick={() => setStatusFilter('DELIVERED')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs ${
             statusFilter === 'DELIVERED'
-              ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20 shadow-xs'
-              : 'bg-white border-slate-200/80 hover:border-slate-300 shadow-xs'
+              ? 'bg-emerald-100/80 border-emerald-400 ring-2 ring-emerald-500/20'
+              : 'bg-emerald-50/50 border-emerald-200/80 hover:bg-emerald-50 hover:border-emerald-300'
           }`}
         >
           <div className="space-y-0.5 min-w-0">
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">
+            <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-800 uppercase tracking-wider block truncate">
               Delivered
             </span>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-lg sm:text-xl font-black text-emerald-900">{stats.deliveredCount}</span>
-              <span className="text-xs font-semibold text-emerald-700">Verified</span>
+              <span className="text-lg sm:text-xl font-black text-emerald-950">{stats.deliveredCount}</span>
+              <span className="text-xs font-bold text-emerald-700">Verified</span>
             </div>
-            <span className="text-[10px] sm:text-[11px] text-emerald-600 block truncate">Confirmed receipt</span>
+            <span className="text-[10px] sm:text-[11px] text-emerald-600/90 block truncate">Confirmed receipt</span>
           </div>
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-[#006B56] flex items-center justify-center shrink-0 ml-2">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[#006B56] text-white flex items-center justify-center shrink-0 ml-2 shadow-xs">
             <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
         </button>
 
+        {/* Metric 4: Staged at Depot (Purple Theme) */}
         <button
           type="button"
           onClick={() => setStatusFilter('STAGED')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs ${
             statusFilter === 'STAGED'
-              ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-500/20 shadow-xs'
-              : 'bg-white border-slate-200/80 hover:border-slate-300 shadow-xs'
+              ? 'bg-purple-100/80 border-purple-400 ring-2 ring-purple-500/20'
+              : 'bg-purple-50/50 border-purple-200/80 hover:bg-purple-50 hover:border-purple-300'
           }`}
         >
           <div className="space-y-0.5 min-w-0">
-            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">
+            <span className="text-[10px] sm:text-[11px] font-extrabold text-purple-800 uppercase tracking-wider block truncate">
               Staged at Depot
             </span>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-lg sm:text-xl font-black text-slate-900">{approvedRequests.length || stats.stagedCount}</span>
-              <span className="text-xs font-semibold text-slate-500">Ready</span>
+              <span className="text-lg sm:text-xl font-black text-purple-950">{approvedRequests.length || stats.stagedCount}</span>
+              <span className="text-xs font-bold text-purple-700">Ready</span>
             </div>
-            <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate">
+            <span className="text-[10px] sm:text-[11px] text-purple-600/90 block truncate">
               {approvedRequests.length > 0 ? `${approvedRequests.length} PM-Authorized` : 'Loading bay queued'}
             </span>
           </div>
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0 ml-2">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 ml-2 shadow-xs">
             <Package className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
         </button>
       </div>
 
-      {/* 2. PM-AUTHORIZED STAGING QUEUE (Dedicated to STAGED view) */}
-      {statusFilter === 'STAGED' && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-white border border-emerald-200 shadow-xs space-y-3.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-emerald-100/80">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-[#006B56] text-white shadow-2xs shrink-0">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                    PM-Authorized Aid Requests Staged for Dispatch
-                  </h4>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white font-mono font-black text-xs">
-                    {approvedRequests.length}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600">
-                  Approved humanitarian requests awaiting warehouse commodity release and waybill generation.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsStagedExpanded(!isStagedExpanded)}
-                className="px-3 py-1.5 rounded-xl bg-white border border-emerald-200 hover:bg-emerald-50 text-emerald-800 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <span>{isStagedExpanded ? 'Collapse Queue' : 'View Queue'}</span>
-                {isStagedExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onOpenCreateDispatchModal(null)}
-                className="px-3.5 py-1.5 rounded-xl bg-[#006B56] hover:bg-[#005443] text-white font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-2xs transition active:scale-[0.99] cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Issue Waybill</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Staged Requests Cards Grid */}
-          {isStagedExpanded && (
-            approvedRequests.length === 0 ? (
-              <div className="py-8 text-center text-slate-500 bg-white/80 rounded-xl border border-dashed border-emerald-200 p-4">
-                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-[#006B56]" />
-                <p className="font-bold text-slate-800 text-xs">All Authorized Aid Requests Dispatched</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">There are no pending requests waiting for warehouse release.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
-                {approvedRequests.map(req => {
-                  const reqCode = req.request_code || req.tracking_number || req.id;
-                  const benName = req.beneficiary_name || req.full_name || 'Beneficiary';
-                  const loc = req.location || [req.county, req.payam].filter(Boolean).join(', ') || req.state || 'Field Hub';
-                  const cat = req.category || req.assistance_type || 'Relief Goods';
-                  const supName = req.assigned_supervisor_name && !req.assigned_supervisor_name.toLowerCase().includes('pending')
-                    ? req.assigned_supervisor_name
-                    : (req.supervisor_name || 'Supervisor Assigned');
-
-                  return (
-                    <div
-                      key={req.id || req.request_code}
-                      className="p-3.5 rounded-xl bg-white border border-emerald-200/80 hover:border-emerald-400 hover:shadow-md transition flex flex-col justify-between space-y-3"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between gap-1.5">
-                          <div className="min-w-0">
-                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 block truncate">
-                              {reqCode}
-                            </span>
-                            <h5 className="font-extrabold text-slate-900 text-sm mt-1 truncate">
-                              {benName}
-                            </h5>
-                          </div>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
-                            Authorized
-                          </span>
-                        </div>
-
-                        <div className="space-y-1 text-xs text-slate-600">
-                          <div className="flex items-center gap-1.5 text-slate-700">
-                            <Tag className="w-3.5 h-3.5 text-[#006B56] shrink-0" />
-                            <span className="font-semibold truncate">{cat}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-slate-500">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate">{loc}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-slate-500">
-                            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate">Supervisor: <strong className="text-slate-700">{supName}</strong></span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => onOpenCreateDispatchModal(req)}
-                        className="w-full py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.99] shadow-2xs cursor-pointer"
-                      >
-                        <PackagePlus className="w-3.5 h-3.5" />
-                        <span>Issue Waybill & Dispatch</span>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )
-          )}
-        </div>
-      )}
-
-      {/* 3. SEARCH & ACTIVE FILTER BAR & VIEW TOGGLE */}
+      {/* 2. SEARCH & ACTIVE FILTER BAR & VIEW TOGGLE */}
       <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
         {/* Search Input */}
         <div className="relative flex-1 min-w-[240px]">
@@ -336,7 +224,7 @@ export function InventoryDispatchesView({
                   ? 'bg-amber-100 text-amber-950 border border-amber-300'
                   : statusFilter === 'DELIVERED'
                   ? 'bg-emerald-100 text-[#006B56] border border-emerald-300'
-                  : 'bg-indigo-100 text-indigo-950 border border-indigo-300'
+                  : 'bg-purple-100 text-purple-950 border border-purple-300'
               }`}>
                 <span>{statusFilter === 'IN_TRANSIT' ? 'In Transit' : statusFilter === 'DELIVERED' ? 'Delivered' : 'Staged'}</span>
                 <button

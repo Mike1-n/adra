@@ -35,14 +35,12 @@ import { useToast } from '../../context/ToastContext';
 // Field Worker Subviews
 import { FieldWorkerDashboardView } from './components/FieldWorkerDashboardView';
 import { FieldWorkerTasksView } from './components/FieldWorkerTasksView';
-import { FieldWorkerActivitiesView } from './components/FieldWorkerActivitiesView';
 import { FieldWorkerBeneficiariesView } from './components/FieldWorkerBeneficiariesView';
 import { FieldFundingListView } from './components/FieldFundingListView';
 import { AdraLogo } from '../../components/common/AdraLogo';
 
 // Field Worker Modals
 import { FieldAssessmentFormModal } from './components/FieldAssessmentFormModal';
-import { FieldDistributionScannerModal } from './components/FieldDistributionScannerModal';
 import { FieldBeneficiaryRegisterModal } from './components/FieldBeneficiaryRegisterModal';
 import { FieldFundingRequestModal } from './components/FieldFundingRequestModal';
 
@@ -59,16 +57,14 @@ export function FieldWorkerApp({
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'tasks' | 'beneficiaries' | 'activities' | 'funding' | 'profile'
   const [taskStatusFilter, setTaskStatusFilter] = useState('all'); // 'all' | 'pending' | 'submitted' | 'completed'
   const [facilitationFilter, setFacilitationFilter] = useState('request'); // 'request' | 'pending' | 'approved'
-  const [isTasksExpanded, setIsTasksExpanded] = useState(true);
-  const [isFacilitationExpanded, setIsFacilitationExpanded] = useState(true);
+  const [isTasksExpanded, setIsTasksExpanded] = useState(false);
+  const [isFacilitationExpanded, setIsFacilitationExpanded] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Modals State
   const [showAssessmentModal, setShowAssessmentModal] = useState(false);
   const [selectedTaskForAssessment, setSelectedTaskForAssessment] = useState(null);
   const [selectedProjectForAudit, setSelectedProjectForAudit] = useState(null);
-  const [showScannerModal, setShowScannerModal] = useState(false);
-  const [selectedTaskForDistribution, setSelectedTaskForDistribution] = useState(null);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showFundingModal, setShowFundingModal] = useState(false);
   const [selectedTaskForFunding, setSelectedTaskForFunding] = useState(null);
@@ -368,57 +364,6 @@ export function FieldWorkerApp({
             </button>
           </div>
 
-          {/* 2. Field Officer / Route Switcher (Fixed) */}
-          <div className="p-2.5 border-b border-slate-100 bg-slate-50/50 shrink-0">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowCoverageMenu(!showCoverageMenu)}
-                className="w-full p-2 bg-white hover:bg-emerald-50/40 border border-slate-200 rounded-xl text-left flex items-center justify-between shadow-2xs transition cursor-pointer"
-              >
-                <div className="flex items-center space-x-2 min-w-0">
-                  <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#006B56] flex items-center justify-center shrink-0 border border-emerald-200/70">
-                    <MapPin className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-[9px] text-slate-400 font-bold uppercase block leading-none">
-                      Field Route / Payam
-                    </span>
-                    <span className="text-xs font-bold text-slate-900 truncate block mt-0.5">
-                      {worker.payam || worker.county || 'Kapoeta South'}
-                    </span>
-                  </div>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              </button>
-
-              {showCoverageMenu && (
-                <div className="absolute left-0 right-0 mt-1 bg-white rounded-xl shadow-2xl border border-slate-200 py-1 z-50 text-xs animate-in fade-in max-h-64 overflow-y-auto">
-                  <div className="px-3 py-1.5 border-b border-slate-100 text-[9px] uppercase font-bold text-slate-400">
-                    Select Field Officer Route
-                  </div>
-                  {allWorkers.map(w => (
-                    <button
-                      key={w.id}
-                      type="button"
-                      onClick={() => handleSelectWorkerProfile(w)}
-                      className={`w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between transition ${
-                        worker.id === w.id ? 'bg-emerald-50 text-[#006B56] font-bold' : 'text-slate-700'
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <span className="font-bold block text-xs truncate">{w.name}</span>
-                        <span className="text-[10px] text-slate-400 font-normal truncate block">
-                          {w.payam || w.assigned_area} • Sup: {w.supervisor_name || 'Emmanuel Adeyemi'}
-                        </span>
-                      </div>
-                      {worker.id === w.id && <span className="w-2 h-2 rounded-full bg-[#006B56] shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* 3. Dedicated Scrollable Navigation Area */}
           <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 min-h-0">
@@ -445,7 +390,10 @@ export function FieldWorkerApp({
             <div className="pt-1">
               <button
                 type="button"
-                onClick={() => setIsTasksExpanded(!isTasksExpanded)}
+                onClick={() => {
+                  setIsTasksExpanded(prev => !prev);
+                  if (!isTasksExpanded) setIsFacilitationExpanded(false);
+                }}
                 className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-slate-900 hover:bg-slate-100 transition cursor-pointer"
               >
                 <div className="flex items-center space-x-2.5">
@@ -719,58 +667,16 @@ export function FieldWorkerApp({
               </span>
             </button>
 
-            {/* Distribute Aid Packages */}
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedTaskForDistribution(null);
-                setShowScannerModal(true);
-                setIsSidebarOpen(false);
-              }}
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 hover:text-slate-950 hover:bg-slate-100 transition-all cursor-pointer"
-            >
-              <div className="flex items-center space-x-2.5">
-                <PackageCheck className="w-4 h-4 text-emerald-600" />
-                <span>Distribute Aid Packages</span>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
-                Distribute
-              </span>
-            </button>
 
-            {/* Daily Field Logs */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('activities');
-                setIsSidebarOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'activities'
-                  ? 'bg-[#006B56] text-white shadow-xs'
-                  : 'text-slate-800 hover:text-slate-950 hover:bg-slate-100'
-              }`}
-            >
-              <div className="flex items-center space-x-2.5">
-                <Activity className={`w-4 h-4 ${activeTab === 'activities' ? 'text-white' : 'text-slate-500'}`} />
-                <span>Daily Field Logs</span>
-              </div>
-              {activities.length > 0 && (
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-black min-w-[24px] text-center shadow-xs ${
-                  activeTab === 'activities'
-                    ? 'bg-white text-[#006B56]'
-                    : 'bg-emerald-600 text-white'
-                }`}>
-                  {activities.length}
-                </span>
-              )}
-            </button>
 
             {/* Facilitation Section (Collapsible) */}
             <div className="pt-1">
               <button
                 type="button"
-                onClick={() => setIsFacilitationExpanded(!isFacilitationExpanded)}
+                onClick={() => {
+                  setIsFacilitationExpanded(prev => !prev);
+                  if (!isFacilitationExpanded) setIsTasksExpanded(false);
+                }}
                 className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-slate-900 hover:bg-slate-100 transition cursor-pointer"
               >
                 <div className="flex items-center space-x-2.5">
@@ -922,91 +828,6 @@ export function FieldWorkerApp({
               </div>
             </button>
           </nav>
-
-          {/* 4. Sidebar Footer (Fixed at Bottom) */}
-          <div className="p-3 border-t border-slate-200 bg-slate-50/90 shrink-0 space-y-2">
-            <div className="flex items-center space-x-2.5 p-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-              <div className="w-8 h-8 rounded-lg bg-[#006B56] text-white flex items-center justify-center font-extrabold text-xs shrink-0">
-                {worker.name ? worker.name.split(' ').map(n => n[0]).join('') : 'FW'}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-900 truncate block">
-                    {worker.name || 'Field Officer'}
-                  </span>
-                  <span className={`w-2 h-2 rounded-full ${
-                    dutyStatus === 'Available' ? 'bg-emerald-500' :
-                    dutyStatus === 'On Assignment' ? 'bg-amber-500' : 'bg-blue-500'
-                  }`} />
-                </div>
-                <span className="text-[10px] text-slate-400 block truncate">
-                  Sup: {worker.supervisor_name || 'Emmanuel Adeyemi'}
-                </span>
-              </div>
-            </div>
-
-            {/* Role Switcher */}
-            <button
-              type="button"
-              onClick={() => {
-                setShowRoleSwitcher(!showRoleSwitcher);
-              }}
-              className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
-            >
-              <ArrowRightLeft className="w-3.5 h-3.5 text-[#006B56]" />
-              Switch System Role
-            </button>
-
-            {showRoleSwitcher && (
-              <div className="bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 space-y-1 text-xs animate-in fade-in">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowRoleSwitcher(false);
-                    setIsSidebarOpen(false);
-                    onSwitchRole ? onSwitchRole('Supervisor') : quickSwitchRole('Supervisor');
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 font-semibold text-slate-700 flex items-center gap-2"
-                >
-                  <span className="w-2 h-2 rounded-full bg-amber-500" />
-                  Supervisor (Emmanuel Adeyemi)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowRoleSwitcher(false);
-                    setIsSidebarOpen(false);
-                    onSwitchRole ? onSwitchRole('Program Manager') : quickSwitchRole('Program Manager');
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 font-semibold text-slate-700 flex items-center gap-2"
-                >
-                  <span className="w-2 h-2 rounded-full bg-blue-500" />
-                  Programme Manager (Grace Ochieng)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowRoleSwitcher(false);
-                    setIsSidebarOpen(false);
-                    onSwitchRole ? onSwitchRole('Administrator') : quickSwitchRole('Administrator');
-                  }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 font-semibold text-slate-700 flex items-center gap-2"
-                >
-                  <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                  Administrator (Dr. Elizabeth Warren)
-                </button>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={onLogout || logout}
-              className="w-full py-2 px-3 text-red-600 hover:bg-red-50 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Sign Out
-            </button>
-          </div>
         </aside>
 
         {/* TOP APP BAR / HEADER */}
@@ -1047,28 +868,6 @@ export function FieldWorkerApp({
 
             {/* Right Header Action Icons */}
             <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={handleRefresh}
-                disabled={refreshing}
-                title="Refresh Records"
-                className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition"
-              >
-                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-[#006B56]' : ''}`} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedTaskForDistribution(null);
-                  setShowScannerModal(true);
-                }}
-                title="Distribute Aid Package"
-                className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition border border-emerald-200/70"
-              >
-                <PackageCheck className="w-4 h-4" />
-              </button>
-
               <button
                 type="button"
                 onClick={onLogout || logout}
@@ -1200,13 +999,6 @@ export function FieldWorkerApp({
                 />
               )}
 
-              {activeTab === 'activities' && (
-                <FieldWorkerActivitiesView
-                  activities={activities}
-                  worker={worker}
-                  onCreateActivity={handleCreateActivity}
-                />
-              )}
 
               {activeTab === 'profile' && (
                 <FieldWorkerProfileView
@@ -1238,19 +1030,6 @@ export function FieldWorkerApp({
           />
         )}
 
-        {showScannerModal && (
-          <FieldDistributionScannerModal
-            isOpen={showScannerModal}
-            onClose={() => {
-              setShowScannerModal(false);
-              setSelectedTaskForDistribution(null);
-            }}
-            worker={worker}
-            tasks={tasks}
-            selectedTask={selectedTaskForDistribution}
-            onConfirmDistribution={handleConfirmDistribution}
-          />
-        )}
 
         {showRegisterModal && (
           <FieldBeneficiaryRegisterModal

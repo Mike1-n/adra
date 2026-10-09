@@ -2,6 +2,37 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { formatCurrency, formatDate } from './utils';
 
+let cachedAdraLogo = null;
+
+/**
+ * Load and cache ADRA logo as base64 data URL for PDF generation
+ */
+async function getAdraLogoBase64() {
+  if (cachedAdraLogo) return cachedAdraLogo;
+  const logoPaths = ['/images/adra-logo-expanded.png', '/images/adra-logo.png'];
+  for (const p of logoPaths) {
+    try {
+      const res = await fetch(p);
+      if (res.ok) {
+        const blob = await res.blob();
+        const base64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+        if (base64) {
+          cachedAdraLogo = base64;
+          return cachedAdraLogo;
+        }
+      }
+    } catch (e) {
+      // Continue to next path
+    }
+  }
+  return null;
+}
+
 /**
  * Export data array to CSV file
  */
@@ -40,9 +71,9 @@ export function exportToCSV(data, fileName = 'ADRA_Export.csv') {
 }
 
 /**
- * Generate formatted PDF Report with ADRA branding
+ * Generate formatted PDF Report with ADRA branding and logo
  */
-export function exportToPDF({
+export async function exportToPDF({
   title,
   subtitle,
   columns,
@@ -56,27 +87,42 @@ export function exportToPDF({
     format: 'a4'
   });
 
+  const logo = await getAdraLogoBase64();
+
   // ADRA Header Banner
   doc.setFillColor(0, 107, 86); // Dark Green #006B56
   doc.rect(0, 0, 842, 65, 'F');
 
+  // Official ADRA Logo Badge
+  if (logo) {
+    try {
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(32, 9, 46, 46, 6, 6, 'F');
+      doc.addImage(logo, 'PNG', 35, 12, 40, 40);
+    } catch (e) {
+      console.warn('Could not render logo in PDF:', e);
+    }
+  }
+
+  const textStartX = logo ? 88 : 40;
+
   // Title
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(18);
+  doc.setFontSize(16);
   doc.setTextColor(255, 255, 255); // White #FFFFFF
-  doc.text('ADRA DEVELOPMENT MANAGEMENT SYSTEM', 40, 32);
+  doc.text('ADRA DEVELOPMENT MANAGEMENT SYSTEM', textStartX, 30);
 
   // Subtitle / Report Type
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(232, 245, 241); // Light Green #E8F5F1
-  doc.text(title || 'Official Management Report', 40, 50);
+  doc.text(title || 'Official Management Report', textStartX, 48);
 
   // Generation timestamp & metadata
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(245, 247, 246); // Light Gray #F5F7F6
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 640, 35);
-  doc.text('Confidential NGO Document', 640, 48);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 805, 30, { align: 'right' });
+  doc.text('ADRA South Sudan Humanitarian ERP', 805, 46, { align: 'right' });
 
   let currentY = 85;
 
@@ -152,9 +198,9 @@ export function exportToPDF({
 }
 
 /**
- * Generate official printable PDF Payment Voucher / Receipt
+ * Generate official printable PDF Payment Voucher / Receipt with ADRA Logo
  */
-export function exportVoucherPDF(item) {
+export async function exportVoucherPDF(item) {
   if (!item) return;
 
   const doc = new jsPDF({
@@ -162,6 +208,8 @@ export function exportVoucherPDF(item) {
     unit: 'pt',
     format: 'a4'
   });
+
+  const logo = await getAdraLogoBase64();
 
   const voucherCode = item.finance_disbursement?.voucher_reference || item.expenditure_code || item.request_code || `PV-${Date.now().toString().slice(-6)}`;
   const txnCode = item.finance_disbursement?.transaction_ref || 'TXN-MG-VERIFIED';
@@ -183,30 +231,31 @@ export function exportVoucherPDF(item) {
   doc.rect(0, 0, 595, 80, 'F');
 
   // ADRA Emblem Badge on Left
-  doc.setFillColor(4, 120, 87); // #047857
-  doc.roundedRect(40, 19, 42, 42, 6, 6, 'F');
-  doc.setDrawColor(52, 211, 153); // #34D399
-  doc.setLineWidth(1.2);
-  doc.roundedRect(40, 19, 42, 42, 6, 6, 'S');
+  if (logo) {
+    try {
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(32, 14, 52, 52, 6, 6, 'F');
+      doc.addImage(logo, 'PNG', 36, 18, 44, 44);
+    } catch (e) {
+      console.warn('Could not render logo in voucher:', e);
+    }
+  }
+
+  const textStartX = logo ? 94 : 40;
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(22);
+  doc.setFontSize(12.5);
   doc.setTextColor(255, 255, 255);
-  doc.text('A', 53, 48);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.setTextColor(255, 255, 255);
-  doc.text('ADVENTIST DEVELOPMENT AND RELIEF AGENCY', 92, 34);
+  doc.text('ADVENTIST DEVELOPMENT AND RELIEF AGENCY', textStartX, 33);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setTextColor(230, 245, 240);
-  doc.text('ADRA South Sudan  •  Financial Control & Grants Directorate', 92, 48);
+  doc.text('ADRA South Sudan  •  Financial Control & Grants Directorate', textStartX, 47);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(167, 243, 208);
-  doc.text('OFFICIAL ELECTRONIC DISBURSEMENT VOUCHER RECEIPT', 92, 60);
+  doc.text('OFFICIAL ELECTRONIC DISBURSEMENT VOUCHER RECEIPT', textStartX, 61);
 
   // Reference & Date Strip
   doc.setFillColor(245, 247, 246);
@@ -349,9 +398,9 @@ export function exportVoucherPDF(item) {
 }
 
 /**
- * Generate official Waybill / Dispatch Receipt PDF
+ * Generate official Waybill / Dispatch Receipt PDF with ADRA Logo
  */
-export function exportWaybillPDF(dispatch) {
+export async function exportWaybillPDF(dispatch) {
   if (!dispatch) return;
 
   const doc = new jsPDF({
@@ -360,6 +409,8 @@ export function exportWaybillPDF(dispatch) {
     format: 'a4'
   });
 
+  const logo = await getAdraLogoBase64();
+
   const waybillNo = dispatch.waybill_number || 'WAYBILL-SS';
   const dispatchToken = dispatch.dispatch_token || 'WB-TOKEN';
 
@@ -367,27 +418,39 @@ export function exportWaybillPDF(dispatch) {
   doc.setFillColor(0, 107, 86); // #006B56
   doc.rect(0, 0, 595, 75, 'F');
 
+  if (logo) {
+    try {
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(32, 12, 50, 50, 6, 6, 'F');
+      doc.addImage(logo, 'PNG', 36, 16, 42, 42);
+    } catch (e) {
+      console.warn('Could not render logo in waybill:', e);
+    }
+  }
+
+  const textStartX = logo ? 92 : 40;
+
   // Title
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(18);
+  doc.setFontSize(16);
   doc.setTextColor(255, 255, 255);
-  doc.text('ADRA SOUTH SUDAN', 40, 36);
+  doc.text('ADRA SOUTH SUDAN', textStartX, 34);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setTextColor(209, 250, 229);
-  doc.text('HUMANITARIAN RELIEF DISPATCH & WAYBILL RECEIPT', 40, 54);
+  doc.text('HUMANITARIAN RELIEF DISPATCH & WAYBILL RECEIPT', textStartX, 50);
 
   // Right Header Token Badge
   doc.setFont('courier', 'bold');
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setTextColor(255, 255, 255);
-  doc.text(waybillNo, 555, 36, { align: 'right' });
+  doc.text(waybillNo, 555, 34, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(209, 250, 229);
-  doc.text(`Token: ${dispatchToken}  |  ${dispatch.dispatch_date || 'Today'}`, 555, 54, { align: 'right' });
+  doc.text(`Token: ${dispatchToken}  |  ${dispatch.dispatch_date || 'Today'}`, 555, 50, { align: 'right' });
 
   let currentY = 95;
 

@@ -27,6 +27,7 @@ import {
   Home,
   PanelLeftClose,
   PanelLeftOpen,
+  LayoutDashboard,
 } from 'lucide-react';
 import { db } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -34,6 +35,7 @@ import { useToast } from '../../context/ToastContext';
 import { AdraLogo } from '../../components/common/AdraLogo';
 
 // Subviews
+import { InventoryOverviewView } from './components/InventoryOverviewView';
 import { InventoryStockView } from './components/InventoryStockView';
 import { InventoryDispatchesView } from './components/InventoryDispatchesView';
 import { IssueWaybillView } from './components/IssueWaybillView';
@@ -58,11 +60,11 @@ export function InventoryManagerDashboard({
   const { logout: authLogout, quickSwitchRole } = useAuth();
   const toast = useToast();
 
-  // Active Tab: 'stock' | 'dispatches' | 'suppliers' | 'resources' | 'warehouses' | 'reports'
-  const [activeTab, setActiveTab] = useState('stock');
+  // Active Tab: 'overview' | 'stock' | 'dispatches' | 'suppliers' | 'resources' | 'warehouses' | 'reports'
+  const [activeTab, setActiveTab] = useState('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDispatchesMenuOpen, setIsDispatchesMenuOpen] = useState(true);
-  const [isSuppliersMenuOpen, setIsSuppliersMenuOpen] = useState(true);
+  const [isDispatchesMenuOpen, setIsDispatchesMenuOpen] = useState(false);
+  const [isSuppliersMenuOpen, setIsSuppliersMenuOpen] = useState(false);
   const [supplierSubTab, setSupplierSubTab] = useState('all'); // 'all' | 'stage1' | 'stage2' | 'stage3' | 'stage4' | 'suppliers'
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [showDrawerRoleSwitcher, setShowDrawerRoleSwitcher] = useState(false);
@@ -331,13 +333,6 @@ export function InventoryManagerDashboard({
     setAdjustModalOpen(true);
   };
 
-  const handleNavClick = (tabId) => {
-    setActiveTab(tabId);
-    if (tabId === 'dispatches') {
-      setIsDispatchesMenuOpen(true);
-    }
-  };
-
   const roles = [
     { role: 'Administrator', label: 'Administrator', desc: 'HQ System Control' },
     { role: 'Program Manager', label: 'Programme Manager', desc: 'Emergency Program Scope' },
@@ -407,7 +402,8 @@ export function InventoryManagerDashboard({
 
   const activeTabTitle = useMemo(() => {
     switch (activeTab) {
-      case 'stock': return 'Stock Catalog';
+      case 'overview': return 'Executive Overview Dashboard';
+      case 'stock': return 'Stock Catalog & Commodity Database';
       case 'dispatches': 
         if (dispatchStatusFilter === 'IN_TRANSIT') return 'Aid Dispatches — Active In-Transit Convoys';
         if (dispatchStatusFilter === 'DELIVERED') return 'Aid Dispatches — Delivered & Confirmed at Hubs';
@@ -427,6 +423,41 @@ export function InventoryManagerDashboard({
       default: return 'Logistics & Supply Chain';
     }
   }, [activeTab, dispatchStatusFilter, supplierSubTab]);
+
+  const handleNavClick = (tab) => {
+    setActiveTab(tab);
+    setIsSidebarOpen(false);
+  };
+
+  const toggleDispatchesMenu = (forceOpen) => {
+    if (forceOpen === true) {
+      setIsDispatchesMenuOpen(true);
+      setIsSuppliersMenuOpen(false);
+    } else if (forceOpen === false) {
+      setIsDispatchesMenuOpen(false);
+    } else {
+      setIsDispatchesMenuOpen(prev => {
+        const next = !prev;
+        if (next) setIsSuppliersMenuOpen(false);
+        return next;
+      });
+    }
+  };
+
+  const toggleSuppliersMenu = (forceOpen) => {
+    if (forceOpen === true) {
+      setIsSuppliersMenuOpen(true);
+      setIsDispatchesMenuOpen(false);
+    } else if (forceOpen === false) {
+      setIsSuppliersMenuOpen(false);
+    } else {
+      setIsSuppliersMenuOpen(prev => {
+        const next = !prev;
+        if (next) setIsDispatchesMenuOpen(false);
+        return next;
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 flex font-sans text-slate-800 relative">
@@ -462,56 +493,25 @@ export function InventoryManagerDashboard({
           </button>
         </div>
 
-        {/* 2. Manager Profile Card */}
-        <div className="p-2.5 border-b border-slate-100 bg-slate-50/50 shrink-0">
-          <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 shadow-2xs">
-            <div className="flex items-center space-x-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center text-xs font-black shrink-0 shadow-xs">
-                {(currentUser?.full_name || currentUser?.name || 'Gabriel Majok')
-                  .split(' ')
-                  .map(n => n[0])
-                  .join('')
-                  .slice(0, 2)
-                  .toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <span className="font-extrabold text-xs text-slate-900 block truncate">
-                  {currentUser?.full_name || currentUser?.name || 'Gabriel Majok'}
-                </span>
-                <span className="text-[10px] text-emerald-700 font-bold block truncate">
-                  Inventory Manager
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Scope Filter inside drawer */}
-          <div className="mt-2">
-            <label className="text-[10px] font-bold text-slate-400 uppercase px-1 block mb-1">
-              Active Depot Scope
-            </label>
-            <div className="relative">
-              <select
-                value={selectedDepotScope}
-                onChange={(e) => {
-                  setSelectedDepotScope(e.target.value);
-                  setIsSidebarOpen(false);
-                }}
-                className="w-full pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none focus:ring-1 focus:ring-[#006B56] cursor-pointer appearance-none truncate shadow-2xs"
-              >
-                <option value="ALL">All State Depots ({warehouses.length})</option>
-                {warehouses.map(w => (
-                  <option key={w.id || w.code} value={w.name}>{w.name}</option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Navigation List */}
+        {/* 2. Navigation List */}
         <div className="flex-1 overflow-y-auto p-2.5 space-y-1 text-xs font-semibold">
           
+          {/* Overview Dashboard */}
+          <button
+            type="button"
+            onClick={() => handleNavClick('overview')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
+              activeTab === 'overview'
+                ? 'bg-[#006B56] text-white font-bold shadow-xs'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <div className="flex items-center space-x-2.5">
+              <LayoutDashboard className={`w-4 h-4 ${activeTab === 'overview' ? 'text-white' : 'text-[#006B56]'}`} />
+              <span>Dashboard Overview</span>
+            </div>
+          </button>
+
           {/* Stock Catalog */}
           <button
             type="button"
@@ -548,7 +548,7 @@ export function InventoryManagerDashboard({
                 type="button"
                 onClick={() => {
                   setActiveTab('dispatches');
-                  setIsDispatchesMenuOpen(true);
+                  toggleDispatchesMenu();
                 }}
                 className="flex items-center space-x-2.5 min-w-0 flex-1 text-left cursor-pointer"
               >
@@ -567,7 +567,7 @@ export function InventoryManagerDashboard({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setIsDispatchesMenuOpen(prev => !prev);
+                    toggleDispatchesMenu();
                   }}
                   className={`p-1 rounded-md transition hover:bg-black/10 cursor-pointer ${
                     activeTab === 'dispatches' ? 'text-white' : 'text-slate-400 hover:text-slate-700'
@@ -699,7 +699,7 @@ export function InventoryManagerDashboard({
                 type="button"
                 onClick={() => {
                   setActiveTab('suppliers');
-                  setIsSuppliersMenuOpen(true);
+                  toggleSuppliersMenu();
                 }}
                 className="flex items-center space-x-2.5 min-w-0 flex-1 text-left cursor-pointer"
               >
@@ -718,7 +718,7 @@ export function InventoryManagerDashboard({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setIsSuppliersMenuOpen(prev => !prev);
+                    toggleSuppliersMenu();
                   }}
                   className={`p-1 rounded-md transition hover:bg-black/10 cursor-pointer ${
                     activeTab === 'suppliers' ? 'text-white' : 'text-slate-400 hover:text-slate-700'
@@ -1006,13 +1006,13 @@ export function InventoryManagerDashboard({
             <Menu className="w-5 h-5 text-slate-800" />
           </button>
 
-          {activeTab !== 'stock' ? (
+          {activeTab !== 'overview' ? (
             <div className="flex items-center gap-1.5 min-w-0">
               <button
                 type="button"
-                onClick={() => setActiveTab('stock')}
+                onClick={() => setActiveTab('overview')}
                 className="p-1 text-slate-500 hover:text-[#006B56] rounded-lg hover:bg-slate-100 transition cursor-pointer shrink-0"
-                title="Back to Stock Catalog"
+                title="Back to Overview Dashboard"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
@@ -1152,7 +1152,7 @@ export function InventoryManagerDashboard({
       </header>
 
       {/* 2. MAIN DASHBOARD CONTENT */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-2.5 sm:px-6 lg:px-8 py-2.5 sm:py-6">
         
         {/* Loading Spinner */}
         {loading && (
@@ -1164,6 +1164,35 @@ export function InventoryManagerDashboard({
 
         {!loading && (
           <>
+            {/* View 0: Executive Overview Dashboard */}
+            {activeTab === 'overview' && (
+              <InventoryOverviewView
+                inventory={inventory}
+                warehouses={warehouses}
+                dispatches={dispatches}
+                purchaseOrders={purchaseOrders}
+                onNavigateTab={(tab) => {
+                  setActiveTab(tab);
+                  setIsSidebarOpen(false);
+                }}
+                onOpenReceiveModal={(item) => {
+                  setSelectedReceiveItem(item && item.item_name ? item : null);
+                  setReceiveModalOpen(true);
+                }}
+                onOpenAdjustModal={(item) => {
+                  setSelectedAdjustItem(item || null);
+                  setAdjustModalOpen(true);
+                }}
+                onOpenCreateDispatchModal={() => {
+                  setSelectedDispatchReq(null);
+                  setActiveTab('dispatches-issue');
+                }}
+                onOpenCreatePOModal={() => {
+                  setPoModalOpen(true);
+                }}
+              />
+            )}
+
             {/* View 1: Stock Catalog */}
             {activeTab === 'stock' && (
                <InventoryStockView

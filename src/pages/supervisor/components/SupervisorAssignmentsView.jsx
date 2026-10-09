@@ -1,26 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import {
   Search,
-  Filter,
-  UserCheck,
-  MapPin,
-  Clock,
-  AlertCircle,
-  CheckCircle2,
-  ChevronRight,
-  Layers,
-  ArrowRight,
-  Calendar,
-  Sparkles,
   Inbox,
-  User,
-  FileCheck,
-  RefreshCw,
-  Truck,
-  PackageCheck,
-  Package
+  Download,
+  FileText,
+  Eye,
+  ArrowRight
 } from 'lucide-react';
 import { SupervisorAssignWorkerModal } from './SupervisorAssignWorkerModal';
+import { exportToPDF } from '../../../lib/reportGenerator';
 
 export function SupervisorAssignmentsView({
   assignments = [],
@@ -33,25 +21,21 @@ export function SupervisorAssignmentsView({
   initialStatusTab = 'pending',
   onStatusTabChange
 }) {
-  const [activeTab, setActiveTab] = useState(initialStatusTab); // 'pending' | 'assigned' | 'in_progress' | 'completed' | 'overdue'
+  const [activeTab, setActiveTab] = useState(initialStatusTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('ALL');
-  const [countyFilter, setCountyFilter] = useState('ALL');
   const [assignModalRequest, setAssignModalRequest] = useState(null);
 
-  // Sync initialStatusTab when changed via sidebar sub-item
   React.useEffect(() => {
     if (initialStatusTab) {
       setActiveTab(initialStatusTab);
     }
   }, [initialStatusTab]);
 
-  // Filter assignments by active tab, search query, priority, and county
+  // Filter assignments by active tab and search query
   const filteredAssignments = useMemo(() => {
     return assignments.filter((item) => {
       const status = item.status || 'Submitted';
       
-      // Tab matching logic
       if (activeTab === 'all') {
         // match all
       } else if (activeTab === 'pending') {
@@ -80,19 +64,6 @@ export function SupervisorAssignmentsView({
         if (!isOverdue) return false;
       }
 
-      // Priority matching
-      if (priorityFilter !== 'ALL') {
-        const p = item.priority || item.urgency || 'Medium';
-        if (p !== priorityFilter) return false;
-      }
-
-      // County matching
-      if (countyFilter !== 'ALL') {
-        const c = item.county || '';
-        if (c !== countyFilter) return false;
-      }
-
-      // Search matching
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const code = (item.request_code || item.id || '').toLowerCase();
@@ -107,7 +78,7 @@ export function SupervisorAssignmentsView({
 
       return true;
     });
-  }, [assignments, activeTab, searchQuery, priorityFilter, countyFilter]);
+  }, [assignments, activeTab, searchQuery]);
 
   // Tab counts
   const tabCounts = useMemo(() => {
@@ -134,335 +105,235 @@ export function SupervisorAssignmentsView({
     return counts;
   }, [assignments]);
 
+  // Export to PDF
+  const handleExportPDF = () => {
+    if (!filteredAssignments || filteredAssignments.length === 0) {
+      alert('No cases to export.');
+      return;
+    }
+
+    const columns = [
+      { header: 'Code', key: 'display_code' },
+      { header: 'Beneficiary', key: 'display_name' },
+      { header: 'Category', key: 'display_type' },
+      { header: 'Location', key: 'display_loc' },
+      { header: 'Status', key: 'display_status' }
+    ];
+
+    const data = filteredAssignments.map(item => {
+      const isUnassigned = !item.assigned_field_worker_name || 
+                           item.assigned_field_worker_name.includes('Pending') || 
+                           item.assigned_field_worker_name.includes('Unassigned');
+      const displayStatus = !isUnassigned && (item.status === 'Assigned to Supervisor' || item.status === 'Submitted')
+        ? 'Assigned'
+        : (item.status_label || item.status || 'Pending');
+
+      return {
+        display_code: item.request_code || item.id || 'ADR-REQ',
+        display_name: item.beneficiary_name || 'Beneficiary',
+        display_type: (item.assistance_type || item.category || 'Food Assistance').split(',')[0].trim(),
+        display_loc: item.county ? `${item.county}, ${item.state || ''}` : item.state || 'Eastern Equatoria',
+        display_status: displayStatus
+      };
+    });
+
+    exportToPDF({
+      title: 'ADRA SOUTH SUDAN - SUPERVISOR ASSIGNMENTS',
+      subtitle: `Scope: ${activeTab.toUpperCase()} Cases • Total: ${filteredAssignments.length} records • Generated: ${new Date().toLocaleString()}`,
+      columns,
+      data,
+      fileName: `ADRA_SS_supervisor_${activeTab}_cases_${new Date().toISOString().slice(0, 10)}.pdf`,
+      summary: [
+        { label: 'Total Cases', value: String(filteredAssignments.length) },
+        { label: 'Queue Tab', value: activeTab.replace('_', ' ') },
+        { label: 'Export Date', value: new Date().toLocaleDateString() }
+      ]
+    });
+  };
+
+  // Export to CSV
+  const handleExportCSV = () => {
+    if (!filteredAssignments || filteredAssignments.length === 0) {
+      alert('No cases to export.');
+      return;
+    }
+    const rows = [
+      ['Code', 'Beneficiary', 'Category', 'Location', 'Status', 'Date']
+    ];
+    filteredAssignments.forEach(item => {
+      const isUnassigned = !item.assigned_field_worker_name || 
+                           item.assigned_field_worker_name.includes('Pending') || 
+                           item.assigned_field_worker_name.includes('Unassigned');
+      rows.push([
+        item.request_code || item.id,
+        item.beneficiary_name || 'Beneficiary',
+        item.assistance_type || item.category || '',
+        item.county || item.state || '',
+        isUnassigned ? 'Unassigned' : item.assigned_field_worker_name,
+        new Date(item.created_at || Date.now()).toLocaleDateString()
+      ]);
+    });
+    const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.map(x => `"${(x || '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', `ADRA_SS_supervisor_${activeTab}_cases_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
-    <div className="space-y-3 pb-24">
-      {/* Active Queue Status Bar */}
-      <div className="bg-white p-3.5 rounded-2xl shadow-xs border border-slate-200/80 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-extrabold text-slate-900 capitalize">
-            {activeTab === 'all' && 'All Humanitarian Cases'}
-            {activeTab === 'pending' && 'Pending Assignment Cases'}
-            {activeTab === 'assigned' && 'Assigned Field Cases'}
-            {activeTab === 'in_progress' && 'In Progress Cases'}
-            {activeTab === 'rejected' && 'Rejected by PM Cases'}
-            {activeTab === 'completed' && 'Completed Cases'}
-            {activeTab === 'overdue' && 'Overdue Cases'}
+    <div className="space-y-2.5 pb-20 max-w-4xl mx-auto animate-in fade-in duration-150">
+      
+      {/* 1. Single Clean Compact Toolbar Header */}
+      <div className="bg-white p-2.5 rounded-2xl shadow-xs border border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xs font-black text-slate-900 capitalize">
+            {activeTab === 'pending' ? 'Pending Assignments' : `${activeTab.replace('_', ' ')} Cases`}
           </h2>
-          <p className="text-[11px] text-slate-500">
-            {activeTab === 'all' && 'All dispatched and pending verification requests across state'}
-            {activeTab === 'pending' && 'Awaiting field worker assignment'}
-            {activeTab === 'assigned' && 'Assigned to field workers for verification'}
-            {activeTab === 'in_progress' && 'Field verification currently in progress'}
-            {activeTab === 'rejected' && 'Cases rejected by Programme Manager and returned to field officer'}
-            {activeTab === 'completed' && 'Field assessments completed & approved'}
-            {activeTab === 'overdue' && 'Overdue field assessments'}
-          </p>
-        </div>
-        <span className={`text-xs font-black px-2.5 py-1 rounded-xl border ${
-          activeTab === 'rejected'
-            ? 'bg-rose-50 text-rose-700 border-rose-200'
-            : 'bg-emerald-50 text-[#006B56] border border-emerald-200'
-        }`}>
-          {filteredAssignments.length} {filteredAssignments.length === 1 ? 'case' : 'cases'}
-        </span>
-      </div>
-
-      {/* Search & Filter Controls */}
-      <div className="bg-white p-3 rounded-2xl shadow-xs border border-slate-200/80 space-y-2.5">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by Request ID, beneficiary, worker, or location..."
-            className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#006B56]"
-          />
+          <span className="text-[10px] font-black text-[#006B56] bg-emerald-50 border border-emerald-200 px-2 py-0.2 rounded-full">
+            {filteredAssignments.length} {filteredAssignments.length === 1 ? 'case' : 'cases'}
+          </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="p-2 border border-slate-300 rounded-xl bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#006B56]"
-          >
-            <option value="ALL">All Priorities</option>
-            <option value="Critical">Critical</option>
-            <option value="High">High</option>
-            <option value="Medium">Medium</option>
-            <option value="Low">Low</option>
-          </select>
-
-          <select
-            value={countyFilter}
-            onChange={(e) => setCountyFilter(e.target.value)}
-            className="p-2 border border-slate-300 rounded-xl bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#006B56]"
-          >
-            <option value="ALL">All Counties</option>
-            <option value="Kapoeta South">Kapoeta South</option>
-            <option value="Kapoeta East">Kapoeta East</option>
-            <option value="Torit">Torit</option>
-            <option value="Juba">Juba</option>
-            <option value="Bor">Bor</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Assignment Cards List */}
-      <div className="space-y-3">
-        {filteredAssignments.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 text-center border border-slate-200/80 space-y-3">
-            <Inbox className="w-10 h-10 text-slate-300 mx-auto" />
-            <div>
-              <p className="text-sm font-bold text-slate-800">
-                {activeTab === 'pending'
-                  ? 'No Pending Unassigned Cases'
-                  : `No ${activeTab.replace('_', ' ')} Cases Found`}
-              </p>
-              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-                {activeTab === 'pending' && tabCounts.assigned > 0
-                  ? `You have ${tabCounts.assigned} case(s) successfully assigned to field officers in the 'Assigned' queue.`
-                  : 'There are no requests matching the selected filter criteria.'}
-              </p>
-            </div>
-            {activeTab === 'pending' && tabCounts.assigned > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('assigned');
-                  if (onStatusTabChange) onStatusTabChange('assigned');
-                }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#006B56] text-white text-xs font-bold rounded-xl shadow-xs hover:bg-[#005544] transition cursor-pointer"
-              >
-                <span>View Assigned Cases ({tabCounts.assigned})</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            )}
+        <div className="flex items-center gap-1.5 flex-1 max-w-xs justify-end">
+          <div className="relative flex-1 min-w-[120px]">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search cases..."
+              className="w-full pl-7 pr-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#006B56]"
+            />
           </div>
-        ) : (
-          filteredAssignments.map((item) => {
-            const isUnassigned = !item.assigned_field_worker_name || 
-                                 item.assigned_field_worker_name.includes('Pending') || 
-                                 item.assigned_field_worker_name.includes('Unassigned');
 
-            const priorityBadge = {
-              'Critical': 'bg-red-100 text-red-800 border-red-200',
-              'High': 'bg-amber-100 text-amber-800 border-amber-200',
-              'Medium': 'bg-blue-100 text-blue-800 border-blue-200',
-              'Low': 'bg-slate-100 text-slate-700 border-slate-200'
-            };
-
-            const displayStatus = !isUnassigned && (item.status === 'Assigned to Supervisor' || item.status === 'Submitted')
-              ? 'Assigned to Field Worker'
-              : (item.status_label || item.status);
-
-            return (
-              <div
-                key={item.id || item.request_code}
-                className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 hover:border-slate-300 transition-all space-y-3"
-              >
-                {/* Header: Request ID, Priority & Status */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs font-black text-[#006B56] font-mono">
-                        {item.request_code || item.id}
-                      </span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${priorityBadge[item.priority || item.urgency] || 'bg-slate-100 text-slate-700'}`}>
-                        {item.priority || item.urgency || 'High'}
-                      </span>
-                    </div>
-                    <h3 className="text-sm font-bold text-slate-900 mt-0.5">{item.beneficiary_name}</h3>
-                    <p className="text-[11px] text-slate-400 font-mono">Beneficiary ID: {item.beneficiary_code || item.beneficiary_id || 'ADRA-SS-000125'}</p>
-                  </div>
-
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md border ${
-                    !isUnassigned
-                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                      : 'bg-slate-100 text-slate-700 border-slate-200'
-                  }`}>
-                    {displayStatus}
-                  </span>
-                </div>
-
-                {/* Aid Type & Program */}
-                <div className="p-2.5 bg-slate-50 rounded-xl space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500 font-medium">Assistance Type:</span>
-                    <span className="font-bold text-slate-800">{item.assistance_type || item.category}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500 font-medium">Programme:</span>
-                    <span className="font-medium text-slate-700 truncate max-w-[200px]">
-                      {item.programme_name || item.program_name || 'Emergency Food Security'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Convoy In-Transit Banner & Confirm Arrival */}
-                {(item.status === 'warehouse_dispatched' || item.dispatch_status === 'In Transit' || (item.waybill_number && item.status !== 'goods_arrived_at_hub' && item.dispatch_status !== 'Arrived at Hub' && item.status !== 'Completed' && item.status !== 'Distributed')) && (
-                  <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-3 space-y-2.5 shadow-2xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
-                          <Truck className="w-4 h-4 text-amber-700" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-black text-amber-950 text-xs">
-                              Convoy In Transit
-                            </span>
-                            <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-200/90 px-1.5 py-0.2 rounded">
-                              #{item.waybill_number}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-amber-900 mt-1 leading-snug">
-                            Stock released from <strong>{item.origin_warehouse || 'Depot'}</strong> via {item.vehicle_reg || 'Fleet Truck'}.
-                          </p>
-                          <p className="text-[10px] text-amber-800 font-medium mt-0.5">
-                            Driver: <strong>{item.driver_name || 'Deng Bol'}</strong> ({item.driver_phone || '+211-921-889911'})
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {onConfirmArrival && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onConfirmArrival(item);
-                        }}
-                        className="w-full py-2 bg-gradient-to-r from-emerald-600 to-[#006B56] hover:from-emerald-700 hover:to-[#005544] text-white text-xs font-black rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-98"
-                      >
-                        <PackageCheck className="w-4 h-4" />
-                        <span>Confirm Goods Arrived at Hub</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Goods Arrived Verified Banner */}
-                {(item.status === 'goods_arrived_at_hub' || item.dispatch_status === 'Arrived at Hub') && (
-                  <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 space-y-2 text-xs shadow-2xs">
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-[#006B56] shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <span className="font-black text-[#006B56] block text-xs">
-                          📦 Goods Arrived at Hub — Verified
-                        </span>
-                        <span className="text-[11px] text-emerald-800 block mt-0.5">
-                          Verified by <strong>{item.hub_verified_by || 'Supervisor'}</strong> on {item.goods_arrived_at ? new Date(item.goods_arrived_at).toLocaleDateString('en-GB') : 'Recent'}. Field Officer notified for distribution.
-                        </span>
-                      </div>
-                    </div>
-                    {onHandoverToWorker && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onHandoverToWorker(item);
-                        }}
-                        className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center justify-center gap-1.5 transition cursor-pointer"
-                      >
-                        <UserCheck className="w-3.5 h-3.5" />
-                        <span>Handover to {item.assigned_field_worker_name || 'Field Officer'}</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Goods Collected Banner */}
-                {(item.status === 'goods_collected_by_field_worker' || item.dispatch_status === 'Collected by Field Worker') && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 flex items-start gap-2 text-xs shadow-2xs">
-                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                    <div className="min-w-0">
-                      <span className="font-black text-blue-900 block text-xs">
-                        ✓ Handed Over / Collected by {item.goods_collected_by || item.assigned_field_worker_name || 'Field Officer'}
-                      </span>
-                      <span className="text-[11px] text-blue-800 block mt-0.5">
-                        Field officer is in custody of commodities and conducting field distribution.
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Location Hierarchy */}
-                <div className="flex items-start space-x-2 text-xs text-slate-600">
-                  <MapPin className="w-3.5 h-3.5 text-[#006B56] mt-0.5 shrink-0" />
-                  <span>
-                    {item.village ? `${item.village}, ` : ''}
-                    {item.boma ? `${item.boma}, ` : ''}
-                    {item.payam ? `${item.payam}, ` : ''}
-                    <strong className="text-slate-800">{item.county || 'Kapoeta South'}</strong>, {item.state || 'Eastern Equatoria'}
-                  </span>
-                </div>
-
-                {/* Assigned Field Worker & Date */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                  <div className="flex items-center space-x-1.5">
-                    {!isUnassigned ? (
-                      <div className="flex items-center space-x-1.5 text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
-                        <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span className="font-bold text-xs truncate max-w-[170px]">
-                          {item.assigned_field_worker_name}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-1.5 text-slate-500">
-                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="font-medium text-xs">Pending Assignment</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center space-x-1 text-slate-400 font-mono text-[11px]">
-                    <Clock className="w-3 h-3 shrink-0" />
-                    <span>{item.created_at ? new Date(item.created_at).toLocaleDateString('en-GB') : 'Recent'}</span>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex items-center space-x-2 pt-1">
-                  {item.status === 'Assessment Submitted' || item.status === 'Awaiting Program Manager Decision' ? (
-                    <button
-                      onClick={() => onOpenReport ? onOpenReport(item) : onSelectAssignment(item)}
-                      className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
-                    >
-                      <FileCheck className="w-3.5 h-3.5" />
-                      <span>Review Assessment</span>
-                    </button>
-                  ) : isUnassigned ? (
-                    <button
-                      onClick={() => setAssignModalRequest(item)}
-                      className="flex-1 py-2 bg-[#006B56] hover:bg-[#005544] text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
-                    >
-                      <UserCheck className="w-3.5 h-3.5" />
-                      <span>Assign Field Worker</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setAssignModalRequest(item)}
-                      className="flex-1 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
-                      <span>Change Field Worker</span>
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => onSelectAssignment(item)}
-                    className="px-3 py-2 border border-slate-300 text-slate-700 font-bold rounded-xl text-xs hover:bg-slate-50 transition-colors cursor-pointer"
-                  >
-                    Details
-                  </button>
-                </div>
-
-              </div>
-            );
-          })
-        )}
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            className="flex items-center gap-1 px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black rounded-xl shadow-xs transition cursor-pointer active:scale-95 shrink-0"
+            title="Download PDF Report"
+          >
+            <FileText className="w-3 h-3" />
+            <span>PDF</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="flex items-center gap-1 px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-[#006B56] border border-emerald-200/80 text-[11px] font-bold rounded-xl transition cursor-pointer shadow-2xs active:scale-95 shrink-0"
+            title="Download CSV"
+          >
+            <Download className="w-3 h-3" />
+            <span>CSV</span>
+          </button>
+        </div>
       </div>
+
+      {/* 2. COMPACT, SLIM 5-COLUMN TABLE */}
+      {filteredAssignments.length === 0 ? (
+        <div className="bg-white rounded-2xl p-6 text-center border border-slate-200/80 space-y-1.5 shadow-2xs">
+          <Inbox className="w-8 h-8 text-slate-300 mx-auto" />
+          <p className="text-xs font-bold text-slate-800">
+            {activeTab === 'pending'
+              ? 'No Pending Unassigned Cases'
+              : `No ${activeTab.replace('_', ' ')} Cases Found`}
+          </p>
+          <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+            {activeTab === 'pending' && tabCounts.assigned > 0
+              ? `You have ${tabCounts.assigned} case(s) assigned in the 'Assigned' queue.`
+              : 'There are no requests matching the search criteria.'}
+          </p>
+          {activeTab === 'pending' && tabCounts.assigned > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('assigned');
+                if (onStatusTabChange) onStatusTabChange('assigned');
+              }}
+              className="inline-flex items-center gap-1 px-3 py-1 bg-[#006B56] text-white text-xs font-bold rounded-xl shadow-xs hover:bg-[#005544] transition cursor-pointer"
+            >
+              <span>View Assigned Cases ({tabCounts.assigned})</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-2 px-3 w-36">Code</th>
+                  <th className="py-2 px-3">Beneficiary</th>
+                  <th className="py-2 px-3">Category</th>
+                  <th className="py-2 px-3 w-28">Status</th>
+                  <th className="py-2 px-3 w-20 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredAssignments.map((item) => {
+                  const isUnassigned = !item.assigned_field_worker_name || 
+                                       item.assigned_field_worker_name.includes('Pending') || 
+                                       item.assigned_field_worker_name.includes('Unassigned');
+
+                  const displayStatus = !isUnassigned && (item.status === 'Assigned to Supervisor' || item.status === 'Submitted')
+                    ? 'Assigned'
+                    : (item.status_label || item.status || 'Pending');
+
+                  const categoryText = (item.assistance_type || item.category || 'Food Assistance').split(',')[0].trim();
+
+                  return (
+                    <tr
+                      key={item.id || item.request_code}
+                      className="hover:bg-slate-50 transition-colors"
+                    >
+                      {/* 1. Code */}
+                      <td className="py-2 px-3 font-mono font-bold text-xs text-[#006B56] whitespace-nowrap">
+                        {item.request_code || item.id}
+                      </td>
+
+                      {/* 2. Beneficiary */}
+                      <td className="py-2 px-3 font-bold text-slate-900 whitespace-nowrap text-xs">
+                        {item.beneficiary_name || 'Beneficiary'}
+                      </td>
+
+                      {/* 3. Category */}
+                      <td className="py-2 px-3 text-slate-600 font-medium whitespace-nowrap text-xs">
+                        {categoryText}
+                      </td>
+
+                      {/* 4. Status */}
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border ${
+                          displayStatus === 'Assigned' || displayStatus === 'Completed' || displayStatus === 'Approved'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : displayStatus === 'Rejected'
+                            ? 'bg-rose-50 text-rose-800 border-rose-200'
+                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}>
+                          {displayStatus}
+                        </span>
+                      </td>
+
+                      {/* 5. View Action */}
+                      <td className="py-2 px-3 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => onSelectAssignment(item)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#006B56] hover:bg-[#005242] text-white font-bold rounded-lg text-[11px] shadow-2xs transition cursor-pointer active:scale-95"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>View</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Assign Field Worker Modal */}
       {assignModalRequest && (
@@ -480,3 +351,5 @@ export function SupervisorAssignmentsView({
     </div>
   );
 }
+
+export default SupervisorAssignmentsView;

@@ -20,6 +20,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { formatDate } from '../../../lib/utils';
+import { exportToPDF } from '../../../lib/reportGenerator';
 
 export function PMReportsView({
   requests = [],
@@ -250,8 +251,109 @@ export function PMReportsView({
     document.body.removeChild(link);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const pdfColumnsMap = {
+    requests: [
+      { header: 'Ref ID', key: 'ref' },
+      { header: 'Beneficiary', key: 'title' },
+      { header: 'Programme', key: 'programme' },
+      { header: 'Assistance Type', key: 'type' },
+      { header: 'Location / State', key: 'state' },
+      { header: 'Date', key: 'date', type: 'date' },
+      { header: 'Status', key: 'status' }
+    ],
+    beneficiaries: [
+      { header: 'Ref ID', key: 'ref' },
+      { header: 'Beneficiary Name', key: 'title' },
+      { header: 'Household / Details', key: 'type' },
+      { header: 'Location', key: 'state' },
+      { header: 'Registered Date', key: 'date', type: 'date' },
+      { header: 'Status', key: 'status' }
+    ],
+    distributions: [
+      { header: 'Dispatch Ref', key: 'ref' },
+      { header: 'Recipient', key: 'title' },
+      { header: 'Programme', key: 'programme' },
+      { header: 'Aid Items & Qty', key: 'type' },
+      { header: 'Field Officer', key: 'worker' },
+      { header: 'Date', key: 'date', type: 'date' },
+      { header: 'Status', key: 'status' }
+    ],
+    programmes: [
+      { header: 'Code', key: 'ref' },
+      { header: 'Programme Portfolio', key: 'title' },
+      { header: 'Sector', key: 'programme' },
+      { header: 'Donor / Funding', key: 'type' },
+      { header: 'Budget ($)', key: 'budget' },
+      { header: 'Target Region', key: 'state' },
+      { header: 'Status', key: 'status' }
+    ],
+    activities: [
+      { header: 'Activity ID', key: 'ref' },
+      { header: 'Operation / Activity', key: 'title' },
+      { header: 'Programme', key: 'programme' },
+      { header: 'Type / Scope', key: 'type' },
+      { header: 'State', key: 'state' },
+      { header: 'Date', key: 'date', type: 'date' },
+      { header: 'Status', key: 'status' }
+    ],
+    resources: [
+      { header: 'Stock Ref', key: 'ref' },
+      { header: 'Resource Item', key: 'title' },
+      { header: 'Category & Availability', key: 'type' },
+      { header: 'Warehouse Depot', key: 'state' },
+      { header: 'Last Audit', key: 'date', type: 'date' },
+      { header: 'Stock Health', key: 'status' }
+    ],
+    supervisors: [
+      { header: 'Supervisor ID', key: 'ref' },
+      { header: 'Officer Name', key: 'title' },
+      { header: 'Field Portfolio', key: 'programme' },
+      { header: 'Workload & Completed Tasks', key: 'type' },
+      { header: 'Assigned State', key: 'state' },
+      { header: 'Status', key: 'status' }
+    ],
+    feedback: [
+      { header: 'Ticket ID', key: 'ref' },
+      { header: 'Subject / Feedback', key: 'title' },
+      { header: 'Programme Stream', key: 'programme' },
+      { header: 'Category', key: 'type' },
+      { header: 'Location', key: 'state' },
+      { header: 'Filed Date', key: 'date', type: 'date' },
+      { header: 'Resolution', key: 'status' }
+    ]
+  };
+
+  // Export to PDF
+  const handleExportPDF = () => {
+    if (!filteredData || filteredData.length === 0) {
+      alert('No records available to export.');
+      return;
+    }
+
+    const columns = pdfColumnsMap[currentReportType] || [
+      { header: 'Ref ID', key: 'ref' },
+      { header: 'Title / Subject', key: 'title' },
+      { header: 'Programme', key: 'programme' },
+      { header: 'Details', key: 'type' },
+      { header: 'Location', key: 'state' },
+      { header: 'Date', key: 'date', type: 'date' },
+      { header: 'Status', key: 'status' }
+    ];
+
+    const fileName = `ADRA_SS_${currentReportType}_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+
+    exportToPDF({
+      title: `ADRA SOUTH SUDAN - ${activeCategoryMeta.name.toUpperCase()} REPORT`,
+      subtitle: `Official certified programme management report • ${filteredData.length} records • Generated: ${new Date().toLocaleString()}`,
+      columns,
+      data: filteredData,
+      fileName,
+      summary: [
+        { label: 'Total Records', value: String(filteredData.length) },
+        { label: 'Category', value: activeCategoryMeta.name },
+        { label: 'Status Filter', value: filterStatus === 'ALL' ? 'All Records' : filterStatus }
+      ]
+    });
   };
 
   const getStatusBadge = (status = '') => {
@@ -271,37 +373,33 @@ export function PMReportsView({
   const ActiveIcon = activeCategoryMeta.icon;
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto pb-16 animate-in fade-in duration-150">
+    <div className="space-y-3 max-w-7xl mx-auto pb-12 animate-in fade-in duration-150">
       
-      {/* 1. TOP HEADER & EXPORT ACTIONS */}
-      <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-[#006B56]">
-              <ActiveIcon className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <span>{activeCategoryMeta.name}</span>
-                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-full">
-                  {activeCategoryMeta.count} records
-                </span>
+      {/* 1. COMPACT TOP HEADER & EXPORT ACTIONS */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-[#006B56] shrink-0">
+            <ActiveIcon className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-black text-slate-900">
+                {activeCategoryMeta.name}
               </h2>
+              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/70 px-2 py-0.2 rounded-full">
+                {filteredData.length} records
+              </span>
             </div>
           </div>
-          <p className="text-xs text-slate-500">
-            Generate certified donor-ready outputs and operational audit summaries.
-          </p>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Controls */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Quick Selector Dropdown if desired */}
           <div className="relative">
             <select
               value={currentReportType}
               onChange={(e) => handleSwitchCategory(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer transition shadow-2xs"
+              className="appearance-none pl-3 pr-7 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none cursor-pointer transition shadow-2xs"
             >
               {reportTypes.map(rt => (
                 <option key={rt.id} value={rt.id}>
@@ -309,160 +407,78 @@ export function PMReportsView({
                 </option>
               ))}
             </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
           <button
             type="button"
+            onClick={handleExportPDF}
+            className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+            title="Download Official PDF Report"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>PDF</span>
+          </button>
+          <button
+            type="button"
             onClick={handleExportCSV}
-            className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100/80 text-[#006B56] border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-98 shadow-2xs cursor-pointer"
-            title="Download CSV report"
+            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#006B56] border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
+            title="Download CSV"
           >
             <Download className="w-3.5 h-3.5" />
             <span>CSV</span>
           </button>
+        </div>
+      </div>
+
+      {/* 2. SIMPLE, COMPACT FILTER ROW */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search records..."
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#006B56] shadow-2xs"
+          />
+        </div>
+
+        <select
+          value={filterStatus}
+          onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+          className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#006B56] shadow-2xs"
+        >
+          <option value="ALL">All Statuses</option>
+          <option value="Submitted">Submitted</option>
+          <option value="Approved">Approved</option>
+          <option value="Completed">Completed</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Verified">Verified</option>
+        </select>
+
+        {hasActiveFilters && (
           <button
             type="button"
-            onClick={handlePrint}
-            className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-98 shadow-2xs cursor-pointer"
-            title="Print or Export PDF"
+            onClick={handleResetFilters}
+            className="px-2.5 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer border border-rose-200 bg-white"
           >
-            <Printer className="w-3.5 h-3.5" />
-            <span>PDF</span>
+            <RotateCcw className="w-3 h-3" />
+            <span>Reset</span>
           </button>
-        </div>
+        )}
       </div>
 
-      {/* 2. CLEAN SMART FILTER BAR */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5 text-xs">
-          
-          {/* Search */}
-          <div className="relative md:col-span-2">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search records, beneficiaries, IDs..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-[#006B56] transition"
-            />
-          </div>
-
-          {/* Programme Filter */}
-          <div>
-            <select
-              value={filterProgramme}
-              onChange={(e) => { setFilterProgramme(e.target.value); setCurrentPage(1); }}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:bg-white focus:border-[#006B56] transition"
-            >
-              <option value="ALL">All Programmes</option>
-              {programmes.map(p => (
-                <option key={p.id} value={p.name}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* State Filter */}
-          <div>
-            <select
-              value={filterState}
-              onChange={(e) => { setFilterState(e.target.value); setCurrentPage(1); }}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:bg-white focus:border-[#006B56] transition"
-            >
-              <option value="ALL">All States</option>
-              <option value="Eastern Equatoria">Eastern Equatoria</option>
-              <option value="Central Equatoria">Central Equatoria</option>
-              <option value="Jonglei">Jonglei</option>
-              <option value="Unity">Unity</option>
-              <option value="Upper Nile">Upper Nile</option>
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <select
-              value={filterStatus}
-              onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:bg-white focus:border-[#006B56] transition"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="Submitted">Submitted</option>
-              <option value="Approved">Approved</option>
-              <option value="Completed">Completed</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Verified">Verified</option>
-            </select>
-          </div>
-
-        </div>
-
-        {/* Second Row: Date range & Active Reset */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 text-slate-500 font-medium">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <span>Range:</span>
-            </div>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
-              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 outline-none focus:border-[#006B56]"
-            />
-            <span className="text-slate-400">to</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
-              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 outline-none focus:border-[#006B56]"
-            />
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Reset</span>
-              </button>
-            )}
-          </div>
-
-          <div className="text-xs text-slate-500 font-medium">
-            Showing <strong className="text-slate-900 font-bold">{filteredData.length}</strong> certified records
-          </div>
-        </div>
-      </div>
-
-      {/* 3. LIVE PREVIEW TABLE CARD */}
+      {/* 3. CLEAN & MINIMAL TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-        
-        {/* Table Subheader */}
-        <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-slate-50/50">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <h3 className="font-black text-slate-900 text-sm">
-              Live Preview: {activeCategoryMeta.name}
-            </h3>
-          </div>
-          <div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200/70">
-            <ShieldCheck className="w-3 h-3 text-[#006B56]" />
-            <span>Audit Ref: ADRA-SSD-AUD-2026</span>
-          </div>
-        </div>
-
-        {/* Table Content */}
         <div className="overflow-x-auto">
           {paginatedData.length > 0 ? (
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                   <th className="py-3 px-4">Ref ID</th>
                   <th className="py-3 px-4">Title / Beneficiary</th>
-                  <th className="py-3 px-4">Programme Portfolio</th>
-                  <th className="py-3 px-4">Details / Output</th>
-                  <th className="py-3 px-4">Location</th>
+                  <th className="py-3 px-4">Detail</th>
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4 text-right">Status</th>
                 </tr>
@@ -470,40 +486,23 @@ export function PMReportsView({
               <tbody className="divide-y divide-slate-100">
                 {paginatedData.map((row, idx) => (
                   <tr key={row.id || idx} className="hover:bg-slate-50/70 transition">
-                    
-                    {/* Shortened Ref ID */}
-                    <td className="py-3 px-4">
-                      <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/70 text-[11px]" title={row.id}>
+                    {/* Ref ID */}
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <span className="font-mono font-bold text-[#006B56] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/70 text-[11px]">
                         {row.ref}
                       </span>
                     </td>
 
-                    {/* Title */}
-                    <td className="py-3 px-4 font-bold text-slate-900">
-                      <div className="max-w-[200px] truncate" title={row.title}>
-                        {row.title}
-                      </div>
+                    {/* Title / Beneficiary */}
+                    <td className="py-3 px-4 font-bold text-slate-900 whitespace-nowrap">
+                      {row.title}
                     </td>
 
-                    {/* Programme */}
-                    <td className="py-3 px-4 text-slate-600 font-medium">
-                      <div className="max-w-[220px] truncate" title={row.programme}>
-                        {row.programme}
-                      </div>
-                    </td>
-
-                    {/* Details */}
-                    <td className="py-3 px-4 text-slate-700 font-medium">
-                      <div className="max-w-[240px] truncate" title={row.type}>
+                    {/* Detail */}
+                    <td className="py-3 px-4 text-slate-700 font-medium max-w-[280px]">
+                      <span className="truncate block" title={row.type}>
                         {row.type}
-                      </div>
-                    </td>
-
-                    {/* Location */}
-                    <td className="py-3 px-4 text-slate-500">
-                      <div className="truncate max-w-[140px]">
-                        {row.state}
-                      </div>
+                      </span>
                     </td>
 
                     {/* Date */}
@@ -512,12 +511,11 @@ export function PMReportsView({
                     </td>
 
                     {/* Status */}
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
                       <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadge(row.status)}`}>
                         {row.status}
                       </span>
                     </td>
-
                   </tr>
                 ))}
               </tbody>
@@ -525,15 +523,15 @@ export function PMReportsView({
           ) : (
             <div className="p-10 text-center space-y-2">
               <FileText className="w-8 h-8 mx-auto text-slate-300" />
-              <h4 className="text-sm font-bold text-slate-800">No records found</h4>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              <h4 className="text-xs font-bold text-slate-800">No records found</h4>
+              <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
                 No matching records for this report category with the currently applied filters.
               </p>
               {hasActiveFilters && (
                 <button
                   type="button"
                   onClick={handleResetFilters}
-                  className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+                  className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition cursor-pointer"
                 >
                   <RotateCcw className="w-3 h-3" />
                   <span>Clear All Filters</span>
@@ -545,16 +543,16 @@ export function PMReportsView({
 
         {/* 4. TABLE PAGINATION */}
         {totalPages > 1 && (
-          <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs bg-slate-50/50">
-            <span className="text-slate-500 font-medium">
-              Page <strong className="text-slate-900 font-bold">{currentPage}</strong> of <strong className="text-slate-900 font-bold">{totalPages}</strong>
+          <div className="px-4 py-2.5 border-t border-slate-100 flex items-center justify-between text-xs bg-slate-50">
+            <span className="text-slate-500 text-[11px]">
+              Page {currentPage} of {totalPages} ({filteredData.length} records)
             </span>
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center gap-1"
+                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold disabled:opacity-40 hover:bg-slate-50 transition flex items-center gap-1 text-xs cursor-pointer"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
                 <span>Prev</span>
@@ -563,7 +561,7 @@ export function PMReportsView({
                 type="button"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center gap-1"
+                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold disabled:opacity-40 hover:bg-slate-50 transition flex items-center gap-1 text-xs cursor-pointer"
               >
                 <span>Next</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -571,9 +569,10 @@ export function PMReportsView({
             </div>
           </div>
         )}
-
       </div>
 
     </div>
   );
 }
+
+export default PMReportsView;

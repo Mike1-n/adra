@@ -77,40 +77,7 @@ export function FieldWorkerDashboardView({
   return (
     <div className="space-y-4 pb-12 animate-in fade-in duration-200">
       
-      {/* 1. COMPACT OPERATIONAL STATUS & DUTY SELECTOR */}
-      <div className="bg-white rounded-2xl p-2.5 sm:p-3 border border-slate-200 shadow-2xs flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <div className="w-6 h-6 rounded-lg bg-emerald-50 text-[#006B56] flex items-center justify-center shrink-0 border border-emerald-200/70">
-            <MapPin className="w-3.5 h-3.5" />
-          </div>
-          <div className="min-w-0">
-            <span className="text-[10px] text-slate-400 font-bold uppercase block leading-none">Zone</span>
-            <span className="text-xs font-bold text-slate-800 truncate block mt-0.5">
-              {worker.payam || worker.county || 'Field Territory'}
-            </span>
-          </div>
-        </div>
-
-        {/* Compact Duty State Toggle */}
-        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100">
-          {['Available', 'On Assignment', 'In Field'].map(status => (
-            <button
-              key={status}
-              type="button"
-              onClick={() => onUpdateDutyStatus(status)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
-                dutyStatus === status
-                  ? 'bg-[#006B56] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              {status}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 2. FOUR CORE KPI METRIC CARDS */}
+      {/* FOUR CORE KPI METRIC CARDS */}
       <div className="grid grid-cols-2 gap-2.5">
         {/* Pending Tasks */}
         <div
@@ -189,14 +156,14 @@ export function FieldWorkerDashboardView({
         </div>
       </div>
 
-      {/* 3. QUICK FIELD ACTIONS BAR (4 TOOLS) */}
+      {/* QUICK FIELD ACTIONS BAR (3 TOOLS) */}
       <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-2xs">
         <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-[#006B56]" />
           Field Action Tools
         </h3>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {/* Conduct Audit (Dark Rich Green) */}
           <button
             type="button"
@@ -221,19 +188,6 @@ export function FieldWorkerDashboardView({
             </div>
             <span className="text-xs font-black text-amber-950 leading-tight">Facilitation</span>
             <span className="text-[10px] font-extrabold text-amber-800 mt-0.5">Requisition</span>
-          </button>
-
-          {/* Distribute Aid Packages */}
-          <button
-            type="button"
-            onClick={() => onDistribute ? onDistribute() : (onOpenScanner && onOpenScanner())}
-            className="flex flex-col items-center justify-center p-3 rounded-2xl bg-emerald-50/90 hover:bg-emerald-100/90 transition border border-emerald-300/90 text-center group shadow-2xs cursor-pointer"
-          >
-            <div className="w-9 h-9 rounded-xl bg-[#006B56] text-white flex items-center justify-center mb-1.5 shadow-xs group-hover:scale-105 transition">
-              <PackageCheck className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-black text-emerald-950 leading-tight">Distribute Aid</span>
-            <span className="text-[10px] font-extrabold text-[#006B56] mt-0.5">Direct Handover</span>
           </button>
 
           {/* Register Household */}
@@ -296,16 +250,6 @@ export function FieldWorkerDashboardView({
                   </span>
                 </div>
 
-                {(onDistribute || onOpenScanner) && (
-                  <button
-                    type="button"
-                    onClick={() => onDistribute ? onDistribute(task) : onOpenScanner(task)}
-                    className="w-full py-1.5 bg-gradient-to-r from-emerald-600 to-[#006B56] hover:from-emerald-700 hover:to-[#005544] text-white text-xs font-black rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer"
-                  >
-                    <PackageCheck className="w-3.5 h-3.5" />
-                    <span>Confirm Distribution</span>
-                  </button>
-                )}
               </div>
             ))}
 
@@ -457,48 +401,6 @@ export function FieldWorkerDashboardView({
                     Due: {task.due_date || 'Within 48h'}
                   </span>
                   <span className="text-[10px] text-slate-600">Assigned by: {task.assigned_supervisor_name || task.supervisor_name || worker.supervisor_name || 'Assigned Supervisor'}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 5. RECENT FIELD ACTIVITY TIMELINE */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-            <Activity className="w-4 h-4 text-[#006B56]" />
-            Recent Field Outreach & Logs
-          </h3>
-          <button
-            type="button"
-            onClick={() => onNavigateTab('activities')}
-            className="text-xs font-bold text-[#006B56] hover:underline"
-          >
-            Full Log
-          </button>
-        </div>
-
-        {activities.length === 0 ? (
-          <div className="text-center py-5 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-            <Activity className="w-6 h-6 text-slate-400 mx-auto mb-1 opacity-60" />
-            <p className="text-xs font-medium text-slate-600">No field activity logs recorded yet today.</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Logs will automatically record when you submit audits, disbursements, or requisitions.</p>
-          </div>
-        ) : (
-          <div className="space-y-2.5">
-            {activities.slice(0, 3).map((act, i) => (
-              <div key={act.id || i} className="flex items-start gap-2.5 text-xs">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                <div className="flex-1">
-                  <div className="flex items-baseline justify-between gap-1">
-                    <span className="font-bold text-slate-800">{act.title}</span>
-                    <span className="text-[10px] text-slate-600">
-                      {act.created_at ? new Date(act.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recent'}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{act.details}</p>
                 </div>
               </div>
             ))}
