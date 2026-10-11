@@ -1,55 +1,132 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  MessageSquareQuote,
-  ShieldCheck,
-  AlertTriangle,
   Send,
-  Lock,
   EyeOff,
-  CheckCircle,
-  Clock,
-  FileText,
-  HelpCircle,
-  ChevronRight
+  CheckCircle2,
+  HardHat,
+  ClipboardList,
+  Scale,
+  CheckCheck,
+  Lock,
+  ChevronDown,
+  Check,
+  ShieldCheck
 } from 'lucide-react';
-import { Button } from '../../../components/common/Button';
-import { Modal } from '../../../components/common/Modal';
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
 
 export function FeedbackComplaintsView({ beneficiary }) {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedTicket, setSelectedTicket] = useState(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('fieldWorker'); // 'fieldWorker' | 'supervisor' | 'programManager' | 'complianceOfficer'
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const chatBottomRef = useRef(null);
   const toast = useToast();
 
-  const [formData, setFormData] = useState({
-    category: 'Distribution Logistics',
-    severity: 'Medium',
-    is_anonymous: false,
-    subject: '',
-    description: ''
+  // Assigned personnel
+  const [personnel, setPersonnel] = useState({
+    fieldWorker: 'Rose Poni',
+    supervisor: 'Mary Akech',
+    programManager: 'Grace Ochieng (Programme Manager)',
+    complianceOfficer: 'David Ochieng'
   });
 
-  const categories = [
-    'Distribution Logistics',
-    'Staff Conduct & Safeguarding',
-    'Item Quality & Packaging',
-    'Fairness & Community Inclusion',
-    'Borehole & Water Point Issue',
-    'General Community Feedback'
-  ];
+  // Chat input state
+  const [messageText, setMessageText] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Resolve assigned personnel dynamically
+  useEffect(() => {
+    const resolveAssignedPersonnel = async () => {
+      try {
+        const [requests, projects, supervisors] = await Promise.all([
+          db.getAssistanceRequests(beneficiary?.id || beneficiary?.beneficiary_code || 'b7'),
+          db.getProjects ? db.getProjects() : [],
+          db.getSupervisors ? db.getSupervisors() : []
+        ]);
+
+        // 1. Resolve Assigned Field Worker
+        let fw = beneficiary?.assigned_field_worker || beneficiary?.field_worker_name || beneficiary?.field_worker;
+        if (!fw && Array.isArray(requests) && requests.length > 0) {
+          const reqWithWorker = requests.find(r => r.assigned_field_worker_name && r.assigned_field_worker_name !== 'Unassigned')
+            || requests.find(r => r.field_worker_name && r.field_worker_name !== 'Unassigned');
+          if (reqWithWorker) {
+            fw = reqWithWorker.assigned_field_worker_name || reqWithWorker.field_worker_name;
+          }
+        }
+        if (!fw) fw = 'Rose Poni';
+
+        // 2. Resolve Assigned Program Manager
+        let pm = null;
+        const projId = beneficiary?.project_id || beneficiary?.program_id;
+        const projName = beneficiary?.project_name || beneficiary?.programme;
+        if (Array.isArray(projects) && projects.length > 0) {
+          const matchedProj = projects.find(p =>
+            (projId && p.id === projId) ||
+            (projName && p.project_name?.toLowerCase().includes(projName.toLowerCase()))
+          );
+          if (matchedProj) {
+            pm = matchedProj.manager_name || matchedProj.program_manager || matchedProj.pm_name;
+          }
+        }
+        if (!pm && Array.isArray(requests) && requests.length > 0) {
+          const reqWithPM = requests.find(r => r.reviewed_by || r.manager_name || r.program_manager_name);
+          if (reqWithPM) {
+            pm = reqWithPM.reviewed_by || reqWithPM.manager_name || reqWithPM.program_manager_name;
+          }
+        }
+        if (!pm) pm = 'Grace Ochieng (Programme Manager)';
+
+        // 3. Resolve Field Supervisor
+        let sup = null;
+        if (Array.isArray(requests) && requests.length > 0) {
+          const reqWithSup = requests.find(r => r.assigned_supervisor_name || r.supervisor_name);
+          if (reqWithSup) {
+            sup = reqWithSup.assigned_supervisor_name || reqWithSup.supervisor_name;
+          }
+        }
+        if (!sup && Array.isArray(supervisors) && supervisors.length > 0) {
+          const matchedSup = supervisors.find(s => s.name === 'Mary Akech' || s.full_name === 'Mary Akech');
+          sup = matchedSup?.full_name || matchedSup?.name || supervisors[0]?.full_name || supervisors[0]?.name;
+        }
+        if (!sup) sup = 'Mary Akech';
+
+        setPersonnel({
+          fieldWorker: fw,
+          supervisor: sup,
+          programManager: pm,
+          complianceOfficer: 'David Ochieng'
+        });
+      } catch (e) {
+        console.warn('Could not resolve assigned personnel:', e);
+      }
+    };
+
+    resolveAssignedPersonnel();
+  }, [beneficiary]);
+
+  // Load complaints
   const loadComplaints = async () => {
     try {
       setLoading(true);
       const data = await db.getComplaints(beneficiary?.id || 'b7');
-      setComplaints(data);
+      setComplaints(data || []);
     } catch (e) {
       console.error(e);
-      toast.error('Failed to load feedback records');
+      toast.error('Failed to load messages');
     } finally {
       setLoading(false);
     }
@@ -59,344 +136,380 @@ export function FeedbackComplaintsView({ beneficiary }) {
     loadComplaints();
   }, [beneficiary]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.subject || !formData.description) {
-      toast.warning('Please enter both subject and description');
-      return;
+  useEffect(() => {
+    if (chatBottomRef.current) {
+      chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
+  }, [activeTab, complaints]);
 
-    try {
-      await db.createComplaint({
-        beneficiary_id: beneficiary?.id || 'b7',
-        beneficiary_name: formData.is_anonymous ? 'Anonymous Community Member' : (beneficiary?.full_name || 'Mary Nyambura'),
-        ...formData
-      });
-      toast.success('Your feedback / complaint has been submitted confidentially');
-      setIsModalOpen(false);
-      setFormData({
-        category: 'Distribution Logistics',
-        severity: 'Medium',
-        is_anonymous: false,
-        subject: '',
-        description: ''
-      });
-      loadComplaints();
-    } catch (e) {
-      console.error(e);
-      toast.error('Failed to submit feedback');
+  // Contacts definition
+  const contacts = [
+    {
+      id: 'fieldWorker',
+      role: 'Field Worker',
+      name: personnel.fieldWorker,
+      title: 'Assigned Household Worker',
+      status: 'Online',
+      badge: 'Assigned to You',
+      avatarColor: 'bg-emerald-600',
+      icon: HardHat,
+      welcomeNote: 'Hello! I am your assigned ADRA Field Worker for visits, token verification, and household aid supplies.'
+    },
+    {
+      id: 'supervisor',
+      role: 'Supervisor',
+      name: personnel.supervisor,
+      title: 'Zonal Field Supervisor',
+      status: 'Active',
+      badge: 'Zonal Operations',
+      avatarColor: 'bg-blue-600',
+      icon: ShieldCheck,
+      welcomeNote: 'This is the Zonal Supervisor channel. Contact me for depot queues, distribution safety, or team inquiries.'
+    },
+    {
+      id: 'programManager',
+      role: 'Program Manager',
+      name: personnel.programManager,
+      title: 'Programme Manager',
+      status: 'Active',
+      badge: 'Programme Manager',
+      avatarColor: 'bg-purple-600',
+      icon: ClipboardList,
+      welcomeNote: 'Welcome. As your ADRA Programme Manager, feel free to submit programme feedback, appeal inclusion, or request policy clarity.'
+    },
+    {
+      id: 'complianceOfficer',
+      role: 'Compliance Officer',
+      name: personnel.complianceOfficer,
+      title: 'Safeguarding Officer',
+      status: 'Official Helpline',
+      badge: 'Zero Retaliation',
+      avatarColor: 'bg-rose-600',
+      icon: Scale,
+      welcomeNote: 'Official Independent Safeguarding Desk. All reports are strictly confidential with zero impact on your aid entitlement.'
     }
+  ];
+
+  const currentContact = contacts.find(c => c.id === activeTab) || contacts[0];
+
+  // Filter complaints for the currently selected contact
+  const activeChatMessages = complaints.filter(c => {
+    const roleMatch = (c.recipient_role || '').toLowerCase() === currentContact.role.toLowerCase();
+    const nameMatch = (c.recipient_name || '').toLowerCase().includes(currentContact.name.toLowerCase()) ||
+                      currentContact.name.toLowerCase().includes((c.recipient_name || '').toLowerCase());
+    if (currentContact.id === 'complianceOfficer' && c.ticket_code === 'CMP-2025-001') {
+      return true;
+    }
+    return roleMatch || nameMatch;
+  });
+
+  // Count messages per contact
+  const getContactMessageCount = (contactId) => {
+    const contact = contacts.find(c => c.id === contactId);
+    if (!contact) return 0;
+    return complaints.filter(c => {
+      const roleMatch = (c.recipient_role || '').toLowerCase() === contact.role.toLowerCase();
+      const nameMatch = (c.recipient_name || '').toLowerCase().includes(contact.name.toLowerCase());
+      if (contactId === 'complianceOfficer' && c.ticket_code === 'CMP-2025-001') return true;
+      return roleMatch || nameMatch;
+    }).length;
   };
 
-  const handleOpenDetail = (ticket) => {
-    setSelectedTicket(ticket);
-    setIsDetailOpen(true);
+  // Send message in WhatsApp chat
+  const handleSendMessage = async (e) => {
+    if (e) e.preventDefault();
+    if (!messageText.trim()) return;
+
+    try {
+      setIsSubmitting(true);
+
+      await db.createComplaint({
+        beneficiary_id: beneficiary?.id || 'b7',
+        beneficiary_name: isAnonymous ? 'Anonymous Community Member' : (beneficiary?.full_name || 'Mary Nyambura'),
+        recipient_role: currentContact.role,
+        recipient_name: currentContact.name,
+        category: 'Community Feedback',
+        severity: 'Medium',
+        is_anonymous: isAnonymous,
+        subject: messageText.length > 50 ? `${messageText.substring(0, 47)}...` : messageText,
+        description: messageText.trim()
+      });
+
+      toast.success(`Message sent directly to ${currentContact.name}`);
+      setMessageText('');
+      await loadComplaints();
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not send message. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-50 via-white to-slate-50 border border-emerald-200/60 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/20">
-              <MessageSquareQuote className="w-6 h-6" />
+    <div className="w-full flex-1 flex flex-col h-full min-h-[calc(100vh-120px)] bg-white border-0 shadow-none rounded-none overflow-hidden">
+      
+      {/* CLEAN LIGHT WHATSAPP HEADER BAR (NO BLACK BG) */}
+      <div className="bg-white border-b border-slate-200 px-4 py-3 text-slate-900 shrink-0 flex items-center justify-between shadow-xs relative z-30" ref={dropdownRef}>
+        
+        {/* Left: Officer Profile & Switch Button */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className="flex items-center gap-3 p-1 rounded-xl hover:bg-slate-100 transition cursor-pointer text-left group"
+          >
+            {/* Avatar with Online Dot */}
+            <div className="relative shrink-0">
+              <div className={`w-10 h-10 rounded-full ${currentContact.avatarColor} text-white flex items-center justify-center font-bold shadow-xs`}>
+                {React.createElement(currentContact.icon, { className: 'w-5 h-5' })}
+              </div>
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                Feedback, Suggestions & Complaints
-              </h2>
-              <p className="text-xs text-slate-500">
-                ADRA is committed to accountability and community safeguarding. All submissions can be made anonymously.
+
+            {/* Officer Name & Role Badge */}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-bold text-slate-900 tracking-tight truncate">
+                  {currentContact.name}
+                </span>
+                <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  {currentContact.role}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-700 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </div>
+              <p className="text-[11px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                <span>Switch officer</span>
+                <span>•</span>
+                <span className="text-emerald-600 font-medium">{currentContact.status}</span>
               </p>
             </div>
-          </div>
+          </button>
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setIsModalOpen(true)}
-              className="text-xs gap-1.5 shadow-md shadow-emerald-600/20"
-            >
-              <Send className="w-3.5 h-3.5" />
-              Submit Feedback / Complaint
-            </Button>
-          </div>
+          {/* Clean Dropdown Menu Popover */}
+          {isDropdownOpen && (
+            <div className="absolute top-full left-0 mt-2 w-80 bg-white text-slate-900 rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 animate-in fade-in-50 duration-150">
+              <div className="p-2.5 bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Select Recipient to Chat With
+              </div>
+
+              {contacts.map(c => {
+                const isSelected = activeTab === c.id;
+                const IconComp = c.icon;
+                const count = getContactMessageCount(c.id);
+
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(c.id);
+                      setIsDropdownOpen(false);
+                    }}
+                    className={`w-full p-3 text-left flex items-center justify-between transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-50 border-l-4 border-emerald-600'
+                        : 'hover:bg-slate-50 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-8 h-8 rounded-lg ${c.avatarColor} text-white flex items-center justify-center shrink-0 shadow-xs`}>
+                        <IconComp className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="text-xs font-black text-slate-900">{c.role}:</span>
+                          <span className="text-xs font-bold text-emerald-800 truncate">{c.name}</span>
+                          {count > 0 && (
+                            <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.2 rounded-full font-bold shrink-0 ml-1">
+                              {count}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-500 block truncate mt-0.5">
+                          {c.title} ({c.badge})
+                        </span>
+                      </div>
+                    </div>
+
+                    {isSelected && (
+                      <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 ml-2 shadow-xs">
+                        <Check className="w-3 h-3 stroke-[3]" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Safeguarding Notice */}
-        <div className="mt-5 flex items-start gap-3 text-xs text-emerald-900 bg-emerald-100/40 p-3 rounded-xl border border-emerald-200/60">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-          <p className="text-[11px] leading-relaxed">
-            <span className="font-bold">Zero-Retaliation Guarantee: </span>
-            Submitting a complaint will NEVER negatively impact your or your family's eligibility for future assistance. Reports are handled by independent compliance officers.
-          </p>
+        {/* Right: Anonymous Toggle & Zero Retaliation */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsAnonymous(!isAnonymous)}
+            className={`text-[11px] font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 border cursor-pointer ${
+              isAnonymous
+                ? 'bg-amber-50 text-amber-900 border-amber-300 shadow-xs'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+            <span>{isAnonymous ? 'Anonymous: ON' : 'Anonymous: OFF'}</span>
+          </button>
+
+          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-xl">
+            <Lock className="w-3 h-3 text-emerald-600" /> Zero Retaliation
+          </span>
         </div>
       </div>
 
-      {/* Submitted Complaints & Feedback Tracker */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-emerald-600" />
-            My Submitted Feedback & Grievance Tickets ({complaints.length})
-          </h3>
-          <span className="text-xs text-slate-500">Track resolution progress & investigator findings</span>
+      {/* CHAT MESSAGES BODY (WhatsApp Wallpaper & Bubbles) */}
+      <div 
+        className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-[#efeae2]/40"
+        style={{
+          backgroundImage: `radial-gradient(#cbd5e1 1px, transparent 1px)`,
+          backgroundSize: '24px 24px'
+        }}
+      >
+        {/* Welcome Introduction Bubble from Officer */}
+        <div className="flex justify-start">
+          <div className="max-w-[85%] sm:max-w-[70%] bg-white rounded-2xl rounded-tl-xs p-3.5 shadow-xs border border-slate-200/80 text-slate-800">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-[11px] font-bold text-emerald-700">
+                {currentContact.name} ({currentContact.role})
+              </span>
+              <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.2 rounded font-medium">
+                Official
+              </span>
+            </div>
+            <p className="text-xs leading-relaxed text-slate-700">
+              {currentContact.welcomeNote}
+            </p>
+            <span className="text-[10px] text-slate-400 block text-right mt-1">
+              Always available
+            </span>
+          </div>
         </div>
 
-        {loading ? (
-          <div className="text-center py-12 bg-white rounded-2xl border border-slate-200">
-            <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-            <p className="text-xs text-slate-500">Loading submitted feedback...</p>
-          </div>
-        ) : complaints.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl border border-slate-200">
-            <MessageSquareQuote className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-sm font-semibold text-slate-800">No Feedback or Complaints Submitted</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-              If you experienced an issue with aid rations, queue conduct, or have an idea to improve services, click the button above.
-            </p>
+        {/* Thread Messages */}
+        {activeChatMessages.length === 0 ? (
+          <div className="text-center py-6">
+            <span className="text-xs text-slate-400 bg-white/80 px-3 py-1.5 rounded-full border border-slate-200">
+              No messages sent to {currentContact.name} yet. Type below to start!
+            </span>
           </div>
         ) : (
-          <div className="space-y-3">
-            {complaints.map(ticket => (
-              <div
-                key={ticket.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:border-emerald-300 hover:shadow-md transition"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2.5">
-                    <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-                      {ticket.ticket_code}
+          activeChatMessages.map(msg => (
+            <div key={msg.id || msg.ticket_code} className="space-y-2">
+              {/* Beneficiary Outgoing Bubble (WhatsApp Green - Aligned Right) */}
+              <div className="flex justify-end">
+                <div className="max-w-[85%] sm:max-w-[70%] bg-[#d9fdd3] text-slate-900 rounded-2xl rounded-tr-xs p-3.5 shadow-xs border border-[#b8f5b0]">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded">
+                      {msg.category || 'Feedback'}
                     </span>
-                    <span
-                      className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                        ticket.status === 'Resolved'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          : ticket.status === 'Under Review'
-                          ? 'bg-blue-50 text-blue-800 border-blue-200'
-                          : 'bg-amber-50 text-amber-800 border-amber-200'
-                      }`}
-                    >
-                      {ticket.status}
+                    <span className="text-[9px] font-mono text-emerald-900/60 font-semibold">
+                      #{msg.ticket_code}
                     </span>
-                    {ticket.is_anonymous && (
-                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1">
-                        <EyeOff className="w-3 h-3" /> Anonymous
-                      </span>
-                    )}
                   </div>
 
-                  <span className="text-xs text-slate-400 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    {ticket.created_at?.split('T')[0] || 'Recently'}
-                  </span>
-                </div>
+                  {msg.subject && msg.subject !== msg.description && (
+                    <div className="text-xs font-bold text-slate-900 mb-1">
+                      {msg.subject}
+                    </div>
+                  )}
 
-                <div className="pt-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">
-                      {ticket.category}
-                    </span>
-                    <span className="text-xs text-slate-400">•</span>
-                    <span className="text-xs text-slate-500 font-medium">Severity: {ticket.severity}</span>
+                  <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">
+                    {msg.description}
+                  </p>
+
+                  <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-emerald-200/40 text-[10px] text-slate-500">
+                    <div className="flex items-center gap-1">
+                      {msg.is_anonymous ? (
+                        <span className="flex items-center gap-0.5 text-amber-700 font-semibold">
+                          <EyeOff className="w-3 h-3" /> Anonymous
+                        </span>
+                      ) : (
+                        <span>From: You</span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                      <span>{msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '10:00 AM'}</span>
+                      <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    </div>
                   </div>
-
-                  <h4 className="text-sm font-bold text-slate-900 mt-1">{ticket.subject}</h4>
-                  <p className="text-xs text-slate-600 mt-1 line-clamp-2">{ticket.description}</p>
-                </div>
-
-                {ticket.resolution_notes && (
-                  <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
-                    <span className="font-bold text-slate-900 flex items-center gap-1 mb-0.5">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                      Investigator Finding & Action:
-                    </span>
-                    <p className="text-slate-600">{ticket.resolution_notes}</p>
-                    {ticket.resolved_by && (
-                      <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                        Resolved by: {ticket.resolved_by} {ticket.resolved_at && `(${ticket.resolved_at.split('T')[0]})`}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleOpenDetail(ticket)}
-                    className="text-xs gap-1 border-slate-200 hover:border-emerald-300 hover:text-emerald-700"
-                  >
-                    View Ticket Details
-                    <ChevronRight className="w-3 h-3" />
-                  </Button>
                 </div>
               </div>
-            ))}
-          </div>
+
+              {/* Official Response / Investigation Finding (Incoming Bubble - Aligned Left) */}
+              {msg.resolution_notes && (
+                <div className="flex justify-start">
+                  <div className="max-w-[85%] sm:max-w-[70%] bg-white rounded-2xl rounded-tl-xs p-3.5 shadow-xs border border-emerald-200 text-slate-800">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        {msg.resolved_by || currentContact.name}
+                      </span>
+                      <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                        {msg.status || 'Resolved'}
+                      </span>
+                    </div>
+
+                    <div className="text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-slate-700 leading-relaxed">
+                      <strong className="block text-slate-900 text-[11px] mb-0.5">Finding & Action:</strong>
+                      {msg.resolution_notes}
+                    </div>
+
+                    <span className="text-[10px] text-slate-400 block text-right mt-1.5">
+                      {msg.resolved_at ? new Date(msg.resolved_at).toLocaleDateString() : 'Verified'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))
         )}
+
+        <div ref={chatBottomRef} />
       </div>
 
-      {/* Submit Feedback Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Submit Community Feedback or Complaint"
-        size="md"
-      >
-        <form onSubmit={handleSubmit} className="space-y-4 p-1">
-          {/* Anonymous toggle */}
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <EyeOff className="w-4 h-4 text-slate-600" />
-              <div>
-                <span className="text-xs font-bold text-slate-900 block">Submit Anonymously</span>
-                <span className="text-[10px] text-slate-500">Your name and contact will not be linked to this ticket</span>
-              </div>
-            </div>
+      {/* WHATSAPP BOTTOM INPUT BAR (TOPICS REMOVED) */}
+      <form onSubmit={handleSendMessage} className="p-3 bg-slate-100 border-t border-slate-200 flex items-center gap-2 shrink-0">
+        <div className="flex-1 bg-white rounded-2xl border border-slate-300 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 px-3.5 py-2 flex items-center gap-2 shadow-xs">
+          <input
+            type="text"
+            value={messageText}
+            onChange={(e) => setMessageText(e.target.value)}
+            placeholder={`Message ${currentContact.name} (${currentContact.role})...`}
+            className="flex-1 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden bg-transparent"
+            disabled={isSubmitting}
+          />
 
-            <input
-              type="checkbox"
-              checked={formData.is_anonymous}
-              onChange={(e) => setFormData({ ...formData, is_anonymous: e.target.checked })}
-              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
-            />
-          </div>
+          {isAnonymous && (
+            <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+              <EyeOff className="w-2.5 h-2.5" /> Anon
+            </span>
+          )}
+        </div>
 
-          {/* Category */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Feedback Category</label>
-            <select
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-500"
-            >
-              {categories.map((c, i) => (
-                <option key={i} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Severity */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Severity / Urgency</label>
-            <select
-              value={formData.severity}
-              onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
-              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-hidden focus:border-emerald-500"
-            >
-              <option value="Low">Low — General suggestion or positive remark</option>
-              <option value="Medium">Medium — Distribution delay or queue concern</option>
-              <option value="High">High — Missing ration or damaged commodity</option>
-              <option value="Urgent">Urgent — Immediate safeguarding, extortion or misconduct</option>
-            </select>
-          </div>
-
-          {/* Subject */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Subject / Summary</label>
-            <input
-              type="text"
-              value={formData.subject}
-              onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-              placeholder="e.g. Long queue waiting times at Lodwar depot checkpoint"
-              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
-              required
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Detailed Explanation</label>
-            <textarea
-              rows={4}
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Provide exact dates, locations, and details so our safeguarding team can investigate effectively..."
-              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-emerald-500"
-              required
-            />
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsModalOpen(false)}
-              className="text-xs"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              className="text-xs gap-1.5 shadow-md shadow-emerald-600/20"
-            >
-              <Send className="w-3.5 h-3.5" />
-              Submit Confidentially
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Detail Modal */}
-      {selectedTicket && (
-        <Modal
-          isOpen={isDetailOpen}
-          onClose={() => setIsDetailOpen(false)}
-          title={`Ticket #${selectedTicket.ticket_code}`}
-          size="md"
+        {/* WhatsApp Green Send Button */}
+        <button
+          type="submit"
+          disabled={!messageText.trim() || isSubmitting}
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition shadow-md shrink-0 cursor-pointer ${
+            messageText.trim() && !isSubmitting
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
+              : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+          }`}
+          title="Send Message"
         >
-          <div className="space-y-4 p-1">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-xs font-bold bg-slate-100 px-2.5 py-1 rounded border border-slate-200 text-slate-700">
-                {selectedTicket.ticket_code}
-              </span>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                {selectedTicket.status}
-              </span>
-            </div>
+          <Send className="w-4 h-4" />
+        </button>
+      </form>
 
-            <div>
-              <span className="text-xs text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded">
-                {selectedTicket.category}
-              </span>
-              <h4 className="text-base font-bold text-slate-900 mt-2">{selectedTicket.subject}</h4>
-              <p className="text-xs text-slate-600 mt-1 leading-relaxed">{selectedTicket.description}</p>
-            </div>
-
-            {selectedTicket.resolution_notes && (
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
-                <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                  <CheckCircle className="w-4 h-4 text-emerald-600" />
-                  Investigation Report & Findings:
-                </span>
-                <p className="text-slate-700 leading-relaxed">{selectedTicket.resolution_notes}</p>
-                {selectedTicket.resolved_by && (
-                  <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-200">
-                    Verified by: {selectedTicket.resolved_by}
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setIsDetailOpen(false)}
-                className="text-xs"
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }

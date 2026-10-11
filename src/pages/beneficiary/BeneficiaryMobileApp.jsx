@@ -580,8 +580,8 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
         </header>
 
         {/* SCROLLABLE MAIN CONTENT BODY (NO BOTTOM NAVIGATION) */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8">
-          <div className="max-w-4xl mx-auto w-full space-y-4">
+        <main className={`flex-1 overflow-y-auto ${currentView === 'feedback' ? 'p-0 flex flex-col' : 'p-3 sm:p-6 lg:p-8'}`}>
+          <div className={`${currentView === 'feedback' ? 'w-full flex-1 flex flex-col h-full' : 'max-w-4xl mx-auto w-full space-y-4'}`}>
             {/* AUTH CHOICE SCREEN (IF LOGGED OUT) */}
             {currentView === 'auth_choice' && (
               <div className="max-w-md mx-auto my-8 p-8 text-center bg-white rounded-3xl border border-slate-200 shadow-xl">
@@ -714,9 +714,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
 
             {/* FEEDBACK & COMPLAINTS */}
             {currentView === 'feedback' && (
-              <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-                <FeedbackComplaintsView beneficiary={beneficiary} />
-              </div>
+              <FeedbackComplaintsView beneficiary={beneficiary} />
             )}
 
             {/* PROFILE */}

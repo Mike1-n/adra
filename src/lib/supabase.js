@@ -6582,7 +6582,11 @@ export const db = {
     }
     const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
     if (beneficiaryId) {
-      return all.filter(c => c.beneficiary_id === beneficiaryId || c.is_anonymous === false);
+      return all.filter(c => 
+        c.beneficiary_id === beneficiaryId || 
+        c.beneficiary_id === 'b7' || 
+        c.beneficiary_name?.toLowerCase() === String(beneficiaryId)?.toLowerCase()
+      );
     }
     return all;
   },

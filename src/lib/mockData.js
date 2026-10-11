@@ -1390,6 +1390,8 @@ export const initialBeneficiaryComplaints = [
     beneficiary_name: 'Mary Nyambura',
     category: 'Distribution Logistics',
     severity: 'Medium',
+    recipient_role: 'Compliance Officer',
+    recipient_name: 'David Ochieng',
     is_anonymous: false,
     subject: 'Long waiting hours at Lodwar depot checkpoint',
     description: 'During the July 18 distribution, elderly and mothers with infants queued for over 4 hours under the sun before registration desks opened.',
