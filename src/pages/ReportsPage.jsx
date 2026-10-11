@@ -8,7 +8,13 @@ import {
   Eye,
   CheckCircle2,
   Calendar,
-  Layers
+  Layers,
+  FolderKanban,
+  Users,
+  Activity,
+  DollarSign,
+  BarChart3,
+  Building
 } from 'lucide-react';
 import { Card, CardHeader } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -179,11 +185,11 @@ export function ReportsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-200">
       {/* Top Banner / Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 no-print">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 no-print">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
             <FileText className="w-6 h-6 text-emerald-600" />
             Reporting & Document Export Center
           </h2>
@@ -192,57 +198,62 @@ export function ReportsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <Button variant="secondary" onClick={handleExportCSV} icon={FileSpreadsheet}>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button variant="secondary" onClick={handleExportCSV} icon={FileSpreadsheet} className="text-xs">
             Export CSV
           </Button>
-          <Button variant="primary" onClick={handleExportPDF} icon={Download}>
+          <Button variant="primary" onClick={handleExportPDF} icon={Download} className="text-xs">
             Download PDF
           </Button>
-          <Button variant="outline" onClick={handlePrint} icon={Printer}>
+          <Button variant="outline" onClick={handlePrint} icon={Printer} className="text-xs">
             Print
           </Button>
         </div>
       </div>
 
       {/* Filter Controls Bar */}
-      <Card className="no-print">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+      <Card className="p-5 bg-white border border-slate-200 shadow-2xs no-print">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2">
+            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
               Select Report Domain
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="flex flex-wrap gap-2">
               {[
-                { id: 'projects', label: 'Projects Portfolio' },
-                { id: 'beneficiaries', label: 'Beneficiary Roll' },
-                { id: 'activities', label: 'Activities Progress' },
-                { id: 'finance', label: 'Finance & Expenses' },
-                { id: 'me', label: 'M&E Indicators' },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setReportType(tab.id)}
-                  className={`p-2 rounded-lg text-xs font-medium text-left transition border ${
-                    reportType === tab.id
-                      ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 font-semibold'
-                      : 'bg-slate-950/60 text-slate-400 border-slate-800 hover:text-slate-200'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+                { id: 'projects', label: 'Projects Portfolio', icon: FolderKanban },
+                { id: 'beneficiaries', label: 'Beneficiary Roll', icon: Users },
+                { id: 'activities', label: 'Activities Progress', icon: Activity },
+                { id: 'finance', label: 'Finance & Expenses', icon: DollarSign },
+                { id: 'me', label: 'M&E Indicators', icon: BarChart3 },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isSelected = reportType === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setReportType(tab.id)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-slate-500'}`} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
               Filter by Project Scope
             </label>
             <select
               value={selectedProjectId}
               onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="adra-select text-xs py-2.5"
+              className="adra-select text-xs py-2.5 w-full bg-white border border-slate-300 font-medium text-slate-800 rounded-xl"
             >
               <option value="ALL">All Consolidated Projects ({data.projects.length})</option>
               {data.projects.map((p) => (
@@ -257,26 +268,32 @@ export function ReportsPage() {
 
       {/* Report Preview Document Canvas */}
       {loading ? (
-        <LoadingSpinner text="Compiling report dataset..." />
+        <div className="py-12">
+          <LoadingSpinner text="Compiling report dataset..." />
+        </div>
       ) : (
-        <Card className="p-6 bg-slate-900/90 border border-slate-800">
+        <Card className="p-6 sm:p-8 bg-white border border-slate-200 shadow-sm rounded-2xl">
           {/* Official Letterhead Header for Print / Preview */}
-          <div className="border-b border-slate-800 pb-5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="border-b border-slate-200 pb-5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-widest block">
-                ADRA Humanitarian Management System
+              <span className="text-[11px] font-mono font-bold text-emerald-800 uppercase tracking-widest block bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-500/20 w-fit mb-1.5">
+                ADRA SOUTH SUDAN • HUMANITARIAN MANAGEMENT SYSTEM
               </span>
-              <h3 className="text-lg font-bold text-slate-100 uppercase mt-0.5">
+              <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">
                 {reportType.toUpperCase()} SUMMARY & VERIFICATION REPORT
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5 font-medium">
                 Generated: {new Date().toLocaleString()} • Scope: {selectedProjectId === 'ALL' ? 'Full Portfolio' : 'Project Focus'}
               </p>
             </div>
 
-            <div className="text-right text-xs text-slate-400">
-              <span className="text-slate-200 font-bold block">{reportItems.length} Total Records</span>
-              <span>Status: Verified</span>
+            <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto text-xs gap-1.5">
+              <span className="font-bold text-slate-900 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+                {reportItems.length} Total Records
+              </span>
+              <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Status: Verified Official
+              </span>
             </div>
           </div>
 
@@ -287,110 +304,144 @@ export function ReportsPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800 uppercase tracking-wider text-[10px]">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                   {reportType === 'projects' && (
                     <tr>
-                      <th className="py-3 px-3">Code</th>
-                      <th className="py-3 px-3">Title</th>
-                      <th className="py-3 px-3">Location</th>
-                      <th className="py-3 px-3">Duration</th>
-                      <th className="py-3 px-3">Budget</th>
-                      <th className="py-3 px-3">Status</th>
+                      <th className="py-3 px-3.5">Code</th>
+                      <th className="py-3 px-3.5">Title</th>
+                      <th className="py-3 px-3.5">Location</th>
+                      <th className="py-3 px-3.5">Duration</th>
+                      <th className="py-3 px-3.5">Budget</th>
+                      <th className="py-3 px-3.5">Status</th>
                     </tr>
                   )}
                   {reportType === 'beneficiaries' && (
                     <tr>
-                      <th className="py-3 px-3">Code</th>
-                      <th className="py-3 px-3">Full Name</th>
-                      <th className="py-3 px-3">Gender/Age</th>
-                      <th className="py-3 px-3">Vulnerability Category</th>
-                      <th className="py-3 px-3">Location</th>
-                      <th className="py-3 px-3">Project</th>
+                      <th className="py-3 px-3.5">Code</th>
+                      <th className="py-3 px-3.5">Full Name</th>
+                      <th className="py-3 px-3.5">Gender / Age</th>
+                      <th className="py-3 px-3.5">Vulnerability Category</th>
+                      <th className="py-3 px-3.5">Location</th>
+                      <th className="py-3 px-3.5">Project</th>
                     </tr>
                   )}
                   {reportType === 'activities' && (
                     <tr>
-                      <th className="py-3 px-3">Code</th>
-                      <th className="py-3 px-3">Activity Name</th>
-                      <th className="py-3 px-3">Project</th>
-                      <th className="py-3 px-3">Scheduled Date</th>
-                      <th className="py-3 px-3">Location</th>
-                      <th className="py-3 px-3">Status</th>
+                      <th className="py-3 px-3.5">Code</th>
+                      <th className="py-3 px-3.5">Activity Name</th>
+                      <th className="py-3 px-3.5">Project</th>
+                      <th className="py-3 px-3.5">Scheduled Date</th>
+                      <th className="py-3 px-3.5">Location</th>
+                      <th className="py-3 px-3.5">Status</th>
                     </tr>
                   )}
                   {reportType === 'finance' && (
                     <tr>
-                      <th className="py-3 px-3">Voucher</th>
-                      <th className="py-3 px-3">Category</th>
-                      <th className="py-3 px-3">Description</th>
-                      <th className="py-3 px-3">Project</th>
-                      <th className="py-3 px-3">Date</th>
-                      <th className="py-3 px-3">Amount</th>
+                      <th className="py-3 px-3.5">Voucher</th>
+                      <th className="py-3 px-3.5">Category</th>
+                      <th className="py-3 px-3.5">Description</th>
+                      <th className="py-3 px-3.5">Project</th>
+                      <th className="py-3 px-3.5">Date</th>
+                      <th className="py-3 px-3.5">Amount</th>
                     </tr>
                   )}
                   {reportType === 'me' && (
                     <tr>
-                      <th className="py-3 px-3">Code</th>
-                      <th className="py-3 px-3">Indicator Name</th>
-                      <th className="py-3 px-3">Baseline</th>
-                      <th className="py-3 px-3">Target</th>
-                      <th className="py-3 px-3">Actual</th>
-                      <th className="py-3 px-3">Unit</th>
+                      <th className="py-3 px-3.5">Code</th>
+                      <th className="py-3 px-3.5">Indicator Name</th>
+                      <th className="py-3 px-3.5">Baseline</th>
+                      <th className="py-3 px-3.5">Target</th>
+                      <th className="py-3 px-3.5">Actual</th>
+                      <th className="py-3 px-3.5">Unit</th>
                     </tr>
                   )}
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                <tbody className="divide-y divide-slate-200 text-slate-800">
                   {reportItems.map((item, idx) => (
-                    <tr key={item.id || idx} className="hover:bg-slate-950/40">
+                    <tr key={item.id || idx} className="hover:bg-slate-50/80 transition">
                       {reportType === 'projects' && (
                         <>
-                          <td className="py-3 px-3 font-mono text-emerald-400">{item.project_code}</td>
-                          <td className="py-3 px-3 font-medium text-slate-100">{item.project_name}</td>
-                          <td className="py-3 px-3 text-slate-400">{item.location}</td>
-                          <td className="py-3 px-3 text-slate-400">{formatDate(item.start_date)} - {formatDate(item.end_date)}</td>
-                          <td className="py-3 px-3 font-semibold text-emerald-400">{formatCurrency(item.budget)}</td>
-                          <td className="py-3 px-3">{item.status}</td>
+                          <td className="py-3.5 px-3.5">
+                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
+                              {item.project_code}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.project_name}</td>
+                          <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.location}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600 whitespace-nowrap">{formatDate(item.start_date)} — {formatDate(item.end_date)}</td>
+                          <td className="py-3.5 px-3.5 font-mono font-bold text-emerald-800 whitespace-nowrap">{formatCurrency(item.budget)}</td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] border font-bold ${
+                              item.status === 'Active'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
+                                : item.status === 'Completed'
+                                ? 'bg-blue-50 text-blue-800 border-blue-300'
+                                : 'bg-amber-50 text-amber-800 border-amber-300'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
                         </>
                       )}
                       {reportType === 'beneficiaries' && (
                         <>
-                          <td className="py-3 px-3 font-mono text-emerald-400">{item.beneficiary_code}</td>
-                          <td className="py-3 px-3 font-medium text-slate-100">{item.full_name}</td>
-                          <td className="py-3 px-3">{item.gender} • {item.age} yrs</td>
-                          <td className="py-3 px-3 text-slate-300">{item.vulnerability_category}</td>
-                          <td className="py-3 px-3 text-slate-400">{item.location}</td>
-                          <td className="py-3 px-3 text-slate-400">{item.project_name}</td>
+                          <td className="py-3.5 px-3.5">
+                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
+                              {item.beneficiary_code}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.full_name}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600 whitespace-nowrap">{item.gender} • {item.age} yrs</td>
+                          <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.vulnerability_category}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600">{item.location}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600 font-medium">{item.project_name}</td>
                         </>
                       )}
                       {reportType === 'activities' && (
                         <>
-                          <td className="py-3 px-3 font-mono text-emerald-400">{item.activity_code}</td>
-                          <td className="py-3 px-3 font-medium text-slate-100">{item.activity_name}</td>
-                          <td className="py-3 px-3 text-slate-400">{item.project_name}</td>
-                          <td className="py-3 px-3 text-slate-400">{formatDate(item.activity_date)}</td>
-                          <td className="py-3 px-3 text-slate-400">{item.location}</td>
-                          <td className="py-3 px-3">{item.status}</td>
+                          <td className="py-3.5 px-3.5">
+                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
+                              {item.activity_code}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.activity_name}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600">{item.project_name}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600 whitespace-nowrap">{formatDate(item.activity_date)}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600">{item.location}</td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] border font-bold bg-slate-100 text-slate-700 border-slate-200">
+                              {item.status}
+                            </span>
+                          </td>
                         </>
                       )}
                       {reportType === 'finance' && (
                         <>
-                          <td className="py-3 px-3 font-mono text-emerald-400">{item.expenditure_code}</td>
-                          <td className="py-3 px-3 text-slate-300">{item.category}</td>
-                          <td className="py-3 px-3 text-slate-200">{item.description}</td>
-                          <td className="py-3 px-3 text-slate-400">{item.project_name}</td>
-                          <td className="py-3 px-3 text-slate-400">{formatDate(item.expenditure_date)}</td>
-                          <td className="py-3 px-3 font-semibold text-slate-100">{formatCurrency(item.amount)}</td>
+                          <td className="py-3.5 px-3.5">
+                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
+                              {item.expenditure_code}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3.5 font-semibold text-slate-800">{item.category}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600 max-w-xs">{item.description}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600">{item.project_name}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600 whitespace-nowrap">{formatDate(item.expenditure_date)}</td>
+                          <td className="py-3.5 px-3.5 font-mono font-bold text-emerald-800 whitespace-nowrap">{formatCurrency(item.amount)}</td>
                         </>
                       )}
                       {reportType === 'me' && (
                         <>
-                          <td className="py-3 px-3 font-mono text-emerald-400">{item.indicator_code}</td>
-                          <td className="py-3 px-3 font-medium text-slate-100">{item.indicator_name}</td>
-                          <td className="py-3 px-3 text-slate-400">{item.baseline}</td>
-                          <td className="py-3 px-3 font-semibold text-slate-200">{item.target}</td>
-                          <td className="py-3 px-3 font-bold text-emerald-400">{item.actual_result}</td>
-                          <td className="py-3 px-3 text-slate-400">{item.measurement_unit}</td>
+                          <td className="py-3.5 px-3.5">
+                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
+                              {item.indicator_code}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.indicator_name}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600 font-mono">{item.baseline}</td>
+                          <td className="py-3.5 px-3.5 font-semibold text-slate-700 font-mono">{item.target}</td>
+                          <td className="py-3.5 px-3.5 font-bold text-emerald-800 font-mono">{item.actual_result}</td>
+                          <td className="py-3.5 px-3.5 text-slate-500">{item.measurement_unit}</td>
                         </>
                       )}
                     </tr>
