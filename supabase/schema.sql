@@ -576,3 +576,33 @@ CREATE POLICY "Allow authenticated read on dispatches" ON public.dispatches FOR 
 DROP POLICY IF EXISTS "Allow authenticated write on dispatches" ON public.dispatches;
 CREATE POLICY "Allow authenticated write on dispatches" ON public.dispatches FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+-- ----------------------------------------------------------------------------
+-- 18. SUPPLIERS & VENDORS TABLE
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.suppliers (
+    id TEXT PRIMARY KEY,
+    company_name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    contact_person TEXT,
+    email TEXT,
+    phone TEXT,
+    city TEXT,
+    country TEXT,
+    address TEXT,
+    rating NUMERIC(3,1) DEFAULT 5.0,
+    status TEXT DEFAULT 'Active',
+    bank_name TEXT,
+    bank_account_no TEXT,
+    swift_code TEXT,
+    mobile_money_number TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow authenticated read on suppliers" ON public.suppliers;
+CREATE POLICY "Allow authenticated read on suppliers" ON public.suppliers FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated write on suppliers" ON public.suppliers;
+CREATE POLICY "Allow authenticated write on suppliers" ON public.suppliers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+
