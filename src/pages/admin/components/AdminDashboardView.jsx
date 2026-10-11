@@ -8,37 +8,33 @@ import {
   ArrowRight,
   Plus,
   Activity,
-  ChevronRight,
-  MapPin
+  ShieldCheck,
+  HeartHandshake
 } from 'lucide-react';
-import { Card, CardHeader } from '../../../components/common/Card';
+import { Card } from '../../../components/common/Card';
 import { StatCard } from '../../../components/common/StatCard';
 import { Button } from '../../../components/common/Button';
 import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
-import { LIFECYCLE_STAGES, determineStage } from './ProjectLifecycleTrackerView';
 
-export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
+export function AdminDashboardView({ onNavigateTab }) {
   const [stats, setStats] = useState(null);
   const [pendingApprovals, setPendingApprovals] = useState([]);
-  const [recentRequests, setRecentRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [adminStats, approvals, reqs] = await Promise.all([
+      const [adminStats, approvals] = await Promise.all([
         db.getAdminStats(),
-        db.getApprovals('ALL'),
-        db.getAssistanceRequests()
+        db.getApprovals('ALL')
       ]);
       setStats(adminStats);
-      setPendingApprovals(approvals.filter(a => a.status === 'Pending').slice(0, 4));
-      setRecentRequests((reqs || []).slice(0, 3));
+      setPendingApprovals(approvals.filter(a => a.status === 'Pending').slice(0, 6));
     } catch (err) {
-      toast.error('Failed to load live metrics.');
+      toast.error('Failed to load dashboard metrics.');
     } finally {
       setLoading(false);
     }
@@ -51,7 +47,7 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
   const handleQuickApprove = async (id, title) => {
     try {
       await db.updateApprovalStatus(id, 'Approved', 'Approved via Administrator Quick Action');
-      toast.success(`Request approved`);
+      toast.success(`Request ${id} approved`);
       loadDashboardData();
     } catch (err) {
       toast.error('Approval failed.');
@@ -61,7 +57,7 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
   const handleQuickReject = async (id, title) => {
     try {
       await db.updateApprovalStatus(id, 'Rejected', 'Rejected via Administrator Quick Action');
-      toast.info(`Request rejected`);
+      toast.info(`Request ${id} rejected`);
       loadDashboardData();
     } catch (err) {
       toast.error('Rejection failed.');
@@ -69,21 +65,23 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
   };
 
   if (loading) {
-    return <LoadingSpinner text="Aggregating live telemetry..." />;
+    return <LoadingSpinner text="Loading dashboard..." />;
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Clean Page Title Header */}
+    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-200">
+      {/* 1. Header: Ultra-minimalist and spacious */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">System Overview</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Real-time metrics, active personnel, programmes, and pending approvals</p>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">System Overview</h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Executive operational metrics and pending administrative authorizations
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold">
+        <div className="flex items-center gap-2.5">
+          <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Systems Live</span>
+            <span>Systems Active</span>
           </div>
           <Button
             variant="primary"
@@ -96,8 +94,8 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
         </div>
       </div>
 
-      {/* 4 Primary KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* 2. Primary KPI Metrics Grid: Clean & spacious */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
         <StatCard
           title="Beneficiaries"
           value={stats?.totalBeneficiaries.toLocaleString() || '0'}
@@ -108,9 +106,9 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
         />
 
         <StatCard
-          title="Active Users"
+          title="Active Personnel"
           value={stats?.activeUsers.toString() || '0'}
-          subtitle={`Staff across ${stats?.rolesCount || 8} roles`}
+          subtitle={`Across ${stats?.rolesCount || 8} operational roles`}
           icon={UserCheck}
           color="blue"
           onClick={() => onNavigateTab('users')}
@@ -128,172 +126,176 @@ export function AdminDashboardView({ onNavigateTab, onOpenSearch }) {
         <StatCard
           title="Pending Approvals"
           value={stats?.pendingApprovals.toString() || '0'}
-          subtitle={stats?.pendingApprovals > 0 ? 'Action required' : 'Queue cleared'}
+          subtitle={stats?.pendingApprovals > 0 ? 'Requires attention' : 'Queue cleared'}
           icon={Clock}
           color={stats?.pendingApprovals > 0 ? 'amber' : 'emerald'}
           onClick={() => onNavigateTab('approvals')}
         />
       </div>
 
-      {/* Clean Progress Tracker (Streamlined, no repeated 7-label clutter) */}
-      <Card className="border-slate-200 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#006B56] flex items-center justify-center font-bold">
+      {/* 3. Urgent Administrative Requests: Clean, Compact Table */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+        {/* Table Header Strip */}
+        <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100">
+          <div>
+            <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+              Urgent Administrative Requests
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Pending staff recruitment, vendor qualifications, and budget disbursements
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateTab('approvals')}
+            className="text-xs font-bold text-[#006B56] hover:text-[#005443] flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+          >
+            <span>View All Approvals</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {pendingApprovals.length === 0 ? (
+          <div className="py-12 text-center text-slate-500 p-6 space-y-1.5">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-1 opacity-80" />
+            <p className="font-bold text-slate-800 text-sm">All Clear — No Pending Approvals</p>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              Every staff registration, supplier onboarding, and budget release has been reviewed.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
+                  <th className="py-2.5 px-3 sm:py-3 sm:px-4">Request ID</th>
+                  <th className="py-2.5 px-3 sm:py-3 sm:px-4">Type & Requester</th>
+                  <th className="hidden md:table-cell py-3 px-4">Justification / Details</th>
+                  <th className="hidden sm:table-cell py-3 px-4">Priority</th>
+                  <th className="py-2.5 px-3 sm:py-3 sm:px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pendingApprovals.map((app) => (
+                  <tr key={app.id} className="hover:bg-slate-50/70 transition">
+                    {/* Request ID */}
+                    <td className="py-3 px-3 sm:px-4 align-middle whitespace-nowrap">
+                      <span className="font-mono font-bold text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                        {app.id}
+                      </span>
+                    </td>
+
+                    {/* Type & Requester */}
+                    <td className="py-3 px-3 sm:px-4 align-middle max-w-[200px]">
+                      <span className="font-bold text-slate-900 block truncate">
+                        {app.category}
+                      </span>
+                      <span className="text-[11px] text-slate-500 block truncate">
+                        {app.requester_name}
+                      </span>
+                      {/* Details visible on mobile if hidden column */}
+                      <span className="text-[11px] text-slate-400 line-clamp-1 mt-0.5 md:hidden">
+                        {app.details}
+                      </span>
+                    </td>
+
+                    {/* Description / Details (md+ screens) */}
+                    <td className="hidden md:table-cell py-3 px-4 align-middle text-slate-600 max-w-[320px]">
+                      <p className="line-clamp-2 leading-relaxed text-[11px]">
+                        {app.details}
+                      </p>
+                    </td>
+
+                    {/* Priority (sm+ screens) */}
+                    <td className="hidden sm:table-cell py-3 px-4 align-middle whitespace-nowrap">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${
+                          app.priority === 'Urgent'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
+                      >
+                        {app.priority || 'Normal'}
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3 px-3 sm:px-4 align-middle text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleQuickReject(app.id, app.category)}
+                          className="px-2.5 py-1 text-xs font-bold text-rose-700 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 rounded-lg transition cursor-pointer"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickApprove(app.id, app.category)}
+                          className="px-3 py-1 text-xs font-bold text-white bg-[#006B56] hover:bg-[#005443] rounded-lg transition shadow-2xs cursor-pointer active:scale-95"
+                        >
+                          Approve
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 4. Minimalist Operations Shortcuts */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-1">
+        <div
+          onClick={() => onNavigateTab('lifecycle')}
+          className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-emerald-300 shadow-2xs hover:shadow-xs transition cursor-pointer flex items-center justify-between gap-3 group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#006B56] flex items-center justify-center shrink-0">
               <Activity className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                Beneficiary Assistance & Project Progress Tracker
-              </h3>
-              <p className="text-xs text-slate-500">
-                Live multi-phase telemetry from household submission to verified delivery
-              </p>
+              <p className="font-bold text-slate-900 text-xs group-hover:text-[#006B56] transition">Aid Lifecycle Pipeline</p>
+              <p className="text-[11px] text-slate-500">7-phase assistance tracker</p>
             </div>
           </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onNavigateTab('lifecycle')}
-            className="text-xs text-[#006B56] hover:bg-emerald-50 self-start sm:self-auto"
-          >
-            Open Full Lifecycle Pipeline <ArrowRight className="w-3.5 h-3.5 ml-1" />
-          </Button>
+          <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#006B56] group-hover:translate-x-0.5 transition" />
         </div>
 
-        {recentRequests.length === 0 ? (
-          <div className="py-8 text-center text-slate-500 text-xs">
-            <Activity className="w-6 h-6 text-slate-300 mx-auto mb-1" />
-            <p className="font-semibold text-slate-700">No active assistance cases in queue</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">All beneficiary assistance requests will be tracked in real-time here.</p>
+        <div
+          onClick={() => onNavigateTab('beneficiaries')}
+          className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-emerald-300 shadow-2xs hover:shadow-xs transition cursor-pointer flex items-center justify-between gap-3 group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
+              <HeartHandshake className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 text-xs group-hover:text-purple-700 transition">Beneficiary Registry</p>
+              <p className="text-[11px] text-slate-500">Enrolled households & QR cards</p>
+            </div>
           </div>
-        ) : (
-          <div className="divide-y divide-slate-100 pt-1">
-            {recentRequests.map((req) => {
-              const currentStageNum = determineStage(req);
-              const currentStageObj = LIFECYCLE_STAGES.find(s => s.stage === currentStageNum) || LIFECYCLE_STAGES[0];
+          <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-purple-700 group-hover:translate-x-0.5 transition" />
+        </div>
 
-              return (
-                <div
-                  key={req.id}
-                  onClick={() => onNavigateTab('lifecycle')}
-                  className="py-3 px-2 sm:px-3 hover:bg-slate-50/80 rounded-xl transition cursor-pointer space-y-2"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
-                        #{req.request_code}
-                      </span>
-                      <strong className="text-slate-900 font-bold">{req.beneficiary_name}</strong>
-                      <span className="text-slate-300">•</span>
-                      <span className="text-slate-600">{req.category || 'Food & Water Aid'}</span>
-                      <span className="text-slate-300 hidden sm:inline">•</span>
-                      <span className="text-slate-500 hidden sm:flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-[#006B56]" />
-                        {req.location || 'Central Equatoria'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-start sm:self-center">
-                      <span className="font-bold text-[#006B56] text-[11px] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                        {currentStageObj.shortName} ({currentStageObj.percentage}%)
-                      </span>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    </div>
-                  </div>
-
-                  {/* Clean continuous progress line */}
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="bg-[#006B56] h-full rounded-full transition-all duration-500"
-                      style={{ width: `${Math.max(currentStageObj.percentage, 10)}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+        <div
+          onClick={() => onNavigateTab('security')}
+          className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-emerald-300 shadow-2xs hover:shadow-xs transition cursor-pointer flex items-center justify-between gap-3 group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 text-xs group-hover:text-sky-700 transition">Security & Audit Logs</p>
+              <p className="text-[11px] text-slate-500">RBAC policies & event trail</p>
+            </div>
           </div>
-        )}
-      </Card>
-
-      {/* Actionable Urgent Administrative Requests */}
-      <Card className="border-slate-200 shadow-2xs">
-        <CardHeader
-          title="Urgent Administrative Requests"
-          subtitle="Pending staff registrations, vendor onboarding, and budget releases"
-          action={
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onNavigateTab('approvals')}
-              className="text-xs text-[#006B56] hover:bg-emerald-50"
-            >
-              View Full Queue <ArrowRight className="w-3.5 h-3.5 ml-1" />
-            </Button>
-          }
-        />
-
-        {pendingApprovals.length === 0 ? (
-          <div className="py-8 text-center text-slate-500 text-xs">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2 opacity-80" />
-            <p className="font-semibold text-slate-900">No Pending Approvals</p>
-            <p className="mt-0.5 text-[11px] text-slate-500">All registration and expenditure queues are up to date.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-            {pendingApprovals.map((app) => (
-              <div
-                key={app.id}
-                className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-200 flex flex-col justify-between gap-3 hover:bg-slate-50 transition"
-              >
-                <div className="min-w-0 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-[10px] text-emerald-800 bg-emerald-100/70 px-1.5 py-0.5 rounded font-bold">
-                        {app.id}
-                      </span>
-                      <span className="text-xs font-bold text-slate-900 truncate">
-                        {app.category}
-                      </span>
-                    </div>
-                    {app.priority === 'Urgent' && (
-                      <span className="text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded-full">
-                        Urgent
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-900 font-semibold truncate">
-                    {app.requester_name}
-                  </p>
-                  <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
-                    {app.details}
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/70">
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => handleQuickReject(app.id, app.category)}
-                    className="text-xs py-1 px-3"
-                  >
-                    Reject
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => handleQuickApprove(app.id, app.category)}
-                    className="text-xs py-1 px-3"
-                  >
-                    Approve
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+          <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-sky-700 group-hover:translate-x-0.5 transition" />
+        </div>
+      </div>
     </div>
   );
 }
