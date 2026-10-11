@@ -19,6 +19,8 @@ import {
   Activity,
   PanelLeftClose,
   PanelLeftOpen,
+  FileText,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db, isSupabaseConfigured } from '../../lib/supabase';
@@ -137,10 +139,10 @@ export function AdminWebPortalLayout({
       desc: 'Audit Logs & Policies'
     },
     {
-      id: 'system',
-      name: 'System & Data',
-      icon: Settings,
-      desc: 'Backups, Settings & Reports'
+      id: 'reports',
+      name: 'Reports',
+      icon: FileText,
+      desc: 'Project, Beneficiary & Finance Reports'
     }
   ];
 

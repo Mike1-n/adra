@@ -29,18 +29,17 @@ import { BeneficiaryOversightView } from './components/BeneficiaryOversightView'
 import { FieldGovernanceView } from './components/FieldGovernanceView';
 import { SecurityAuditView } from './components/SecurityAuditView';
 import { NotificationsBroadcastView } from './components/NotificationsBroadcastView';
-import { DataSettingsSupportView } from './components/DataSettingsSupportView';
+import { ReportsPage } from '../ReportsPage';
 
 export function AdminWebPortalPage({ onSwitchToFieldApp }) {
-  // Primary Sections: 'overview', 'lifecycle', 'identity', 'beneficiaries', 'field', 'security', 'system'
+  // Primary Sections: 'overview', 'lifecycle', 'identity', 'beneficiaries', 'field', 'security', 'reports'
   const [activeSection, setActiveSection] = useState('overview');
 
   // Sub-tabs for each section
   const [subTabs, setSubTabs] = useState({
-    identity: 'users',      // 'users' | 'permissions' | 'approvals'
+    identity: 'users',      // 'users' | 'approvals'
     field: 'programmes',    // 'programmes' | 'locations' | 'approvals'
     security: 'audit',      // 'audit' | 'policies' | 'broadcasts'
-    system: 'settings',     // 'settings' | 'backups' | 'reports' | 'faqs'
   });
 
   const setSectionSubTab = (section, tab) => {
@@ -84,10 +83,8 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
         setActiveSection('security');
         setSectionSubTab('security', 'audit');
         break;
-      case 'data':
-      case 'settings':
-        setActiveSection('system');
-        setSectionSubTab('system', 'backups');
+      case 'reports':
+        setActiveSection('reports');
         break;
       default:
         setActiveSection('overview');
@@ -254,65 +251,10 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
         </div>
       )}
 
-      {/* 6. SYSTEM & DATA */}
-      {activeSection === 'system' && (
+      {/* 6. REPORTS */}
+      {activeSection === 'reports' && (
         <div className="space-y-6">
-          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-850 border border-slate-800 w-fit">
-            <button
-              onClick={() => setSectionSubTab('system', 'settings')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                subTabs.system === 'settings'
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              <Settings className="w-3.5 h-3.5" />
-              Organization Settings
-            </button>
-
-            <button
-              onClick={() => setSectionSubTab('system', 'backups')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                subTabs.system === 'backups'
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              <Database className="w-3.5 h-3.5" />
-              Backups & Integrity
-            </button>
-
-            <button
-              onClick={() => setSectionSubTab('system', 'reports')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                subTabs.system === 'reports'
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              <BarChart3 className="w-3.5 h-3.5" />
-              Analytical Reports
-            </button>
-
-            <button
-              onClick={() => setSectionSubTab('system', 'faqs')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                subTabs.system === 'faqs'
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              <HelpCircle className="w-3.5 h-3.5" />
-              Support & FAQs
-            </button>
-          </div>
-
-          <div>
-            {subTabs.system === 'settings' && <DataSettingsSupportView initialTab="settings" />}
-            {subTabs.system === 'backups' && <DataSettingsSupportView initialTab="data" />}
-            {subTabs.system === 'reports' && <DataSettingsSupportView initialTab="reports" />}
-            {subTabs.system === 'faqs' && <DataSettingsSupportView initialTab="help" />}
-          </div>
+          <ReportsPage />
         </div>
       )}
     </AdminWebPortalLayout>

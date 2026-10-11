@@ -24,7 +24,8 @@ import {
   RefreshCw,
   Layers,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  FileText
 } from 'lucide-react';
 import { db, isSupabaseConfigured } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
@@ -42,6 +43,7 @@ import { SecurityAuditView } from './components/SecurityAuditView';
 import { NotificationsBroadcastView } from './components/NotificationsBroadcastView';
 import { DataSettingsSupportView } from './components/DataSettingsSupportView';
 import { GlobalSearchView } from './components/GlobalSearchView';
+import { ReportsPage } from '../ReportsPage';
 
 export function AdminConsolePage() {
   // Navigation State: hub and subFunction
@@ -144,7 +146,7 @@ export function AdminConsolePage() {
         setActiveFunction('data-mgmt');
         break;
       case 'reports':
-        setActiveHub('data');
+        setActiveHub('reports');
         setActiveFunction('reports');
         break;
       case 'faqs':
@@ -234,21 +236,11 @@ export function AdminConsolePage() {
       ]
     },
     {
-      id: 'data',
-      name: 'Data & Reporting',
-      icon: Database,
+      id: 'reports',
+      name: 'Reports',
+      icon: FileText,
       functions: [
-        { id: 'settings', name: 'System Settings & ID Formats', icon: Settings, num: 'F9' },
-        { id: 'data-mgmt', name: 'Database Backups & Integrity', icon: Database, num: 'F14' },
-        { id: 'reports', name: 'Analytical System Reports', icon: BarChart3, num: 'F15' },
-      ]
-    },
-    {
-      id: 'support',
-      name: 'Support & Knowledge',
-      icon: HelpCircle,
-      functions: [
-        { id: 'faqs', name: 'Interactive FAQs & Helpdesk', icon: HelpCircle, num: 'F17' },
+        { id: 'reports', name: 'Document & Analytics Exports', icon: FileText, num: 'F15' },
       ]
     }
   ];
@@ -431,20 +423,9 @@ export function AdminConsolePage() {
           <NotificationsBroadcastView />
         )}
 
-        {/* Hub 5: Data & Reporting */}
-        {activeHub === 'data' && activeFunction === 'settings' && (
-          <DataSettingsSupportView initialTab="settings" />
-        )}
-        {activeHub === 'data' && activeFunction === 'data-mgmt' && (
-          <DataSettingsSupportView initialTab="data" />
-        )}
-        {activeHub === 'data' && activeFunction === 'reports' && (
-          <DataSettingsSupportView initialTab="reports" />
-        )}
-
-        {/* Hub 6: Support & Knowledge */}
-        {activeHub === 'support' && activeFunction === 'faqs' && (
-          <DataSettingsSupportView initialTab="help" />
+        {/* Hub 6: Reports */}
+        {activeHub === 'reports' && (
+          <ReportsPage />
         )}
       </div>
 
