@@ -29,6 +29,7 @@ import { BeneficiaryOversightView } from './components/BeneficiaryOversightView'
 import { FieldGovernanceView } from './components/FieldGovernanceView';
 import { SecurityAuditView } from './components/SecurityAuditView';
 import { NotificationsBroadcastView } from './components/NotificationsBroadcastView';
+import { UserFeedbackView } from './components/UserFeedbackView';
 import { ReportsPage } from '../ReportsPage';
 
 export function AdminWebPortalPage({ onSwitchToFieldApp }) {
@@ -82,6 +83,9 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
       case 'audit':
         setActiveSection('security');
         setSectionSubTab('security', 'audit');
+        break;
+      case 'feedback':
+        setActiveSection('feedback');
         break;
       case 'reports':
         setActiveSection('reports');
@@ -251,7 +255,14 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
         </div>
       )}
 
-      {/* 6. REPORTS */}
+      {/* 6. USER FEEDBACK & MODULE ACCOUNTABILITY */}
+      {activeSection === 'feedback' && (
+        <div className="space-y-6">
+          <UserFeedbackView />
+        </div>
+      )}
+
+      {/* 7. REPORTS */}
       {activeSection === 'reports' && (
         <div className="space-y-6">
           <ReportsPage />

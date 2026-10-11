@@ -48,6 +48,7 @@ import { FinanceDisburseModal } from './components/FinanceDisburseModal';
 import { FinanceExpenseModal } from './components/FinanceExpenseModal';
 import { FinanceVoucherModal } from './components/FinanceVoucherModal';
 import { AdraLogo } from '../../components/common/AdraLogo';
+import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
 
 export function FinanceMobileApp({
   currentUser,
@@ -841,6 +842,9 @@ export function FinanceMobileApp({
           onClose={() => { setVoucherModalOpen(false); setSelectedVoucherItem(null); }}
           item={selectedVoucherItem}
         />
+
+        {/* Module Feedback Trigger */}
+        <FloatingFeedbackButton currentModule="Finance & Disbursements" />
 
       </div>
     </div>

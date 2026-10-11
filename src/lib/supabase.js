@@ -58,7 +58,8 @@ const STORAGE_KEYS = {
   PURCHASE_ORDERS: 'adra_purchase_orders',
   DISPATCHES: 'adra_dispatches',
   STOCK_TRANSACTIONS: 'adra_stock_transactions',
-  WAREHOUSES: 'adra_warehouses'
+  WAREHOUSES: 'adra_warehouses',
+  USER_FEEDBACK: 'adra_user_feedback'
 };
 
 function getLocalData(key, defaultData) {
@@ -6956,5 +6957,189 @@ export const db = {
       console.warn('Supabase storage upload error:', err?.message || err);
       return null;
     }
+  },
+
+  // --- UNIVERSAL MODULE FEEDBACK & USER REVIEWS ---
+  async getUserFeedbacks(moduleId = null) {
+    const initialUserFeedbacks = [
+      {
+        id: 'fb-001',
+        ticket_code: 'FB-2026-001',
+        module: 'Field Programmes',
+        module_id: 'field',
+        user_name: 'Grace Ochieng',
+        user_email: 'grace.ochieng@adra.org',
+        user_role: 'Program Manager',
+        category: 'Feature Suggestion',
+        rating: 5,
+        subject: 'Bulk grant budget recalculation on programme status change',
+        message: 'It would be fantastic if changing a project status from Active to Completed automatically prompts an option to freeze remaining budget allocations and generate an archive summary.',
+        priority: 'Normal',
+        status: 'In Progress',
+        admin_response: 'Great suggestion Grace. We have queued this for the Q4 release milestone.',
+        responded_by: 'Dr. Elizabeth Warren',
+        responded_at: '2026-09-24T10:15:00Z',
+        created_at: '2026-09-20T14:30:00Z'
+      },
+      {
+        id: 'fb-002',
+        ticket_code: 'FB-2026-002',
+        module: 'Beneficiary Oversight',
+        module_id: 'beneficiaries',
+        user_name: 'Deng James Maker',
+        user_email: 'deng.maker@adra.org',
+        user_role: 'Supervisor',
+        category: 'Usability & Speed',
+        rating: 4,
+        subject: 'Batch verification for households registered in rural payams',
+        message: 'Field teams in Upper Nile registered over 40 households at once. Having a multi-select checkbox to verify multiple pending beneficiaries simultaneously saves immense time in remote hubs.',
+        priority: 'High',
+        status: 'Resolved',
+        admin_response: 'Batch verification workflow deployed. Field Supervisors can now bulk-verify up to 50 households.',
+        responded_by: 'Dr. Elizabeth Warren',
+        responded_at: '2026-09-27T16:00:00Z',
+        created_at: '2026-09-25T09:12:00Z'
+      },
+      {
+        id: 'fb-003',
+        ticket_code: 'FB-2026-003',
+        module: 'Aid Assistance Pipeline',
+        module_id: 'lifecycle',
+        user_name: 'Rose Poni Lado',
+        user_email: 'rose.poni@adra.org',
+        user_role: 'Field Worker',
+        category: 'Issue / Bug Report',
+        rating: 4,
+        subject: 'GPS coordinate precision warning in offline mode',
+        message: 'When recording relief drop-offs in low-connectivity areas in Garissa, the GPS indicator sometimes stays at orange precision. Adding an option to manually confirm landmark distance would prevent sync delays.',
+        priority: 'Urgent',
+        status: 'Under Review',
+        admin_response: null,
+        responded_by: null,
+        responded_at: null,
+        created_at: '2026-10-02T11:45:00Z'
+      },
+      {
+        id: 'fb-004',
+        ticket_code: 'FB-2026-004',
+        module: 'Reporting & Document Export',
+        module_id: 'reports',
+        user_name: 'Alex Morgan',
+        user_email: 'alex.morgan@adra.org',
+        user_role: 'Finance Officer',
+        category: 'Feature Suggestion',
+        rating: 5,
+        subject: 'Monochrome print-friendly layout for field distribution manifests',
+        message: 'The new executive white letterhead for reports looks sharp on screen. Can we ensure the table borders print cleanly on standard thermal/black-and-white field printers?',
+        priority: 'Normal',
+        status: 'Resolved',
+        admin_response: 'High-contrast print CSS stylesheets applied. All reports now format cleanly in monochrome print mode.',
+        responded_by: 'Dr. Elizabeth Warren',
+        responded_at: '2026-10-08T12:00:00Z',
+        created_at: '2026-10-06T15:20:00Z'
+      },
+      {
+        id: 'fb-005',
+        ticket_code: 'FB-2026-005',
+        module: 'Supply Chain & Purchase Orders',
+        module_id: 'orders',
+        user_name: 'Tariq Al-Mansoor',
+        user_email: 'tariq.mansoor@nilelogistics.com',
+        user_role: 'Supplier',
+        category: 'Usability & Speed',
+        rating: 5,
+        subject: 'Waybill electronic signature upload from mobile browser',
+        message: 'Uploading signed delivery notes directly from phone camera at the state depot entrance worked smoothly. Instant GRN verification received within 15 minutes.',
+        priority: 'Low',
+        status: 'Resolved',
+        admin_response: 'Thank you for the positive confirmation Tariq. State logistics teams were notified.',
+        responded_by: 'Dr. Elizabeth Warren',
+        responded_at: '2026-10-10T09:30:00Z',
+        created_at: '2026-10-09T18:05:00Z'
+      }
+    ];
+
+    if (isSupabaseConfigured) {
+      try {
+        let query = supabase.from('user_feedbacks').select('*').order('created_at', { ascending: false });
+        if (moduleId && moduleId !== 'ALL') query = query.eq('module_id', moduleId);
+        const { data, error } = await query;
+        if (!error && Array.isArray(data) && data.length > 0) return data;
+      } catch (e) {
+        console.warn('Supabase getUserFeedbacks fallback:', e?.message);
+      }
+    }
+    const current = getLocalData(STORAGE_KEYS.USER_FEEDBACK, initialUserFeedbacks);
+    if (moduleId && moduleId !== 'ALL') {
+      return current.filter(f => f.module_id === moduleId || f.module?.toLowerCase() === moduleId?.toLowerCase());
+    }
+    return current;
+  },
+
+  async submitUserFeedback(feedbackData) {
+    const current = await this.getUserFeedbacks();
+    const codeNum = String(current.length + 1).padStart(3, '0');
+    const newFeedback = {
+      id: isSupabaseConfigured ? undefined : `fb_${Date.now()}`,
+      ticket_code: `FB-2026-${codeNum}`,
+      status: 'Submitted',
+      created_at: new Date().toISOString(),
+      admin_response: null,
+      responded_by: null,
+      responded_at: null,
+      ...feedbackData
+    };
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('user_feedbacks').insert([newFeedback]).select().single();
+        if (!error && data) {
+          newFeedback.id = data.id;
+        }
+      } catch (err) {
+        console.warn('Supabase submitUserFeedback error:', err?.message);
+      }
+    }
+
+    const updated = [newFeedback, ...current];
+    saveLocalData(STORAGE_KEYS.USER_FEEDBACK, updated);
+    
+    // Log audit trail
+    await this.logAudit({
+      action: 'FEEDBACK_SUBMITTED',
+      module: feedbackData.module || 'User Feedback',
+      record_id: newFeedback.ticket_code || newFeedback.id,
+      details: `User feedback submitted on ${feedbackData.module}: "${feedbackData.subject || feedbackData.category}" (${feedbackData.rating || 5} Stars)`
+    });
+
+    return newFeedback;
+  },
+
+  async updateUserFeedbackStatus(id, updates) {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('user_feedbacks').update(updates).eq('id', id);
+      } catch (e) {
+        console.warn('Supabase updateUserFeedbackStatus error:', e?.message);
+      }
+    }
+    const current = await this.getUserFeedbacks();
+    const updated = current.map(f => (f.id === id || f.ticket_code === id) ? { ...f, ...updates } : f);
+    saveLocalData(STORAGE_KEYS.USER_FEEDBACK, updated);
+    return updated.find(f => f.id === id || f.ticket_code === id);
+  },
+
+  async deleteUserFeedback(id) {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('user_feedbacks').delete().eq('id', id);
+      } catch (e) {
+        console.warn('Supabase deleteUserFeedback error:', e?.message);
+      }
+    }
+    const current = await this.getUserFeedbacks();
+    const updated = current.filter(f => f.id !== id && f.ticket_code !== id);
+    saveLocalData(STORAGE_KEYS.USER_FEEDBACK, updated);
+    return true;
   }
 };

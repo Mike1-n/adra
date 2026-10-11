@@ -43,6 +43,7 @@ import { AdraLogo } from '../../components/common/AdraLogo';
 import { FieldAssessmentFormModal } from './components/FieldAssessmentFormModal';
 import { FieldBeneficiaryRegisterModal } from './components/FieldBeneficiaryRegisterModal';
 import { FieldFundingRequestModal } from './components/FieldFundingRequestModal';
+import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
 
 export function FieldWorkerApp({
   currentUser,
@@ -1053,6 +1054,9 @@ export function FieldWorkerApp({
             onSubmitFundingRequest={handleSubmitFundingRequest}
           />
         )}
+
+        {/* Module Feedback Trigger */}
+        <FloatingFeedbackButton currentModule="Field Worker Operations" />
 
       </div>
     </div>

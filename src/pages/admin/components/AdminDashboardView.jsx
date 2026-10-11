@@ -9,7 +9,8 @@ import {
   Plus,
   Activity,
   ShieldCheck,
-  HeartHandshake
+  HeartHandshake,
+  MessageSquareText
 } from 'lucide-react';
 import { Card } from '../../../components/common/Card';
 import { StatCard } from '../../../components/common/StatCard';
@@ -247,7 +248,7 @@ export function AdminDashboardView({ onNavigateTab }) {
       </div>
 
       {/* 4. Minimalist Operations Shortcuts */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-1">
         <div
           onClick={() => onNavigateTab('lifecycle')}
           className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-emerald-300 shadow-2xs hover:shadow-xs transition cursor-pointer flex items-center justify-between gap-3 group"
@@ -257,8 +258,8 @@ export function AdminDashboardView({ onNavigateTab }) {
               <Activity className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-bold text-slate-900 text-xs group-hover:text-[#006B56] transition">Aid Lifecycle Pipeline</p>
-              <p className="text-[11px] text-slate-500">7-phase assistance tracker</p>
+              <p className="font-bold text-slate-900 text-xs group-hover:text-[#006B56] transition">Aid Lifecycle</p>
+              <p className="text-[11px] text-slate-500">7-phase tracker</p>
             </div>
           </div>
           <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#006B56] group-hover:translate-x-0.5 transition" />
@@ -273,8 +274,8 @@ export function AdminDashboardView({ onNavigateTab }) {
               <HeartHandshake className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-bold text-slate-900 text-xs group-hover:text-purple-700 transition">Beneficiary Registry</p>
-              <p className="text-[11px] text-slate-500">Enrolled households & QR cards</p>
+              <p className="font-bold text-slate-900 text-xs group-hover:text-purple-700 transition">Beneficiary Roll</p>
+              <p className="text-[11px] text-slate-500">Households & census</p>
             </div>
           </div>
           <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-purple-700 group-hover:translate-x-0.5 transition" />
@@ -289,11 +290,27 @@ export function AdminDashboardView({ onNavigateTab }) {
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-bold text-slate-900 text-xs group-hover:text-sky-700 transition">Security & Audit Logs</p>
-              <p className="text-[11px] text-slate-500">RBAC policies & event trail</p>
+              <p className="font-bold text-slate-900 text-xs group-hover:text-sky-700 transition">Security & Audit</p>
+              <p className="text-[11px] text-slate-500">RBAC policies & logs</p>
             </div>
           </div>
           <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-sky-700 group-hover:translate-x-0.5 transition" />
+        </div>
+
+        <div
+          onClick={() => onNavigateTab('feedback')}
+          className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-emerald-300 shadow-2xs hover:shadow-xs transition cursor-pointer flex items-center justify-between gap-3 group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+              <MessageSquareText className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 text-xs group-hover:text-amber-700 transition">User Feedback</p>
+              <p className="text-[11px] text-slate-500">Module reviews & AAP</p>
+            </div>
+          </div>
+          <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-700 group-hover:translate-x-0.5 transition" />
         </div>
       </div>
     </div>

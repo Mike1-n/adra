@@ -39,6 +39,7 @@ import { useToast } from '../../context/ToastContext';
 import { SupplierDispatchModal } from '../inventory/components/SupplierDispatchModal';
 import { PODetailModal } from '../inventory/components/PODetailModal';
 import { AdraLogo } from '../../components/common/AdraLogo';
+import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
 
 export function SupplierPortalApp({
   currentUser,
@@ -1347,6 +1348,9 @@ export function SupplierPortalApp({
         onOpenSupplierDispatch={(po) => setSelectedPOForDispatch(po)}
         onDeletePO={handleDeletePO}
       />
+
+      {/* Module Feedback Trigger */}
+      <FloatingFeedbackButton currentModule="Supplier Portal" />
 
     </div>
   );

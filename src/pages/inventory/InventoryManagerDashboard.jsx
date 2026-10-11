@@ -50,6 +50,7 @@ import { StockAdjustmentModal } from './components/StockAdjustmentModal';
 import { CreateDispatchModal } from './components/CreateDispatchModal';
 import { CreatePOModal } from './components/CreatePOModal';
 import { WaybillDetailModal } from './components/WaybillDetailModal';
+import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
 
 export function InventoryManagerDashboard({
   currentUser,
@@ -1356,6 +1357,9 @@ export function InventoryManagerDashboard({
         dispatch={selectedWaybill}
         onUpdateStatus={handleUpdateDispatchStatus}
       />
+
+      {/* Module Feedback Trigger */}
+      <FloatingFeedbackButton currentModule="Inventory & Logistics Management" />
       </div>
     </div>
   );

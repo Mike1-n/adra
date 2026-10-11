@@ -23,6 +23,7 @@ import {
   PackageCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
 import { db } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
 
@@ -1487,6 +1488,9 @@ export function SupervisorMobileApp({
           }}
         />
       )}
+
+      {/* Module Feedback Trigger */}
+      <FloatingFeedbackButton currentModule="Supervisor Operations" />
 
       </div>
     </div>

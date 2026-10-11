@@ -21,6 +21,8 @@ import {
   PanelLeftOpen,
   FileText,
   BarChart3,
+  MessageSquarePlus,
+  MessageSquareText,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db, isSupabaseConfigured } from '../../lib/supabase';
@@ -28,6 +30,7 @@ import { useToast } from '../../context/ToastContext';
 import { Modal } from '../common/Modal';
 import { GlobalSearchView } from '../../pages/admin/components/GlobalSearchView';
 import { UserProfileModal } from '../common/UserProfileModal';
+import { ModuleFeedbackModal } from '../common/ModuleFeedbackModal';
 import { AdraLogo } from '../common/AdraLogo';
 
 export function AdminWebPortalLayout({
@@ -46,6 +49,7 @@ export function AdminWebPortalLayout({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const toast = useToast();
 
   const loadPendingCount = async () => {
@@ -131,6 +135,12 @@ export function AdminWebPortalLayout({
       name: 'Field Operations',
       icon: FolderKanban,
       desc: 'Programmes & Locations'
+    },
+    {
+      id: 'feedback',
+      name: 'User Feedback',
+      icon: MessageSquareText,
+      desc: 'Module Reviews, Suggestions & AAP'
     },
     {
       id: 'security',
@@ -330,6 +340,17 @@ export function AdminWebPortalLayout({
               <span className="font-bold text-white">Search...</span>
             </button>
 
+            {/* Contextual Module Feedback Button */}
+            <button
+              type="button"
+              onClick={() => setIsFeedbackModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 border border-slate-200 text-xs font-bold text-slate-800 transition shadow-2xs cursor-pointer active:scale-95"
+              title="Submit feedback or report an issue on this module"
+            >
+              <MessageSquarePlus className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline font-bold">Feedback</span>
+            </button>
+
             {/* Switch to Field App */}
             <button
               onClick={onSwitchToFieldApp}
@@ -474,6 +495,13 @@ export function AdminWebPortalLayout({
       <UserProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
+      />
+
+      {/* Universal Module Feedback Modal */}
+      <ModuleFeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        defaultModule={navItems.find(n => n.id === activeSection)?.name || 'Field Programmes'}
       />
     </div>
   );

@@ -49,6 +49,7 @@ import { PMNotificationsView } from './components/PMNotificationsView';
 import { PMFacilitationsView } from './components/PMFacilitationsView';
 import { PMProfileView } from './components/PMProfileView';
 import { AdraLogo } from '../../components/common/AdraLogo';
+import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
 
 export function ProgrammeManagerDashboard({
   currentUser,
@@ -1031,6 +1032,8 @@ export function ProgrammeManagerDashboard({
               )}
             </>
           )}
+          {/* Universal Module Feedback Trigger */}
+          <FloatingFeedbackButton currentModule={`Programme Management (${activeTab})`} />
         </main>
       </div>
     </div>
