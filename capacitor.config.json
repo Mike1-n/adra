@@ -3,7 +3,7 @@
   "appName": "ADRA DMS",
   "webDir": "dist",
   "server": {
-    "androidScheme": "https",
+    "url": "https://adra-f9vi.vercel.app",
     "cleartext": true
   },
   "plugins": {
