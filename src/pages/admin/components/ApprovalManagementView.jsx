@@ -202,78 +202,96 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
           <p className="text-xs text-slate-500 mt-1">No requests currently match the selected criteria.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredApprovals.map((app) => {
-            const isPending = app.status === 'Pending';
-            const isApproved = app.status === 'Approved';
-            return (
-              <Card
-                key={app.id}
-                className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 adra-card-hover"
-              >
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 shrink-0">
-                    {getCategoryIcon(app.category)}
-                  </div>
+        <Card className="p-0 overflow-hidden shadow-2xs border border-slate-200">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="py-3.5 px-4">Request & Category</th>
+                  <th className="py-3.5 px-4">Requester & Details</th>
+                  <th className="py-3.5 px-4 hidden md:table-cell">Submitted</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-slate-800">
+                {filteredApprovals.map((app) => {
+                  const isPending = app.status === 'Pending';
+                  const isApproved = app.status === 'Approved';
+                  return (
+                    <tr key={app.id} className="hover:bg-slate-50/80 transition group">
+                      <td className="py-3.5 px-4 align-top">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                          <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                            {app.id}
+                          </span>
+                          {app.priority === 'Urgent' && (
+                            <span className="text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200 px-1.5 py-0.5 rounded-full">
+                              Urgent
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-900 font-semibold text-xs">
+                          <span className="shrink-0">{getCategoryIcon(app.category)}</span>
+                          <span className="truncate max-w-[140px] sm:max-w-[170px]">{app.category}</span>
+                        </div>
+                        {app.department && (
+                          <p className="text-[10px] text-slate-500 mt-0.5">{app.department}</p>
+                        )}
+                      </td>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-500/30 px-2 py-0.5 rounded">
-                        {app.id}
-                      </span>
-                      <h3 className="text-sm font-bold text-slate-900">
-                        {app.category}
-                      </h3>
-                      {app.priority === 'Urgent' && (
-                        <span className="text-[10px] font-semibold bg-rose-50 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-full">
-                          Urgent
+                      <td className="py-3.5 px-4 align-top">
+                        <div className="flex flex-wrap items-baseline gap-1.5">
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm">{app.requester_name}</span>
+                          <span className="text-[11px] text-slate-500">({app.requester_email})</span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-1 line-clamp-2 leading-relaxed max-w-md">
+                          {app.details}
+                        </p>
+                        {app.review_notes && (
+                          <p className="text-[11px] text-slate-500 italic mt-1 bg-slate-50 border border-slate-200/60 rounded px-2 py-0.5 inline-block">
+                            Remarks: "{app.review_notes}"
+                          </p>
+                        )}
+                        <div className="md:hidden flex items-center gap-2 text-[10px] text-slate-500 mt-1">
+                          <span>Submitted: {formatDate(app.date)}</span>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 hidden md:table-cell align-top whitespace-nowrap text-slate-600 text-[11px]">
+                        {formatDate(app.date)}
+                      </td>
+
+                      <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                        <span
+                          className={`text-[10px] sm:text-[11px] px-2.5 py-1 rounded-md border font-bold inline-block ${
+                            isApproved
+                              ? 'bg-emerald-100 text-emerald-950 border-emerald-400'
+                              : isPending
+                              ? 'bg-amber-100 text-amber-950 border-amber-400'
+                              : 'bg-rose-100 text-rose-950 border-rose-400'
+                          }`}
+                        >
+                          {app.status}
                         </span>
-                      )}
-                    </div>
+                      </td>
 
-                    <p className="text-xs text-slate-700 font-medium mt-1">
-                      Requester: <span className="text-slate-900 font-bold">{app.requester_name}</span> ({app.requester_email})
-                    </p>
-                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed line-clamp-2">
-                      {app.details}
-                    </p>
-
-                    <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-slate-500">
-                      <span>Submitted: {formatDate(app.date)}</span>
-                      {app.department && <span>Department: {app.department}</span>}
-                      {app.review_notes && (
-                        <span className="text-slate-700 font-medium italic">Remarks: "{app.review_notes}"</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Status & Actions */}
-                <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto justify-between sm:justify-end pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-200">
-                  <span
-                    className={`text-xs px-3 py-1 rounded-md border font-bold ${
-                      isApproved
-                        ? 'bg-emerald-100 text-emerald-950 border-emerald-400'
-                        : isPending
-                        ? 'bg-amber-100 text-amber-950 border-amber-400'
-                        : 'bg-rose-100 text-rose-950 border-rose-400'
-                    }`}
-                  >
-                    {app.status}
-                  </span>
-
-                  <button
-                    onClick={() => handleOpenReview(app)}
-                    className="px-3 py-1.5 text-xs rounded-lg font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition flex items-center gap-1.5 shadow-sm border border-emerald-700 cursor-pointer"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-white" />
-                    Review
-                  </button>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+                      <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                        <button
+                          onClick={() => handleOpenReview(app)}
+                          className="px-3 py-1.5 text-xs rounded-lg font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition inline-flex items-center gap-1.5 shadow-xs border border-emerald-700 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-white" />
+                          Review
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
       {/* Review Modal */}
