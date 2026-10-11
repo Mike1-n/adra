@@ -162,7 +162,7 @@ export function ModuleFeedbackModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Active Module Selector */}
           <div>
-            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5 flex items-center justify-between">
               <span>Target Application Module</span>
               <span className="text-[10px] text-emerald-700 font-semibold lowercase bg-emerald-50 px-2 py-0.5 rounded border border-emerald-500/20">
                 Contextual Tagging Active
@@ -279,7 +279,7 @@ export function ModuleFeedbackModal({
 
           {/* Detailed Message Textarea */}
           <div>
-            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1 flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1 flex items-center justify-between">
               <span>Detailed Description / Steps</span>
               <span className="text-[10px] text-slate-400 font-normal">
                 {message.length} characters
