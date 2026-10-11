@@ -5,16 +5,17 @@ import {
   Printer,
   FileSpreadsheet,
   Filter,
-  Eye,
   CheckCircle2,
-  Calendar,
-  Layers,
   FolderKanban,
   Users,
-  Activity,
-  DollarSign,
-  BarChart3,
-  Building
+  HeartHandshake,
+  Truck,
+  MapPin,
+  FileCheck,
+  Building,
+  User,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 import { Card, CardHeader } from '../components/common/Card';
 import { Button } from '../components/common/Button';
@@ -26,16 +27,17 @@ import { useToast } from '../context/ToastContext';
 
 export function ReportsPage() {
   const toast = useToast();
-  const [reportType, setReportType] = useState('projects'); // 'projects' | 'beneficiaries' | 'activities' | 'finance' | 'me'
+  // Core application domains: 'projects' | 'beneficiaries' | 'assistance' | 'orders' | 'locations' | 'approvals'
+  const [reportType, setReportType] = useState('projects');
   const [loading, setLoading] = useState(true);
 
   const [data, setData] = useState({
     projects: [],
     beneficiaries: [],
-    activities: [],
-    interventions: [],
-    indicators: [],
-    expenditures: [],
+    assistance: [],
+    orders: [],
+    locations: [],
+    approvals: [],
   });
 
   const [selectedProjectId, setSelectedProjectId] = useState('ALL');
@@ -47,28 +49,29 @@ export function ReportsPage() {
         const [
           projects,
           beneficiaries,
-          activities,
-          interventions,
-          indicators,
-          expenditures,
+          assistance,
+          orders,
+          locations,
+          approvals,
         ] = await Promise.all([
           db.getProjects(),
           db.getBeneficiaries(),
-          db.getActivities(),
-          db.getInterventions(),
-          db.getIndicators(),
-          db.getExpenditures(),
+          db.getAssistanceRequests(),
+          db.getPurchaseOrders ? db.getPurchaseOrders() : [],
+          db.getLocations(),
+          db.getApprovals ? db.getApprovals('ALL') : [],
         ]);
 
         setData({
-          projects,
-          beneficiaries,
-          activities,
-          interventions,
-          indicators,
-          expenditures,
+          projects: projects || [],
+          beneficiaries: beneficiaries || [],
+          assistance: assistance || [],
+          orders: orders || [],
+          locations: locations || [],
+          approvals: approvals || [],
         });
       } catch (err) {
+        console.error(err);
         toast.error('Failed to aggregate reporting datasets.');
       } finally {
         setLoading(false);
@@ -79,6 +82,10 @@ export function ReportsPage() {
 
   // Filter current dataset based on report type and selected project
   const getFilteredReportData = () => {
+    const selectedProj = selectedProjectId === 'ALL'
+      ? null
+      : data.projects.find(p => p.id === selectedProjectId);
+
     switch (reportType) {
       case 'projects':
         return selectedProjectId === 'ALL'
@@ -88,29 +95,70 @@ export function ReportsPage() {
       case 'beneficiaries':
         return selectedProjectId === 'ALL'
           ? data.beneficiaries
-          : data.beneficiaries.filter(b => b.project_id === selectedProjectId);
+          : data.beneficiaries.filter(b =>
+              b.project_id === selectedProjectId ||
+              (selectedProj && b.project_name === selectedProj.project_name)
+            );
 
-      case 'activities':
+      case 'assistance':
         return selectedProjectId === 'ALL'
-          ? data.activities
-          : data.activities.filter(a => a.project_id === selectedProjectId);
+          ? data.assistance
+          : data.assistance.filter(a =>
+              a.program_id === selectedProjectId ||
+              a.project_id === selectedProjectId ||
+              (selectedProj && (
+                (a.program_name && a.program_name === selectedProj.project_name) ||
+                (a.project_name && a.project_name === selectedProj.project_name)
+              ))
+            );
 
-      case 'finance':
+      case 'orders':
         return selectedProjectId === 'ALL'
-          ? data.expenditures
-          : data.expenditures.filter(e => e.project_id === selectedProjectId);
+          ? data.orders
+          : data.orders.filter(o =>
+              o.project_id === selectedProjectId ||
+              (selectedProj && o.warehouse_destination && selectedProj.location &&
+                o.warehouse_destination.toLowerCase().includes(selectedProj.location.toLowerCase()))
+            );
 
-      case 'me':
+      case 'locations':
+        return data.locations;
+
+      case 'approvals':
         return selectedProjectId === 'ALL'
-          ? data.indicators
-          : data.indicators.filter(i => i.project_id === selectedProjectId);
+          ? data.approvals
+          : data.approvals.filter(app =>
+              (selectedProj && (
+                (app.details && app.details.toLowerCase().includes(selectedProj.project_code.toLowerCase())) ||
+                (app.details && app.details.toLowerCase().includes(selectedProj.project_name.toLowerCase()))
+              ))
+            );
 
       default:
         return [];
     }
   };
 
-  const reportItems = getFilteredReportData();
+  const rawReportItems = getFilteredReportData();
+
+  // Normalize item fields for consistent display and export
+  const reportItems = rawReportItems.map(item => {
+    return {
+      ...item,
+      items_summary: item.item_name
+        ? `${item.item_name} (${item.quantity || 1} ${item.unit || 'units'})`
+        : item.items_summary || '-',
+      destination_label: [item.state, item.county].filter(Boolean).join(', ') || item.location || 'Central Equatoria Depot',
+      status_label: item.active !== undefined
+        ? (item.active ? 'Active' : 'Inactive')
+        : (item.status || 'Active'),
+      manager_name: item.manager_name || item.project_manager || 'Unassigned',
+      verification_status: item.verification_status || item.status || 'Verified Active',
+      assistance_type: item.assistance_type || item.category || 'Relief Package',
+      program_name: item.program_name || item.programme_name || item.project_name || 'Humanitarian Relief Programme',
+      details_short: item.details ? (item.details.length > 90 ? `${item.details.slice(0, 90)}...` : item.details) : 'Operational record'
+    };
+  });
 
   // Export handlers
   const handleExportCSV = () => {
@@ -119,15 +167,35 @@ export function ReportsPage() {
     toast.success(`Exported ${reportItems.length} records to CSV.`);
   };
 
+  const getReportDomainTitle = (type) => {
+    switch (type) {
+      case 'projects':
+        return 'FIELD PROGRAMMES & GRANTS PORTFOLIO';
+      case 'beneficiaries':
+        return 'BENEFICIARY ROLL & VULNERABILITY CENSUS REPORT';
+      case 'assistance':
+        return 'AID ASSISTANCE PIPELINE & DISPATCH REPORT';
+      case 'orders':
+        return 'SUPPLY CHAIN & PURCHASE ORDERS AUDIT';
+      case 'locations':
+        return 'OPERATIONAL LOCATIONS & LOGISTICS HUBS DIRECTORY';
+      case 'approvals':
+        return 'GOVERNANCE & OPERATIONAL APPROVAL AUDIT';
+      default:
+        return 'HUMANITARIAN OPERATIONS REPORT';
+    }
+  };
+
   const handleExportPDF = () => {
     const columnsMap = {
       projects: [
         { header: 'Project Code', key: 'project_code' },
-        { header: 'Project Title', key: 'project_name' },
-        { header: 'Location', key: 'location' },
+        { header: 'Programme Title', key: 'project_name' },
+        { header: 'Operational Zone', key: 'location' },
+        { header: 'Responsible Manager', key: 'manager_name' },
         { header: 'Start Date', key: 'start_date', type: 'date' },
         { header: 'End Date', key: 'end_date', type: 'date' },
-        { header: 'Budget ($)', key: 'budget', type: 'currency' },
+        { header: 'Budget (SSP)', key: 'budget', type: 'currency' },
         { header: 'Status', key: 'status' },
       ],
       beneficiaries: [
@@ -136,39 +204,53 @@ export function ReportsPage() {
         { header: 'Gender', key: 'gender' },
         { header: 'Age', key: 'age' },
         { header: 'Vulnerability Group', key: 'vulnerability_category' },
-        { header: 'Location', key: 'location' },
-        { header: 'Linked Project', key: 'project_name' },
+        { header: 'Location / State', key: 'location' },
+        { header: 'Linked Programme', key: 'project_name' },
+        { header: 'Verification Status', key: 'verification_status' },
       ],
-      activities: [
-        { header: 'Code', key: 'activity_code' },
-        { header: 'Activity Name', key: 'activity_name' },
-        { header: 'Project', key: 'project_name' },
-        { header: 'Date', key: 'activity_date', type: 'date' },
-        { header: 'Location', key: 'location' },
-        { header: 'Status', key: 'status' },
+      assistance: [
+        { header: 'Request Code', key: 'request_code' },
+        { header: 'Beneficiary Name', key: 'beneficiary_name' },
+        { header: 'Assistance Type', key: 'assistance_type' },
+        { header: 'Operational Programme', key: 'program_name' },
+        { header: 'Destination', key: 'destination_label' },
+        { header: 'Priority', key: 'urgency' },
+        { header: 'Pipeline Stage', key: 'status' },
+        { header: 'Date', key: 'created_at', type: 'date' },
       ],
-      finance: [
-        { header: 'Voucher #', key: 'expenditure_code' },
+      orders: [
+        { header: 'PO Number', key: 'po_number' },
+        { header: 'Supplier Name', key: 'supplier_name' },
+        { header: 'Items & Quantity', key: 'items_summary' },
+        { header: 'Destination Depot', key: 'destination_warehouse' },
+        { header: 'Total Value (SSP)', key: 'total_amount', type: 'currency' },
+        { header: 'Order Date', key: 'order_date', type: 'date' },
+        { header: 'Fulfillment Stage', key: 'status' },
+      ],
+      locations: [
+        { header: 'Location Name', key: 'name' },
+        { header: 'Classification', key: 'type' },
+        { header: 'State / Province', key: 'state' },
+        { header: 'County / District', key: 'county' },
+        { header: 'Community / Camp', key: 'community' },
+        { header: 'Contact', key: 'contact' },
+        { header: 'Status', key: 'status_label' },
+      ],
+      approvals: [
+        { header: 'Ref Code', key: 'id' },
         { header: 'Category', key: 'category' },
-        { header: 'Description', key: 'description' },
-        { header: 'Project', key: 'project_name' },
-        { header: 'Date', key: 'expenditure_date', type: 'date' },
-        { header: 'Amount ($)', key: 'amount', type: 'currency' },
-      ],
-      me: [
-        { header: 'Code', key: 'indicator_code' },
-        { header: 'Indicator Name', key: 'indicator_name' },
-        { header: 'Project', key: 'project_name' },
-        { header: 'Baseline', key: 'baseline' },
-        { header: 'Target', key: 'target' },
-        { header: 'Actual', key: 'actual_result' },
-        { header: 'Unit', key: 'measurement_unit' },
+        { header: 'Requester', key: 'requester_name' },
+        { header: 'Department', key: 'department' },
+        { header: 'Details', key: 'details_short' },
+        { header: 'Priority', key: 'priority' },
+        { header: 'Decision Status', key: 'status' },
+        { header: 'Submitted Date', key: 'created_at', type: 'date' },
       ],
     };
 
     exportToPDF({
-      title: `ADRA ${reportType.toUpperCase()} STATUS & VERIFICATION REPORT`,
-      subtitle: `Scope: ${selectedProjectId === 'ALL' ? 'All Ongoing Projects' : 'Selected Project Focus'} • Generated by ADRA System`,
+      title: `ADRA • ${getReportDomainTitle(reportType)}`,
+      subtitle: `Scope: ${selectedProjectId === 'ALL' ? 'Consolidated Organization Portfolio' : 'Project Focus'} • Generated by ADRA Humanitarian Management System`,
       columns: columnsMap[reportType] || [],
       data: reportItems,
       fileName: `ADRA_${reportType}_report.pdf`,
@@ -177,12 +259,21 @@ export function ReportsPage() {
         { label: 'Export Date', value: new Date().toLocaleDateString() },
       ]
     });
-    toast.success('PDF generated and downloaded.');
+    toast.success('PDF document generated and downloaded.');
   };
 
   const handlePrint = () => {
     window.print();
   };
+
+  const reportTabs = [
+    { id: 'projects', label: 'Field Programmes', icon: FolderKanban, count: data.projects.length },
+    { id: 'beneficiaries', label: 'Beneficiary Roll', icon: Users, count: data.beneficiaries.length },
+    { id: 'assistance', label: 'Aid Pipeline & Requests', icon: HeartHandshake, count: data.assistance.length },
+    { id: 'orders', label: 'Purchase Orders & Supplies', icon: Truck, count: data.orders.length },
+    { id: 'locations', label: 'Operational Locations', icon: MapPin, count: data.locations.length },
+    { id: 'approvals', label: 'Governance & Approvals', icon: FileCheck, count: data.approvals.length },
+  ];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -194,7 +285,7 @@ export function ReportsPage() {
             Reporting & Document Export Center
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Generate executive summaries, field audit tables, and download official PDF / CSV documents.
+            Official operational reports and audit documents strictly aligned with core application workflows.
           </p>
         </div>
 
@@ -216,16 +307,10 @@ export function ReportsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-2">
             <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
-              Select Report Domain
+              Select Operational Domain
             </label>
             <div className="flex flex-wrap gap-2">
-              {[
-                { id: 'projects', label: 'Projects Portfolio', icon: FolderKanban },
-                { id: 'beneficiaries', label: 'Beneficiary Roll', icon: Users },
-                { id: 'activities', label: 'Activities Progress', icon: Activity },
-                { id: 'finance', label: 'Finance & Expenses', icon: DollarSign },
-                { id: 'me', label: 'M&E Indicators', icon: BarChart3 },
-              ].map((tab) => {
+              {reportTabs.map((tab) => {
                 const Icon = tab.icon;
                 const isSelected = reportType === tab.id;
                 return (
@@ -240,6 +325,11 @@ export function ReportsPage() {
                   >
                     <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-slate-500'}`} />
                     <span>{tab.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      isSelected ? 'bg-emerald-700/60 text-white' : 'bg-slate-200/70 text-slate-600'
+                    }`}>
+                      {tab.count}
+                    </span>
                   </button>
                 );
               })}
@@ -269,7 +359,7 @@ export function ReportsPage() {
       {/* Report Preview Document Canvas */}
       {loading ? (
         <div className="py-12">
-          <LoadingSpinner text="Compiling report dataset..." />
+          <LoadingSpinner text="Compiling operational report dataset..." />
         </div>
       ) : (
         <Card className="p-6 sm:p-8 bg-white border border-slate-200 shadow-sm rounded-2xl">
@@ -280,10 +370,10 @@ export function ReportsPage() {
                 ADRA SOUTH SUDAN • HUMANITARIAN MANAGEMENT SYSTEM
               </span>
               <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">
-                {reportType.toUpperCase()} SUMMARY & VERIFICATION REPORT
+                {getReportDomainTitle(reportType)}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                Generated: {new Date().toLocaleString()} • Scope: {selectedProjectId === 'ALL' ? 'Full Portfolio' : 'Project Focus'}
+                Generated: {new Date().toLocaleString()} • Scope: {selectedProjectId === 'ALL' ? 'Full Organization Portfolio' : 'Selected Project Focus'}
               </p>
             </div>
 
@@ -306,60 +396,90 @@ export function ReportsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                  {/* 1. PROJECTS */}
                   {reportType === 'projects' && (
                     <tr>
                       <th className="py-3 px-3.5">Code</th>
-                      <th className="py-3 px-3.5">Title</th>
-                      <th className="py-3 px-3.5">Location</th>
+                      <th className="py-3 px-3.5">Programme Title</th>
+                      <th className="py-3 px-3.5">Operational Zone</th>
+                      <th className="py-3 px-3.5">Responsible Manager</th>
                       <th className="py-3 px-3.5">Duration</th>
-                      <th className="py-3 px-3.5">Budget</th>
+                      <th className="py-3 px-3.5">Budget Allocation</th>
                       <th className="py-3 px-3.5">Status</th>
                     </tr>
                   )}
+
+                  {/* 2. BENEFICIARIES */}
                   {reportType === 'beneficiaries' && (
                     <tr>
                       <th className="py-3 px-3.5">Code</th>
                       <th className="py-3 px-3.5">Full Name</th>
                       <th className="py-3 px-3.5">Gender / Age</th>
                       <th className="py-3 px-3.5">Vulnerability Category</th>
-                      <th className="py-3 px-3.5">Location</th>
-                      <th className="py-3 px-3.5">Project</th>
+                      <th className="py-3 px-3.5">Location / State</th>
+                      <th className="py-3 px-3.5">Programme</th>
+                      <th className="py-3 px-3.5">Verification</th>
                     </tr>
                   )}
-                  {reportType === 'activities' && (
+
+                  {/* 3. ASSISTANCE PIPELINE */}
+                  {reportType === 'assistance' && (
                     <tr>
-                      <th className="py-3 px-3.5">Code</th>
-                      <th className="py-3 px-3.5">Activity Name</th>
-                      <th className="py-3 px-3.5">Project</th>
-                      <th className="py-3 px-3.5">Scheduled Date</th>
-                      <th className="py-3 px-3.5">Location</th>
+                      <th className="py-3 px-3.5">Request Code</th>
+                      <th className="py-3 px-3.5">Beneficiary</th>
+                      <th className="py-3 px-3.5">Assistance Type</th>
+                      <th className="py-3 px-3.5">Operational Programme</th>
+                      <th className="py-3 px-3.5">Destination</th>
+                      <th className="py-3 px-3.5">Priority</th>
+                      <th className="py-3 px-3.5">Pipeline Stage</th>
+                      <th className="py-3 px-3.5">Submitted</th>
+                    </tr>
+                  )}
+
+                  {/* 4. PURCHASE ORDERS */}
+                  {reportType === 'orders' && (
+                    <tr>
+                      <th className="py-3 px-3.5">PO Number</th>
+                      <th className="py-3 px-3.5">Supplier</th>
+                      <th className="py-3 px-3.5">Supplies & Qty</th>
+                      <th className="py-3 px-3.5">Destination Depot</th>
+                      <th className="py-3 px-3.5">Total Value (SSP)</th>
+                      <th className="py-3 px-3.5">Order Date</th>
+                      <th className="py-3 px-3.5">Fulfillment Stage</th>
+                    </tr>
+                  )}
+
+                  {/* 5. LOCATIONS */}
+                  {reportType === 'locations' && (
+                    <tr>
+                      <th className="py-3 px-3.5">Location Name</th>
+                      <th className="py-3 px-3.5">Classification</th>
+                      <th className="py-3 px-3.5">State / Province</th>
+                      <th className="py-3 px-3.5">County / District</th>
+                      <th className="py-3 px-3.5">Community / Camp</th>
+                      <th className="py-3 px-3.5">Contact</th>
                       <th className="py-3 px-3.5">Status</th>
                     </tr>
                   )}
-                  {reportType === 'finance' && (
+
+                  {/* 6. APPROVALS */}
+                  {reportType === 'approvals' && (
                     <tr>
-                      <th className="py-3 px-3.5">Voucher</th>
+                      <th className="py-3 px-3.5">Ref Code</th>
                       <th className="py-3 px-3.5">Category</th>
-                      <th className="py-3 px-3.5">Description</th>
-                      <th className="py-3 px-3.5">Project</th>
-                      <th className="py-3 px-3.5">Date</th>
-                      <th className="py-3 px-3.5">Amount</th>
-                    </tr>
-                  )}
-                  {reportType === 'me' && (
-                    <tr>
-                      <th className="py-3 px-3.5">Code</th>
-                      <th className="py-3 px-3.5">Indicator Name</th>
-                      <th className="py-3 px-3.5">Baseline</th>
-                      <th className="py-3 px-3.5">Target</th>
-                      <th className="py-3 px-3.5">Actual</th>
-                      <th className="py-3 px-3.5">Unit</th>
+                      <th className="py-3 px-3.5">Requester</th>
+                      <th className="py-3 px-3.5">Department</th>
+                      <th className="py-3 px-3.5">Details</th>
+                      <th className="py-3 px-3.5">Priority</th>
+                      <th className="py-3 px-3.5">Decision Status</th>
+                      <th className="py-3 px-3.5">Submitted</th>
                     </tr>
                   )}
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-slate-800">
                   {reportItems.map((item, idx) => (
-                    <tr key={item.id || idx} className="hover:bg-slate-50/80 transition">
+                    <tr key={item.id || item.request_code || item.po_number || idx} className="hover:bg-slate-50/80 transition">
+                      {/* 1. PROJECTS */}
                       {reportType === 'projects' && (
                         <>
                           <td className="py-3.5 px-3.5">
@@ -369,6 +489,7 @@ export function ReportsPage() {
                           </td>
                           <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.project_name}</td>
                           <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.location}</td>
+                          <td className="py-3.5 px-3.5 text-slate-700">{item.manager_name}</td>
                           <td className="py-3.5 px-3.5 text-slate-600 whitespace-nowrap">{formatDate(item.start_date)} — {formatDate(item.end_date)}</td>
                           <td className="py-3.5 px-3.5 font-mono font-bold text-emerald-800 whitespace-nowrap">{formatCurrency(item.budget)}</td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap">
@@ -384,6 +505,8 @@ export function ReportsPage() {
                           </td>
                         </>
                       )}
+
+                      {/* 2. BENEFICIARIES */}
                       {reportType === 'beneficiaries' && (
                         <>
                           <td className="py-3.5 px-3.5">
@@ -396,52 +519,142 @@ export function ReportsPage() {
                           <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.vulnerability_category}</td>
                           <td className="py-3.5 px-3.5 text-slate-600">{item.location}</td>
                           <td className="py-3.5 px-3.5 text-slate-600 font-medium">{item.project_name}</td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] border font-bold ${
+                              item.verification_status?.toLowerCase().includes('verified')
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
+                                : 'bg-amber-50 text-amber-800 border-amber-300'
+                            }`}>
+                              {item.verification_status}
+                            </span>
+                          </td>
                         </>
                       )}
-                      {reportType === 'activities' && (
+
+                      {/* 3. ASSISTANCE PIPELINE */}
+                      {reportType === 'assistance' && (
                         <>
                           <td className="py-3.5 px-3.5">
                             <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
-                              {item.activity_code}
+                              {item.request_code}
                             </span>
                           </td>
-                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.activity_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600">{item.project_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600 whitespace-nowrap">{formatDate(item.activity_date)}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600">{item.location}</td>
+                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.beneficiary_name}</td>
+                          <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.assistance_type}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600">{item.program_name}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600">{item.destination_label}</td>
                           <td className="py-3.5 px-3.5 whitespace-nowrap">
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] border font-bold bg-slate-100 text-slate-700 border-slate-200">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              item.urgency === 'Urgent'
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : item.urgency === 'High'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                : 'bg-slate-100 text-slate-600 border border-slate-200'
+                            }`}>
+                              {item.urgency || 'Normal'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] border font-bold ${
+                              item.status === 'Delivered'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
+                                : item.status === 'Approved' || item.status === 'Dispatched'
+                                ? 'bg-blue-50 text-blue-800 border-blue-300'
+                                : item.status === 'Rejected'
+                                ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                : 'bg-amber-50 text-amber-800 border-amber-300'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3.5 text-slate-500 whitespace-nowrap">{formatDate(item.created_at)}</td>
+                        </>
+                      )}
+
+                      {/* 4. PURCHASE ORDERS */}
+                      {reportType === 'orders' && (
+                        <>
+                          <td className="py-3.5 px-3.5">
+                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
+                              {item.po_number}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.supplier_name}</td>
+                          <td className="py-3.5 px-3.5 text-slate-700">{item.items_summary}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600">{item.destination_warehouse}</td>
+                          <td className="py-3.5 px-3.5 font-mono font-bold text-emerald-800 whitespace-nowrap">{formatCurrency(item.total_amount)}</td>
+                          <td className="py-3.5 px-3.5 text-slate-500 whitespace-nowrap">{formatDate(item.order_date || item.created_at)}</td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] border font-bold ${
+                              item.status === 'Paid & Settled' || item.status === 'Goods Received & Confirmed'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
+                                : item.status === 'Supplied & In Transit'
+                                ? 'bg-blue-50 text-blue-800 border-blue-300'
+                                : 'bg-amber-50 text-amber-800 border-amber-300'
+                            }`}>
                               {item.status}
                             </span>
                           </td>
                         </>
                       )}
-                      {reportType === 'finance' && (
+
+                      {/* 5. LOCATIONS */}
+                      {reportType === 'locations' && (
+                        <>
+                          <td className="py-3.5 px-3.5 font-bold text-slate-900 flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            {item.name}
+                          </td>
+                          <td className="py-3.5 px-3.5">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-800 border border-slate-200 font-semibold">
+                              {item.type}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3.5 text-slate-800">{item.state}</td>
+                          <td className="py-3.5 px-3.5 text-slate-800">{item.county} / {item.district || 'N/A'}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600">{item.community || 'Central'}</td>
+                          <td className="py-3.5 px-3.5 font-mono text-[11px] text-slate-600">{item.contact || 'N/A'}</td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] border font-bold bg-emerald-50 text-emerald-800 border-emerald-500/30">
+                              {item.status_label}
+                            </span>
+                          </td>
+                        </>
+                      )}
+
+                      {/* 6. APPROVALS */}
+                      {reportType === 'approvals' && (
                         <>
                           <td className="py-3.5 px-3.5">
                             <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
-                              {item.expenditure_code}
+                              {item.approval_code || item.id}
                             </span>
                           </td>
                           <td className="py-3.5 px-3.5 font-semibold text-slate-800">{item.category}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600 max-w-xs">{item.description}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600">{item.project_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600 whitespace-nowrap">{formatDate(item.expenditure_date)}</td>
-                          <td className="py-3.5 px-3.5 font-mono font-bold text-emerald-800 whitespace-nowrap">{formatCurrency(item.amount)}</td>
-                        </>
-                      )}
-                      {reportType === 'me' && (
-                        <>
-                          <td className="py-3.5 px-3.5">
-                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
-                              {item.indicator_code}
+                          <td className="py-3.5 px-3.5 text-slate-900 font-medium">{item.requester_name}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600">{item.department || 'Operations'}</td>
+                          <td className="py-3.5 px-3.5 text-slate-600 max-w-xs">{item.details_short}</td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              item.priority === 'Urgent'
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : 'bg-slate-100 text-slate-600 border border-slate-200'
+                            }`}>
+                              {item.priority || 'Normal'}
                             </span>
                           </td>
-                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.indicator_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600 font-mono">{item.baseline}</td>
-                          <td className="py-3.5 px-3.5 font-semibold text-slate-700 font-mono">{item.target}</td>
-                          <td className="py-3.5 px-3.5 font-bold text-emerald-800 font-mono">{item.actual_result}</td>
-                          <td className="py-3.5 px-3.5 text-slate-500">{item.measurement_unit}</td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] border font-bold ${
+                              item.status === 'Approved'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
+                                : item.status === 'Rejected'
+                                ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                : 'bg-amber-50 text-amber-800 border-amber-300'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3.5 text-slate-500 whitespace-nowrap">{formatDate(item.created_at || item.submitted_date)}</td>
                         </>
                       )}
                     </tr>

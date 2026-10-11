@@ -142,7 +142,7 @@ export function AdminWebPortalLayout({
       id: 'reports',
       name: 'Reports',
       icon: FileText,
-      desc: 'Project, Beneficiary & Finance Reports'
+      desc: 'Programmes, Beneficiaries & Operations'
     }
   ];
 
