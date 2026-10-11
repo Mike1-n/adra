@@ -684,28 +684,7 @@ export function SupplierPortalApp({
 
 
 
-            {/* 3. STAGE 2: IN TRANSIT PAGE HERO */}
-            {activeTab === 'intransit' && (
-              <div className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border border-blue-200 rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
-                    <Truck className="w-6 h-6" />
-                  </div>
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-black text-slate-900 tracking-tight">
-                      Consignments In Transit (Stage 2)
-                    </h2>
-                    <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
-                      These consignments have been dispatched with verified waybills and commercial invoices. They are currently en route to ADRA destination warehouses and awaiting arrival quality inspection.
-                    </p>
-                  </div>
-                </div>
-                <div className="bg-white/80 backdrop-blur-xs px-4 py-3 rounded-2xl border border-blue-200/80 shrink-0 text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 block">Active Shipments</span>
-                  <span className="text-2xl font-black text-blue-950">{supplierStats.inTransitCount}</span>
-                </div>
-              </div>
-            )}
+
 
             {/* 4. STAGE 3: ACCEPTED & GRN PAGE HERO */}
             {activeTab === 'confirmed' && (
