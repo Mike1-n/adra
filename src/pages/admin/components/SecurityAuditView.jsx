@@ -108,9 +108,12 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
   const filteredLogs = auditLogs.filter(l => {
     const matchesAction = actionFilter === 'ALL' || l.action === actionFilter;
     const matchesModule = moduleFilter === 'ALL' || l.module === moduleFilter;
+    const detailsStr = typeof l.details === 'object' && l.details !== null
+      ? (l.details.message || l.details.description || JSON.stringify(l.details))
+      : String(l.details || '');
     const matchesSearch =
       l.user_email?.toLowerCase().includes(search.toLowerCase()) ||
-      l.details?.toLowerCase().includes(search.toLowerCase()) ||
+      detailsStr.toLowerCase().includes(search.toLowerCase()) ||
       l.record_id?.toLowerCase().includes(search.toLowerCase());
     return matchesAction && matchesModule && matchesSearch;
   });
@@ -255,7 +258,9 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
                         {log.module}
                       </td>
                       <td className="py-3 px-4 text-slate-700 max-w-xs truncate">
-                        {log.details}
+                        {typeof log.details === 'object' && log.details !== null
+                          ? (log.details.message || log.details.description || JSON.stringify(log.details))
+                          : String(log.details || 'N/A')}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
@@ -479,7 +484,15 @@ export function SecurityAuditView({ initialTab = 'audit' }) {
             <div>
               <p className="font-bold text-slate-900 mb-1">Transaction Details & Audit Record:</p>
               <pre className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] text-slate-900 overflow-x-auto whitespace-pre-wrap">
-                {selectedLog.details}
+                {typeof selectedLog.details === 'object' && selectedLog.details !== null
+                  ? JSON.stringify(selectedLog.details, null, 2)
+                  : (() => {
+                      try {
+                        return JSON.stringify(JSON.parse(selectedLog.details), null, 2);
+                      } catch (e) {
+                        return String(selectedLog.details || 'N/A');
+                      }
+                    })()}
               </pre>
             </div>
 

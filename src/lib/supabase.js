@@ -4243,7 +4243,14 @@ export const db = {
   async getAuditLogs() {
     if (isSupabaseConfigured) {
       const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(50);
-      if (!error && data) return data;
+      if (!error && data) {
+        return data.map(log => ({
+          ...log,
+          details: typeof log.details === 'object' && log.details !== null
+            ? (log.details.message || log.details.description || JSON.stringify(log.details))
+            : String(log.details || '')
+        }));
+      }
     }
     return getLocalData(STORAGE_KEYS.AUDIT_LOGS, mock.initialAuditLogs);
   },
