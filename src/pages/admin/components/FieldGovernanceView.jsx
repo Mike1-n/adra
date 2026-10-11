@@ -273,72 +273,94 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredProgs.map((p) => (
-                  <Card key={p.id} className="adra-card-hover flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/30 px-2 py-0.5 rounded">
-                          {p.project_code}
-                        </span>
-                        <span
-                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
-                            p.status === 'Active'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30 font-bold'
-                              : p.status === 'Completed'
-                              ? 'bg-blue-50 text-blue-800 border-blue-300 font-bold'
-                              : 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
-                          }`}
-                        >
-                          {p.status}
-                        </span>
-                      </div>
-
-                      <h3 className="text-sm font-bold text-slate-900 line-clamp-1">{p.project_name}</h3>
-                      <p className="text-xs text-slate-600 mt-1 line-clamp-2 leading-relaxed font-medium">
-                        {p.description || 'No description provided.'}
-                      </p>
-
-                      <div className="space-y-1.5 mt-3 pt-3 border-t border-slate-200 text-xs text-slate-700">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-500 text-[11px] flex items-center gap-1">
-                            <User className="w-3 h-3 text-emerald-600" /> Responsible Manager:
-                          </span>
-                          <span className="font-bold text-slate-900">{p.manager_name || 'Unassigned'}</span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-500 text-[11px] flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-slate-400" /> Operational Zone:
-                          </span>
-                          <span className="truncate max-w-[170px] text-slate-800 font-medium">{p.location || 'Unspecified'}</span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-500 text-[11px] flex items-center gap-1">
-                            <DollarSign className="w-3 h-3 text-amber-600" /> Budget Allocation:
-                          </span>
-                          <span className="font-bold text-emerald-800">{formatCurrency(p.budget)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-200">
-                      <span className="text-[10px] text-slate-500">
-                        {formatDate(p.start_date)} — {formatDate(p.end_date)}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenEditProg(p)}
-                        icon={Edit2}
-                      >
-                        Configure
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+              <Card className="p-0 overflow-hidden shadow-2xs border border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="py-3.5 px-4">Programme & Code</th>
+                        <th className="py-3.5 px-4">Status</th>
+                        <th className="py-3.5 px-4 hidden sm:table-cell">Responsible Manager</th>
+                        <th className="py-3.5 px-4 hidden md:table-cell">Operational Zone</th>
+                        <th className="py-3.5 px-4">Budget</th>
+                        <th className="py-3.5 px-4 hidden lg:table-cell">Timeline</th>
+                        <th className="py-3.5 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-slate-800">
+                      {filteredProgs.map((p) => (
+                        <tr key={p.id} className="hover:bg-slate-50/80 transition group">
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                                {p.project_code}
+                              </span>
+                            </div>
+                            <p className="font-bold text-slate-900 text-xs sm:text-sm line-clamp-1">{p.project_name}</p>
+                            {p.description && (
+                              <p className="text-[11px] text-slate-500 line-clamp-1 max-w-sm sm:max-w-md mt-0.5">
+                                {p.description}
+                              </p>
+                            )}
+                            <div className="sm:hidden flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500 mt-1">
+                              <span>Mgr: <strong className="text-slate-700 font-semibold">{p.manager_name || 'Unassigned'}</strong></span>
+                              <span>•</span>
+                              <span>{p.location || 'Unspecified'}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span
+                              className={`text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                                p.status === 'Active'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30 font-bold'
+                                  : p.status === 'Completed'
+                                  ? 'bg-blue-50 text-blue-800 border-blue-300 font-bold'
+                                  : 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
+                              }`}
+                            >
+                              {p.status}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 hidden sm:table-cell">
+                            <div className="flex items-center gap-1.5 text-slate-800 font-medium">
+                              <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="truncate max-w-[150px]">{p.manager_name || 'Unassigned'}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 hidden md:table-cell">
+                            <div className="flex items-center gap-1.5 text-slate-700">
+                              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span className="truncate max-w-[160px]">{p.location || 'Unspecified'}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span className="font-mono font-bold text-emerald-800 text-xs sm:text-sm">
+                              {formatCurrency(p.budget)}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 hidden lg:table-cell whitespace-nowrap text-slate-600 text-[11px]">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span>{formatDate(p.start_date)} — {formatDate(p.end_date)}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenEditProg(p)}
+                              icon={Edit2}
+                              className="text-xs py-1 px-2.5 h-auto"
+                            >
+                              Configure
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
             )}
           </div>
         );
