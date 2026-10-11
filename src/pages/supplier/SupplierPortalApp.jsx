@@ -1025,13 +1025,13 @@ export function SupplierPortalApp({
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-700">
-                          <th className="py-3 px-4">PO & Date</th>
-                          <th className="py-3 px-4">Items & Destination</th>
-                          <th className="py-3 px-4">Stage / Status</th>
-                          <th className="py-3 px-4">Documents Trail</th>
-                          <th className="py-3 px-4">Total Amount</th>
-                          <th className="py-3 px-4 text-right">Actions & Settlement</th>
+                        <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
+                          <th className="py-2.5 px-3 sm:py-3 sm:px-4">PO & Items</th>
+                          <th className="hidden md:table-cell py-3 px-4">Destination Depot</th>
+                          <th className="hidden sm:table-cell py-3 px-4">Stage / Status</th>
+                          <th className="hidden lg:table-cell py-3 px-4">Documents Trail</th>
+                          <th className="py-2.5 px-3 sm:py-3 sm:px-4">Amount</th>
+                          <th className="py-2.5 px-3 sm:py-3 sm:px-4 text-right">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1045,34 +1045,34 @@ export function SupplierPortalApp({
                                 stage === -1 ? 'bg-rose-50/20' : ''
                               }`}
                             >
-                              {/* PO Number & Order Date */}
-                              <td className="py-3.5 px-4 align-top whitespace-nowrap">
-                                <span className="font-mono font-bold text-slate-900 text-xs block">
+                              {/* PO Number, Item & Date (Compact on mobile) */}
+                              <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 align-middle sm:align-top">
+                                <span className="font-mono font-bold text-slate-900 text-xs block leading-tight">
                                   {po.po_number}
                                 </span>
-                                <span className="text-[11px] text-slate-500 block mt-0.5">
-                                  Ordered: <strong className="text-slate-700">{po.order_date}</strong>
+                                <span className="text-[11px] font-semibold text-slate-700 block truncate max-w-[140px] sm:max-w-[200px] mt-0.5">
+                                  {po.items_summary || 'Goods Consignment'}
+                                </span>
+                                <span className="text-[10px] text-slate-400 block mt-0.5">
+                                  {po.order_date}
                                 </span>
                               </td>
 
-                              {/* Items Summary & Destination */}
-                              <td className="py-3.5 px-4 align-top max-w-[240px]">
-                                <span className="font-bold text-slate-900 block line-clamp-2">
-                                  {po.items_summary || 'Goods Consignment'}
-                                </span>
-                                <div className="flex items-center gap-1 text-[11px] text-slate-600 mt-1">
+                              {/* Destination Depot (md+ screens) */}
+                              <td className="hidden md:table-cell py-3.5 px-4 align-top max-w-[180px]">
+                                <div className="flex items-center gap-1 text-[11px] text-slate-700 font-medium">
                                   <MapPin className="w-3.5 h-3.5 text-[#006B56] shrink-0" />
                                   <span className="truncate">{po.warehouse_destination || 'ADRA Depot'}</span>
                                 </div>
                                 {stage === -1 && (
-                                  <div className="mt-1.5 p-1.5 rounded-lg bg-rose-50 border border-rose-200 text-[10px] text-rose-900">
+                                  <div className="mt-1 p-1 rounded bg-rose-50 border border-rose-200 text-[10px] text-rose-800">
                                     <span className="font-bold">Rejected:</span> {po.return_reason || 'Failed inspection'}
                                   </div>
                                 )}
                               </td>
 
-                              {/* Stage / Status Badge */}
-                              <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                              {/* Stage / Status Badge (sm+ screens) */}
+                              <td className="hidden sm:table-cell py-3.5 px-4 align-top whitespace-nowrap">
                                 <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
                                   stage === -1 ? 'bg-rose-100 text-rose-900 border border-rose-300' :
                                   stage === 4 ? 'bg-teal-100 text-teal-900 border border-teal-200' :
@@ -1084,8 +1084,8 @@ export function SupplierPortalApp({
                                 </span>
                               </td>
 
-                              {/* Documents Trail */}
-                              <td className="py-3.5 px-4 align-top max-w-[220px]">
+                              {/* Documents Trail (lg+ screens) */}
+                              <td className="hidden lg:table-cell py-3.5 px-4 align-top max-w-[220px]">
                                 <div className="space-y-0.5 text-[11px] text-slate-600">
                                   {po.supplier_invoice_number && (
                                     <div className="flex items-center gap-1">
@@ -1117,65 +1117,48 @@ export function SupplierPortalApp({
                                 </div>
                               </td>
 
-                              {/* Total Amount */}
-                              <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                              {/* Total Amount + Mobile Status */}
+                              <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 align-middle sm:align-top whitespace-nowrap">
                                 <span className="font-mono font-black text-[#006B56] text-xs block">
-                                  {Number(po.total_amount) > 0 ? `SSP ${Number(po.total_amount).toLocaleString()}` : 'Quote Pending'}
+                                  {Number(po.total_amount) > 0 ? `SSP ${Number(po.total_amount).toLocaleString()}` : 'SSP 0'}
                                 </span>
+                                {/* Compact Mobile Status Tag (< sm) */}
+                                <div className="block sm:hidden mt-0.5">
+                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide ${
+                                    stage === -1 ? 'bg-rose-100 text-rose-800' :
+                                    stage === 4 ? 'bg-teal-100 text-teal-800' :
+                                    stage === 3 ? 'bg-emerald-100 text-emerald-800' :
+                                    stage === 2 ? 'bg-blue-100 text-blue-800' :
+                                    'bg-amber-100 text-amber-800'
+                                  }`}>
+                                    {stage === 4 ? 'Paid' : stage === 3 ? 'GRN' : stage === 2 ? 'In Transit' : stage === 1 ? 'Pending' : 'Returned'}
+                                  </span>
+                                </div>
                               </td>
 
-                              {/* Actions / Settlement */}
-                              <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
-                                <div className="flex flex-col items-end gap-1.5">
-                                  <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              {/* Actions */}
+                              <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 align-middle sm:align-top text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedPOForDetail(po)}
+                                    className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition flex items-center gap-1 cursor-pointer border border-slate-200"
+                                    title="View Details & Documents"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Details</span>
+                                    <span className="sm:hidden">View</span>
+                                  </button>
+
+                                  {stage === 1 && (
                                     <button
                                       type="button"
-                                      onClick={() => setSelectedPOForDetail(po)}
-                                      className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-1 cursor-pointer border border-slate-200"
-                                      title="View Details & Timeline"
+                                      onClick={() => setSelectedPOForDispatch(po)}
+                                      className="px-2.5 py-1 rounded-lg bg-[#006B56] hover:bg-[#005443] text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition active:scale-[0.99] cursor-pointer"
                                     >
-                                      <Eye className="w-3.5 h-3.5" />
-                                      <span>View Details</span>
+                                      <Truck className="w-3.5 h-3.5" />
+                                      <span className="hidden sm:inline">Dispatch</span>
                                     </button>
-
-                                    {stage === 1 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setSelectedPOForDispatch(po)}
-                                        className="px-3 py-1 rounded-xl bg-[#006B56] hover:bg-[#005443] text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition active:scale-[0.99] cursor-pointer"
-                                      >
-                                        <Truck className="w-3.5 h-3.5" />
-                                        <span>Dispatch</span>
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  {stage === 2 && (
-                                    <span className="text-[10px] text-blue-700 font-bold flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">
-                                      <Clock className="w-3 h-3" />
-                                      <span>En route (Awaiting GRN)</span>
-                                    </span>
-                                  )}
-
-                                  {stage === 3 && (
-                                    <span className="text-[10px] text-emerald-800 font-bold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                                      <PackageCheck className="w-3 h-3 text-emerald-700" />
-                                      <span>GRN Issued • Awaiting Finance</span>
-                                    </span>
-                                  )}
-
-                                  {stage === 4 && (
-                                    <span className="text-[10px] text-teal-800 font-bold flex items-center gap-1 bg-teal-50 px-2 py-0.5 rounded-lg border border-teal-200">
-                                      <CheckCircle2 className="w-3 h-3 text-teal-700" />
-                                      <span>Settled & Paid in Full</span>
-                                    </span>
-                                  )}
-
-                                  {stage === -1 && (
-                                    <span className="text-[10px] text-rose-800 font-bold flex items-center gap-1 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200">
-                                      <XCircle className="w-3 h-3 text-rose-700" />
-                                      <span>Returned to Vendor</span>
-                                    </span>
                                   )}
                                 </div>
                               </td>
