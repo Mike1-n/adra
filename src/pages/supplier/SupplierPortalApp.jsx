@@ -686,51 +686,7 @@ export function SupplierPortalApp({
 
 
 
-            {/* 4. STAGE 3: ACCEPTED & GRN PAGE HERO */}
-            {activeTab === 'confirmed' && (
-              <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-200 rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-[#006B56] text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-700/20">
-                    <PackageCheck className="w-6 h-6" />
-                  </div>
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-black text-slate-900 tracking-tight">
-                      Goods Accepted & GRN Issued (Stage 3)
-                    </h2>
-                    <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
-                      These deliveries passed 100% sound condition physical warehouse inspection. Official Goods Receipt Notes (GRN) have been issued by the warehouse depot and forwarded to Finance for payment disbursement.
-                    </p>
-                  </div>
-                </div>
-                <div className="bg-white/80 backdrop-blur-xs px-4 py-3 rounded-2xl border border-emerald-200/80 shrink-0 text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">Accepted Deliveries</span>
-                  <span className="text-2xl font-black text-emerald-950">{supplierStats.grnConfirmedCount}</span>
-                </div>
-              </div>
-            )}
 
-            {/* 5. STAGE 4: PAID SETTLEMENTS PAGE HERO */}
-            {activeTab === 'payments' && (
-              <div className="bg-gradient-to-r from-teal-500/10 via-teal-500/5 to-transparent border border-teal-200 rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-teal-500/20">
-                    <DollarSign className="w-6 h-6" />
-                  </div>
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-black text-slate-900 tracking-tight">
-                      Disbursed Payments & Remittances (Stage 4)
-                    </h2>
-                    <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
-                      Completed supply transactions settled by ADRA South Sudan Finance Control. Remittance vouchers and banking/mobile money transactions are archived here.
-                    </p>
-                  </div>
-                </div>
-                <div className="bg-white/80 backdrop-blur-xs px-4 py-3 rounded-2xl border border-teal-200/80 shrink-0 text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 block">Total Earnings Settled</span>
-                  <span className="text-xl font-black text-teal-950">SSP {supplierStats.totalEarnings.toLocaleString()}</span>
-                </div>
-              </div>
-            )}
 
             {/* Search and Header Bar (for PO pages) */}
             {activeTab !== 'profile' && (
