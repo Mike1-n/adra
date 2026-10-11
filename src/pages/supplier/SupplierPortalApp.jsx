@@ -682,28 +682,7 @@ export function SupplierPortalApp({
               </>
             )}
 
-            {/* 2. STAGE 1: NEW REQUESTS PAGE HERO */}
-            {activeTab === 'orders' && (
-              <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-200 rounded-3xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
-                    <ShoppingCart className="w-6 h-6" />
-                  </div>
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-black text-slate-900 tracking-tight">
-                      New Supply Requests (Stage 1)
-                    </h2>
-                    <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
-                      Review purchase orders issued by ADRA South Sudan Procurement. Enter your commercial invoice number, pricing per unit (SSP), transporter logistics details, and confirm dispatch to generate the waybill.
-                    </p>
-                  </div>
-                </div>
-                <div className="bg-white/80 backdrop-blur-xs px-4 py-3 rounded-2xl border border-amber-200/80 shrink-0 text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">Pending Dispatch</span>
-                  <span className="text-2xl font-black text-amber-950">{supplierStats.pendingCount}</span>
-                </div>
-              </div>
-            )}
+
 
             {/* 3. STAGE 2: IN TRANSIT PAGE HERO */}
             {activeTab === 'intransit' && (
