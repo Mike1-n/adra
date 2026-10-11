@@ -130,18 +130,6 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
             </button>
 
             <button
-              onClick={() => setSectionSubTab('identity', 'permissions')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                subTabs.identity === 'permissions'
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              <KeyRound className="w-3.5 h-3.5" />
-              Permission Matrix
-            </button>
-
-            <button
               onClick={() => setSectionSubTab('identity', 'approvals')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
                 subTabs.identity === 'approvals'
@@ -156,7 +144,6 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
 
           <div>
             {subTabs.identity === 'users' && <UserRoleManagementView />}
-            {subTabs.identity === 'permissions' && <PermissionMatrixView />}
             {subTabs.identity === 'approvals' && <ApprovalManagementView initialCategory="User Registration" />}
           </div>
         </div>

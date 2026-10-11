@@ -200,7 +200,6 @@ export function AdminConsolePage() {
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
       functions: [
         { id: 'users', name: 'User Directory & CRUD', icon: Users, num: 'F2 & F3' },
-        { id: 'permissions', name: 'Permission Matrix (6 Capabilities)', icon: KeyRound, num: 'F4' },
         { id: 'user-approvals', name: 'Account Approval Queue', icon: UserCheck, num: 'F5', count: pendingApprovalsCount },
       ]
     },
@@ -400,9 +399,6 @@ export function AdminConsolePage() {
         {/* Hub 2: Users */}
         {activeHub === 'identity' && (activeFunction === 'users' || activeFunction === 'roles') && (
           <UserRoleManagementView />
-        )}
-        {activeHub === 'identity' && activeFunction === 'permissions' && (
-          <PermissionMatrixView />
         )}
         {activeHub === 'identity' && activeFunction === 'user-approvals' && (
           <ApprovalManagementView initialCategory="User Registration" />
