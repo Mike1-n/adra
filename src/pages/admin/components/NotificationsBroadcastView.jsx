@@ -87,6 +87,32 @@ export function NotificationsBroadcastView() {
     toast.info(`Automated rule ${next ? 'enabled' : 'disabled'}.`);
   };
 
+  const getNotificationTypeBadge = (type) => {
+    const t = String(type || '').toLowerCase();
+    if (t.includes('approved')) {
+      return {
+        label: 'Approved',
+        className: 'bg-emerald-50 text-emerald-800 border-emerald-500/30 font-bold'
+      };
+    }
+    if (t.includes('rejected') || t.includes('security')) {
+      return {
+        label: t.includes('rejected') ? 'Rejected' : 'Security',
+        className: 'bg-rose-50 text-rose-800 border-rose-300 font-bold'
+      };
+    }
+    if (t.includes('alert') || t.includes('warning')) {
+      return {
+        label: 'Alert',
+        className: 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
+      };
+    }
+    return {
+      label: type || 'Notice',
+      className: 'bg-blue-50 text-blue-800 border-blue-300 font-bold'
+    };
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header */}
@@ -110,134 +136,149 @@ export function NotificationsBroadcastView() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Active Announcements List */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card>
-            <CardHeader
-              title="Active System Broadcasts & Field Alerts"
-              subtitle="Messages delivered to web and mobile field app dashboards"
-            />
+      <div className="space-y-6">
+        {/* Active Announcements Table */}
+        <Card className="p-0 overflow-hidden shadow-2xs border border-slate-200">
+          <div className="p-4 border-b border-slate-200 bg-slate-50/50">
+            <h3 className="text-sm font-bold text-slate-900">Active System Broadcasts & Field Alerts</h3>
+            <p className="text-xs text-slate-500">Messages delivered to web and mobile field app dashboards ({notifications.length})</p>
+          </div>
 
-            {loading ? (
+          {loading ? (
+            <div className="p-8">
               <LoadingSpinner text="Retrieving broadcasts..." />
-            ) : notifications.length === 0 ? (
-              <div className="py-10 text-center text-slate-500 text-xs">
-                <Bell className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
-                <p className="font-bold text-slate-900">No Active Broadcasts</p>
-                <p className="mt-0.5">Publish an announcement to notify staff or donors.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-4 adra-card-hover"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                            n.type === 'Alert'
-                              ? 'bg-amber-50 text-amber-800 border-amber-300'
-                              : n.type === 'Security'
-                              ? 'bg-rose-50 text-rose-800 border-rose-300'
-                              : 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
-                          }`}
-                        >
-                          {n.type}
-                        </span>
-                        <h3 className="text-sm font-bold text-slate-900">{n.title}</h3>
-                      </div>
-
-                      <p className="text-xs text-slate-700 mt-1.5 leading-relaxed font-medium">
-                        {n.message}
-                      </p>
-
-                      <div className="flex items-center gap-3 mt-2.5 text-[11px] text-slate-500">
-                        <span>Target: {Array.isArray(n.target_roles) ? n.target_roles.join(', ') : n.target_roles}</span>
-                        <span>•</span>
-                        <span>Published: {formatDate(n.created_at)}</span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleDelete(n.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                      title="Delete Broadcast"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
-
-        {/* Right 1 Col: Automated Alert Threshold Triggers */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader
-              title="Automated Trigger Rules"
-              subtitle="Real-time threshold monitors"
-            />
-
-            <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
-                <div>
-                  <p className="font-bold text-slate-900">Budget Overrun Alert</p>
-                  <p className="text-[10px] text-slate-500">Notify Finance when expenditure exceeds 85% of budget cap</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={rules.low_budget}
-                  onChange={() => handleToggleRule('low_budget')}
-                  className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
-                />
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
-                <div>
-                  <p className="font-bold text-slate-900">M&E Indicator Target Reached</p>
-                  <p className="text-[10px] text-slate-500">Broadcast celebration when indicator hits 100% of target</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={rules.me_milestone}
-                  onChange={() => handleToggleRule('me_milestone')}
-                  className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
-                />
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
-                <div>
-                  <p className="font-bold text-slate-900">Pending User Approval</p>
-                  <p className="text-[10px] text-slate-500">Alert Admin when newly registered staff submits verification</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={rules.approval_alert}
-                  onChange={() => handleToggleRule('approval_alert')}
-                  className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
-                />
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
-                <div>
-                  <p className="font-bold text-slate-900">Brute-Force Intrusion Warning</p>
-                  <p className="text-[10px] text-slate-500">Trigger immediate lockout notice upon 5 failed logins</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={rules.security_warning}
-                  onChange={() => handleToggleRule('security_warning')}
-                  className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
-                />
-              </div>
             </div>
-          </Card>
-        </div>
+          ) : notifications.length === 0 ? (
+            <div className="py-10 text-center text-slate-500 text-xs">
+              <Bell className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+              <p className="font-bold text-slate-900">No Active Broadcasts</p>
+              <p className="mt-0.5">Publish an announcement to notify staff or donors.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="py-3.5 px-4">Type</th>
+                    <th className="py-3.5 px-4">Broadcast Title & Message</th>
+                    <th className="py-3.5 px-4 hidden sm:table-cell">Target Audience</th>
+                    <th className="py-3.5 px-4 hidden md:table-cell">Published</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-slate-800">
+                  {notifications.map((n) => {
+                    const badge = getNotificationTypeBadge(n.type);
+                    return (
+                      <tr key={n.id} className="hover:bg-slate-50/80 transition group">
+                        <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full border inline-block ${badge.className}`}>
+                            {badge.label}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 align-top">
+                          <p className="font-bold text-slate-900 text-xs sm:text-sm">{n.title}</p>
+                          <p className="text-xs text-slate-600 line-clamp-2 mt-0.5 leading-relaxed font-normal">
+                            {n.message}
+                          </p>
+                          <div className="sm:hidden flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500 mt-1">
+                            <span>Target: {Array.isArray(n.target_roles) ? n.target_roles.join(', ') : (n.target_roles || 'All')}</span>
+                            <span>•</span>
+                            <span>{formatDate(n.created_at)}</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 align-top hidden sm:table-cell text-slate-700 whitespace-nowrap font-medium text-[11px]">
+                          {Array.isArray(n.target_roles) ? n.target_roles.join(', ') : (n.target_roles || 'All')}
+                        </td>
+                        <td className="py-3.5 px-4 align-top hidden md:table-cell text-slate-500 whitespace-nowrap text-[11px]">
+                          {formatDate(n.created_at)}
+                        </td>
+                        <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                          <button
+                            onClick={() => handleDelete(n.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            title="Delete Broadcast"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+
+        {/* Automated Alert Threshold Triggers Table */}
+        <Card className="p-0 overflow-hidden shadow-2xs border border-slate-200">
+          <div className="p-4 border-b border-slate-200 bg-slate-50/50">
+            <h3 className="text-sm font-bold text-slate-900">Automated Trigger Rules</h3>
+            <p className="text-xs text-slate-500">Real-time threshold monitors and alerts</p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="py-3.5 px-4">Trigger Rule</th>
+                  <th className="py-3.5 px-4">Monitoring Condition & Action</th>
+                  <th className="py-3.5 px-4 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-slate-800">
+                {[
+                  {
+                    key: 'low_budget',
+                    name: 'Budget Overrun Alert',
+                    desc: 'Notify Finance when expenditure exceeds 85% of budget cap'
+                  },
+                  {
+                    key: 'me_milestone',
+                    name: 'M&E Indicator Target Reached',
+                    desc: 'Broadcast celebration when indicator hits 100% of target'
+                  },
+                  {
+                    key: 'approval_alert',
+                    name: 'Pending User Approval',
+                    desc: 'Alert Admin when newly registered staff submits verification'
+                  },
+                  {
+                    key: 'security_warning',
+                    name: 'Brute-Force Intrusion Warning',
+                    desc: 'Trigger immediate lockout notice upon 5 failed logins'
+                  }
+                ].map((rule) => {
+                  const active = rules[rule.key];
+                  return (
+                    <tr key={rule.key} className="hover:bg-slate-50/80 transition">
+                      <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
+                        {rule.name}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600 text-xs">
+                        {rule.desc}
+                      </td>
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${active ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30' : 'bg-slate-100 text-slate-500 border-slate-300'}`}>
+                            {active ? 'Active' : 'Disabled'}
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={active}
+                            onChange={() => handleToggleRule(rule.key)}
+                            className="rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                          />
+                        </label>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       </div>
 
       {/* Publish Modal */}
