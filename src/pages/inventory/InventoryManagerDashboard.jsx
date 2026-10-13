@@ -477,21 +477,23 @@ export function InventoryManagerDashboard({
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        {/* 1. Drawer Header Brand */}
-        <div className="p-3.5 pt-safe border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
-          <AdraLogo
-            isCollapsed={false}
-            subtitle="Logistics"
-            description="Warehouse & Stock Control"
-          />
+        {/* 1. Drawer Header Brand (With mobile status bar clearance) */}
+        <div className="pt-safe-drawer border-b border-slate-100 bg-white shrink-0">
+          <div className="p-3.5 flex items-center justify-between">
+            <AdraLogo
+              isCollapsed={false}
+              subtitle="Logistics"
+              description="Warehouse & Stock Control"
+            />
 
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen(false)}
-            className="lg:hidden p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(false)}
+              className="lg:hidden p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* 2. Navigation List */}

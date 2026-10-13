@@ -19,13 +19,26 @@ export async function updateSafeAreaInsets() {
   if (!isNative) return;
   try {
     const info = await StatusBar.getInfo();
-    if (info && info.overlays && typeof info.height === 'number' && info.height > 0) {
-      document.documentElement.style.setProperty('--safe-area-top', `${info.height}px`);
-    } else if (info && !info.overlays) {
+    const platform = Capacitor.getPlatform();
+
+    // Determine status bar height (with robust Android/iOS fallbacks)
+    let height = (info && typeof info.height === 'number' && info.height > 0) ? info.height : 0;
+    if (height === 0) {
+      height = platform === 'android' ? 28 : (platform === 'ios' ? 44 : 0);
+    }
+
+    if (info && info.visible === false) {
       document.documentElement.style.setProperty('--safe-area-top', '0px');
+    } else {
+      document.documentElement.style.setProperty('--safe-area-top', `${height}px`);
     }
   } catch (err) {
     console.warn('Status bar insets query error:', err);
+    if (Capacitor.getPlatform() === 'android') {
+      document.documentElement.style.setProperty('--safe-area-top', '28px');
+    } else if (Capacitor.getPlatform() === 'ios') {
+      document.documentElement.style.setProperty('--safe-area-top', '44px');
+    }
   }
 }
 
@@ -47,12 +60,11 @@ export async function initializeNativeApp({ onHardwareBack } = {}) {
 
   // Listen to status bar overlay and visibility changes dynamically
   try {
-    StatusBar.addListener('statusBarOverlayChanged', (info) => {
-      if (info && info.overlays && typeof info.height === 'number' && info.height > 0) {
-        document.documentElement.style.setProperty('--safe-area-top', `${info.height}px`);
-      } else if (info && !info.overlays) {
-        document.documentElement.style.setProperty('--safe-area-top', '0px');
-      }
+    StatusBar.addListener('statusBarOverlayChanged', () => {
+      updateSafeAreaInsets();
+    });
+    StatusBar.addListener('statusBarVisibilityChanged', () => {
+      updateSafeAreaInsets();
     });
   } catch (err) {
     // Unsupported on web platforms

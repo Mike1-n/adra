@@ -404,7 +404,7 @@ export function AdminWebPortalLayout({
             className="fixed inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="relative w-72 bg-white border-r border-slate-200 h-full flex flex-col z-10 shadow-2xl animate-in slide-in-from-left duration-200 pt-safe">
+          <div className="relative w-72 bg-white border-r border-slate-200 h-full flex flex-col z-10 shadow-2xl animate-in slide-in-from-left duration-200 pt-safe-drawer">
             <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200">
               <AdraLogo
                 isCollapsed={false}

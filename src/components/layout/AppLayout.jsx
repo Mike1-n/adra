@@ -22,7 +22,7 @@ export function AppLayout({ currentTab, onSelectTab, currentTabTitle, onSwitchTo
           />
 
           {/* Slide-over Drawer */}
-          <div className="relative w-64 max-w-[80vw] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200 pt-safe bg-white">
+          <div className="relative w-64 max-w-[80vw] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200 pt-safe-drawer bg-white">
             <Sidebar
               currentTab={currentTab}
               onSelectTab={(tabId) => {

@@ -504,20 +504,22 @@ export function SupplierPortalApp({
           />
           <aside className="relative w-72 max-w-[80vw] h-full bg-white shadow-2xl flex flex-col z-10 animate-in slide-in-from-left duration-200">
             
-            {/* Drawer Header */}
-            <div className="min-h-16 pt-safe flex items-center justify-between px-4 border-b border-slate-200 bg-white shrink-0">
-              <AdraLogo
-                isCollapsed={false}
-                subtitle="Supplier"
-                description={companyDisplayName || "Vendor Portal"}
-              />
-              <button
-                type="button"
-                onClick={() => setIsMobileDrawerOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+            {/* Drawer Header with mobile status bar clearance */}
+            <div className="pt-safe-drawer border-b border-slate-200 bg-white shrink-0">
+              <div className="h-16 flex items-center justify-between px-4">
+                <AdraLogo
+                  isCollapsed={false}
+                  subtitle="Supplier"
+                  description={companyDisplayName || "Vendor Portal"}
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Drawer Navigation List */}

@@ -455,7 +455,8 @@ export function FinanceMobileApp({
         {/* 3. SIDEBAR NAVIGATION DRAWER */}
         {isSidebarOpen && (
           <div className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex animate-in fade-in duration-150">
-            <div className="w-76 bg-white h-full shadow-2xl flex flex-col p-4 pt-safe space-y-4 animate-in slide-in-from-left duration-200">
+            <div className="w-76 bg-white h-full shadow-2xl flex flex-col pt-safe-drawer animate-in slide-in-from-left duration-200">
+              <div className="p-4 space-y-4 flex flex-col flex-1 overflow-hidden">
               
               {/* Drawer User Banner */}
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -818,6 +819,7 @@ export function FinanceMobileApp({
                 </button>
               </div>
 
+              </div>
             </div>
           </div>
         )}

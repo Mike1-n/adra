@@ -55,6 +55,16 @@
     top: max(var(--safe-area-top, 0px), env(safe-area-inset-top, 0px));
   }
 
+  /* Dedicated safe area utility for mobile sidebar drawers & slide-overs */
+  .pt-safe-drawer {
+    padding-top: max(var(--safe-area-top, 0px), env(safe-area-inset-top, 0px), 24px);
+  }
+  @media (min-width: 1024px) {
+    .pt-safe-drawer {
+      padding-top: 0px;
+    }
+  }
+
   /* Custom sleek scrollbar for white theme */
   ::-webkit-scrollbar {
     width: 6px;

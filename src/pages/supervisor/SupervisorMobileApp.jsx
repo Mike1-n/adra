@@ -669,14 +669,13 @@ export function SupervisorMobileApp({
 
         {/* MOBILE SLIDE-OUT SIDEBAR DRAWER */}
         <aside 
-          className={`absolute inset-y-0 left-0 z-50 w-72 max-w-[85%] bg-white flex flex-col justify-between shadow-2xl border-r border-slate-200 transition-transform duration-200 ease-in-out ${
+          className={`absolute inset-y-0 left-0 z-50 w-72 max-w-[85%] bg-white flex flex-col shadow-2xl border-r border-slate-200 transition-transform duration-200 ease-in-out ${
             isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <div className="flex flex-col h-full justify-between overflow-y-auto">
-            <div>
-              {/* Drawer Header Brand */}
-            <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-white">
+          {/* Drawer Header Brand (With mobile status bar clearance) */}
+          <div className="pt-safe-drawer border-b border-slate-100 bg-white shrink-0">
+            <div className="p-3.5 flex items-center justify-between">
               <AdraLogo
                 isCollapsed={false}
                 subtitle="Supervisor"
@@ -691,6 +690,10 @@ export function SupervisorMobileApp({
                 <X className="w-5 h-5" />
               </button>
             </div>
+          </div>
+
+          <div className="flex flex-col flex-1 justify-between overflow-y-auto">
+            <div>
 
             {/* State Supervisory Hub Switcher in Drawer */}
             <div className="p-3 border-b border-slate-100 bg-slate-50/60">

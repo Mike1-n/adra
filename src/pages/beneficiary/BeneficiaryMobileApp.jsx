@@ -270,24 +270,26 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
   const renderSidebarContent = (isDrawer = false) => (
     <div className="flex flex-col h-full bg-white select-none">
       {/* Brand Header */}
-      <div className={`px-4 flex items-center justify-between border-b border-slate-200 bg-white text-slate-900 shrink-0 ${isDrawer ? 'min-h-[4rem] pt-safe' : 'h-16'}`}>
-        <AdraLogo
-          isCollapsed={false}
-          subtitle="Community"
-          description="South Sudan Portal"
-          onClick={() => handleNavClick('dashboard')}
-        />
+      <div className={`border-b border-slate-200 bg-white text-slate-900 shrink-0 ${isDrawer ? 'pt-safe-drawer' : ''}`}>
+        <div className="h-16 px-4 flex items-center justify-between">
+          <AdraLogo
+            isCollapsed={false}
+            subtitle="Community"
+            description="South Sudan Portal"
+            onClick={() => handleNavClick('dashboard')}
+          />
 
-        {isDrawer && (
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen(false)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
-            aria-label="Close sidebar"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+          {isDrawer && (
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(false)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+              aria-label="Close sidebar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Primary Action Button: + Request Assistance */}
