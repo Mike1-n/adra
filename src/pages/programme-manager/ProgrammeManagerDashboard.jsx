@@ -816,57 +816,29 @@ export function ProgrammeManagerDashboard({
                     ? 'Profile'
                     : 'ADRA South Sudan'}
                 </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+                  {currentUser?.role || 'Programme Manager'}
+                </span>
               </div>
             ) : (
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-white/15 text-white border border-white/20 flex items-center justify-center font-black text-sm shadow-xs shrink-0">
-                  A
-                </div>
-                <div className="min-w-0">
-                  <span className="font-black text-sm text-white tracking-tight leading-none block truncate">
-                    ADRA South Sudan
-                  </span>
-                  <span className="text-[10px] text-emerald-200 font-extrabold uppercase tracking-wider block mt-0.5">
-                    Programme Manager
-                  </span>
-                </div>
+                <span className="font-black text-sm text-white tracking-tight truncate">
+                  ADRA South Sudan
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+                  {currentUser?.role || 'Programme Manager'}
+                </span>
               </div>
             )}
           </div>
 
-          {/* Right Controls: Refresh, Notifications, Profile, Logout */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Live Refresh Button */}
-            <button
-              type="button"
-              onClick={loadDashboardData}
-              disabled={isLoading}
-              title="Refresh Live Records"
-              className="p-1.5 text-white hover:bg-white/15 rounded-xl transition cursor-pointer"
-            >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-emerald-200' : 'text-white'}`} />
-            </button>
-
-            {/* Notification Bell with Badge */}
-            <button
-              type="button"
-              onClick={() => handleNavClick('notifications')}
-              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center relative border border-white/20 transition cursor-pointer shadow-2xs shrink-0"
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4 text-white" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-xs">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-
+          {/* Right Controls: Profile & Logout ONLY */}
+          <div className="flex items-center gap-2 shrink-0">
             {/* PM Profile Avatar Button */}
             <button
               type="button"
               onClick={() => handleNavClick('profile')}
-              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0 border border-white/20"
+              className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95 cursor-pointer shadow-2xs border border-white/20"
               title="Programme Manager Profile"
             >
               <User className="w-4 h-4 text-white" />
@@ -876,7 +848,7 @@ export function ProgrammeManagerDashboard({
             <button
               type="button"
               onClick={handleLogout}
-              className="flex items-center gap-1 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs shrink-0 cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs shrink-0 cursor-pointer"
               title="Logout"
             >
               <LogOut className="w-3.5 h-3.5 text-white" />

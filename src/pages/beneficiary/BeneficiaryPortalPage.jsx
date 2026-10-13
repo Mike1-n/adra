@@ -93,80 +93,42 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
       <header className="sticky top-0 z-40 bg-[#004D3F] border-b border-[#003B30] text-white shadow-md pt-safe">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           {/* Logo & Portal Title */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/15 text-white border border-white/20 flex items-center justify-center font-black text-lg shadow-sm">
-              A
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-base tracking-tight text-white">
-                  ADRA Client Portal
-                </span>
-                <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20">
-                  Verified Beneficiary
-                </span>
-              </div>
-              <p className="text-[11px] text-emerald-200 hidden sm:block">
-                Humanitarian Aid Delivery & Direct Assistance Platform
-              </p>
-            </div>
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Mobile Menu Toggle */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-xl text-white border border-white/20 hover:bg-white/15 transition cursor-pointer"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5 text-white" />}
+            </button>
+
+            <span className="font-extrabold text-base tracking-tight text-white truncate">
+              ADRA Client Portal
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+              {currentUser?.role || 'Beneficiary'}
+            </span>
           </div>
 
-          {/* Top Right Actions */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Beneficiary ID Pill */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('id_card')}
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-white text-xs font-mono font-bold hover:bg-white/20 transition cursor-pointer"
-              title="Click to view digital ID card"
-            >
-              <QrCode className="w-3.5 h-3.5 text-emerald-200" />
-              <span>{beneficiary?.beneficiary_code || 'BEN-2025-007'}</span>
-            </button>
-
-            {/* Notifications Button */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('notifications')}
-              className="p-2 rounded-xl text-white hover:bg-white/15 border border-white/20 transition relative cursor-pointer"
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4 text-white" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">
-                2
-              </span>
-            </button>
-
-            {/* Quick Profile Pill */}
-            <div
-              onClick={() => setActiveTab('profile')}
-              className="hidden sm:flex items-center gap-2 pl-2 border-l border-white/20 cursor-pointer hover:opacity-90 transition"
-              title="View Beneficiary Profile"
-            >
-              <img
-                src={beneficiary?.avatar || currentUser?.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80'}
-                alt={beneficiary?.full_name || 'Beneficiary'}
-                className="w-8 h-8 rounded-full object-cover border border-white/40"
-              />
-              <div className="text-left hidden lg:block">
-                <span className="text-xs font-bold text-white block truncate max-w-[130px]">
-                  {beneficiary?.full_name || 'Mary Nyambura'}
-                </span>
-                <span className="text-[10px] text-emerald-200 block truncate max-w-[130px]">
-                  {beneficiary?.location?.split(',')[0] || 'Turkana West'}
-                </span>
-              </div>
-            </div>
-
-            {/* Mobile Profile Icon Button */}
+          {/* Top Right Actions: Profile & Logout ONLY */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* Profile Icon Button */}
             <button
               type="button"
               onClick={() => setActiveTab('profile')}
-              className="sm:hidden p-2 rounded-xl text-white hover:bg-white/15 border border-white/20 transition cursor-pointer"
+              className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition active:scale-95 cursor-pointer shadow-2xs"
               title="My Profile"
             >
-              <User className="w-4 h-4 text-white" />
+              {beneficiary?.avatar || currentUser?.avatar ? (
+                <img
+                  src={beneficiary?.avatar || currentUser?.avatar}
+                  alt="Profile"
+                  className="w-4 h-4 rounded-full object-cover border border-white/40"
+                />
+              ) : (
+                <User className="w-4 h-4 text-white" />
+              )}
             </button>
 
             {/* Header Logout Button */}
@@ -178,26 +140,6 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
             >
               <LogOut className="w-3.5 h-3.5 text-white" />
               <span className="hidden sm:inline font-bold">Logout</span>
-            </button>
-
-            {/* Switch to Field App (if Admin or Staff) */}
-            {currentUser?.role === 'Administrator' && onSwitchToFieldApp && (
-              <button
-                type="button"
-                onClick={onSwitchToFieldApp}
-                className="hidden xl:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 text-xs font-medium transition cursor-pointer"
-              >
-                Back to Field Operations
-              </button>
-            )}
-
-            {/* Mobile Menu Toggle */}
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-xl text-white border border-white/20 hover:bg-white/15 transition cursor-pointer"
-            >
-              {mobileMenuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5 text-white" />}
             </button>
           </div>
         </div>

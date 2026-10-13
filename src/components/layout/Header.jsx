@@ -67,129 +67,24 @@ export function Header({
             </button>
           )}
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-bold text-white truncate">
-                {currentTabTitle}
-              </h1>
-              {isNative && (
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold bg-white/15 text-emerald-100 border border-white/20 px-1.5 py-0.5 rounded">
-                  <Smartphone className="w-2.5 h-2.5" /> APK
-                </span>
-              )}
-            </div>
-            <p className="text-[10px] text-emerald-200 sm:hidden truncate">
-              ADRA Management System
-            </p>
+          <div className="min-w-0 flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-bold text-white truncate">
+              {currentTabTitle}
+            </h1>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+              {currentUser?.role || 'Administrator'}
+            </span>
           </div>
         </div>
 
-        {/* Right: Database Status Badge, Notifications & Role */}
-        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-          {/* Supabase connection indicator badge */}
-          <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-xs">
-            <Database className={`w-3.5 h-3.5 ${isSupabaseConfigured ? 'text-emerald-300' : 'text-amber-300'}`} />
-            <span className="text-white font-medium">
-              {isSupabaseConfigured ? 'Supabase' : 'Demo DB'}
-            </span>
-            <span className={`w-2 h-2 rounded-full ${isSupabaseConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-          </div>
-
-          {/* Notifications Button */}
-          <div className="relative">
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="p-2 rounded-xl text-white hover:bg-white/15 border border-transparent hover:border-white/20 active:scale-95 transition relative"
-            >
-              <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-400 rounded-full ring-2 ring-[#004D3F]" />
-            </button>
-
-            {/* Notifications Dropdown */}
-            {showNotifications && (
-              <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-3 animate-in fade-in zoom-in-95 duration-150 text-slate-900">
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200">
-                  <span className="text-xs font-semibold text-slate-900">Field Alerts</span>
-                  <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">3 New</span>
-                </div>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {notifications.map(n => (
-                    <div key={n.id} className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition">
-                      <div className="flex items-center justify-between text-xs font-medium text-slate-900">
-                        <span className="truncate pr-1">{n.title}</span>
-                        <span className="text-[9px] text-slate-500 shrink-0">{n.time}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-1 leading-snug">{n.desc}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Contextual Module Feedback Button */}
-          <button
-            type="button"
-            onClick={() => setIsFeedbackModalOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white transition active:scale-95 shadow-2xs cursor-pointer"
-            title="Submit Feedback on this module"
-          >
-            <MessageSquarePlus className="w-3.5 h-3.5 text-emerald-200" />
-            <span className="hidden sm:inline font-bold">Feedback</span>
-          </button>
-
-          {/* Standalone Admin Web App Portal Button */}
-          {currentUser?.role === 'Administrator' && onSwitchToAdminWeb && (
-            <button
-              onClick={onSwitchToAdminWeb}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold shadow-sm transition active:scale-95"
-              title="Launch Standalone Administrator Enterprise Web App"
-            >
-              <Globe className="w-3.5 h-3.5 text-white" />
-              <span className="hidden sm:inline">Admin Web App</span>
-              <ExternalLink className="w-3 h-3 text-white" />
-            </button>
-          )}
-
-          {/* Role Switcher Pill */}
-          <div className="relative">
-            <button
-              onClick={() => setShowRoleMenu(!showRoleMenu)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold transition active:scale-95 shadow-sm"
-            >
-              <Shield className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
-              <span className="max-w-[80px] sm:max-w-none truncate">{currentUser?.role || 'Admin'}</span>
-              <ChevronDown className="w-3 h-3 text-emerald-200 shrink-0" />
-            </button>
-
-            {showRoleMenu && (
-              <div className="absolute right-0 mt-2 w-52 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 p-2 animate-in fade-in zoom-in-95 duration-150 text-slate-900">
-                <p className="text-[10px] uppercase font-bold text-slate-500 px-2 py-1">Role Switcher (Viva)</p>
-                {['Administrator', 'Program Manager', 'Supervisor', 'Field Worker', 'Inventory Manager', 'Finance Officer', 'Beneficiary', 'Project Officer', 'M&E Officer'].map(role => (
-                  <button
-                    key={role}
-                    onClick={() => {
-                      quickSwitchRole(role);
-                      setShowRoleMenu(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition ${
-                      currentUser?.role === role ? 'bg-emerald-50 text-emerald-800 font-bold' : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span>{role}</span>
-                    {currentUser?.role === role && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
+        {/* Right: Profile Icon and Logout Buttons ONLY */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           {/* Profile Icon Button */}
           <button
             type="button"
             onClick={() => setIsProfileModalOpen(true)}
-            className="flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold transition active:scale-95 cursor-pointer shadow-2xs"
-            title="My Profile & Account"
+            className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition active:scale-95 cursor-pointer shadow-2xs"
+            title="My Profile"
           >
             {currentUser?.avatar ? (
               <img
@@ -198,15 +93,13 @@ export function Header({
                 className="w-5 h-5 rounded-full object-cover border border-white/40 shrink-0"
               />
             ) : (
-              <User className="w-4 h-4 text-emerald-200 shrink-0" />
+              <User className="w-4 h-4 text-white shrink-0" />
             )}
-            <span className="hidden md:inline max-w-[90px] truncate font-bold text-white">
-              {currentUser?.full_name?.split(' ')[0] || 'Profile'}
-            </span>
           </button>
 
           {/* Logout Button */}
           <button
+            type="button"
             onClick={logout}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs cursor-pointer"
             title="Log Out"

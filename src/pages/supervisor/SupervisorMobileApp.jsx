@@ -1404,47 +1404,26 @@ export function SupervisorMobileApp({
           )}
 
           {!activeSubview && (
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-white/15 text-white border border-white/20 flex items-center justify-center font-black text-sm shadow-xs shrink-0">
-                A
-              </div>
-              <div className="min-w-0">
-                <span className="font-black text-sm text-white tracking-tight leading-none block truncate">
-                  ADRA South Sudan
-                </span>
-                <span className="text-[10px] text-emerald-200 font-extrabold uppercase tracking-wider block mt-0.5">
-                  Supervisor Portal
-                </span>
-              </div>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-black text-sm text-white tracking-tight truncate">
+                ADRA South Sudan
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+                {currentUser?.role || 'Supervisor'}
+              </span>
             </div>
           )}
         </div>
 
-        {/* Right: Notifications Bell, Profile & Logout Icons */}
+        {/* Right: Profile & Logout Icons ONLY */}
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveSubview(activeSubview === 'notifications' ? null : 'notifications');
-            }}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center relative border border-white/20 transition cursor-pointer shadow-2xs shrink-0"
-            title="Notifications"
-          >
-            <Bell className="w-4 h-4 text-white" />
-            {unreadNotifsCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-xs">
-                {unreadNotifsCount}
-              </span>
-            )}
-          </button>
-
           {/* Supervisor Profile Icon Button */}
           <button
             type="button"
             onClick={() => {
               setActiveSubview(activeSubview === 'profile' ? null : 'profile');
             }}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0 border border-white/20"
+            className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95 cursor-pointer shadow-2xs border border-white/20"
             title="Supervisor Profile"
           >
             <User className="w-4 h-4 text-white" />

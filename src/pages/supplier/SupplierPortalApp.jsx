@@ -559,41 +559,37 @@ export function SupplierPortalApp({
               <Menu className="w-5 h-5 text-white" />
             </button>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex items-center gap-2">
               <h1 className="text-sm sm:text-base font-extrabold text-white tracking-tight truncate">
-                {activeTab === 'all' && 'All Purchase Orders'}
-                {activeTab === 'orders' && 'New Supply Requests (Stage 1)'}
-                {activeTab === 'intransit' && 'Consignments In Transit (Stage 2)'}
-                {activeTab === 'confirmed' && 'Accepted Deliveries & GRN (Stage 3)'}
-                {activeTab === 'payments' && 'Disbursed Payments & Settlements (Stage 4)'}
-                {activeTab === 'returned' && 'Returned & Rejected Consignments'}
-                {activeTab === 'profile' && 'Vendor Company & Bank Information'}
+                ADRA South Sudan
               </h1>
-              <p className="text-[11px] sm:text-xs text-emerald-200 truncate">
-                {companyDisplayName} • ADRA South Sudan Fulfillment Hub
-              </p>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+                {currentUser?.role || 'Supplier'}
+              </span>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Right: Profile & Logout ONLY */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Vendor Profile Button */}
             <button
               type="button"
-              onClick={() => loadData()}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition cursor-pointer border border-white/20"
-              title="Refresh Data"
+              onClick={() => setActiveTab('profile')}
+              className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95 cursor-pointer border border-white/20 shadow-2xs"
+              title="Vendor Profile"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <User className="w-4 h-4 text-white" />
             </button>
 
+            {/* Logout Button */}
             <button
               type="button"
               onClick={onLogout || logout}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-rose-500/30 text-white text-xs font-bold transition cursor-pointer border border-white/20"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs cursor-pointer"
               title="Log Out"
             >
               <LogOut className="w-3.5 h-3.5 text-white" />
-              <span className="hidden sm:inline">Logout</span>
+              <span className="hidden sm:inline font-bold">Logout</span>
             </button>
           </div>
         </div>

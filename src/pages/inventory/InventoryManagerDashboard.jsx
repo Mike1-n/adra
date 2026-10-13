@@ -1025,132 +1025,38 @@ export function InventoryManagerDashboard({
             </div>
           ) : (
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-white/15 text-white border border-white/20 flex items-center justify-center font-black text-sm shadow-xs shrink-0">
-                A
-              </div>
-              <div className="min-w-0">
-                <span className="font-black text-sm text-white tracking-tight leading-none block truncate">
-                  ADRA South Sudan
-                </span>
-                <span className="text-[10px] text-emerald-200 font-extrabold uppercase tracking-wider block mt-0.5">
-                  Logistics & Supply Chain
-                </span>
-              </div>
+              <span className="font-black text-sm text-white tracking-tight truncate">
+                ADRA South Sudan
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+                {currentUser?.role || 'Inventory Manager'}
+              </span>
             </div>
           )}
         </div>
 
-        {/* Right Controls: Refresh, Notifications / Alerts, Profile Avatar Dropdown */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Live Sync / Refresh Button */}
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            title="Sync DB Records"
-            className="p-1.5 text-white hover:bg-white/15 rounded-xl transition cursor-pointer"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-200' : 'text-white'}`} />
-          </button>
-
-          {/* Low Stock Alerts / Bell */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('stock')}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center relative border border-white/20 transition cursor-pointer shadow-2xs shrink-0"
-            title="Low Stock Alerts"
-          >
-            <AlertTriangle className={`w-4 h-4 ${lowStockAlertsCount > 0 ? 'text-amber-300' : 'text-white/80'}`} />
-            {lowStockAlertsCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-xs">
-                {lowStockAlertsCount}
-              </span>
-            )}
-          </button>
-
+        {/* Right Controls: Profile & Logout ONLY */}
+        <div className="flex items-center gap-2 shrink-0">
           {/* User Profile Avatar Button */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/20 flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0"
-              title="Profile & Role Switcher"
-            >
-              <User className="w-4 h-4 text-white" />
-            </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('profile')}
+            className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition cursor-pointer shadow-2xs"
+            title="Profile"
+          >
+            <User className="w-4 h-4 text-white" />
+          </button>
 
-            {/* Click-outside backdrop */}
-            {isRoleDropdownOpen && (
-              <div 
-                className="fixed inset-0 z-40" 
-                onClick={() => setIsRoleDropdownOpen(false)} 
-              />
-            )}
-
-            {/* Role Switcher Popover */}
-            {isRoleDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-68 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="p-2.5 border-b border-slate-100">
-                  <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                    Active Profile
-                  </p>
-                  <p className="text-xs font-extrabold text-slate-900 mt-0.5 truncate">
-                    {currentUser?.full_name || currentUser?.name || 'Gabriel Majok'}
-                  </p>
-                  <p className="text-[10px] text-emerald-700 font-bold">
-                    Inventory Manager
-                  </p>
-                </div>
-
-                <div className="p-1.5">
-                  <p className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1 tracking-wider">
-                    Switch Role
-                  </p>
-                  <div className="space-y-0.5">
-                    {roles.map((r) => (
-                      <button
-                        key={r.role}
-                        type="button"
-                        onClick={async () => {
-                          setIsRoleDropdownOpen(false);
-                          if (onSwitchRole) {
-                            await onSwitchRole(r.role);
-                          } else if (quickSwitchRole) {
-                            await quickSwitchRole(r.role);
-                          }
-                        }}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between transition cursor-pointer ${
-                          r.role === 'Inventory Manager'
-                            ? 'bg-emerald-50 text-[#006B56] font-bold'
-                            : 'hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <span className="truncate">{r.label}</span>
-                        {r.role === 'Inventory Manager' && (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[#006B56]" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="p-1.5 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsRoleDropdownOpen(false);
-                      if (onLogout) onLogout();
-                      else if (authLogout) authLogout();
-                    }}
-                    className="w-full px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition cursor-pointer"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Logout Button */}
+          <button
+            type="button"
+            onClick={onLogout || authLogout}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs shrink-0 cursor-pointer"
+            title="Sign Out"
+          >
+            <LogOut className="w-3.5 h-3.5 text-white" />
+            <span className="hidden sm:inline font-bold">Logout</span>
+          </button>
         </div>
       </div>
     </header>

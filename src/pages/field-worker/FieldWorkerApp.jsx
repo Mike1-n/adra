@@ -838,46 +838,47 @@ export function FieldWorkerApp({
           <div className="min-h-14 py-2 flex items-center justify-between gap-3">
             
             {/* Hamburger button + Brand Identity */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(true)}
-                className="p-2 text-white hover:bg-white/15 rounded-xl transition cursor-pointer"
+                className="p-2 text-white hover:bg-white/15 rounded-xl transition cursor-pointer shrink-0"
                 title="Open Navigation Menu"
               >
                 <Menu className="w-5 h-5 text-white" />
               </button>
 
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <h1 className="text-xs font-bold text-white leading-tight truncate max-w-[140px] sm:max-w-none">
-                    {worker.name || 'Field Officer'}
-                  </h1>
-                  <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full border ${
-                    dutyStatus === 'Available' ? 'bg-emerald-500/25 text-emerald-100 border-emerald-400/40' :
-                    dutyStatus === 'On Assignment' ? 'bg-amber-500/25 text-amber-100 border-amber-400/40' :
-                    'bg-blue-500/25 text-blue-100 border-blue-400/40'
-                  }`}>
-                    ● {dutyStatus}
-                  </span>
-                </div>
-                <p className="text-[10px] text-emerald-200 leading-none mt-0.5 flex items-center gap-1">
-                  <span>{worker.payam || worker.county || 'Kapoeta South'}</span>
-                  <span>•</span>
-                  <span className="text-emerald-100/90">Sup: {worker.supervisor_name || 'Emmanuel Adeyemi'}</span>
-                </p>
+              <div className="flex items-center gap-2 min-w-0">
+                <h1 className="text-sm font-black text-white leading-tight truncate">
+                  ADRA South Sudan
+                </h1>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+                  {worker?.role || currentUser?.role || 'Field Worker'}
+                </span>
               </div>
             </div>
 
-            {/* Right Header Action Icons */}
-            <div className="flex items-center gap-1">
+            {/* Right: Profile & Logout Icons ONLY */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Field Worker Profile Icon Button */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('profile')}
+                className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95 cursor-pointer shadow-2xs border border-white/20"
+                title="Field Officer Profile"
+              >
+                <User className="w-4 h-4 text-white" />
+              </button>
+
+              {/* Logout Button */}
               <button
                 type="button"
                 onClick={onLogout || logout}
-                title="Sign Out"
-                className="p-2 text-white hover:bg-white/15 rounded-xl transition cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs shrink-0 cursor-pointer"
+                title="Logout of ADRA"
               >
-                <LogOut className="w-4 h-4 text-white" />
+                <LogOut className="w-3.5 h-3.5 text-white" />
+                <span className="hidden sm:inline font-bold">Logout</span>
               </button>
             </div>
 

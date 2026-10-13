@@ -329,41 +329,41 @@ export function FinanceMobileApp({
               </button>
             )}
 
-            <div>
-              <h1 className="text-xs font-black tracking-tight leading-none text-white flex items-center gap-1.5">
-                <span>{getHeaderTitle()}</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="text-sm font-black tracking-tight leading-none text-white truncate">
+                ADRA South Sudan
               </h1>
-              <span className="text-[10px] text-emerald-200 font-medium">
-                ADRA South Sudan • Finance
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+                {currentUser?.role || 'Finance Officer'}
               </span>
             </div>
           </div>
 
-          {/* Right Controls */}
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={handleManualRefresh}
-              disabled={isRefreshing}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-emerald-100 transition cursor-pointer"
-              title="Refresh Data"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-300' : ''}`} />
-            </button>
-
+          {/* Right Controls: Profile & Logout ONLY */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => {
                 setActiveTab('profile');
               }}
-              className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white font-black text-xs flex items-center justify-center shadow-xs border border-white/30 cursor-pointer"
+              className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95 cursor-pointer shadow-2xs border border-white/20"
               title="Officer Profile"
             >
               {currentUser?.avatar ? (
-                <img src={currentUser.avatar} alt="User" className="w-full h-full object-cover rounded-full" />
+                <img src={currentUser.avatar} alt="User" className="w-4 h-4 object-cover rounded-full" />
               ) : (
-                <span>FO</span>
+                <User className="w-4 h-4 text-white" />
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogout || logout}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs shrink-0 cursor-pointer"
+              title="Logout"
+            >
+              <LogOut className="w-3.5 h-3.5 text-white" />
+              <span className="hidden sm:inline font-bold">Logout</span>
             </button>
           </div>
         </div>

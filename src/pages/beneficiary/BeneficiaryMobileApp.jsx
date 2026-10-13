@@ -509,48 +509,24 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
               </button>
             )}
 
-            {/* Header Brand / Title: In phone mode, 'ADRA' appears */}
-            <div className="min-w-0 flex items-center gap-2.5">
-              <span className="text-base sm:text-lg font-black text-white font-serif tracking-wider">
-                ADRA
+            {/* Header Brand / Title: ADRA Community Portal */}
+            <div className="min-w-0 flex items-center gap-2">
+              <span className="text-sm font-black text-white truncate">
+                ADRA South Sudan
               </span>
-              {currentView !== 'request_wizard' && currentView !== 'dashboard' && currentView !== 'auth_choice' && (
-                <>
-                  <span className="text-white/40 hidden sm:inline">|</span>
-                  <h1 className="text-xs sm:text-sm font-bold text-white/90 truncate leading-tight hidden sm:block">
-                    {getHeaderTitle()}
-                  </h1>
-                </>
-              )}
-              {(currentView === 'dashboard' || currentView === 'request_wizard') && (
-                <span className="text-[10px] text-white/80 hidden sm:block font-medium">
-                  South Sudan Community Portal
-                </span>
-              )}
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+                {currentUser?.role || 'Beneficiary'}
+              </span>
             </div>
           </div>
 
-          {/* Right Header: Notification Bell, Profile & Logout */}
+          {/* Right Header: Profile & Logout ONLY */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setCurrentView('notifications')}
-              className="relative p-2 rounded-xl text-white hover:bg-white/15 cursor-pointer transition"
-              title="Notifications"
-            >
-              <Bell className="w-5 h-5 text-white" />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-[#E53E3E] text-white text-[9px] font-black rounded-full flex items-center justify-center border border-[#006B56] shadow-xs">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-
             {/* Beneficiary Profile Icon Button */}
             <button
               type="button"
               onClick={() => setCurrentView('profile')}
-              className={`p-1.5 sm:p-2 rounded-xl text-white hover:bg-white/15 cursor-pointer transition flex items-center gap-1.5 ${
+              className={`p-2 rounded-xl text-white hover:bg-white/15 cursor-pointer transition flex items-center justify-center bg-white/10 border border-white/20 ${
                 currentView === 'profile' ? 'bg-white/20 ring-1 ring-white/30' : ''
               }`}
               title="My Beneficiary Profile"
@@ -559,21 +535,18 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
                 <img
                   src={beneficiary?.avatar || currentUser?.avatar}
                   alt="Profile"
-                  className="w-5 h-5 rounded-full object-cover border border-white/40"
+                  className="w-4 h-4 rounded-full object-cover border border-white/40"
                 />
               ) : (
-                <User className="w-5 h-5 text-white" />
+                <User className="w-4 h-4 text-white" />
               )}
-              <span className="hidden md:inline text-xs font-bold text-white max-w-[80px] truncate">
-                {beneficiary?.full_name?.split(' ')[0] || 'Profile'}
-              </span>
             </button>
 
             {/* Beneficiary Header Logout Button */}
             <button
               type="button"
               onClick={logout}
-              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition active:scale-95 shadow-xs cursor-pointer"
               title="Logout of Portal"
             >
               <LogOut className="w-3.5 h-3.5 text-white" />

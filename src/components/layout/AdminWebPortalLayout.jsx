@@ -10,6 +10,7 @@ import {
   Download,
   Smartphone,
   LogOut,
+  User,
   ChevronRight,
   Menu,
   X,
@@ -323,61 +324,35 @@ export function AdminWebPortalLayout({
               <span className="text-sm font-black text-white capitalize">
                 {navItems.find(n => n.id === activeSection)?.name || 'Admin Console'}
               </span>
-              <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-emerald-300" />
-              <span className="hidden sm:inline text-xs text-emerald-200 font-medium">
-                {navItems.find(n => n.id === activeSection)?.desc || ''}
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+                {currentUser?.role || 'Administrator'}
               </span>
             </div>
           </div>
 
-          {/* Right: Search, Database Status, Actions */}
-          <div className="flex items-center gap-2.5">
-            {/* Clean Search Trigger */}
-            <button
-              onClick={() => setIsSearchOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-xs text-white font-bold transition shadow-sm cursor-pointer"
-            >
-              <Search className="w-3.5 h-3.5 text-white" />
-              <span className="font-bold text-white">Search...</span>
-            </button>
-
-            {/* Contextual Module Feedback Button */}
-            <button
-              type="button"
-              onClick={() => setIsFeedbackModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white transition shadow-2xs cursor-pointer active:scale-95"
-              title="Submit feedback or report an issue on this module"
-            >
-              <MessageSquarePlus className="w-3.5 h-3.5 text-emerald-200" />
-              <span className="hidden sm:inline font-bold">Feedback</span>
-            </button>
-
-            {/* Switch to Field App */}
-            <button
-              onClick={onSwitchToFieldApp}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold transition shadow-sm cursor-pointer"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-white" />
-              <span className="hidden sm:inline text-white font-bold">Field App</span>
-            </button>
-
+          {/* Right: Profile Icon and Logout Buttons ONLY */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
             {/* Admin Profile Icon Button */}
             <button
               type="button"
               onClick={() => setIsProfileOpen(true)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs text-white font-bold transition shadow-2xs cursor-pointer active:scale-95"
-              title="Administrator Profile & Account"
+              className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition active:scale-95 cursor-pointer shadow-2xs"
+              title="Administrator Profile"
             >
-              <img
-                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                alt={currentUser?.full_name || 'Admin'}
-                className="w-5 h-5 rounded-full object-cover border border-white/40 shrink-0"
-              />
-              <span className="hidden sm:inline font-bold">Profile</span>
+              {currentUser?.avatar ? (
+                <img
+                  src={currentUser.avatar}
+                  alt={currentUser?.full_name || 'Admin'}
+                  className="w-5 h-5 rounded-full object-cover border border-white/40 shrink-0"
+                />
+              ) : (
+                <User className="w-4 h-4 text-white shrink-0" />
+              )}
             </button>
 
-            {/* Prominent Admin Logout Button */}
+            {/* Admin Logout Button */}
             <button
+              type="button"
               onClick={logout}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 border border-rose-700 text-white text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
               title="Log out of Admin Portal"
