@@ -28,11 +28,13 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LayoutDashboard,
+  MessageSquare,
 } from 'lucide-react';
 import { db } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AdraLogo } from '../../components/common/AdraLogo';
+import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
 
 // Subviews
 import { InventoryOverviewView } from './components/InventoryOverviewView';
@@ -421,6 +423,7 @@ export function InventoryManagerDashboard({
       case 'resources': return 'Fleet & Capital Assets';
       case 'warehouses': return 'State Relief Depots';
       case 'reports': return 'Reports & Audit Ledger';
+      case 'feedback': return 'Feedback & Complaints Desk';
       default: return 'Logistics & Supply Chain';
     }
   }, [activeTab, dispatchStatusFilter, supplierSubTab]);
@@ -931,6 +934,22 @@ export function InventoryManagerDashboard({
               <span>Reports & Audit Ledger</span>
             </div>
           </button>
+
+          {/* Feedback & Complaints */}
+          <button
+            type="button"
+            onClick={() => handleNavClick('feedback')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
+              activeTab === 'feedback'
+                ? 'bg-[#006B56] text-white font-bold shadow-xs'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <div className="flex items-center space-x-2.5">
+              <MessageSquare className={`w-4 h-4 ${activeTab === 'feedback' ? 'text-white' : 'text-[#006B56]'}`} />
+              <span>Feedback & Complaints</span>
+            </div>
+          </button>
         </div>
 
         {/* 4. Drawer Footer: Switch Role & Logout */}
@@ -1009,35 +1028,14 @@ export function InventoryManagerDashboard({
             <Menu className="w-5 h-5 text-white" />
           </button>
 
-          {activeTab !== 'overview' ? (
-            <div className="flex items-center gap-1.5 min-w-0">
-              <button
-                type="button"
-                onClick={() => setActiveTab('overview')}
-                className="p-1 text-white hover:bg-white/15 rounded-lg transition cursor-pointer shrink-0"
-                title="Back to Overview Dashboard"
-              >
-                <ArrowLeft className="w-4 h-4 text-white" />
-              </button>
-              <div className="min-w-0 flex flex-col justify-center">
-                <span className="font-black text-xs sm:text-sm text-white truncate">
-                  {activeTabTitle}
-                </span>
-                <span className="text-[10px] text-emerald-200 font-medium leading-none">
-                  {currentUser?.role || 'Inventory Manager'}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="min-w-0 flex flex-col justify-center">
-              <span className="text-base font-black text-white tracking-wider leading-tight">
-                ADRA
-              </span>
-              <span className="text-[10px] text-emerald-200 font-medium leading-none">
-                {currentUser?.role || 'Inventory Manager'}
-              </span>
-            </div>
-          )}
+          <div className="min-w-0 flex flex-col justify-center">
+            <span className="text-base font-black text-white tracking-wider leading-tight">
+              ADRA
+            </span>
+            <span className="text-[10px] text-emerald-200 font-medium leading-none">
+              {currentUser?.role || 'Inventory Manager'}
+            </span>
+          </div>
         </div>
 
         {/* Right Controls: Profile & Logout ONLY */}
@@ -1205,6 +1203,13 @@ export function InventoryManagerDashboard({
                 warehouses={warehouses}
               />
             )}
+
+            {/* View 7: Feedback & Complaints */}
+            {activeTab === 'feedback' && (
+              <div className="w-full flex-1 flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                <FeedbackComplaintsView currentUser={currentUser} />
+              </div>
+            )}
           </>
         )}
       </main>
@@ -1273,7 +1278,7 @@ export function InventoryManagerDashboard({
       />
 
       {/* Module Feedback Trigger */}
-      <FloatingFeedbackButton currentModule="Inventory & Logistics Management" />
+      <FloatingFeedbackButton currentModule="Inventory & Logistics Management" onOpenFeedbackTab={() => handleNavClick('feedback')} />
       </div>
     </div>
   );

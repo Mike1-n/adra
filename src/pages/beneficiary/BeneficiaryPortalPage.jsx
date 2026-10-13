@@ -39,7 +39,7 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
   const { currentUser, logout } = useAuth();
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState('id_card');
+  const [activeTab, setActiveTab] = useState('requests');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [beneficiary, setBeneficiary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -71,16 +71,13 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
   }, [currentUser]);
 
   const navItems = [
-    { id: 'id_card', label: 'Beneficiary ID', icon: CreditCard, count: null },
     { id: 'requests', label: 'Assistance Requests', icon: HandHeart, count: 3 },
     { id: 'programmes', label: 'ADRA Programmes', icon: FolderKanban, count: null },
     { id: 'history', label: 'Aid History', icon: History, count: null },
     { id: 'distributions', label: 'Distribution Schedules', icon: Truck, count: 2 },
     { id: 'notifications', label: 'Notifications', icon: Bell, count: 2 },
     { id: 'feedback', label: 'Feedback & Complaints', icon: MessageSquareQuote, count: null },
-    { id: 'profile', label: 'My Profile', icon: User, count: null },
-    { id: 'support', label: 'Help & Contact ADRA', icon: Headphones, count: null },
-    { id: 'security', label: 'Security & Logout', icon: Shield, count: null },
+    { id: 'support', label: 'Contact Us', icon: Headphones, count: null },
   ];
 
   const handleApplyProgramme = () => {
@@ -113,25 +110,8 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
             </div>
           </div>
 
-          {/* Top Right Actions: Profile & Logout ONLY */}
+          {/* Top Right Actions: Logout ONLY */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-            {/* Profile Icon Button */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('profile')}
-              className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition active:scale-95 cursor-pointer shadow-2xs"
-              title="My Profile"
-            >
-              {beneficiary?.avatar || currentUser?.avatar ? (
-                <img
-                  src={beneficiary?.avatar || currentUser?.avatar}
-                  alt="Profile"
-                  className="w-4 h-4 rounded-full object-cover border border-white/40"
-                />
-              ) : (
-                <User className="w-4 h-4 text-white" />
-              )}
-            </button>
 
             {/* Header Logout Button */}
             <button
@@ -236,16 +216,6 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
                 <LogOut className="w-4 h-4" />
                 Sign Out
               </button>
-
-              {currentUser?.role === 'Administrator' && onSwitchToFieldApp && (
-                <button
-                  type="button"
-                  onClick={onSwitchToFieldApp}
-                  className="text-xs font-bold text-slate-600 p-2 hover:text-slate-900 cursor-pointer"
-                >
-                  Field App
-                </button>
-              )}
             </div>
           </div>
         )}
@@ -299,7 +269,7 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
             )}
 
             {activeTab === 'support' && (
-              <HelpSupportContactView />
+              <HelpSupportContactView beneficiary={beneficiary} />
             )}
 
             {activeTab === 'security' && (

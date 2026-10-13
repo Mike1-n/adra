@@ -45,6 +45,7 @@ import { PMSupervisorsView } from './components/PMSupervisorsView';
 import { PMResourcesView } from './components/PMResourcesView';
 import { PMReportsView } from './components/PMReportsView';
 import { PMFeedbackView } from './components/PMFeedbackView';
+import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
 import { PMNotificationsView } from './components/PMNotificationsView';
 import { PMFacilitationsView } from './components/PMFacilitationsView';
 import { PMProfileView } from './components/PMProfileView';
@@ -736,6 +737,22 @@ export function ProgrammeManagerDashboard({
               )}
             </div>
 
+            {/* Feedback & Complaints */}
+            <button
+              type="button"
+              onClick={() => handleNavClick('feedback')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
+                activeTab === 'feedback'
+                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <MessageSquare className={`w-4 h-4 ${activeTab === 'feedback' ? 'text-white' : 'text-[#006B56]'}`} />
+                <span>Feedback & Complaints</span>
+              </div>
+            </button>
+
             {/* Profile & Settings */}
             <button
               type="button"
@@ -781,55 +798,14 @@ export function ProgrammeManagerDashboard({
               <Menu className="w-5 h-5 text-white" />
             </button>
 
-            {activeTab !== 'dashboard' ? (
-              <div className="flex items-center gap-1.5 min-w-0">
-                <button
-                  type="button"
-                  onClick={() => handleNavClick('dashboard')}
-                  className="p-1 text-white hover:bg-white/15 rounded-lg transition cursor-pointer shrink-0"
-                  title="Back to Executive Overview"
-                >
-                  <ArrowLeft className="w-4 h-4 text-white" />
-                </button>
-                <span className="font-black text-xs text-white truncate">
-                  {activeTab === 'facilitations'
-                    ? 'Field Facilitations'
-                    : activeTab === 'requests'
-                    ? 'Assistance Requests'
-                    : activeTab === 'programmes'
-                    ? 'Programmes'
-                    : activeTab === 'supervisors'
-                    ? 'Supervisors'
-                    : activeTab === 'beneficiaries'
-                    ? 'Beneficiaries'
-                    : activeTab === 'activities'
-                    ? 'Field Activities'
-                    : activeTab === 'distributions'
-                    ? 'Aid Distributions'
-                    : activeTab === 'resources'
-                    ? 'Resources & Depots'
-                    : activeTab === 'reports'
-                    ? 'Reports'
-                    : activeTab === 'notifications'
-                    ? 'Notifications'
-                    : activeTab === 'profile'
-                    ? 'Profile'
-                    : 'ADRA'}
-                </span>
-                <span className="text-[10px] text-emerald-200 font-medium leading-none">
-                  {currentUser?.role || 'Programme Manager'}
-                </span>
-              </div>
-            ) : (
-              <div className="min-w-0 flex flex-col justify-center">
-                <span className="text-base font-black text-white tracking-wider leading-tight">
-                  ADRA
-                </span>
-                <span className="text-[10px] text-emerald-200 font-medium leading-none">
-                  {currentUser?.role || 'Programme Manager'}
-                </span>
-              </div>
-            )}
+            <div className="min-w-0 flex flex-col justify-center">
+              <span className="text-base font-black text-white tracking-wider leading-tight">
+                ADRA
+              </span>
+              <span className="text-[10px] text-emerald-200 font-medium leading-none">
+                {currentUser?.role || 'Programme Manager'}
+              </span>
+            </div>
           </div>
 
           {/* Right Controls: Profile & Logout ONLY */}
@@ -1002,10 +978,17 @@ export function ProgrammeManagerDashboard({
                   onLogout={handleLogout}
                 />
               )}
+
+              {/* TAB 12: FEEDBACK & COMPLAINTS */}
+              {activeTab === 'feedback' && (
+                <div className="w-full flex-1 flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                  <FeedbackComplaintsView currentUser={currentUser} />
+                </div>
+              )}
             </>
           )}
           {/* Universal Module Feedback Trigger */}
-          <FloatingFeedbackButton currentModule={`Programme Management (${activeTab})`} />
+          <FloatingFeedbackButton currentModule={`Programme Management (${activeTab})`} onOpenFeedbackTab={() => handleNavClick('feedback')} />
         </main>
       </div>
     </div>

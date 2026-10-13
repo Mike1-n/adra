@@ -24,6 +24,7 @@ import {
   Package,
   PanelLeftClose,
   PanelLeftOpen,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
@@ -86,6 +87,7 @@ export function Sidebar({
     { id: 'finance', name: 'Finance & Grants', icon: DollarSign, roles: ['Administrator', 'Program Manager', 'Finance Officer', 'Project Officer'] },
     { id: 'donors', name: 'Donors & Partners', icon: Building2, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer'] },
     { id: 'reports', name: 'Reports & Export', icon: FileText, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },
+    { id: 'feedback', name: 'Feedback & Complaints', icon: MessageSquare, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer', 'Inventory Manager', 'Logistics Officer', 'Field Worker', 'Supervisor'] },
     { id: 'users', name: 'Admin Console', icon: ShieldCheck, roles: ['Administrator'] },
     { id: 'audit', name: 'Audit Logs', icon: History, roles: ['Administrator'] },
     { id: 'settings', name: 'Settings & DB', icon: Settings, roles: ['Administrator', 'Program Manager', 'Project Officer', 'Finance Officer', 'M&E Officer'] },

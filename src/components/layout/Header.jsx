@@ -39,12 +39,10 @@ export function Header({
     { id: 3, title: 'Target Exceeded in Marsabit', time: '3 hours ago', desc: 'Clean water access indicator reached 8,900 individuals.' },
   ];
 
-  const canGoBack = currentTab !== 'dashboard' && onSelectTab;
-
   return (
     <header className="bg-[#004D3F] border-b border-[#003B30] text-white px-3 sm:px-6 pt-safe sticky top-0 z-30 transition-all shadow-md">
       <div className="h-14 sm:h-16 flex items-center justify-between">
-        {/* Left: Mobile Sidebar Toggle, Mobile Back Button & Page Title */}
+        {/* Left: Mobile Sidebar Toggle & Page Title */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {onOpenMobileSidebar && (
             <button
@@ -54,16 +52,6 @@ export function Header({
               className="lg:hidden p-1.5 -ml-1 rounded-xl text-white hover:bg-white/15 bg-white/10 border border-white/20 active:scale-95 transition cursor-pointer"
             >
               <Menu className="w-5 h-5 text-white" />
-            </button>
-          )}
-
-          {canGoBack && (
-            <button
-              onClick={() => onSelectTab('dashboard')}
-              aria-label="Back to Dashboard"
-              className="p-1.5 rounded-xl text-white hover:bg-white/15 bg-white/10 border border-white/20 active:scale-95 transition"
-            >
-              <ChevronLeft className="w-5 h-5 text-white" />
             </button>
           )}
 

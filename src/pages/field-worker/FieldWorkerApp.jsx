@@ -26,11 +26,13 @@ import {
   Banknote,
   PackageCheck,
   Package,
-  Truck
+  Truck,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
+import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
 
 // Field Worker Subviews
 import { FieldWorkerDashboardView } from './components/FieldWorkerDashboardView';
@@ -812,6 +814,25 @@ export function FieldWorkerApp({
               )}
             </div>
 
+            {/* Feedback & Complaints */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('feedback');
+                setIsSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'feedback'
+                  ? 'bg-[#006B56] text-white shadow-xs'
+                  : 'text-slate-800 hover:text-slate-950 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <MessageSquare className={`w-4 h-4 ${activeTab === 'feedback' ? 'text-white' : 'text-[#006B56]'}`} />
+                <span>Feedback & Complaints</span>
+              </div>
+            </button>
+
             {/* Officer Profile & Zone */}
             <button
               type="button"
@@ -1013,6 +1034,12 @@ export function FieldWorkerApp({
                   onLogout={onLogout || logout}
                 />
               )}
+
+              {activeTab === 'feedback' && (
+                <div className="w-full flex-1 flex flex-col h-full bg-white">
+                  <FeedbackComplaintsView currentUser={currentUser} />
+                </div>
+              )}
             </>
           )}
         </main>
@@ -1059,7 +1086,7 @@ export function FieldWorkerApp({
         )}
 
         {/* Module Feedback Trigger */}
-        <FloatingFeedbackButton currentModule="Field Worker Operations" />
+        <FloatingFeedbackButton currentModule="Field Worker Operations" onOpenFeedbackTab={() => setActiveTab('feedback')} />
 
       </div>
     </div>

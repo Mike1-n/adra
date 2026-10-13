@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { FloatingFeedbackButton } from '../common/FloatingFeedbackButton';
 
 export function AppLayout({ currentTab, onSelectTab, currentTabTitle, onSwitchToAdminWeb, children }) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -53,6 +54,12 @@ export function AppLayout({ currentTab, onSelectTab, currentTabTitle, onSwitchTo
           </div>
         </main>
       </div>
+
+      {/* Floating Module Feedback Trigger */}
+      <FloatingFeedbackButton
+        currentModule={currentTabTitle || 'Field App'}
+        onOpenFeedbackTab={() => onSelectTab('feedback')}
+      />
     </div>
   );
 }

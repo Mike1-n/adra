@@ -31,7 +31,8 @@ import {
   XCircle,
   Menu,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  MessageSquare
 } from 'lucide-react';
 import { db } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -40,6 +41,7 @@ import { SupplierDispatchModal } from '../inventory/components/SupplierDispatchM
 import { PODetailModal } from '../inventory/components/PODetailModal';
 import { AdraLogo } from '../../components/common/AdraLogo';
 import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
+import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
 
 export function SupplierPortalApp({
   currentUser,
@@ -453,6 +455,25 @@ export function SupplierPortalApp({
         <div className="flex items-center gap-2.5">
           <Building2 className={`w-4 h-4 shrink-0 ${activeTab === 'profile' ? 'text-emerald-200' : 'text-slate-600'}`} />
           <span>Bank & Profile</span>
+        </div>
+      </button>
+
+      {/* Feedback & Complaints */}
+      <button
+        type="button"
+        onClick={() => {
+          setActiveTab('feedback');
+          if (onItemClick) onItemClick();
+        }}
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+          activeTab === 'feedback'
+            ? 'bg-[#006B56] text-white shadow-xs'
+            : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+        }`}
+      >
+        <div className="flex items-center gap-2.5">
+          <MessageSquare className={`w-4 h-4 shrink-0 ${activeTab === 'feedback' ? 'text-emerald-200' : 'text-slate-600'}`} />
+          <span>Feedback & Complaints</span>
         </div>
       </button>
     </div>
@@ -1165,6 +1186,13 @@ export function SupplierPortalApp({
               </div>
             )}
 
+            {/* 6. FEEDBACK & COMPLAINTS DESK */}
+            {activeTab === 'feedback' && (
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs h-[calc(100vh-140px)] min-h-[500px]">
+                <FeedbackComplaintsView currentUser={currentUser} />
+              </div>
+            )}
+
           </div>
         </main>
       </div>
@@ -1350,7 +1378,10 @@ export function SupplierPortalApp({
       />
 
       {/* Module Feedback Trigger */}
-      <FloatingFeedbackButton currentModule="Supplier Portal" />
+      <FloatingFeedbackButton
+        currentModule="Supplier Portal"
+        onOpenFeedbackTab={() => setActiveTab('feedback')}
+      />
 
     </div>
   );

@@ -20,10 +20,12 @@ import {
   ChevronRight,
   Banknote,
   Truck,
-  PackageCheck
+  PackageCheck,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
+import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
 import { db } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
 
@@ -637,6 +639,13 @@ export function SupervisorMobileApp({
           </div>
         );
 
+      case 'feedback':
+        return (
+          <div className="w-full flex-1 flex flex-col h-full bg-white">
+            <FeedbackComplaintsView currentUser={currentUser} />
+          </div>
+        );
+
       default:
         return null;
     }
@@ -652,6 +661,7 @@ export function SupervisorMobileApp({
     { id: 'reports', label: 'Field Assessments', icon: FileCheck, badge: pendingReportsCount > 0 ? pendingReportsCount : null, badgeColor: 'bg-purple-600' },
     { id: 'beneficiaries', label: 'Beneficiaries Registry', icon: UserCheck },
     { id: 'activities', label: 'Activity Log', icon: History },
+    { id: 'feedback', label: 'Feedback & Complaints', icon: MessageSquare },
     { id: 'profile', label: 'Profile & Settings', icon: Settings }
   ];
 
@@ -1470,7 +1480,7 @@ export function SupervisorMobileApp({
       )}
 
       {/* Module Feedback Trigger */}
-      <FloatingFeedbackButton currentModule="Supervisor Operations" />
+      <FloatingFeedbackButton currentModule="Supervisor Operations" onOpenFeedbackTab={() => { setActiveTab('feedback'); setActiveSubview(null); }} />
 
       </div>
     </div>

@@ -2,17 +2,25 @@ import React, { useState } from 'react';
 import { MessageSquarePlus } from 'lucide-react';
 import { ModuleFeedbackModal } from './ModuleFeedbackModal';
 
-export function FloatingFeedbackButton({ currentModule = 'Field Operations' }) {
+export function FloatingFeedbackButton({ currentModule = 'Field Operations', onOpenFeedbackTab }) {
   const [isOpen, setIsOpen] = useState(false);
+
+  const handleClick = () => {
+    if (onOpenFeedbackTab) {
+      onOpenFeedbackTab();
+    } else {
+      setIsOpen(true);
+    }
+  };
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        onClick={handleClick}
         aria-label="Give Module Feedback"
         className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-3 py-2 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-lg hover:shadow-xl border border-emerald-500/40 transition-all duration-200 hover:scale-105 active:scale-95 no-print cursor-pointer"
-        title={`Give feedback on ${currentModule}`}
+        title={`Feedback & Complaints Desk (${currentModule})`}
       >
         <MessageSquarePlus className="w-4 h-4 text-white" />
         <span className="hidden sm:inline font-bold">Feedback</span>

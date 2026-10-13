@@ -58,7 +58,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [requestStatusFilter, setRequestStatusFilter] = useState('ALL');
-  const [isRequestsMenuOpen, setIsRequestsMenuOpen] = useState(true);
+  const [isRequestsMenuOpen, setIsRequestsMenuOpen] = useState(false);
 
   // Load beneficiary profile, requests, and schedules
   const loadData = async () => {
@@ -195,7 +195,6 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
         { id: 'dashboard', name: 'Home / Overview', icon: Home },
         { id: 'my_requests', name: 'Assistance Requests', icon: FileText, badge: requests.length },
         { id: 'distributions', name: 'Distribution Schedules', icon: Truck },
-        { id: 'id_card', name: 'Digital ID Card', icon: CreditCard },
         { id: 'history', name: 'Aid History & Receipts', icon: Gift },
       ]
     },
@@ -204,14 +203,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
       items: [
         { id: 'notifications', name: 'Notifications', icon: Bell, badge: unreadCount > 0 ? unreadCount : null, alert: true },
         { id: 'feedback', name: 'Feedback & Complaints', icon: MessageSquare },
-        { id: 'support', name: 'Help & Contact ADRA', icon: Headphones },
-      ]
-    },
-    {
-      label: 'My Account',
-      items: [
-        { id: 'profile', name: 'Household Profile', icon: User },
-        { id: 'security', name: 'Security & PIN', icon: Shield },
+        { id: 'support', name: 'Contact Us', icon: Headphones },
       ]
     }
   ];
@@ -250,12 +242,10 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
 
   const handleNavClick = (tabId) => {
     if (tabId === 'my_requests') {
-      if (currentView === 'my_requests') {
-        setIsRequestsMenuOpen(prev => !prev);
-        return;
-      }
+      setIsRequestsMenuOpen(prev => !prev);
       setRequestStatusFilter('ALL');
-      setIsRequestsMenuOpen(true);
+    } else {
+      setIsRequestsMenuOpen(false);
     }
     setCurrentView(tabId);
     setIsSidebarOpen(false);
@@ -444,16 +434,6 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
           </button>
         </div>
 
-        {onSwitchToFieldApp && (
-          <button
-            type="button"
-            onClick={onSwitchToFieldApp}
-            className="w-full mt-2 py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center justify-center gap-1.5 transition cursor-pointer"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span>Switch to Field Staff App</span>
-          </button>
-        )}
       </div>
     </div>
   );
@@ -497,18 +477,6 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
               <Menu className="w-5 h-5 text-white" />
             </button>
 
-            {/* Back button when in sub-views */}
-            {isChildView && (
-              <button
-                type="button"
-                onClick={() => setCurrentView('dashboard')}
-                className="p-1.5 rounded-xl text-white hover:bg-white/15 cursor-pointer transition"
-                title="Back to Dashboard"
-              >
-                <ArrowLeft className="w-5 h-5 text-white" />
-              </button>
-            )}
-
             {/* Header Brand / Title: ADRA Community Portal */}
             <div className="min-w-0 flex flex-col justify-center">
               <span className="text-base font-black text-white tracking-wider leading-tight">
@@ -520,27 +488,8 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
             </div>
           </div>
 
-          {/* Right Header: Profile & Logout ONLY */}
+          {/* Right Header: Logout Button ONLY */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Beneficiary Profile Icon Button */}
-            <button
-              type="button"
-              onClick={() => setCurrentView('profile')}
-              className={`p-2 rounded-xl text-white hover:bg-white/15 cursor-pointer transition flex items-center justify-center bg-white/10 border border-white/20 ${
-                currentView === 'profile' ? 'bg-white/20 ring-1 ring-white/30' : ''
-              }`}
-              title="My Beneficiary Profile"
-            >
-              {beneficiary?.avatar || currentUser?.avatar ? (
-                <img
-                  src={beneficiary?.avatar || currentUser?.avatar}
-                  alt="Profile"
-                  className="w-4 h-4 rounded-full object-cover border border-white/40"
-                />
-              ) : (
-                <User className="w-4 h-4 text-white" />
-              )}
-            </button>
 
             {/* Beneficiary Header Logout Button */}
             <button
@@ -706,9 +655,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
 
             {/* HELP & CONTACT */}
             {currentView === 'support' && (
-              <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-                <HelpSupportContactView />
-              </div>
+              <HelpSupportContactView beneficiary={beneficiary} />
             )}
 
             {/* SECURITY & SETTINGS */}

@@ -29,11 +29,13 @@ import {
   Tag,
   Mail,
   Phone,
-  Shield
+  Shield,
+  MessageSquare
 } from 'lucide-react';
 import { db } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
 
 // Subviews
 import { FinanceDashboardView } from './components/FinanceDashboardView';
@@ -282,6 +284,8 @@ export function FinanceMobileApp({
         return 'Financial Statements';
       case 'profile':
         return 'Finance Officer Profile';
+      case 'feedback':
+        return 'Feedback & Complaints';
       default:
         return 'Financial Overview';
     }
@@ -317,17 +321,6 @@ export function FinanceMobileApp({
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-[#004D3F] animate-pulse" />
               )}
             </button>
-
-            {activeTab !== 'dashboard' && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('dashboard')}
-                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
-                title="Back to Overview"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            )}
 
             <div className="min-w-0 flex flex-col justify-center">
               <span className="text-base font-black text-white tracking-wider leading-tight">
@@ -447,6 +440,12 @@ export function FinanceMobileApp({
                   currentUser={currentUser}
                   onLogout={onLogout || logout}
                 />
+              )}
+
+              {activeTab === 'feedback' && (
+                <div className="w-full flex-1 flex flex-col h-[calc(100vh-120px)] bg-white">
+                  <FeedbackComplaintsView currentUser={currentUser} />
+                </div>
               )}
             </>
           )}
@@ -790,6 +789,18 @@ export function FinanceMobileApp({
                   <span>Statements & Exports</span>
                 </button>
 
+                {/* Feedback & Complaints */}
+                <button
+                  type="button"
+                  onClick={() => { setActiveTab('feedback'); setIsSidebarOpen(false); }}
+                  className={`w-full p-2.5 rounded-xl flex items-center gap-2.5 transition text-left cursor-pointer ${
+                    activeTab === 'feedback' ? 'bg-emerald-50 text-[#006B56] font-black' : 'hover:bg-slate-50'
+                  }`}
+                >
+                  <MessageSquare className="w-4 h-4 text-[#006B56]" />
+                  <span>Feedback & Complaints</span>
+                </button>
+
                 {/* Officer Profile */}
                 <button
                   type="button"
@@ -848,7 +859,7 @@ export function FinanceMobileApp({
         />
 
         {/* Module Feedback Trigger */}
-        <FloatingFeedbackButton currentModule="Finance & Disbursements" />
+        <FloatingFeedbackButton currentModule="Finance & Disbursements" onOpenFeedbackTab={() => setActiveTab('feedback')} />
 
       </div>
     </div>

@@ -32,6 +32,7 @@ import { Modal } from '../common/Modal';
 import { GlobalSearchView } from '../../pages/admin/components/GlobalSearchView';
 import { UserProfileModal } from '../common/UserProfileModal';
 import { ModuleFeedbackModal } from '../common/ModuleFeedbackModal';
+import { FloatingFeedbackButton } from '../common/FloatingFeedbackButton';
 import { AdraLogo } from '../common/AdraLogo';
 
 export function AdminWebPortalLayout({
@@ -139,9 +140,9 @@ export function AdminWebPortalLayout({
     },
     {
       id: 'feedback',
-      name: 'User Feedback',
+      name: 'Feedback & Complaints',
       icon: MessageSquareText,
-      desc: 'Module Reviews, Suggestions & AAP'
+      desc: 'Module Reviews, Complaints & AAP Desk'
     },
     {
       id: 'security',
@@ -479,6 +480,12 @@ export function AdminWebPortalLayout({
         isOpen={isFeedbackModalOpen}
         onClose={() => setIsFeedbackModalOpen(false)}
         defaultModule={navItems.find(n => n.id === activeSection)?.name || 'Field Programmes'}
+      />
+
+      {/* Floating Module Feedback Trigger */}
+      <FloatingFeedbackButton
+        currentModule="Admin Web Portal"
+        onOpenFeedbackTab={() => onSelectSection('feedback')}
       />
     </div>
   );

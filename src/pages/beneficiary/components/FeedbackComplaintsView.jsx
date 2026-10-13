@@ -1,24 +1,39 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Send,
-  EyeOff,
   CheckCircle2,
   HardHat,
   ClipboardList,
   Scale,
   CheckCheck,
-  Lock,
   ChevronDown,
   Check,
   ShieldCheck
 } from 'lucide-react';
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
+import { useAuth } from '../../../context/AuthContext';
 
-export function FeedbackComplaintsView({ beneficiary }) {
+export function FeedbackComplaintsView({ beneficiary, currentUser: propUser }) {
+  const { currentUser: authUser } = useAuth();
+  const effectiveUser = beneficiary || propUser || authUser;
+
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('fieldWorker'); // 'fieldWorker' | 'supervisor' | 'programManager' | 'complianceOfficer'
+
+  // Default active tab based on user role
+  const getInitialTab = () => {
+    const role = (effectiveUser?.role || '').toLowerCase();
+    if (role.includes('program')) return 'supervisor';
+    if (role.includes('supervisor')) return 'programManager';
+    if (role.includes('field')) return 'supervisor';
+    if (role.includes('finance')) return 'programManager';
+    if (role.includes('inventory') || role.includes('logistics')) return 'programManager';
+    if (role.includes('supplier')) return 'programManager';
+    return 'fieldWorker';
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab); // 'fieldWorker' | 'supervisor' | 'programManager' | 'complianceOfficer'
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const chatBottomRef = useRef(null);
@@ -28,13 +43,12 @@ export function FeedbackComplaintsView({ beneficiary }) {
   const [personnel, setPersonnel] = useState({
     fieldWorker: 'Rose Poni',
     supervisor: 'Mary Akech',
-    programManager: 'Grace Ochieng (Programme Manager)',
+    programManager: 'Grace Ochieng',
     complianceOfficer: 'David Ochieng'
   });
 
   // Chat input state
   const [messageText, setMessageText] = useState('');
-  const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Close dropdown on outside click
@@ -88,7 +102,11 @@ export function FeedbackComplaintsView({ beneficiary }) {
             pm = reqWithPM.reviewed_by || reqWithPM.manager_name || reqWithPM.program_manager_name;
           }
         }
-        if (!pm) pm = 'Grace Ochieng (Programme Manager)';
+        if (pm) {
+          pm = pm.replace(/\s*\([^)]*\)/g, '').trim();
+        } else {
+          pm = 'Grace Ochieng';
+        }
 
         // 3. Resolve Field Supervisor
         let sup = null;
@@ -122,7 +140,12 @@ export function FeedbackComplaintsView({ beneficiary }) {
   const loadComplaints = async () => {
     try {
       setLoading(true);
-      const data = await db.getComplaints(beneficiary?.id || 'b7');
+      const isBeneficiaryUser = !effectiveUser?.role || effectiveUser?.role === 'Beneficiary';
+      const userId = effectiveUser?.id || (isBeneficiaryUser ? 'b7' : null);
+      let data = await db.getComplaints(userId);
+      if (!isBeneficiaryUser && (!data || data.length === 0)) {
+        data = await db.getComplaints(null);
+      }
       setComplaints(data || []);
     } catch (e) {
       console.error(e);
@@ -134,7 +157,7 @@ export function FeedbackComplaintsView({ beneficiary }) {
 
   useEffect(() => {
     loadComplaints();
-  }, [beneficiary]);
+  }, [beneficiary, effectiveUser?.id]);
 
   useEffect(() => {
     if (chatBottomRef.current) {
@@ -183,10 +206,10 @@ export function FeedbackComplaintsView({ beneficiary }) {
       name: personnel.complianceOfficer,
       title: 'Safeguarding Officer',
       status: 'Official Helpline',
-      badge: 'Zero Retaliation',
+      badge: 'Safeguarding Desk',
       avatarColor: 'bg-rose-600',
       icon: Scale,
-      welcomeNote: 'Official Independent Safeguarding Desk. All reports are strictly confidential with zero impact on your aid entitlement.'
+      welcomeNote: 'Official Independent Safeguarding Desk. All reports are strictly confidential.'
     }
   ];
 
@@ -222,20 +245,22 @@ export function FeedbackComplaintsView({ beneficiary }) {
 
     try {
       setIsSubmitting(true);
+      const senderName = effectiveUser?.full_name || effectiveUser?.name || 'Authorized Member';
+      const senderId = effectiveUser?.id || (effectiveUser?.role === 'Beneficiary' ? 'b7' : `staff_${Date.now()}`);
 
       await db.createComplaint({
-        beneficiary_id: beneficiary?.id || 'b7',
-        beneficiary_name: isAnonymous ? 'Anonymous Community Member' : (beneficiary?.full_name || 'Mary Nyambura'),
+        beneficiary_id: senderId,
+        beneficiary_name: senderName,
         recipient_role: currentContact.role,
         recipient_name: currentContact.name,
-        category: 'Community Feedback',
+        category: 'Feedback & Accountability',
         severity: 'Medium',
-        is_anonymous: isAnonymous,
+        is_anonymous: false,
         subject: messageText.length > 50 ? `${messageText.substring(0, 47)}...` : messageText,
         description: messageText.trim()
       });
 
-      toast.success(`Message sent directly to ${currentContact.name}`);
+      toast.success(`Message sent directly to ${currentContact.role}`);
       setMessageText('');
       await loadComplaints();
     } catch (err) {
@@ -249,10 +274,10 @@ export function FeedbackComplaintsView({ beneficiary }) {
   return (
     <div className="w-full flex-1 flex flex-col h-full min-h-[calc(100vh-120px)] bg-white border-0 shadow-none rounded-none overflow-hidden">
       
-      {/* CLEAN LIGHT WHATSAPP HEADER BAR (NO BLACK BG) */}
+      {/* CLEAN LIGHT WHATSAPP HEADER BAR */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 text-slate-900 shrink-0 flex items-center justify-between shadow-xs relative z-30" ref={dropdownRef}>
         
-        {/* Left: Officer Profile & Switch Button */}
+        {/* Left: Officer Role & Switch Button */}
         <div className="relative">
           <button
             type="button"
@@ -267,26 +292,23 @@ export function FeedbackComplaintsView({ beneficiary }) {
               <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
             </div>
 
-            {/* Officer Name & Role Badge */}
+            {/* Officer Role ONLY (fits cleanly without officer name) */}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold text-slate-900 tracking-tight truncate">
-                  {currentContact.name}
-                </span>
-                <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
+                <span className="text-sm font-bold text-slate-900 tracking-tight">
                   {currentContact.role}
                 </span>
                 <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-700 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </div>
-              <p className="text-[11px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
-                <span>Switch officer</span>
+              <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                <span>Switch role</span>
                 <span>•</span>
                 <span className="text-emerald-600 font-medium">{currentContact.status}</span>
               </p>
             </div>
           </button>
 
-          {/* Clean Dropdown Menu Popover */}
+          {/* Clean Dropdown Menu Popover (Name appears only here in dropdown) */}
           {isDropdownOpen && (
             <div className="absolute top-full left-0 mt-2 w-80 bg-white text-slate-900 rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 animate-in fade-in-50 duration-150">
               <div className="p-2.5 bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -318,8 +340,8 @@ export function FeedbackComplaintsView({ beneficiary }) {
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 truncate">
-                          <span className="text-xs font-black text-slate-900">{c.role}:</span>
-                          <span className="text-xs font-bold text-emerald-800 truncate">{c.name}</span>
+                          <span className="text-xs font-bold text-slate-900">{c.role}:</span>
+                          <span className="text-xs font-semibold text-emerald-800 truncate">{c.name}</span>
                           {count > 0 && (
                             <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.2 rounded-full font-bold shrink-0 ml-1">
                               {count}
@@ -327,7 +349,7 @@ export function FeedbackComplaintsView({ beneficiary }) {
                           )}
                         </div>
                         <span className="text-[10px] text-slate-500 block truncate mt-0.5">
-                          {c.title} ({c.badge})
+                          {c.title}
                         </span>
                       </div>
                     </div>
@@ -342,26 +364,6 @@ export function FeedbackComplaintsView({ beneficiary }) {
               })}
             </div>
           )}
-        </div>
-
-        {/* Right: Anonymous Toggle & Zero Retaliation */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsAnonymous(!isAnonymous)}
-            className={`text-[11px] font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 border cursor-pointer ${
-              isAnonymous
-                ? 'bg-amber-50 text-amber-900 border-amber-300 shadow-xs'
-                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            <EyeOff className="w-3.5 h-3.5 text-slate-500" />
-            <span>{isAnonymous ? 'Anonymous: ON' : 'Anonymous: OFF'}</span>
-          </button>
-
-          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-xl">
-            <Lock className="w-3 h-3 text-emerald-600" /> Zero Retaliation
-          </span>
         </div>
       </div>
 
@@ -378,7 +380,7 @@ export function FeedbackComplaintsView({ beneficiary }) {
           <div className="max-w-[85%] sm:max-w-[70%] bg-white rounded-2xl rounded-tl-xs p-3.5 shadow-xs border border-slate-200/80 text-slate-800">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-[11px] font-bold text-emerald-700">
-                {currentContact.name} ({currentContact.role})
+                {currentContact.role}
               </span>
               <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.2 rounded font-medium">
                 Official
@@ -397,7 +399,7 @@ export function FeedbackComplaintsView({ beneficiary }) {
         {activeChatMessages.length === 0 ? (
           <div className="text-center py-6">
             <span className="text-xs text-slate-400 bg-white/80 px-3 py-1.5 rounded-full border border-slate-200">
-              No messages sent to {currentContact.name} yet. Type below to start!
+              No messages sent to {currentContact.role} yet. Type below to start!
             </span>
           </div>
         ) : (
@@ -427,13 +429,7 @@ export function FeedbackComplaintsView({ beneficiary }) {
 
                   <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-emerald-200/40 text-[10px] text-slate-500">
                     <div className="flex items-center gap-1">
-                      {msg.is_anonymous ? (
-                        <span className="flex items-center gap-0.5 text-amber-700 font-semibold">
-                          <EyeOff className="w-3 h-3" /> Anonymous
-                        </span>
-                      ) : (
-                        <span>From: You</span>
-                      )}
+                      <span>From: You</span>
                     </div>
                     
                     <div className="flex items-center gap-1">
@@ -451,7 +447,7 @@ export function FeedbackComplaintsView({ beneficiary }) {
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        {msg.resolved_by || currentContact.name}
+                        {msg.resolved_by || currentContact.role}
                       </span>
                       <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
                         {msg.status || 'Resolved'}
@@ -476,23 +472,17 @@ export function FeedbackComplaintsView({ beneficiary }) {
         <div ref={chatBottomRef} />
       </div>
 
-      {/* WHATSAPP BOTTOM INPUT BAR (TOPICS REMOVED) */}
+      {/* WHATSAPP BOTTOM INPUT BAR */}
       <form onSubmit={handleSendMessage} className="p-3 bg-slate-100 border-t border-slate-200 flex items-center gap-2 shrink-0">
         <div className="flex-1 bg-white rounded-2xl border border-slate-300 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 px-3.5 py-2 flex items-center gap-2 shadow-xs">
           <input
             type="text"
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
-            placeholder={`Message ${currentContact.name} (${currentContact.role})...`}
+            placeholder={`Message ${currentContact.role}...`}
             className="flex-1 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden bg-transparent"
             disabled={isSubmitting}
           />
-
-          {isAnonymous && (
-            <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
-              <EyeOff className="w-2.5 h-2.5" /> Anon
-            </span>
-          )}
         </div>
 
         {/* WhatsApp Green Send Button */}

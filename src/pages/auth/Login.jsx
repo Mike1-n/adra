@@ -794,22 +794,49 @@ export function Login({ onLoginSuccess }) {
             </div>
 
             <div className="space-y-3 text-xs text-slate-600 leading-relaxed">
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="font-bold text-slate-900 block mb-1">📞 24/7 Toll-Free Emergency Hotline</span>
-                <p className="text-emerald-800 font-extrabold text-sm">0800-720-112</p>
-                <span className="text-[10px] text-slate-500">Free call from all mobile networks in South Sudan & Kenya</span>
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 to-white border border-emerald-200">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 block mb-0.5">📞 24/7 Toll-Free Hotline</span>
+                  <a
+                    href="tel:0800720112"
+                    className="px-2.5 py-1 rounded-lg bg-[#006B56] text-white text-[10px] font-bold hover:bg-[#005242] transition"
+                  >
+                    Call Free
+                  </a>
+                </div>
+                <p className="text-[#004D3F] font-black text-base">0800-720-112</p>
+                <span className="text-[10px] text-slate-500">Free call from MTN, Zain & Digitel networks across South Sudan</span>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <span className="font-bold text-slate-900 block">🏢 National Country Office</span>
-                <p className="text-[11px] text-slate-700">ADRA South Sudan Compound, Juba</p>
-                <p className="text-[11px] text-slate-500">Email: support@adra-southsudan.org</p>
+                <span className="font-bold text-slate-900 block">🏢 National Country Office (Juba HQ)</span>
+                <p className="text-[11px] text-slate-700">ADRA South Sudan Compound, Tongping, Airport Road, Juba</p>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[11px] text-slate-500">support@adra-southsudan.org</span>
+                  <a href="mailto:support@adra-southsudan.org" className="text-[10px] text-[#006B56] font-bold hover:underline">
+                    Send Email
+                  </a>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-amber-950 block">🔒 Safeguarding & Protection Line</span>
+                  <a
+                    href="tel:0800720999"
+                    className="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[10px] font-bold hover:bg-amber-600 transition"
+                  >
+                    Call Line
+                  </a>
+                </div>
+                <p className="text-[11px] text-amber-900 font-bold">0800-720-999 (Confidential PSEA Hotline)</p>
+                <span className="text-[10px] text-amber-800/80">Report fraud, diversion, or abuse unconditionally.</span>
               </div>
 
               <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-100 space-y-1">
                 <span className="font-bold text-emerald-950 block">💡 Account & Registration Help</span>
                 <p className="text-[11px] text-emerald-900">
-                  Beneficiaries can log in using either their registered phone number, national ID, or official Beneficiary ID (e.g. <code>ADRA-SS-000125</code>).
+                  Beneficiaries can log in using either their registered phone number, national ID, or official Beneficiary ID (e.g. <code>ADRA-SS-000140</code>).
                 </p>
               </div>
             </div>

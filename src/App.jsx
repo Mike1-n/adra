@@ -43,6 +43,9 @@ import { InventoryManagerDashboard } from './pages/inventory/InventoryManagerDas
 // Specialized Supplier Portal
 import { SupplierPortalApp } from './pages/supplier/SupplierPortalApp';
 
+// Universal Feedback & Complaints Desk
+import { FeedbackComplaintsView } from './components/common/FeedbackComplaintsView';
+
 export function App() {
   const { currentUser, logout, quickSwitchRole } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -244,6 +247,7 @@ export function App() {
     finance: 'Finance & Grants Control',
     donors: 'Donors & Partners',
     reports: 'Reports & Exports',
+    feedback: 'Feedback & Complaints Desk',
     audit: 'System Audit Logs',
     settings: 'Configuration & DB Diagnostics',
     beneficiary_portal: 'Beneficiary Mobile App',
@@ -251,6 +255,12 @@ export function App() {
 
   const renderContent = () => {
     switch (currentTab) {
+      case 'feedback':
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs h-[calc(100vh-140px)] min-h-[500px]">
+            <FeedbackComplaintsView currentUser={currentUser} />
+          </div>
+        );
       case 'supplier':
         return (
           <SupplierPortalApp

@@ -15,8 +15,11 @@ import {
   Database,
   BarChart3,
   HelpCircle,
-  Search
+  Search,
+  MessageSquare,
+  FileSpreadsheet
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { AdminWebPortalLayout } from '../../components/layout/AdminWebPortalLayout';
 
 // Sub-views
@@ -30,11 +33,14 @@ import { FieldGovernanceView } from './components/FieldGovernanceView';
 import { SecurityAuditView } from './components/SecurityAuditView';
 import { NotificationsBroadcastView } from './components/NotificationsBroadcastView';
 import { UserFeedbackView } from './components/UserFeedbackView';
+import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
 import { ReportsPage } from '../ReportsPage';
 
 export function AdminWebPortalPage({ onSwitchToFieldApp }) {
-  // Primary Sections: 'overview', 'lifecycle', 'identity', 'beneficiaries', 'field', 'security', 'reports'
+  const { currentUser } = useAuth();
+  // Primary Sections: 'overview', 'lifecycle', 'identity', 'beneficiaries', 'field', 'security', 'reports', 'feedback'
   const [activeSection, setActiveSection] = useState('overview');
+  const [feedbackView, setFeedbackView] = useState('desk'); // 'desk' | 'audit'
 
   // Sub-tabs for each section
   const [subTabs, setSubTabs] = useState({
@@ -257,8 +263,40 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
 
       {/* 6. USER FEEDBACK & MODULE ACCOUNTABILITY */}
       {activeSection === 'feedback' && (
-        <div className="space-y-6">
-          <UserFeedbackView />
+        <div className="space-y-4">
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200 w-fit">
+            <button
+              onClick={() => setFeedbackView('desk')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                feedbackView === 'desk'
+                  ? 'bg-[#006B56] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Complaints & Feedback Chat Desk
+            </button>
+
+            <button
+              onClick={() => setFeedbackView('audit')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                feedbackView === 'audit'
+                  ? 'bg-[#006B56] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Feedback Logs & Analytics
+            </button>
+          </div>
+
+          {feedbackView === 'desk' ? (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs h-[calc(100vh-210px)] min-h-[550px]">
+              <FeedbackComplaintsView currentUser={currentUser} />
+            </div>
+          ) : (
+            <UserFeedbackView />
+          )}
         </div>
       )}
 
