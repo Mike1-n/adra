@@ -307,24 +307,24 @@ export function AdminWebPortalLayout({
 
       {/* Main Viewport */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        {/* Sleek Topbar Header */}
-        <header className="bg-white/95 border-b border-slate-200 px-4 sm:px-6 shrink-0 z-20 backdrop-blur-md pt-safe">
+        {/* Sleek Topbar Header (Green Brand Header) */}
+        <header className="bg-[#004D3F] border-b border-[#003B30] text-white px-4 sm:px-6 shrink-0 z-20 pt-safe shadow-md">
           <div className="h-16 flex items-center justify-between">
             {/* Left: Mobile Menu & Current Section Title */}
             <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="lg:hidden p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-700"
+              className="lg:hidden p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition cursor-pointer"
             >
-              <Menu className="w-4 h-4" />
+              <Menu className="w-4 h-4 text-white" />
             </button>
 
             <div className="flex items-center gap-2">
-              <span className="text-sm font-black text-slate-900 capitalize">
+              <span className="text-sm font-black text-white capitalize">
                 {navItems.find(n => n.id === activeSection)?.name || 'Admin Console'}
               </span>
-              <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-slate-400" />
-              <span className="hidden sm:inline text-xs text-slate-500 font-medium">
+              <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-emerald-300" />
+              <span className="hidden sm:inline text-xs text-emerald-200 font-medium">
                 {navItems.find(n => n.id === activeSection)?.desc || ''}
               </span>
             </div>
@@ -335,7 +335,7 @@ export function AdminWebPortalLayout({
             {/* Clean Search Trigger */}
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 text-xs text-white font-bold transition shadow-sm cursor-pointer"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-xs text-white font-bold transition shadow-sm cursor-pointer"
             >
               <Search className="w-3.5 h-3.5 text-white" />
               <span className="font-bold text-white">Search...</span>
@@ -345,17 +345,17 @@ export function AdminWebPortalLayout({
             <button
               type="button"
               onClick={() => setIsFeedbackModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 border border-slate-200 text-xs font-bold text-slate-800 transition shadow-2xs cursor-pointer active:scale-95"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white transition shadow-2xs cursor-pointer active:scale-95"
               title="Submit feedback or report an issue on this module"
             >
-              <MessageSquarePlus className="w-3.5 h-3.5 text-emerald-600" />
+              <MessageSquarePlus className="w-3.5 h-3.5 text-emerald-200" />
               <span className="hidden sm:inline font-bold">Feedback</span>
             </button>
 
             {/* Switch to Field App */}
             <button
               onClick={onSwitchToFieldApp}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold transition shadow-sm cursor-pointer"
             >
               <Smartphone className="w-3.5 h-3.5 text-white" />
               <span className="hidden sm:inline text-white font-bold">Field App</span>
@@ -365,13 +365,13 @@ export function AdminWebPortalLayout({
             <button
               type="button"
               onClick={() => setIsProfileOpen(true)}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs text-slate-800 font-bold transition shadow-2xs cursor-pointer active:scale-95"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs text-white font-bold transition shadow-2xs cursor-pointer active:scale-95"
               title="Administrator Profile & Account"
             >
               <img
                 src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
                 alt={currentUser?.full_name || 'Admin'}
-                className="w-5 h-5 rounded-full object-cover border border-emerald-500/40 shrink-0"
+                className="w-5 h-5 rounded-full object-cover border border-white/40 shrink-0"
               />
               <span className="hidden sm:inline font-bold">Profile</span>
             </button>

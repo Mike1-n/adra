@@ -766,8 +766,8 @@ export function ProgrammeManagerDashboard({
           </div>
         </aside>
 
-        {/* FIXED STICKY MOBILE TOP HEADER */}
-        <header className="bg-white px-3.5 border-b border-slate-200 sticky top-0 z-40 shadow-2xs shrink-0 pt-safe">
+        {/* FIXED STICKY MOBILE TOP HEADER (Green Brand Header) */}
+        <header className="bg-[#004D3F] px-3.5 border-b border-[#003B30] text-white sticky top-0 z-40 shadow-md shrink-0 pt-safe">
           <div className="min-h-14 py-2 flex items-center justify-between gap-2">
             {/* Left: Menu Hamburger + ADRA Brand / Tab Title */}
           <div className="flex items-center gap-2 min-w-0">
@@ -775,10 +775,10 @@ export function ProgrammeManagerDashboard({
             <button
               type="button"
               onClick={() => setIsSidebarOpen(true)}
-              className="p-1.5 -ml-1 text-slate-700 hover:text-slate-900 rounded-xl hover:bg-slate-100 active:scale-95 transition cursor-pointer shrink-0"
+              className="p-1.5 -ml-1 text-white hover:bg-white/15 rounded-xl active:scale-95 transition cursor-pointer shrink-0"
               title="Open Navigation Menu"
             >
-              <Menu className="w-5 h-5 text-slate-800" />
+              <Menu className="w-5 h-5 text-white" />
             </button>
 
             {activeTab !== 'dashboard' ? (
@@ -786,12 +786,12 @@ export function ProgrammeManagerDashboard({
                 <button
                   type="button"
                   onClick={() => handleNavClick('dashboard')}
-                  className="p-1 text-slate-500 hover:text-[#006B56] rounded-lg hover:bg-slate-100 transition cursor-pointer shrink-0"
+                  className="p-1 text-white hover:bg-white/15 rounded-lg transition cursor-pointer shrink-0"
                   title="Back to Executive Overview"
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft className="w-4 h-4 text-white" />
                 </button>
-                <span className="font-black text-xs text-slate-900 truncate">
+                <span className="font-black text-xs text-white truncate">
                   {activeTab === 'facilitations'
                     ? 'Field Facilitations'
                     : activeTab === 'requests'
@@ -819,14 +819,14 @@ export function ProgrammeManagerDashboard({
               </div>
             ) : (
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-[#006B56] text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-white/15 text-white border border-white/20 flex items-center justify-center font-black text-sm shadow-xs shrink-0">
                   A
                 </div>
                 <div className="min-w-0">
-                  <span className="font-black text-sm text-slate-900 tracking-tight leading-none block truncate">
+                  <span className="font-black text-sm text-white tracking-tight leading-none block truncate">
                     ADRA South Sudan
                   </span>
-                  <span className="text-[10px] text-[#006B56] font-extrabold uppercase tracking-wider block mt-0.5">
+                  <span className="text-[10px] text-emerald-200 font-extrabold uppercase tracking-wider block mt-0.5">
                     Programme Manager
                   </span>
                 </div>
@@ -842,19 +842,19 @@ export function ProgrammeManagerDashboard({
               onClick={loadDashboardData}
               disabled={isLoading}
               title="Refresh Live Records"
-              className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              className="p-1.5 text-white hover:bg-white/15 rounded-xl transition cursor-pointer"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-[#006B56]' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-emerald-200' : 'text-white'}`} />
             </button>
 
             {/* Notification Bell with Badge */}
             <button
               type="button"
               onClick={() => handleNavClick('notifications')}
-              className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center justify-center relative border border-slate-200/80 transition cursor-pointer shadow-2xs shrink-0"
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center relative border border-white/20 transition cursor-pointer shadow-2xs shrink-0"
               title="Notifications"
             >
-              <Bell className="w-4 h-4" />
+              <Bell className="w-4 h-4 text-white" />
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-xs">
                   {unreadCount}
@@ -866,14 +866,10 @@ export function ProgrammeManagerDashboard({
             <button
               type="button"
               onClick={() => handleNavClick('profile')}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0 border ${
-                activeTab === 'profile'
-                  ? 'bg-[#006B56] text-white border-[#006B56]'
-                  : 'bg-purple-50 hover:bg-purple-100 text-purple-800 border-purple-200'
-              }`}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0 border border-white/20"
               title="Programme Manager Profile"
             >
-              <User className="w-4 h-4" />
+              <User className="w-4 h-4 text-white" />
             </button>
 
             {/* Logout Button */}

@@ -484,7 +484,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
       {/* 3. MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#F4F7F5]">
         {/* TOP BRAND/NAV HEADER (DARK GREEN) */}
-        <header className="bg-[#006B56] px-4 sm:px-6 shrink-0 z-20 shadow-xs pt-safe">
+        <header className="bg-[#004D3F] px-4 sm:px-6 shrink-0 z-20 shadow-xs pt-safe">
           <div className="h-14 sm:h-16 flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
             {/* Hamburger Button on Mobile (<md) to open Sidebar */}

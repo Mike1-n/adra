@@ -1378,8 +1378,8 @@ export function SupervisorMobileApp({
         </div>
       </aside>
 
-      {/* TOP HEADER (Structured like Programme Manager Header) */}
-      <header className="bg-white px-3.5 border-b border-slate-200 sticky top-0 z-40 shadow-2xs pt-safe">
+      {/* TOP HEADER (Green Brand Header) */}
+      <header className="bg-[#004D3F] px-3.5 border-b border-[#003B30] text-white sticky top-0 z-40 shadow-md pt-safe">
         <div className="min-h-14 py-2 flex items-center justify-between gap-3">
           {/* Left: Menu button + ADRA South Sudan Brand */}
         <div className="flex items-center gap-2.5 min-w-0">
@@ -1387,32 +1387,32 @@ export function SupervisorMobileApp({
             <button
               type="button"
               onClick={() => setActiveSubview(null)}
-              className="p-1.5 -ml-1 text-slate-600 hover:text-[#006B56] rounded-xl hover:bg-slate-100 transition cursor-pointer flex items-center space-x-1 text-xs font-bold"
+              className="p-1.5 -ml-1 text-white hover:bg-white/15 rounded-xl transition cursor-pointer flex items-center space-x-1 text-xs font-bold"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4 text-white" />
               <span>Back</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={() => setIsSidebarOpen(true)}
-              className="p-1.5 -ml-1 text-slate-700 hover:text-slate-900 rounded-xl hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+              className="p-1.5 -ml-1 text-white hover:bg-white/15 rounded-xl active:scale-95 transition cursor-pointer"
               title="Open Navigation Menu"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-5 h-5 text-white" />
             </button>
           )}
 
           {!activeSubview && (
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-[#006B56] text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-white/15 text-white border border-white/20 flex items-center justify-center font-black text-sm shadow-xs shrink-0">
                 A
               </div>
               <div className="min-w-0">
-                <span className="font-black text-sm text-slate-900 tracking-tight leading-none block truncate">
+                <span className="font-black text-sm text-white tracking-tight leading-none block truncate">
                   ADRA South Sudan
                 </span>
-                <span className="text-[10px] text-[#006B56] font-extrabold uppercase tracking-wider block mt-0.5">
+                <span className="text-[10px] text-emerald-200 font-extrabold uppercase tracking-wider block mt-0.5">
                   Supervisor Portal
                 </span>
               </div>
@@ -1427,10 +1427,10 @@ export function SupervisorMobileApp({
             onClick={() => {
               setActiveSubview(activeSubview === 'notifications' ? null : 'notifications');
             }}
-            className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center justify-center relative border border-slate-200/80 transition cursor-pointer shadow-2xs shrink-0"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center relative border border-white/20 transition cursor-pointer shadow-2xs shrink-0"
             title="Notifications"
           >
-            <Bell className="w-4 h-4" />
+            <Bell className="w-4 h-4 text-white" />
             {unreadNotifsCount > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-xs">
                 {unreadNotifsCount}
@@ -1444,14 +1444,10 @@ export function SupervisorMobileApp({
             onClick={() => {
               setActiveSubview(activeSubview === 'profile' ? null : 'profile');
             }}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0 border ${
-              activeSubview === 'profile' || activeTab === 'profile'
-                ? 'bg-[#006B56] text-white border-[#006B56]'
-                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
-            }`}
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0 border border-white/20"
             title="Supervisor Profile"
           >
-            <User className="w-4 h-4" />
+            <User className="w-4 h-4 text-white" />
           </button>
 
           {/* Supervisor Logout Button */}

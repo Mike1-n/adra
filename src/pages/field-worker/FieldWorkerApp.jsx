@@ -833,8 +833,8 @@ export function FieldWorkerApp({
           </nav>
         </aside>
 
-        {/* TOP APP BAR / HEADER */}
-        <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-3.5 pt-safe shadow-2xs">
+        {/* TOP APP BAR / HEADER (Green Brand Header) */}
+        <header className="sticky top-0 z-40 bg-[#004D3F] border-b border-[#003B30] text-white px-3.5 pt-safe shadow-md">
           <div className="min-h-14 py-2 flex items-center justify-between gap-3">
             
             {/* Hamburger button + Brand Identity */}
@@ -842,29 +842,29 @@ export function FieldWorkerApp({
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(true)}
-                className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                className="p-2 text-white hover:bg-white/15 rounded-xl transition cursor-pointer"
                 title="Open Navigation Menu"
               >
-                <Menu className="w-5 h-5" />
+                <Menu className="w-5 h-5 text-white" />
               </button>
 
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <h1 className="text-xs font-bold text-slate-900 leading-tight truncate max-w-[140px] sm:max-w-none">
+                  <h1 className="text-xs font-bold text-white leading-tight truncate max-w-[140px] sm:max-w-none">
                     {worker.name || 'Field Officer'}
                   </h1>
-                  <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full ${
-                    dutyStatus === 'Available' ? 'bg-emerald-100 text-emerald-900' :
-                    dutyStatus === 'On Assignment' ? 'bg-amber-100 text-amber-900' :
-                    'bg-blue-100 text-blue-900'
+                  <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full border ${
+                    dutyStatus === 'Available' ? 'bg-emerald-500/25 text-emerald-100 border-emerald-400/40' :
+                    dutyStatus === 'On Assignment' ? 'bg-amber-500/25 text-amber-100 border-amber-400/40' :
+                    'bg-blue-500/25 text-blue-100 border-blue-400/40'
                   }`}>
                     ● {dutyStatus}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-500 leading-none mt-0.5 flex items-center gap-1">
+                <p className="text-[10px] text-emerald-200 leading-none mt-0.5 flex items-center gap-1">
                   <span>{worker.payam || worker.county || 'Kapoeta South'}</span>
                   <span>•</span>
-                  <span className="text-slate-600">Sup: {worker.supervisor_name || 'Emmanuel Adeyemi'}</span>
+                  <span className="text-emerald-100/90">Sup: {worker.supervisor_name || 'Emmanuel Adeyemi'}</span>
                 </p>
               </div>
             </div>
@@ -875,9 +875,9 @@ export function FieldWorkerApp({
                 type="button"
                 onClick={onLogout || logout}
                 title="Sign Out"
-                className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition"
+                className="p-2 text-white hover:bg-white/15 rounded-xl transition cursor-pointer"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-4 h-4 text-white" />
               </button>
             </div>
 

@@ -545,22 +545,22 @@ export function SupplierPortalApp({
       {/* 3. MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         
-        {/* Top Header */}
-        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 shrink-0 pt-safe">
+        {/* Top Header (Green Brand Header) */}
+        <header className="bg-[#004D3F] border-b border-[#003B30] text-white px-4 sm:px-6 shrink-0 pt-safe shadow-md">
           <div className="h-16 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             {/* Mobile Hamburger Drawer Button */}
             <button
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
-              className="lg:hidden p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer border border-slate-200 shrink-0"
+              className="lg:hidden p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition cursor-pointer border border-white/20 shrink-0"
               title="Open Supplier Navigation"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-5 h-5 text-white" />
             </button>
 
             <div className="min-w-0">
-              <h1 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight truncate">
+              <h1 className="text-sm sm:text-base font-extrabold text-white tracking-tight truncate">
                 {activeTab === 'all' && 'All Purchase Orders'}
                 {activeTab === 'orders' && 'New Supply Requests (Stage 1)'}
                 {activeTab === 'intransit' && 'Consignments In Transit (Stage 2)'}
@@ -569,7 +569,7 @@ export function SupplierPortalApp({
                 {activeTab === 'returned' && 'Returned & Rejected Consignments'}
                 {activeTab === 'profile' && 'Vendor Company & Bank Information'}
               </h1>
-              <p className="text-[11px] sm:text-xs text-slate-500 truncate">
+              <p className="text-[11px] sm:text-xs text-emerald-200 truncate">
                 {companyDisplayName} • ADRA South Sudan Fulfillment Hub
               </p>
             </div>
@@ -580,7 +580,7 @@ export function SupplierPortalApp({
             <button
               type="button"
               onClick={() => loadData()}
-              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer border border-slate-200"
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition cursor-pointer border border-white/20"
               title="Refresh Data"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -589,10 +589,10 @@ export function SupplierPortalApp({
             <button
               type="button"
               onClick={onLogout || logout}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-rose-500/30 text-white text-xs font-bold transition cursor-pointer border border-white/20"
               title="Log Out"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-3.5 h-3.5 text-white" />
               <span className="hidden sm:inline">Logout</span>
             </button>
           </div>

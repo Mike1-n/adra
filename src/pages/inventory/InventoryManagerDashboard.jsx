@@ -995,18 +995,18 @@ export function InventoryManagerDashboard({
       {/* RIGHT MAIN APPLICATION AREA */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         
-        {/* 1. FIXED STICKY TOP HEADER */}
-        <header className="bg-white px-3.5 sm:px-6 border-b border-slate-200 sticky top-0 z-40 shadow-2xs shrink-0 pt-safe">
+        {/* 1. FIXED STICKY TOP HEADER (Green Brand Header) */}
+        <header className="bg-[#004D3F] px-3.5 sm:px-6 border-b border-[#003B30] text-white sticky top-0 z-40 shadow-md shrink-0 pt-safe">
           <div className="min-h-14 py-2 sm:py-2.5 flex items-center justify-between gap-2">
             {/* Left: Hamburger Button + ADRA Brand / Tab Title */}
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            className="p-1.5 -ml-1 text-slate-700 hover:text-slate-900 rounded-xl hover:bg-slate-100 active:scale-95 transition cursor-pointer shrink-0"
+            className="p-1.5 -ml-1 text-white hover:bg-white/15 rounded-xl active:scale-95 transition cursor-pointer shrink-0"
             title="Open Navigation Menu"
           >
-            <Menu className="w-5 h-5 text-slate-800" />
+            <Menu className="w-5 h-5 text-white" />
           </button>
 
           {activeTab !== 'overview' ? (
@@ -1014,25 +1014,25 @@ export function InventoryManagerDashboard({
               <button
                 type="button"
                 onClick={() => setActiveTab('overview')}
-                className="p-1 text-slate-500 hover:text-[#006B56] rounded-lg hover:bg-slate-100 transition cursor-pointer shrink-0"
+                className="p-1 text-white hover:bg-white/15 rounded-lg transition cursor-pointer shrink-0"
                 title="Back to Overview Dashboard"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-4 h-4 text-white" />
               </button>
-              <span className="font-black text-xs sm:text-sm text-slate-900 truncate">
+              <span className="font-black text-xs sm:text-sm text-white truncate">
                 {activeTabTitle}
               </span>
             </div>
           ) : (
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-[#006B56] text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-white/15 text-white border border-white/20 flex items-center justify-center font-black text-sm shadow-xs shrink-0">
                 A
               </div>
               <div className="min-w-0">
-                <span className="font-black text-sm text-slate-900 tracking-tight leading-none block truncate">
+                <span className="font-black text-sm text-white tracking-tight leading-none block truncate">
                   ADRA South Sudan
                 </span>
-                <span className="text-[10px] text-[#006B56] font-extrabold uppercase tracking-wider block mt-0.5">
+                <span className="text-[10px] text-emerald-200 font-extrabold uppercase tracking-wider block mt-0.5">
                   Logistics & Supply Chain
                 </span>
               </div>
@@ -1048,19 +1048,19 @@ export function InventoryManagerDashboard({
             onClick={handleRefresh}
             disabled={isRefreshing}
             title="Sync DB Records"
-            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+            className="p-1.5 text-white hover:bg-white/15 rounded-xl transition cursor-pointer"
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#006B56]' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-200' : 'text-white'}`} />
           </button>
 
           {/* Low Stock Alerts / Bell */}
           <button
             type="button"
             onClick={() => setActiveTab('stock')}
-            className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center justify-center relative border border-slate-200/80 transition cursor-pointer shadow-2xs shrink-0"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center relative border border-white/20 transition cursor-pointer shadow-2xs shrink-0"
             title="Low Stock Alerts"
           >
-            <AlertTriangle className={`w-4 h-4 ${lowStockAlertsCount > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
+            <AlertTriangle className={`w-4 h-4 ${lowStockAlertsCount > 0 ? 'text-amber-300' : 'text-white/80'}`} />
             {lowStockAlertsCount > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white rounded-full text-[8px] font-black flex items-center justify-center shadow-xs">
                 {lowStockAlertsCount}
@@ -1073,10 +1073,10 @@ export function InventoryManagerDashboard({
             <button
               type="button"
               onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-              className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 text-[#006B56] border border-emerald-200 flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0"
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/20 flex items-center justify-center transition cursor-pointer shadow-2xs shrink-0"
               title="Profile & Role Switcher"
             >
-              <User className="w-4 h-4" />
+              <User className="w-4 h-4 text-white" />
             </button>
 
             {/* Click-outside backdrop */}
