@@ -103,12 +103,14 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
               {mobileMenuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5 text-white" />}
             </button>
 
-            <span className="font-extrabold text-base tracking-tight text-white truncate">
-              ADRA Client Portal
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
-              {currentUser?.role || 'Beneficiary'}
-            </span>
+            <div className="min-w-0 flex flex-col justify-center">
+              <span className="text-base font-black text-white tracking-wider leading-tight">
+                ADRA
+              </span>
+              <span className="text-[10px] text-emerald-200 font-medium leading-none">
+                {currentUser?.role || 'Beneficiary'}
+              </span>
+            </div>
           </div>
 
           {/* Top Right Actions: Profile & Logout ONLY */}

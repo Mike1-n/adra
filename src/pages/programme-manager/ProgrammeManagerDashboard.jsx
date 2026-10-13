@@ -814,18 +814,18 @@ export function ProgrammeManagerDashboard({
                     ? 'Notifications'
                     : activeTab === 'profile'
                     ? 'Profile'
-                    : 'ADRA South Sudan'}
+                    : 'ADRA'}
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+                <span className="text-[10px] text-emerald-200 font-medium leading-none">
                   {currentUser?.role || 'Programme Manager'}
                 </span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="font-black text-sm text-white tracking-tight truncate">
-                  ADRA South Sudan
+              <div className="min-w-0 flex flex-col justify-center">
+                <span className="text-base font-black text-white tracking-wider leading-tight">
+                  ADRA
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+                <span className="text-[10px] text-emerald-200 font-medium leading-none">
                   {currentUser?.role || 'Programme Manager'}
                 </span>
               </div>

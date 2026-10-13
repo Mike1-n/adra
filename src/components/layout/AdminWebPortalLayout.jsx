@@ -320,11 +320,11 @@ export function AdminWebPortalLayout({
               <Menu className="w-4 h-4 text-white" />
             </button>
 
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-black text-white capitalize">
-                {navItems.find(n => n.id === activeSection)?.name || 'Admin Console'}
+            <div className="min-w-0 flex flex-col justify-center">
+              <span className="text-base font-black text-white tracking-wider leading-tight">
+                ADRA
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+              <span className="text-[10px] text-emerald-200 font-medium leading-none">
                 {currentUser?.role || 'Administrator'}
               </span>
             </div>

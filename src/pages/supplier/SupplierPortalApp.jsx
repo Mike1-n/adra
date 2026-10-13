@@ -559,11 +559,11 @@ export function SupplierPortalApp({
               <Menu className="w-5 h-5 text-white" />
             </button>
 
-            <div className="min-w-0 flex items-center gap-2">
-              <h1 className="text-sm sm:text-base font-extrabold text-white tracking-tight truncate">
-                ADRA South Sudan
-              </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-emerald-100 border border-white/20 shrink-0">
+            <div className="min-w-0 flex flex-col justify-center">
+              <span className="text-base font-black text-white tracking-wider leading-tight">
+                ADRA
+              </span>
+              <span className="text-[10px] text-emerald-200 font-medium leading-none">
                 {currentUser?.role || 'Supplier'}
               </span>
             </div>
