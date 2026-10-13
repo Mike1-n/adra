@@ -1376,8 +1376,9 @@ export function SupervisorMobileApp({
       </aside>
 
       {/* TOP HEADER (Structured like Programme Manager Header) */}
-      <header className="bg-white px-3.5 py-2.5 border-b border-slate-200 sticky top-0 z-40 shadow-2xs flex items-center justify-between gap-3">
-        {/* Left: Menu button + ADRA South Sudan Brand */}
+      <header className="bg-white px-3.5 border-b border-slate-200 sticky top-0 z-40 shadow-2xs pt-safe">
+        <div className="min-h-14 py-2 flex items-center justify-between gap-3">
+          {/* Left: Menu button + ADRA South Sudan Brand */}
         <div className="flex items-center gap-2.5 min-w-0">
           {activeSubview ? (
             <button
@@ -1460,6 +1461,7 @@ export function SupervisorMobileApp({
             <LogOut className="w-3.5 h-3.5 text-white" />
             <span className="hidden sm:inline font-bold">Logout</span>
           </button>
+        </div>
         </div>
       </header>
 

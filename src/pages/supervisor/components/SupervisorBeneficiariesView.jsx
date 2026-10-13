@@ -48,23 +48,25 @@ export function SupervisorBeneficiariesView({
       <div className="min-h-screen bg-slate-100 flex flex-col animate-in fade-in duration-200">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#006B56] to-[#004D3D] text-white p-4 sticky top-0 z-30 shadow-md flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setActiveBeneficiary(null)}
-              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-base font-bold leading-tight">Beneficiary Case Profile</h1>
-              <p className="text-xs text-emerald-200/90 font-mono">{activeBeneficiary.beneficiary_code}</p>
+        <div className="bg-gradient-to-r from-[#006B56] to-[#004D3D] text-white sticky top-0 z-30 shadow-md pt-safe">
+          <div className="p-4 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setActiveBeneficiary(null)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h1 className="text-base font-bold leading-tight">Beneficiary Case Profile</h1>
+                <p className="text-xs text-emerald-200/90 font-mono">{activeBeneficiary.beneficiary_code}</p>
+              </div>
             </div>
-          </div>
 
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-100 border border-emerald-300/30">
-            {activeBeneficiary.verification_status || 'Verified Active'}
-          </span>
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-100 border border-emerald-300/30">
+              {activeBeneficiary.verification_status || 'Verified Active'}
+            </span>
+          </div>
         </div>
 
         {/* Details Content */}

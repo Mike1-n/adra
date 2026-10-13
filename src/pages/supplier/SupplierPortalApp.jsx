@@ -505,7 +505,7 @@ export function SupplierPortalApp({
           <aside className="relative w-72 max-w-[80vw] h-full bg-white shadow-2xl flex flex-col z-10 animate-in slide-in-from-left duration-200">
             
             {/* Drawer Header */}
-            <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 bg-white shrink-0">
+            <div className="min-h-16 pt-safe flex items-center justify-between px-4 border-b border-slate-200 bg-white shrink-0">
               <AdraLogo
                 isCollapsed={false}
                 subtitle="Supplier"
@@ -544,8 +544,9 @@ export function SupplierPortalApp({
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 shrink-0 pt-safe">
+          <div className="h-16 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             {/* Mobile Hamburger Drawer Button */}
             <button
               type="button"
@@ -593,7 +594,8 @@ export function SupplierPortalApp({
               <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
-        </header>
+        </div>
+      </header>
 
         {/* Scrollable Page Body */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-5 bg-slate-50">

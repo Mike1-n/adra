@@ -10,6 +10,12 @@
     --color-black: 28 28 28; /* #1C1C1C */
     --color-gray-light: 245 247 246; /* #F5F7F6 */
     --color-white: 255 255 255; /* #FFFFFF */
+
+    /* Safe areas for mobile notches, dynamic islands, and Android status bars */
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
   }
 
   body {
@@ -34,13 +40,19 @@
 
   /* Safe areas for mobile notches and navigation bars */
   .pt-safe {
-    padding-top: env(safe-area-inset-top, 0px);
+    padding-top: max(var(--safe-area-top, 0px), env(safe-area-inset-top, 0px));
   }
   .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: max(var(--safe-area-bottom, 0px), env(safe-area-inset-bottom, 0px));
   }
   .mb-safe {
-    margin-bottom: env(safe-area-inset-bottom, 0px);
+    margin-bottom: max(var(--safe-area-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  }
+  .mt-safe {
+    margin-top: max(var(--safe-area-top, 0px), env(safe-area-inset-top, 0px));
+  }
+  .top-safe {
+    top: max(var(--safe-area-top, 0px), env(safe-area-inset-top, 0px));
   }
 
   /* Custom sleek scrollbar for white theme */

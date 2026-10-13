@@ -154,7 +154,7 @@ export function Login({ onLoginSuccess }) {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 flex flex-col items-center justify-center p-4 font-sans">
+    <div className="min-h-screen w-full bg-slate-50 flex flex-col items-center justify-center p-4 pt-safe pb-safe font-sans">
       {/* Clean Auth Card (Non-scrollable on Login, clean & centered) */}
       <div className={`w-full sm:max-w-[400px] bg-white rounded-3xl shadow-xl border border-slate-100 p-7 flex flex-col justify-between ${isSignUp ? 'max-h-[92vh] overflow-y-auto' : ''}`}>
         <div className="w-full">

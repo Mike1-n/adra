@@ -478,7 +478,7 @@ export function InventoryManagerDashboard({
         }`}
       >
         {/* 1. Drawer Header Brand */}
-        <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+        <div className="p-3.5 pt-safe border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
           <AdraLogo
             isCollapsed={false}
             subtitle="Logistics"
@@ -994,9 +994,9 @@ export function InventoryManagerDashboard({
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         
         {/* 1. FIXED STICKY TOP HEADER */}
-        <header className="bg-white px-3.5 py-2.5 sm:px-6 sm:py-3 border-b border-slate-200 sticky top-0 z-40 shadow-2xs flex items-center justify-between gap-2 shrink-0">
-        
-        {/* Left: Hamburger Button + ADRA Brand / Tab Title */}
+        <header className="bg-white px-3.5 sm:px-6 border-b border-slate-200 sticky top-0 z-40 shadow-2xs shrink-0 pt-safe">
+          <div className="min-h-14 py-2 sm:py-2.5 flex items-center justify-between gap-2">
+            {/* Left: Hamburger Button + ADRA Brand / Tab Title */}
         <div className="flex items-center gap-2 min-w-0">
           <button
             type="button"
@@ -1150,7 +1150,8 @@ export function InventoryManagerDashboard({
             )}
           </div>
         </div>
-      </header>
+      </div>
+    </header>
 
       {/* 2. MAIN DASHBOARD CONTENT */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-2.5 sm:px-6 lg:px-8 py-2.5 sm:py-6">

@@ -302,8 +302,9 @@ export function FinanceMobileApp({
       <div className="w-full max-w-lg bg-slate-50 min-h-screen flex flex-col shadow-2xl relative border-x border-slate-200">
         
         {/* 1. TOP MOBILE APP BAR (With Sidebar Trigger & Navigation) */}
-        <header className="sticky top-0 z-30 bg-[#004D3F] text-white px-4 py-3 shadow-md flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <header className="sticky top-0 z-30 bg-[#004D3F] text-white px-4 shadow-md pt-safe">
+          <div className="min-h-14 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
             {/* Hamburger / Sidebar Opener */}
             <button
               type="button"
@@ -365,7 +366,8 @@ export function FinanceMobileApp({
               )}
             </button>
           </div>
-        </header>
+        </div>
+      </header>
 
         {/* 2. MAIN CONTENT VIEW (No bottom navigation bar) */}
         <main className="flex-1 p-4 overflow-y-auto">
@@ -453,7 +455,7 @@ export function FinanceMobileApp({
         {/* 3. SIDEBAR NAVIGATION DRAWER */}
         {isSidebarOpen && (
           <div className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex animate-in fade-in duration-150">
-            <div className="w-76 bg-white h-full shadow-2xl flex flex-col p-4 space-y-4 animate-in slide-in-from-left duration-200">
+            <div className="w-76 bg-white h-full shadow-2xl flex flex-col p-4 pt-safe space-y-4 animate-in slide-in-from-left duration-200">
               
               {/* Drawer User Banner */}
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">

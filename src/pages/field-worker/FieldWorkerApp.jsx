@@ -349,7 +349,7 @@ export function FieldWorkerApp({
           }`}
         >
           {/* 1. Drawer Header Brand (Fixed Top) */}
-          <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+          <div className="p-3.5 pt-safe border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
             <AdraLogo
               isCollapsed={false}
               subtitle="Field App"
@@ -832,8 +832,8 @@ export function FieldWorkerApp({
         </aside>
 
         {/* TOP APP BAR / HEADER */}
-        <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-3.5 py-2.5 shadow-2xs">
-          <div className="flex items-center justify-between gap-3">
+        <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-3.5 pt-safe shadow-2xs">
+          <div className="min-h-14 py-2 flex items-center justify-between gap-3">
             
             {/* Hamburger button + Brand Identity */}
             <div className="flex items-center gap-2">

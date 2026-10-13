@@ -308,9 +308,10 @@ export function AdminWebPortalLayout({
       {/* Main Viewport */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Sleek Topbar Header */}
-        <header className="h-16 bg-white/95 border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 z-20 backdrop-blur-md">
-          {/* Left: Mobile Menu & Current Section Title */}
-          <div className="flex items-center gap-3">
+        <header className="bg-white/95 border-b border-slate-200 px-4 sm:px-6 shrink-0 z-20 backdrop-blur-md pt-safe">
+          <div className="h-16 flex items-center justify-between">
+            {/* Left: Mobile Menu & Current Section Title */}
+            <div className="flex items-center gap-3">
             <button
               onClick={() => setIsMobileMenuOpen(true)}
               className="lg:hidden p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-700"
@@ -385,7 +386,8 @@ export function AdminWebPortalLayout({
               <span className="text-white font-bold">Logout</span>
             </button>
           </div>
-        </header>
+        </div>
+      </header>
 
         {/* Content Body with Generous Whitespace */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-white">
@@ -402,7 +404,7 @@ export function AdminWebPortalLayout({
             className="fixed inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="relative w-72 bg-white border-r border-slate-200 h-full flex flex-col z-10 shadow-2xl animate-in slide-in-from-left duration-200">
+          <div className="relative w-72 bg-white border-r border-slate-200 h-full flex flex-col z-10 shadow-2xl animate-in slide-in-from-left duration-200 pt-safe">
             <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200">
               <AdraLogo
                 isCollapsed={false}

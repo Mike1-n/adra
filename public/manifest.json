@@ -1,0 +1,17 @@
+{
+  "short_name": "ADRA",
+  "name": "ADRA - Humanitarian & Development Management System",
+  "icons": [
+    {
+      "src": "/images/adra-logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#007A61",
+  "theme_color": "#007A61",
+  "display": "standalone",
+  "orientation": "portrait"
+}

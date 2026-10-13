@@ -39,23 +39,25 @@ export function SupervisorWorkerDetailsView({
     <div className="min-h-screen bg-slate-100 flex flex-col animate-in fade-in duration-200">
       
       {/* Top Header */}
-      <div className="bg-gradient-to-r from-[#006B56] to-[#004D3D] text-white p-4 sticky top-0 z-30 shadow-md flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={onBack}
-            className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-base font-bold leading-tight">Field Worker Profile</h1>
-            <p className="text-xs text-emerald-200/90 font-mono">Team ID: {worker.id}</p>
+      <div className="bg-gradient-to-r from-[#006B56] to-[#004D3D] text-white sticky top-0 z-30 shadow-md pt-safe">
+        <div className="p-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={onBack}
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-base font-bold leading-tight">Field Worker Profile</h1>
+              <p className="text-xs text-emerald-200/90 font-mono">Team ID: {worker.id}</p>
+            </div>
           </div>
-        </div>
 
-        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${statusStyles[worker.current_status] || 'bg-white/20 text-white'}`}>
-          {worker.current_status}
-        </span>
+          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${statusStyles[worker.current_status] || 'bg-white/20 text-white'}`}>
+            {worker.current_status}
+          </span>
+        </div>
       </div>
 
       {/* Main Content */}

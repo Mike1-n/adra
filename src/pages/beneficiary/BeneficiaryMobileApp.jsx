@@ -270,7 +270,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
   const renderSidebarContent = (isDrawer = false) => (
     <div className="flex flex-col h-full bg-white select-none">
       {/* Brand Header */}
-      <div className="h-16 px-4 flex items-center justify-between border-b border-slate-200 bg-white text-slate-900 shrink-0">
+      <div className={`px-4 flex items-center justify-between border-b border-slate-200 bg-white text-slate-900 shrink-0 ${isDrawer ? 'min-h-[4rem] pt-safe' : 'h-16'}`}>
         <AdraLogo
           isCollapsed={false}
           subtitle="Community"
@@ -482,8 +482,9 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
       {/* 3. MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#F4F7F5]">
         {/* TOP BRAND/NAV HEADER (DARK GREEN) */}
-        <header className="bg-[#006B56] px-4 sm:px-6 h-16 flex items-center justify-between shrink-0 z-20 shadow-xs">
-          <div className="flex items-center gap-3 min-w-0">
+        <header className="bg-[#006B56] px-4 sm:px-6 shrink-0 z-20 shadow-xs pt-safe">
+          <div className="h-14 sm:h-16 flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
             {/* Hamburger Button on Mobile (<md) to open Sidebar */}
             <button
               type="button"
@@ -577,7 +578,8 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
               <span className="hidden sm:inline font-bold">Logout</span>
             </button>
           </div>
-        </header>
+        </div>
+      </header>
 
         {/* SCROLLABLE MAIN CONTENT BODY (NO BOTTOM NAVIGATION) */}
         <main className={`flex-1 overflow-y-auto ${currentView === 'feedback' ? 'p-0 flex flex-col' : 'p-3 sm:p-6 lg:p-8'}`}>

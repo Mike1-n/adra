@@ -1,6 +1,6 @@
 {
   "appId": "org.adra.dms",
-  "appName": "ADRA DMS",
+  "appName": "ADRA",
   "webDir": "dist",
   "server": {
     "url": "https://adra-f9vi.vercel.app",
@@ -16,8 +16,9 @@
       "showSpinner": false
     },
     "StatusBar": {
+      "overlaysWebView": false,
       "style": "DARK",
-      "backgroundColor": "#020617"
+      "backgroundColor": "#004D3F"
     },
     "Keyboard": {
       "resize": "body",
