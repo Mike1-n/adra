@@ -19,6 +19,8 @@ import {
 export function InventoryStockView({
   inventory = [],
   warehouses = [],
+  approvedRequests = [],
+  onNavigateTab,
   onOpenReceiveModal,
   onOpenAdjustModal,
   onDeleteItem,

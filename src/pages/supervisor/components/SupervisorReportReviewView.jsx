@@ -24,7 +24,8 @@ import {
   AlertTriangle,
   FileText,
   Lock,
-  ShieldCheck
+  ShieldCheck,
+  XCircle
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 
@@ -33,19 +34,19 @@ export function SupervisorReportReviewView({
   activeAssessment = null,
   onBack,
   onForwardToPM,
-  onRequestCorrection,
+  onRejectAssessment,
   onAddComment,
   onSelectAssessment
 }) {
   const toast = useToast();
   const [selectedAssessment, setSelectedAssessment] = useState(activeAssessment || null);
-  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'forwarded' | 'correction' | 'all'
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'forwarded' | 'rejected' | 'all'
   const [searchQuery, setSearchQuery] = useState('');
   const [showForwardModal, setShowForwardModal] = useState(false);
-  const [showCorrectionModal, setShowCorrectionModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [supervisorNotes, setSupervisorNotes] = useState('');
-  const [correctionReason, setCorrectionReason] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
 
@@ -72,10 +73,18 @@ export function SupervisorReportReviewView({
     ].includes(current.status) || Boolean(current.forwarded_to_pm || current.forwarded_to_pm_at || current.forwarded_at)
   ) : false;
 
+  const isRejected = current ? (
+    ['Rejected', 'Rejected by Supervisor', 'Rejected by Program Manager'].includes(current.status) || Boolean(current.returned_to_worker && (current.status?.includes('Rejected') || current.stage === -1))
+  ) : false;
+
   const handleExecuteForward = async () => {
     if (!current) return;
     if (isForwardedToPM) {
       toast.info('This audit has already been forwarded to Programme Manager and cannot be modified.');
+      return;
+    }
+    if (isRejected) {
+      toast.info('This audit has been rejected and cannot be forwarded to Programme Manager.');
       return;
     }
     setIsSubmitting(true);
@@ -92,26 +101,28 @@ export function SupervisorReportReviewView({
     }
   };
 
-  const handleExecuteCorrection = async () => {
+  const handleExecuteReject = async () => {
     if (!current) return;
     if (isForwardedToPM) {
-      toast.info('This audit has already been forwarded to Programme Manager and is locked.');
+      toast.info('This audit has already been forwarded to Programme Manager and cannot be rejected here.');
       return;
     }
-    if (!correctionReason.trim()) {
-      toast.warning('Please enter a specific reason for requesting correction.');
+    if (!rejectionReason.trim()) {
+      toast.warning('Please enter a specific reason for rejecting this audit.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await onRequestCorrection(current.id || current.assessment_code, current.request_id || current.request_code, correctionReason);
-      toast.info(`Assessment ${current.assessment_code} returned to ${current.field_worker_name} for field correction.`);
-      setShowCorrectionModal(false);
-      setCorrectionReason('');
+      if (onRejectAssessment) {
+        await onRejectAssessment(current.id || current.assessment_code, current.request_id || current.request_code, rejectionReason);
+      }
+      toast.error(`Assessment ${current.assessment_code || 'audit'} rejected and returned to field worker.`);
+      setShowRejectModal(false);
+      setRejectionReason('');
       setSelectedAssessment(null);
     } catch (err) {
-      toast.error(err.message || 'Failed to return assessment.');
+      toast.error(err.message || 'Failed to reject assessment.');
     } finally {
       setIsSubmitting(false);
     }
@@ -140,11 +151,14 @@ export function SupervisorReportReviewView({
   const statusStyles = {
     'Under Supervisor Review': 'bg-amber-100 text-amber-800 border-amber-300',
     'Submitted': 'bg-amber-100 text-amber-800 border-amber-300',
+    'Assessment Submitted': 'bg-amber-100 text-amber-800 border-amber-300',
     'Correction Required': 'bg-rose-100 text-rose-800 border-rose-300',
     'Forwarded to Program Manager': 'bg-purple-100 text-purple-800 border-purple-300',
     'Awaiting Program Manager Decision': 'bg-purple-100 text-purple-800 border-purple-300',
     'Approved': 'bg-emerald-100 text-emerald-800 border-emerald-300',
-    'Rejected': 'bg-rose-100 text-rose-800 border-rose-300'
+    'Rejected': 'bg-rose-100 text-rose-800 border-rose-300',
+    'Rejected by Supervisor': 'bg-rose-100 text-rose-800 border-rose-300',
+    'Rejected by Program Manager': 'bg-rose-100 text-rose-800 border-rose-300'
   };
 
   // Filter assessments
@@ -152,16 +166,13 @@ export function SupervisorReportReviewView({
     return assessments.filter(item => {
       const status = item.status || 'Under Supervisor Review';
       if (activeTab === 'pending') {
-        const isPending = (status === 'Under Supervisor Review' || status === 'Submitted' || status === 'Assessment Submitted' || status === 'Pending' || !item.status) && status !== 'Rejected';
+        const isPending = (status === 'Under Supervisor Review' || status === 'Submitted' || status === 'Assessment Submitted' || status === 'Pending' || !item.status) && !status.includes('Rejected') && !item.returned_to_worker;
         if (!isPending) return false;
       } else if (activeTab === 'forwarded') {
-        const isForwarded = (status === 'Forwarded to Program Manager' || status === 'Approved' || status === 'Awaiting Program Manager Decision') && status !== 'Rejected';
+        const isForwarded = (status === 'Forwarded to Program Manager' || status === 'Approved' || status === 'Awaiting Program Manager Decision') && !status.includes('Rejected');
         if (!isForwarded) return false;
-      } else if (activeTab === 'correction') {
-        const isCorr = status === 'Correction Required';
-        if (!isCorr) return false;
       } else if (activeTab === 'rejected') {
-        const isRej = status === 'Rejected' || status?.includes('Rejected') || item.returned_to_worker;
+        const isRej = status === 'Rejected' || status?.includes('Rejected') || item.returned_to_worker || status === 'Rejected by Supervisor';
         if (!isRej) return false;
       }
 
@@ -184,10 +195,15 @@ export function SupervisorReportReviewView({
   const counts = useMemo(() => {
     return {
       all: assessments.length,
-      pending: assessments.filter(a => (a.status === 'Under Supervisor Review' || a.status === 'Submitted' || a.status === 'Assessment Submitted' || a.status === 'Pending' || !a.status) && a.status !== 'Rejected').length,
-      forwarded: assessments.filter(a => (a.status === 'Forwarded to Program Manager' || a.status === 'Approved' || a.status === 'Awaiting Program Manager Decision') && a.status !== 'Rejected').length,
-      correction: assessments.filter(a => a.status === 'Correction Required').length,
-      rejected: assessments.filter(a => a.status === 'Rejected' || a.status?.includes('Rejected') || a.returned_to_worker).length
+      pending: assessments.filter(a => {
+        const status = a.status || 'Under Supervisor Review';
+        return (status === 'Under Supervisor Review' || status === 'Submitted' || status === 'Assessment Submitted' || status === 'Pending' || !a.status) && !status.includes('Rejected') && !a.returned_to_worker;
+      }).length,
+      forwarded: assessments.filter(a => {
+        const status = a.status || '';
+        return (status === 'Forwarded to Program Manager' || status === 'Approved' || status === 'Awaiting Program Manager Decision') && !status.includes('Rejected');
+      }).length,
+      rejected: assessments.filter(a => a.status === 'Rejected' || a.status?.includes('Rejected') || a.returned_to_worker || a.status === 'Rejected by Supervisor').length
     };
   }, [assessments]);
 
@@ -239,8 +255,7 @@ export function SupervisorReportReviewView({
           {[
             { id: 'pending', label: 'Pending Review', count: counts.pending, color: 'bg-amber-500' },
             { id: 'forwarded', label: 'Forwarded to PM', count: counts.forwarded, color: 'bg-purple-600' },
-            { id: 'rejected', label: 'Rejected by PM', count: counts.rejected, color: 'bg-rose-600' },
-            { id: 'correction', label: 'Needs Correction', count: counts.correction, color: 'bg-rose-500' },
+            { id: 'rejected', label: 'Rejected Audits', count: counts.rejected, color: 'bg-rose-600' },
             { id: 'all', label: 'All Audits', count: counts.all, color: 'bg-slate-700' }
           ].map(tab => (
             <button
@@ -402,8 +417,8 @@ export function SupervisorReportReviewView({
       {/* Main Review Form & Findings */}
       <div className="p-4 space-y-4 flex-1 pb-28 max-w-xl mx-auto w-full">
 
-        {/* Rejection Notification Banner when rejected by PM */}
-        {current.status === 'Rejected' && (
+        {/* Rejection Notification Banner when rejected */}
+        {isRejected && (
           <div className="p-4 bg-gradient-to-r from-rose-50 to-red-50 border-2 border-rose-300 rounded-2xl flex items-start gap-3 text-xs text-rose-950 shadow-xs">
             <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
               <AlertCircle className="w-4 h-4" />
@@ -411,7 +426,7 @@ export function SupervisorReportReviewView({
             <div className="space-y-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-black text-rose-900 uppercase tracking-wider text-[11px]">
-                  Audit Rejected by Programme Manager
+                  {current.status === 'Rejected by Supervisor' ? 'Audit Rejected by Field Supervisor' : 'Audit Rejected by Programme Manager'}
                 </span>
                 <span className="px-2 py-0.2 rounded-full text-[9px] font-black bg-rose-200 text-rose-900">
                   Returned to Field
@@ -421,7 +436,9 @@ export function SupervisorReportReviewView({
                 Reason: <span className="font-bold italic">"{current.rejection_reason || current.review_notes || 'Outside eligibility criteria.'}"</span>
               </p>
               <p className="text-[10px] text-rose-800/80">
-                This case has been returned directly to Field Officer <strong>{current.field_worker_name || 'assigned officer'}</strong>. The supervisor is notified for visibility and oversight.
+                {current.status === 'Rejected by Supervisor'
+                  ? `This audit was rejected during supervisory review and returned to Field Officer ${current.field_worker_name || 'assigned officer'} without reaching Programme Manager.`
+                  : `This case was returned by Programme Manager to Field Officer ${current.field_worker_name || 'assigned officer'}. The supervisor is notified for visibility and oversight.`}
               </p>
             </div>
           </div>
@@ -684,7 +701,26 @@ export function SupervisorReportReviewView({
       {/* Floating Bottom Supervisor Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-xl z-40">
         <div className="max-w-xl mx-auto">
-          {isForwardedToPM ? (
+          {isRejected ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-rose-700 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-rose-600 shrink-0" />
+                <span className="truncate font-semibold text-rose-800 text-xs">
+                  {current.status || 'Rejected'} &bull; <strong className="text-rose-950">Returned to Field Worker</strong>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onBack) onBack();
+                  setSelectedAssessment(null);
+                }}
+                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer shrink-0"
+              >
+                Back to Audits List
+              </button>
+            </div>
+          ) : isForwardedToPM ? (
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-xs text-slate-600 min-w-0">
                 <div className="w-2 h-2 rounded-full bg-purple-600 shrink-0 animate-pulse" />
@@ -707,17 +743,19 @@ export function SupervisorReportReviewView({
             <div className="flex items-center space-x-2">
               <button
                 type="button"
-                onClick={() => setShowCorrectionModal(true)}
-                className="flex-1 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-xs cursor-pointer"
+                onClick={() => setShowRejectModal(true)}
+                className="flex-1 py-3 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-xs cursor-pointer"
+                title="Reject field audit without escalating to Program Manager"
               >
-                <RotateCcw className="w-4 h-4 text-amber-700" />
-                <span>Request Correction</span>
+                <XCircle className="w-4 h-4 text-rose-600" />
+                <span>Reject Audit</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowForwardModal(true)}
                 className="flex-1 py-3 bg-[#006B56] hover:bg-[#005544] text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-md transition-colors cursor-pointer"
+                title="Endorse and submit to Program Manager for authorization"
               >
                 <Send className="w-4 h-4" />
                 <span>Forward to PM</span>
@@ -788,52 +826,52 @@ export function SupervisorReportReviewView({
         </div>
       )}
 
-      {/* Request Correction Modal */}
-      {showCorrectionModal && (
+      {/* Reject Assessment Modal */}
+      {showRejectModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
           <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-5 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-red-700 flex items-center space-x-2">
-                <RotateCcw className="w-4 h-4 text-red-600" />
-                <span>Request Assessment Correction</span>
+              <h3 className="text-base font-bold text-rose-800 flex items-center space-x-2">
+                <XCircle className="w-4 h-4 text-rose-600" />
+                <span>Reject Field Assessment</span>
               </h3>
-              <button onClick={() => setShowCorrectionModal(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowRejectModal(false)} className="text-slate-400 hover:text-slate-600">
                 &times;
               </button>
             </div>
 
             <p className="text-xs text-slate-600">
-              The report will return to Field Worker <strong>{current.field_worker_name}</strong> for field revision. Please state the required correction clearly.
+              Rejecting this audit terminates the assessment workflow before it reaches the Program Manager. The request will be marked as <strong>"Rejected by Supervisor"</strong> and returned to Field Worker <strong>{current.field_worker_name || 'Assigned Officer'}</strong> with your formal justification.
             </p>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Reason for Correction <span className="text-red-500">*</span>
+                Reason for Rejection <span className="text-rose-500">*</span>
               </label>
               <textarea
                 rows={3}
-                value={correctionReason}
-                onChange={(e) => setCorrectionReason(e.target.value)}
-                placeholder="e.g., Please provide clearer evidence of household verification and re-verify water source distance..."
-                className="w-full p-2.5 text-xs border border-red-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="e.g., Household does not meet vulnerability criteria, conflicting evidence reported, or duplicate assistance request identified..."
+                className="w-full p-2.5 text-xs border border-rose-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
               />
             </div>
 
             <div className="flex items-center space-x-2 pt-2">
               <button
                 type="button"
-                onClick={() => setShowCorrectionModal(false)}
+                onClick={() => setShowRejectModal(false)}
                 className="flex-1 py-2.5 text-xs font-bold text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleExecuteCorrection}
+                onClick={handleExecuteReject}
                 disabled={isSubmitting}
-                className="flex-1 py-2.5 text-xs font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 flex items-center justify-center space-x-1.5 shadow-md"
+                className="flex-1 py-2.5 text-xs font-bold text-white bg-rose-600 rounded-xl hover:bg-rose-700 flex items-center justify-center space-x-1.5 shadow-md cursor-pointer"
               >
-                <span>{isSubmitting ? 'Returning...' : 'Return for Correction'}</span>
+                <span>{isSubmitting ? 'Rejecting...' : 'Confirm Rejection'}</span>
               </button>
             </div>
           </div>

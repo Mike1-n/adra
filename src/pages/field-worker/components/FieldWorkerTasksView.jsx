@@ -254,7 +254,7 @@ export function FieldWorkerTasksView({
                         isSubmitted ? 'bg-purple-100 text-purple-800 border-purple-200' :
                         'bg-amber-100 text-amber-900 border-amber-200'
                       }`}>
-                        {isRejected ? 'Rejected by PM' : 
+                        {isRejected ? (task.status === 'Rejected by Supervisor' || task.status_label === 'Rejected by Supervisor' || task.review_notes?.includes('Supervisor') ? 'Rejected by Supervisor' : 'Rejected by PM') : 
                          isCollected ? '✓ Collected (Ready to Distribute)' :
                          isArrivedAtHub ? '📦 Arrived at Hub' :
                          isDispatched ? '🚚 In Transit' : 
@@ -275,7 +275,11 @@ export function FieldWorkerTasksView({
                       <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
                         <div className="flex items-center gap-1.5 font-bold text-rose-800 text-[11px]">
                           <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                          <span>Audit Rejected by Programme Manager</span>
+                          <span>
+                            {task.status === 'Rejected by Supervisor' || task.status_label === 'Rejected by Supervisor' || task.review_notes?.includes('Supervisor')
+                              ? 'Audit Rejected by State Supervisor'
+                              : 'Audit Rejected by Programme Manager'}
+                          </span>
                         </div>
                         <p className="text-[11px] text-rose-900 font-medium italic">
                           "{task.rejection_reason || task.review_notes || 'Returned to field worker for re-assessment.'}"

@@ -122,21 +122,27 @@ export function FieldFundingRequestModal({
       setSubmitting(true);
       const targetTask = selectedTask || tasks.find(t => t.id === selectedTaskId || t.request_code === selectedTaskId);
 
+      const effectiveSupId = targetTask?.assigned_supervisor_id || targetTask?.supervisor_id || worker?.supervisor_id || 'sup-1';
+      const effectiveSupName = targetTask?.assigned_supervisor_name || targetTask?.supervisor_name || worker?.supervisor_name || 'Emmanuel Adeyemi';
+      const effectiveState = targetTask?.state || worker?.state || 'Eastern Equatoria';
+      const effectiveCounty = targetTask?.county || worker?.county || 'Kapoeta South';
+      const effectivePayam = targetTask?.payam || targetTask?.location || worker?.payam || 'Kapoeta Town';
+
       const payload = {
-        field_worker_id: worker.id || 'fw-7',
-        field_worker_name: worker.name || 'Rose Poni',
-        field_worker_email: worker.email || 'rose.poni@adra.org',
-        field_worker_phone: worker.phone || payoutPhone,
-        supervisor_id: targetTask?.assigned_supervisor_id || targetTask?.supervisor_id || worker.supervisor_id || 'sup-2',
-        supervisor_name: targetTask?.assigned_supervisor_name || targetTask?.supervisor_name || worker.supervisor_name || 'Mary Akech',
+        field_worker_id: worker?.id || 'fw-1',
+        field_worker_name: worker?.name || 'John Deng',
+        field_worker_email: worker?.email || 'john.deng@adra.org',
+        field_worker_phone: worker?.phone || payoutPhone || '+211-921-550101',
+        supervisor_id: effectiveSupId,
+        supervisor_name: effectiveSupName,
         program_manager_name: 'Grace Ochieng',
         linked_task_id: targetTask?.id || selectedTaskId || null,
         linked_request_code: targetTask?.request_code || (selectedTaskId === 'general-territory-ops' ? 'GEN-TERRITORY-OPS' : 'ADR-REQ-GEN'),
-        linked_beneficiary_name: targetTask?.beneficiary_name || `${worker.payam || 'Munuki'} Community Verification`,
-        linked_location: targetTask?.payam || targetTask?.location || worker.payam || 'Munuki',
-        payam: targetTask?.payam || worker.payam || 'Munuki',
-        county: targetTask?.county || worker.county || 'Juba',
-        state: targetTask?.state || worker.state || 'Central Equatoria',
+        linked_beneficiary_name: targetTask?.beneficiary_name || `${effectivePayam} Community Verification`,
+        linked_location: effectivePayam,
+        payam: effectivePayam,
+        county: effectiveCounty,
+        state: effectiveState,
         project_name: projectName,
         category,
         amount: totalAmount,
@@ -145,7 +151,10 @@ export function FieldFundingRequestModal({
         breakdown: breakdown.filter(b => b.item && Number(b.amount) > 0),
         urgency,
         preferred_payout: preferredPayout,
-        payout_phone: payoutPhone
+        payout_phone: payoutPhone || worker?.phone || '+211-921-550101',
+        status: 'Pending Supervisor Approval',
+        stage: 1,
+        returned_to_worker: false
       };
 
       await onSubmitFundingRequest(payload);

@@ -37,7 +37,8 @@ export function SupervisorAssignmentDetailsView({
   onConfirmArrival,
   onHandoverToWorker,
   onViewBeneficiary,
-  onViewActivity
+  onViewActivity,
+  onOpenReport
 }) {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'notes' | 'contact'
@@ -189,7 +190,11 @@ export function SupervisorAssignmentDetailsView({
             </div>
           </div>
 
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/15 text-white border border-white/20">
+          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+            assignment.status === 'Rejected by Supervisor' || assignment.status_label === 'Rejected by Supervisor' || assignment.status === 'Rejected' || assignment.returned_to_worker
+              ? 'bg-rose-500/30 text-rose-100 border-rose-300 font-extrabold'
+              : 'bg-white/15 text-white border border-white/20'
+          }`}>
             {assignment.status_label || assignment.status}
           </span>
         </div>
@@ -258,23 +263,29 @@ export function SupervisorAssignmentDetailsView({
         </div>
 
         {/* REJECTION / RETURNED BANNER */}
-        {(assignment.status === 'Rejected' || assignment.status_label?.includes('Rejected') || assignment.returned_to_worker) && (
+        {(assignment.status === 'Rejected' || assignment.status === 'Rejected by Supervisor' || assignment.status_label?.includes('Rejected') || assignment.returned_to_worker) && (
           <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 shadow-2xs space-y-2">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
               <div>
                 <h3 className="text-xs font-black text-rose-900 leading-tight">
-                  Audit Rejected by Programme Manager
+                  {assignment.status === 'Rejected by Supervisor' || assignment.status_label === 'Rejected by Supervisor' || assignment.review_notes?.includes('Supervisor')
+                    ? 'Audit Rejected by State Supervisor'
+                    : 'Audit Rejected by Programme Manager'}
                 </h3>
                 <span className="text-[10px] text-rose-700 font-medium block">
                   Returned directly to field officer for re-audit
                 </span>
               </div>
             </div>
-            {assignment.rejection_reason && (
+            {(assignment.rejection_reason || assignment.review_notes) && (
               <div className="bg-white/90 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-950 font-medium">
-                <span className="text-[10px] font-bold uppercase text-rose-500 block mb-0.5">PM Rejection Justification</span>
-                "{assignment.rejection_reason}"
+                <span className="text-[10px] font-bold uppercase text-rose-500 block mb-0.5">
+                  {assignment.status === 'Rejected by Supervisor' || assignment.status_label === 'Rejected by Supervisor' || assignment.review_notes?.includes('Supervisor')
+                    ? 'Supervisor Rejection Justification'
+                    : 'PM Rejection Justification'}
+                </span>
+                "{assignment.rejection_reason || assignment.review_notes}"
               </div>
             )}
             <p className="text-[11px] text-rose-800">
@@ -703,28 +714,25 @@ export function SupervisorAssignmentDetailsView({
         <div className="grid grid-cols-2 gap-2.5 pt-1">
           <button
             type="button"
-            onClick={() => setShowReassignModal(true)}
-            className="p-3 bg-white border border-slate-300 text-slate-800 font-bold rounded-xl text-xs hover:bg-slate-50 flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98 transition"
+            onClick={() => {
+              if (onOpenReport) {
+                onOpenReport();
+              } else {
+                toast.info('No assessment report submitted yet for this assignment.');
+              }
+            }}
+            className="p-3 bg-[#006B56] hover:bg-[#005544] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98 transition"
           >
-            {hasAssignedWorker ? (
-              <>
-                <RefreshCw className="w-4 h-4 text-[#006B56]" />
-                <span>Reassign Worker</span>
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-4 h-4 text-[#006B56]" />
-                <span>Assign Field Worker</span>
-              </>
-            )}
+            <FileCheck className="w-4 h-4 text-white" />
+            <span>Review Audit</span>
           </button>
 
           <button
             type="button"
             onClick={() => onViewBeneficiary && onViewBeneficiary(assignment.beneficiary_id || assignment.beneficiary_code)}
-            className="p-3 bg-[#006B56] text-white font-bold rounded-xl text-xs hover:bg-[#005544] flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98 transition"
+            className="p-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98 transition"
           >
-            <Eye className="w-4 h-4 text-white" />
+            <Eye className="w-4 h-4 text-slate-700" />
             <span>View Beneficiary</span>
           </button>
         </div>

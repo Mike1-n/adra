@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Printer, Truck, CheckCircle2, QrCode, FileText, MapPin, Calendar, User, Building2, Download, PackageCheck, UserCheck } from 'lucide-react';
+import { X, Printer, Truck, CheckCircle2, QrCode, FileText, MapPin, Calendar, User, Building2, Download, PackageCheck, UserCheck, Plus } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 import { exportWaybillPDF } from '../../../lib/reportGenerator';
 
@@ -9,7 +9,8 @@ export function WaybillDetailModal({
   dispatch,
   onUpdateStatus,
   onConfirmArrival,
-  onHandoverToWorker
+  onHandoverToWorker,
+  onIssueWaybill
 }) {
   const toast = useToast();
 
@@ -97,16 +98,37 @@ export function WaybillDetailModal({
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/60">
             <span className="text-slate-500 font-semibold">Dispatch Status:</span>
             <span className={`px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
-              isDelivered
+              dispatch.is_pending_waybill
+                ? 'bg-orange-100 text-orange-950 border border-orange-300'
+                : isDelivered
                 ? 'bg-emerald-100 text-emerald-900'
                 : isInTransit
                 ? 'bg-amber-100 text-amber-900'
                 : 'bg-blue-100 text-blue-900'
             }`}>
-              {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
-              {isDelivered && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
-              {isCollected && <UserCheck className="w-3.5 h-3.5 text-blue-600" />}
-              <span>{dispatch.status || 'Active'}</span>
+              {dispatch.is_pending_waybill ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                  <span>Pending Aid Waybill (PM Approved)</span>
+                </>
+              ) : isInTransit ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span>{dispatch.status || 'Active'}</span>
+                </>
+              ) : isDelivered ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{dispatch.status || 'Active'}</span>
+                </>
+              ) : isCollected ? (
+                <>
+                  <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{dispatch.status || 'Active'}</span>
+                </>
+              ) : (
+                <span>{dispatch.status || 'Active'}</span>
+              )}
             </span>
           </div>
 
@@ -197,6 +219,20 @@ export function WaybillDetailModal({
               <Download className="w-3.5 h-3.5 text-emerald-700" />
               <span>PDF</span>
             </button>
+
+            {dispatch.is_pending_waybill && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onIssueWaybill) onIssueWaybill(dispatch.request_data);
+                }}
+                className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer active:scale-98"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Issue Official Waybill</span>
+              </button>
+            )}
 
             {isInTransit && onConfirmArrival && (
               <button

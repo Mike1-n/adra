@@ -108,9 +108,13 @@ export function FieldAssessmentFormModal({
   const isRejectedCase = Boolean(
     currentTaskObj?.status === 'Rejected' ||
     currentTaskObj?.status_label === 'Rejected by PM' ||
+    currentTaskObj?.status === 'Rejected by Supervisor' ||
+    currentTaskObj?.status?.includes('Rejected') ||
     currentTaskObj?.returned_to_worker ||
     task?.status === 'Rejected' ||
     task?.status_label === 'Rejected by PM' ||
+    task?.status === 'Rejected by Supervisor' ||
+    task?.status?.includes('Rejected') ||
     task?.returned_to_worker
   );
 
@@ -641,19 +645,25 @@ export function FieldAssessmentFormModal({
               <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
               <div className="min-w-0 space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-black text-rose-950">Audit Returned by Programme Manager</span>
+                  <span className="font-black text-rose-950">
+                    {(currentTaskObj?.status === 'Rejected by Supervisor' || task?.status === 'Rejected by Supervisor')
+                      ? 'Audit Rejected by Field Supervisor'
+                      : 'Audit Returned / Rejected'}
+                  </span>
                   <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-200 text-rose-900 border border-rose-300">
-                    Re-Audit Required
+                    Returned to Field
                   </span>
                 </div>
                 {Boolean(currentTaskObj?.rejection_reason || task?.rejection_reason) && (
                   <div className="text-[11px] text-rose-900 bg-white/80 p-2 rounded-lg border border-rose-200 font-medium">
-                    <span className="text-[9px] uppercase font-bold text-rose-500 block mb-0.5">PM Rejection Reason</span>
+                    <span className="text-[9px] uppercase font-bold text-rose-500 block mb-0.5">
+                      {(currentTaskObj?.status === 'Rejected by Supervisor' || task?.status === 'Rejected by Supervisor') ? 'Supervisor Rejection Justification' : 'Rejection Reason'}
+                    </span>
                     "{currentTaskObj?.rejection_reason || task?.rejection_reason}"
                   </div>
                 )}
                 <p className="text-[10px] text-rose-800 font-medium">
-                  Please review the requested corrections, verify the household findings on ground, and resubmit.
+                  Please review the supervisor's instructions, verify the household findings on ground, and resubmit when ready.
                 </p>
               </div>
             </div>

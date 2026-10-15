@@ -156,21 +156,15 @@ export function InventoryManagerDashboard({
     dispatches.forEach(d => {
       if (d.linked_request_id) dispatchedKeys.add(String(d.linked_request_id).toLowerCase().trim());
       if (d.request_code) dispatchedKeys.add(String(d.request_code).toLowerCase().trim());
-      if (d.beneficiary_code) dispatchedKeys.add(String(d.beneficiary_code).toLowerCase().trim());
-      if (d.beneficiary_name) {
-        const cleanName = d.beneficiary_name.split('(')[0].toLowerCase().trim();
-        if (cleanName) dispatchedKeys.add(cleanName);
-      }
     });
 
     return assistanceRequests.filter(r => {
       if (!r) return false;
       const rId = String(r.id || '').toLowerCase().trim();
       const rCode = String(r.request_code || r.tracking_number || '').toLowerCase().trim();
-      const rBenName = String(r.beneficiary_name || r.full_name || '').toLowerCase().trim();
 
       // If already linked to an issued waybill dispatch, remove immediately from staging queue
-      if (dispatchedKeys.has(rId) || dispatchedKeys.has(rCode) || (rBenName && dispatchedKeys.has(rBenName))) {
+      if ((rId && dispatchedKeys.has(rId)) || (rCode && dispatchedKeys.has(rCode))) {
         return false;
       }
 
@@ -564,9 +558,13 @@ export function InventoryManagerDashboard({
 
               <div className="flex items-center gap-1 shrink-0 ml-1">
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                  activeTab === 'dispatches' ? 'bg-white text-[#006B56]' : 'bg-emerald-100 text-emerald-900'
+                  activeTab === 'dispatches' 
+                    ? 'bg-white text-[#006B56]' 
+                    : approvedRequestsForDispatch.length > 0 
+                    ? 'bg-orange-500 text-white animate-pulse' 
+                    : 'bg-emerald-100 text-emerald-900'
                 }`}>
-                  {dispatches.length}
+                  {approvedRequestsForDispatch.length > 0 ? `${approvedRequestsForDispatch.length} New` : dispatches.length}
                 </span>
 
                 <button
@@ -605,7 +603,28 @@ export function InventoryManagerDashboard({
                   >
                     <span>All</span>
                     <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                      {dispatches.length}
+                      {dispatches.length + approvedRequestsForDispatch.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('dispatches');
+                      setDispatchStatusFilter('PENDING');
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      activeTab === 'dispatches' && (dispatchStatusFilter === 'PENDING' || dispatchStatusFilter === 'STAGED')
+                        ? 'bg-orange-100/90 text-orange-950 shadow-2xs border border-orange-300 font-extrabold'
+                        : 'text-orange-900/80 hover:text-orange-950 hover:bg-orange-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                      Pending Aid Waybills
+                    </span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-orange-200/80 text-orange-950 font-black">
+                      {stagedWaybillsCount}
                     </span>
                   </button>
 
@@ -648,27 +667,6 @@ export function InventoryManagerDashboard({
                     </span>
                     <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-emerald-200/80 text-emerald-950 font-black">
                       {deliveredWaybillsCount}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('dispatches');
-                      setDispatchStatusFilter('STAGED');
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      activeTab === 'dispatches' && dispatchStatusFilter === 'STAGED'
-                        ? 'bg-indigo-100/90 text-indigo-950 shadow-2xs border border-indigo-300 font-extrabold'
-                        : 'text-indigo-900/80 hover:text-indigo-950 hover:bg-indigo-50'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                      Staged
-                    </span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-indigo-200/80 text-indigo-950 font-black">
-                      {stagedWaybillsCount}
                     </span>
                   </button>
                 </div>
@@ -1070,9 +1068,11 @@ export function InventoryManagerDashboard({
                 warehouses={warehouses}
                 dispatches={dispatches}
                 purchaseOrders={purchaseOrders}
+                approvedRequests={approvedRequestsForDispatch}
                 onNavigateTab={(tab) => {
                   setActiveTab(tab);
                   setIsSidebarOpen(false);
+                  if (tab === 'dispatches') setIsDispatchesMenuOpen(true);
                 }}
                 onOpenReceiveModal={(item) => {
                   setSelectedReceiveItem(item && item.item_name ? item : null);
@@ -1082,8 +1082,8 @@ export function InventoryManagerDashboard({
                   setSelectedAdjustItem(item || null);
                   setAdjustModalOpen(true);
                 }}
-                onOpenCreateDispatchModal={() => {
-                  setSelectedDispatchReq(null);
+                onOpenCreateDispatchModal={(req) => {
+                  setSelectedDispatchReq(req || null);
                   setActiveTab('dispatches-issue');
                 }}
                 onOpenCreatePOModal={() => {
@@ -1097,6 +1097,11 @@ export function InventoryManagerDashboard({
                <InventoryStockView
                  inventory={inventory}
                  warehouses={warehouses}
+                 approvedRequests={approvedRequestsForDispatch}
+                 onNavigateTab={(tab) => {
+                   setActiveTab(tab);
+                   if (tab === 'dispatches') setIsDispatchesMenuOpen(true);
+                 }}
                  onOpenReceiveModal={(item) => {
                    setSelectedReceiveItem(item && item.item_name ? item : null);
                    setReceiveModalOpen(true);
@@ -1132,12 +1137,17 @@ export function InventoryManagerDashboard({
                 warehouses={warehouses}
                 inventoryItems={inventory}
                 approvedRequests={approvedRequestsForDispatch}
+                selectedRequest={selectedDispatchReq}
                 onDispatchSuccess={async (dispData) => {
                   await handleCreateDispatch(dispData);
+                  setSelectedDispatchReq(null);
                   setActiveTab('dispatches');
                   setDispatchStatusFilter('IN_TRANSIT');
                 }}
-                onCancel={() => setActiveTab('dispatches')}
+                onCancel={() => {
+                  setSelectedDispatchReq(null);
+                  setActiveTab('dispatches');
+                }}
               />
             )}
 
@@ -1261,6 +1271,10 @@ export function InventoryManagerDashboard({
         }}
         dispatch={selectedWaybill}
         onUpdateStatus={handleUpdateDispatchStatus}
+        onIssueWaybill={(req) => {
+          setSelectedDispatchReq(req || null);
+          setActiveTab('dispatches-issue');
+        }}
       />
 
       {/* Module Feedback Trigger */}

@@ -36,31 +36,32 @@ export function SupervisorAssignmentsView({
     return assignments.filter((item) => {
       const status = item.status || 'Submitted';
       
+      const isRejected = status === 'Rejected' || status?.includes('Rejected') || item.status_label?.includes('Rejected') || Boolean(item.returned_to_worker);
+
       if (activeTab === 'all') {
         // match all
       } else if (activeTab === 'pending') {
-        const isPending = status === 'Assigned to Supervisor' || 
+        const isPending = !isRejected && (status === 'Assigned to Supervisor' || 
                           status === 'Submitted' || 
                           status === 'Pending' || 
                           status === 'Under Review' ||
                           !item.assigned_field_worker_name ||
                           item.assigned_field_worker_name.includes('Pending') ||
-                          item.assigned_field_worker_name.includes('Unassigned');
+                          item.assigned_field_worker_name.includes('Unassigned'));
         if (!isPending) return false;
       } else if (activeTab === 'assigned') {
-        const isAssigned = status === 'Assigned to Field Worker' || (item.assigned_field_worker_name && !item.assigned_field_worker_name.includes('Pending') && status !== 'Completed' && status !== 'Distributed' && status !== 'Assessment Submitted' && status !== 'Awaiting Program Manager Decision');
+        const isAssigned = !isRejected && (status === 'Assigned to Field Worker' || (item.assigned_field_worker_name && !item.assigned_field_worker_name.includes('Pending') && status !== 'Completed' && status !== 'Distributed' && status !== 'Assessment Submitted' && status !== 'Awaiting Program Manager Decision'));
         if (!isAssigned) return false;
       } else if (activeTab === 'in_progress') {
-        const isInProgress = status === 'Assessment In Progress' || status === 'Correction Required';
+        const isInProgress = !isRejected && (status === 'Assessment In Progress' || status === 'Correction Required');
         if (!isInProgress) return false;
       } else if (activeTab === 'rejected') {
-        const isRejected = status === 'Rejected' || status?.includes('Rejected') || item.status_label?.includes('Rejected') || Boolean(item.returned_to_worker);
         if (!isRejected) return false;
       } else if (activeTab === 'completed') {
-        const isCompleted = status === 'Completed' || status === 'Distributed' || status === 'Assessment Submitted' || status === 'Awaiting Program Manager Decision' || status === 'Approved';
+        const isCompleted = !isRejected && (status === 'Completed' || status === 'Distributed' || status === 'Assessment Submitted' || status === 'Awaiting Program Manager Decision' || status === 'Approved');
         if (!isCompleted) return false;
       } else if (activeTab === 'overdue') {
-        const isOverdue = item.is_overdue || (item.due_date && new Date(item.due_date) < new Date() && status !== 'Completed' && status !== 'Distributed');
+        const isOverdue = !isRejected && (item.is_overdue || (item.due_date && new Date(item.due_date) < new Date() && status !== 'Completed' && status !== 'Distributed'));
         if (!isOverdue) return false;
       }
 
@@ -229,6 +230,40 @@ export function SupervisorAssignmentsView({
         </div>
       </div>
 
+      {/* Tabs Filter Bar */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {[
+          { key: 'all', label: 'All Cases', count: tabCounts.total },
+          { key: 'pending', label: 'Pending', count: tabCounts.pending },
+          { key: 'assigned', label: 'Assigned', count: tabCounts.assigned },
+          { key: 'rejected', label: 'Rejected', count: tabCounts.rejected, isDanger: true },
+          { key: 'completed', label: 'Completed', count: tabCounts.completed }
+        ].map(tab => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => {
+              setActiveTab(tab.key);
+              if (onStatusTabChange) onStatusTabChange(tab.key);
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              activeTab === tab.key
+                ? (tab.isDanger ? 'bg-rose-600 text-white shadow-xs' : 'bg-[#006B56] text-white shadow-xs')
+                : (tab.isDanger && tab.count > 0 ? 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50')
+            }`}
+          >
+            <span>{tab.label}</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              activeTab === tab.key
+                ? 'bg-white/20 text-white'
+                : (tab.isDanger && tab.count > 0 ? 'bg-rose-200 text-rose-900' : 'bg-slate-100 text-slate-600')
+            }`}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* 2. COMPACT, SLIM 5-COLUMN TABLE */}
       {filteredAssignments.length === 0 ? (
         <div className="bg-white rounded-2xl p-6 text-center border border-slate-200/80 space-y-1.5 shadow-2xs">
@@ -305,10 +340,10 @@ export function SupervisorAssignmentsView({
                       {/* 4. Status */}
                       <td className="py-2 px-3 whitespace-nowrap">
                         <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border ${
-                          displayStatus === 'Assigned' || displayStatus === 'Completed' || displayStatus === 'Approved'
+                          item.status === 'Rejected' || item.status?.includes('Rejected') || item.status_label?.includes('Rejected') || item.returned_to_worker
+                            ? 'bg-rose-50 text-rose-800 border-rose-300 font-extrabold'
+                            : displayStatus === 'Assigned' || displayStatus === 'Completed' || displayStatus === 'Approved'
                             ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                            : displayStatus === 'Rejected'
-                            ? 'bg-rose-50 text-rose-800 border-rose-200'
                             : 'bg-amber-50 text-amber-800 border-amber-200'
                         }`}>
                           {displayStatus}

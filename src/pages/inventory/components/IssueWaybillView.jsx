@@ -90,6 +90,7 @@ export function IssueWaybillView({
   warehouses = [],
   inventoryItems = [],
   approvedRequests = [],
+  selectedRequest = null,
   onDispatchSuccess,
   onCancel
 }) {
@@ -122,7 +123,7 @@ export function IssueWaybillView({
   }, [inventoryItems, form.origin_warehouse]);
 
   useEffect(() => {
-    const initialReq = approvedRequests.length > 0 ? approvedRequests[0] : null;
+    const initialReq = selectedRequest || (approvedRequests.length > 0 ? approvedRequests[0] : null);
 
     const defaultWarehouse = warehouses.find(w => {
       if (!initialReq) return false;
@@ -154,7 +155,7 @@ export function IssueWaybillView({
       notes: initialReq ? `Waybill for request ${initialReq.request_code || initialReq.id}.` : '',
       items: autoItems
     });
-  }, [warehouses, inventoryItems, approvedRequests]);
+  }, [warehouses, inventoryItems, approvedRequests, selectedRequest]);
 
   const handleLinkRequestChange = (e) => {
     const reqId = e.target.value;

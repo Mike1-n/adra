@@ -331,26 +331,25 @@ export function ProgrammeManagerDashboard({
   };
 
   const getAuditFinishedStatus = (r) => {
-    if (r.status === 'Rejected' || r.status_label === 'Rejected by PM' || r.returned_to_worker) {
+    if (r.status === 'Rejected' || r.status_label === 'Rejected by PM' || r.status === 'Rejected by Supervisor' || r.returned_to_worker || r.status?.includes('Rejected')) {
       return false;
     }
     return Boolean(
-      r.status === 'Assessment Submitted' ||
       r.status === 'Awaiting Program Manager Decision' ||
       r.status === 'Forwarded to Program Manager' ||
       r.status === 'Completed' ||
       r.status === 'Fulfilled' ||
-      (r.assessment_code && r.status !== 'Rejected') ||
-      r.is_verified_on_ground === true
+      (r.assessment_code && r.status !== 'Rejected' && r.status !== 'Assessment Submitted' && r.status !== 'Under Supervisor Review')
     );
   };
 
   const requestPipelineCounts = useMemo(() => {
     const all = scopedRequests.length;
-    const isRejected = (r) => r.status === 'Rejected' || r.status_label === 'Rejected by PM' || r.returned_to_worker;
+    const isRejected = (r) => r.status === 'Rejected' || r.status_label === 'Rejected by PM' || r.status === 'Rejected by Supervisor' || r.returned_to_worker || r.status?.includes('Rejected');
     const pendingSupervisor = scopedRequests.filter(r => !getSupervisorStatus(r) && !isRejected(r)).length;
-    const supervisorAssigned = scopedRequests.filter(r => getSupervisorStatus(r) && !getFieldWorkerStatus(r) && !getAuditFinishedStatus(r) && !isRejected(r)).length;
-    const workerInField = scopedRequests.filter(r => getFieldWorkerStatus(r) && !getAuditFinishedStatus(r) && !isRejected(r)).length;
+    const supervisorAssigned = scopedRequests.filter(r => getSupervisorStatus(r) && !getFieldWorkerStatus(r) && !getAuditFinishedStatus(r) && !isRejected(r) && r.status !== 'Assessment Submitted').length;
+    const workerInField = scopedRequests.filter(r => getFieldWorkerStatus(r) && !getAuditFinishedStatus(r) && !isRejected(r) && r.status !== 'Assessment Submitted').length;
+    const underSupervisorReview = scopedRequests.filter(r => r.status === 'Assessment Submitted' && !isRejected(r)).length;
     const auditFinished = scopedRequests.filter(r => getAuditFinishedStatus(r)).length;
     const rejected = scopedRequests.filter(r => isRejected(r)).length;
     const disbursed = scopedRequests.filter(r => (r.status === 'Completed' || r.status === 'Fulfilled' || r.status === 'Disbursed') && !isRejected(r)).length;
@@ -360,6 +359,7 @@ export function ProgrammeManagerDashboard({
       pendingSupervisor,
       supervisorAssigned,
       workerInField,
+      underSupervisorReview,
       auditFinished,
       rejected,
       disbursed

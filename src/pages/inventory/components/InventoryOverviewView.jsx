@@ -12,7 +12,9 @@ import {
   Plus,
   PackagePlus,
   SlidersHorizontal,
-  ShoppingCart
+  ShoppingCart,
+  ShieldCheck,
+  User
 } from 'lucide-react';
 
 export function InventoryOverviewView({
@@ -20,6 +22,7 @@ export function InventoryOverviewView({
   warehouses = [],
   dispatches = [],
   purchaseOrders = [],
+  approvedRequests = [],
   onNavigateTab,
   onOpenReceiveModal,
   onOpenAdjustModal,
