@@ -83,6 +83,7 @@ export function FieldWorkerApp({
   const [activities, setActivities] = useState([]);
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [fundingRequests, setFundingRequests] = useState([]);
+  const [complaints, setComplaints] = useState([]);
   const [dutyStatus, setDutyStatus] = useState('Available');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,13 +117,14 @@ export function FieldWorkerApp({
       setWorker(current);
       setDutyStatus(current.current_status || 'Available');
 
-      const [assignedTasks, assData, actData, benData, fundData, projData] = await Promise.all([
+      const [assignedTasks, assData, actData, benData, fundData, projData, compData] = await Promise.all([
         db.getFieldWorkerAssignedRequests ? db.getFieldWorkerAssignedRequests(current.id, current.name) : db.getAssistanceRequests(),
         db.getFieldAssessments ? db.getFieldAssessments(null, current.id, current.name) : [],
         db.getFieldWorkerActivities ? db.getFieldWorkerActivities(current.id, current.name) : [],
         db.getBeneficiaries ? db.getBeneficiaries() : [],
         db.getFieldFundingRequests ? db.getFieldFundingRequests(current.id) : [],
-        db.getProjects ? db.getProjects() : []
+        db.getProjects ? db.getProjects() : [],
+        db.getComplaints ? db.getComplaints('all') : []
       ]);
 
       setTasks(Array.isArray(assignedTasks) ? assignedTasks : []);
@@ -130,6 +132,7 @@ export function FieldWorkerApp({
       setProjects(projData || []);
       setAssessments(assData || []);
       setActivities(actData || []);
+      setComplaints(compData || []);
       
       const allBens = benData || [];
       const assignedReqList = Array.isArray(assignedTasks) ? assignedTasks : [];
@@ -331,6 +334,15 @@ export function FieldWorkerApp({
   const rejectedFundingCount = useMemo(() => {
     return fundingRequests.filter(r => r.status?.includes('Rejected') || r.stage === -1).length;
   }, [fundingRequests]);
+
+  const pendingBeneficiaryMessagesCount = useMemo(() => {
+    return (complaints || []).filter(c => {
+      const isFieldWorkerMsg = (c.recipient_role || '').toLowerCase().includes('field') ||
+                               (worker?.name && (c.recipient_name || '').toLowerCase().includes(worker.name.toLowerCase()));
+      return isFieldWorkerMsg && c.status !== 'Resolved' && c.category !== 'Field Worker Response';
+    }).length;
+  }, [complaints, worker]);
+
 
   return (
     <div className="min-h-screen bg-slate-950 sm:py-6 flex justify-center items-start font-sans">
@@ -831,6 +843,11 @@ export function FieldWorkerApp({
                 <MessageSquare className={`w-4 h-4 ${activeTab === 'feedback' ? 'text-white' : 'text-[#006B56]'}`} />
                 <span>Feedback & Complaints</span>
               </div>
+              {pendingBeneficiaryMessagesCount > 0 && (
+                <span className="text-[10px] bg-rose-600 text-white font-black px-2 py-0.5 rounded-full shadow-xs animate-pulse">
+                  {pendingBeneficiaryMessagesCount} New
+                </span>
+              )}
             </button>
 
             {/* Officer Profile & Zone */}
@@ -923,6 +940,7 @@ export function FieldWorkerApp({
                   activities={activities}
                   beneficiaries={beneficiaries}
                   fundingRequests={fundingRequests}
+                  pendingBeneficiaryMessagesCount={pendingBeneficiaryMessagesCount}
                   dutyStatus={dutyStatus}
                   onUpdateDutyStatus={handleUpdateDutyStatus}
                   onNavigateTab={(tab, filter = 'all') => {
@@ -1037,7 +1055,15 @@ export function FieldWorkerApp({
 
               {activeTab === 'feedback' && (
                 <div className="w-full flex-1 flex flex-col h-full bg-white">
-                  <FeedbackComplaintsView currentUser={currentUser} />
+                  <FeedbackComplaintsView 
+                    currentUser={{
+                      ...currentUser,
+                      ...(worker || {}),
+                      role: 'Field Worker',
+                      name: worker?.name || currentUser?.full_name || 'Rose Poni',
+                      full_name: worker?.name || currentUser?.full_name || 'Rose Poni'
+                    }} 
+                  />
                 </div>
               )}
             </>

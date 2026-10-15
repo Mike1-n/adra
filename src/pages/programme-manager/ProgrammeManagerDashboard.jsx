@@ -769,18 +769,6 @@ export function ProgrammeManagerDashboard({
               </div>
             </button>
           </div>
-
-          {/* 3. Drawer Footer: Sign Out */}
-          <div className="p-3 border-t border-slate-100 bg-slate-50 shrink-0">
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center space-x-2 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Log Out</span>
-            </button>
-          </div>
         </aside>
 
         {/* FIXED STICKY MOBILE TOP HEADER (Green Brand Header) */}

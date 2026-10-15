@@ -266,42 +266,25 @@ export function AdminWebPortalLayout({
 
           {/* User Account */}
           {!isCollapsed ? (
-            <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <img
-                  src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                  alt={currentUser?.full_name}
-                  className="w-7 h-7 rounded-full object-cover border border-emerald-500/40 shrink-0"
-                />
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-900 truncate">{currentUser?.full_name || 'Administrator'}</p>
-                  <p className="text-[10px] text-slate-500 truncate">HQ Administrator</p>
-                </div>
+            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50 border border-slate-200 min-w-0">
+              <img
+                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                alt={currentUser?.full_name}
+                className="w-7 h-7 rounded-full object-cover border border-emerald-500/40 shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-900 truncate">{currentUser?.full_name || 'Administrator'}</p>
+                <p className="text-[10px] text-slate-500 truncate">HQ Administrator</p>
               </div>
-              <button
-                onClick={logout}
-                title="Sign Out of ADRA"
-                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-black hover:text-black bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer active:scale-95"
-              >
-                <LogOut className="w-3.5 h-3.5 text-black" />
-                <span className="text-black font-bold">Logout</span>
-              </button>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center">
               <img
                 src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
                 alt={currentUser?.full_name}
                 title={`${currentUser?.full_name || 'Administrator'} (HQ Admin)`}
                 className="w-8 h-8 rounded-full object-cover border border-emerald-500/40 shrink-0 cursor-pointer"
               />
-              <button
-                onClick={logout}
-                title="Sign Out"
-                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
             </div>
           )}
         </div>
@@ -445,18 +428,9 @@ export function AdminWebPortalLayout({
                 <Smartphone className="w-4 h-4 text-emerald-600" /> Open Field Application
               </button>
 
-              <button
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  logout();
-                }}
-                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-bold text-rose-700 transition cursor-pointer"
-              >
-                <LogOut className="w-4 h-4 text-rose-600" /> Log Out
-              </button>
+              </div>
             </div>
           </div>
-        </div>
       )}
 
       {/* Global Search Modal */}

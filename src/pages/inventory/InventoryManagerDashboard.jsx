@@ -994,20 +994,6 @@ export function InventoryManagerDashboard({
               </div>
             )}
           </div>
-
-          {/* Logout Button in Drawer */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsSidebarOpen(false);
-              if (onLogout) onLogout();
-              else if (authLogout) authLogout();
-            }}
-            className="w-full flex items-center justify-center space-x-2 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
-          </button>
         </div>
       </aside>
 

@@ -17,7 +17,9 @@ import {
   QrCode,
   CheckCircle,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  Info,
+  Home
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/supabase';
@@ -34,21 +36,28 @@ import { FeedbackComplaintsView } from './components/FeedbackComplaintsView';
 import { BeneficiaryProfileView } from './components/BeneficiaryProfileView';
 import { HelpSupportContactView } from './components/HelpSupportContactView';
 import { SecuritySettingsView } from './components/SecuritySettingsView';
+import { AboutUsView } from './components/AboutUsView';
+import { BeneficiaryMobileDashboard } from './mobile/BeneficiaryMobileDashboard';
 
 export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
   const { currentUser, logout } = useAuth();
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState('requests');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [beneficiary, setBeneficiary] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [distributions, setDistributions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load Beneficiary Profile
+  // Load Beneficiary Profile, Requests and Distributions
   const loadBeneficiaryProfile = async () => {
     try {
       setLoading(true);
-      const beneficiaries = await db.getBeneficiaries();
+      const [beneficiaries, allDistributions] = await Promise.all([
+        db.getBeneficiaries(),
+        db.getDistributions()
+      ]);
       // Match by email, id, or default to Mary Nyambura (b7)
       const found = beneficiaries.find(
         b =>
@@ -57,7 +66,14 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
           b.beneficiary_code === currentUser?.beneficiary_code ||
           b.id === 'b7'
       );
-      setBeneficiary(found || beneficiaries[0]);
+      const targetBen = found || beneficiaries[0];
+      setBeneficiary(targetBen);
+      setDistributions(allDistributions || []);
+
+      if (targetBen) {
+        const userReqs = await db.getAssistanceRequests(targetBen.id || targetBen.beneficiary_code);
+        setRequests(userReqs || []);
+      }
     } catch (e) {
       console.error(e);
       toast.error('Failed to load profile');
@@ -71,12 +87,14 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
   }, [currentUser]);
 
   const navItems = [
-    { id: 'requests', label: 'Assistance Requests', icon: HandHeart, count: 3 },
+    { id: 'dashboard', label: 'Home / Overview', icon: Home, count: null },
+    { id: 'requests', label: 'Assistance Requests', icon: HandHeart, count: requests.length || 3 },
     { id: 'programmes', label: 'ADRA Programmes', icon: FolderKanban, count: null },
     { id: 'history', label: 'Aid History', icon: History, count: null },
-    { id: 'distributions', label: 'Distribution Schedules', icon: Truck, count: 2 },
+    { id: 'distributions', label: 'Distribution Schedules', icon: Truck, count: distributions.length || 2 },
     { id: 'notifications', label: 'Notifications', icon: Bell, count: 2 },
     { id: 'feedback', label: 'Feedback & Complaints', icon: MessageSquareQuote, count: null },
+    { id: 'about', label: 'About Us', icon: Info, count: null },
     { id: 'support', label: 'Contact Us', icon: Headphones, count: null },
   ];
 
@@ -206,17 +224,6 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
                 </button>
               );
             })}
-
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={logout}
-                className="text-xs font-bold text-rose-600 flex items-center gap-1.5 p-2 rounded-lg hover:bg-rose-50 cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-                Sign Out
-              </button>
-            </div>
           </div>
         )}
       </header>
@@ -230,6 +237,25 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
           </div>
         ) : (
           <>
+            {activeTab === 'dashboard' && (
+              <BeneficiaryMobileDashboard
+                beneficiary={beneficiary}
+                requests={requests}
+                distributions={distributions}
+                notifications={[
+                  {
+                    id: 'notif_welcome',
+                    title: 'Beneficiary Account Active',
+                    message: `Welcome to ADRA community portal. Your household (${beneficiary?.beneficiary_code || 'Verified'}) is verified for active humanitarian distributions.`,
+                    created_at: 'Today'
+                  }
+                ]}
+                unreadCount={1}
+                onRequestAssistance={() => setActiveTab('requests')}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
+            )}
+
             {activeTab === 'id_card' && (
               <BeneficiaryIdCard beneficiary={beneficiary} />
             )}
@@ -243,7 +269,12 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
             )}
 
             {activeTab === 'history' && (
-              <AidHistoryView beneficiary={beneficiary} />
+              <div className="p-4 sm:p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+                <AidHistoryView
+                  beneficiary={beneficiary}
+                  onNavigateTab={(tab) => setActiveTab(tab)}
+                />
+              </div>
             )}
 
             {activeTab === 'distributions' && (
@@ -266,6 +297,10 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
                 beneficiary={beneficiary}
                 onProfileUpdated={loadBeneficiaryProfile}
               />
+            )}
+
+            {activeTab === 'about' && (
+              <AboutUsView onNavigateTab={(tab) => setActiveTab(tab)} />
             )}
 
             {activeTab === 'support' && (

@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Bell,
   CheckCheck,
   CheckCircle,
   Clock,
-  AlertTriangle,
-  Info,
+  ChevronRight,
+  Eye,
+  Check,
+  User,
   Truck,
   HandHeart,
-  ShieldAlert,
-  Calendar,
-  ChevronRight
+  Info
 } from 'lucide-react';
 import { Button } from '../../../components/common/Button';
-import { db } from '../../../lib/supabase';
+import { Modal } from '../../../components/common/Modal';
 import { useToast } from '../../../context/ToastContext';
 
 export function NotificationsView({ beneficiary, onNavigateTab }) {
@@ -73,6 +73,7 @@ export function NotificationsView({ beneficiary, onNavigateTab }) {
   ]);
 
   const [activeFilter, setActiveFilter] = useState('ALL');
+  const [selectedNotification, setSelectedNotification] = useState(null);
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
@@ -87,179 +88,330 @@ export function NotificationsView({ beneficiary, onNavigateTab }) {
     );
   };
 
-  const filtered = notifications.filter(n => {
-    if (activeFilter === 'ALL') return true;
-    if (activeFilter === 'UNREAD') return !n.is_read;
-    return n.category.toUpperCase() === activeFilter.toUpperCase();
-  });
+  const handleViewMore = (notif) => {
+    if (!notif.is_read) {
+      setNotifications(prev =>
+        prev.map(n => (n.id === notif.id ? { ...n, is_read: true } : n))
+      );
+    }
+    setSelectedNotification(notif);
+  };
+
+  const filtered = useMemo(() => {
+    return notifications.filter(n => {
+      if (activeFilter === 'UNREAD' && n.is_read) return false;
+      if (activeFilter !== 'ALL' && activeFilter !== 'UNREAD' && n.category.toUpperCase() !== activeFilter.toUpperCase()) {
+        return false;
+      }
+      return true;
+    });
+  }, [notifications, activeFilter]);
 
   const getCategoryIcon = (category) => {
-    switch (category.toLowerCase()) {
+    switch (category?.toLowerCase()) {
       case 'approvals':
-        return <CheckCircle className="w-5 h-5 text-emerald-600" />;
+        return <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />;
       case 'distributions':
-        return <Truck className="w-5 h-5 text-blue-600" />;
+        return <Truck className="w-3.5 h-3.5 text-blue-600 shrink-0" />;
       case 'requests':
-        return <HandHeart className="w-5 h-5 text-amber-600" />;
+        return <HandHeart className="w-3.5 h-3.5 text-amber-600 shrink-0" />;
       case 'community':
-        return <Info className="w-5 h-5 text-purple-600" />;
+        return <Info className="w-3.5 h-3.5 text-purple-600 shrink-0" />;
+      case 'account':
+        return <User className="w-3.5 h-3.5 text-indigo-600 shrink-0" />;
       default:
-        return <Bell className="w-5 h-5 text-emerald-600" />;
+        return <Bell className="w-3.5 h-3.5 text-emerald-600 shrink-0" />;
+    }
+  };
+
+  const getCategoryBadgeStyle = (category) => {
+    switch (category?.toLowerCase()) {
+      case 'approvals':
+        return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+      case 'distributions':
+        return 'bg-blue-50 text-blue-800 border-blue-200';
+      case 'requests':
+        return 'bg-amber-50 text-amber-800 border-amber-200';
+      case 'community':
+        return 'bg-purple-50 text-purple-800 border-purple-200';
+      case 'account':
+        return 'bg-indigo-50 text-indigo-800 border-indigo-200';
+      default:
+        return 'bg-slate-50 text-slate-800 border-slate-200';
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-emerald-50 via-white to-slate-50 border border-emerald-200/60 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/20 relative">
-              <Bell className="w-6 h-6" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-600 text-white text-[11px] font-bold flex items-center justify-center border-2 border-white shadow-xs">
-                  {unreadCount}
-                </span>
-              )}
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                Notifications & Announcements
-              </h2>
-              <p className="text-xs text-slate-500">
-                Timely operational updates on your assistance requests, distribution dates, and field clinic schedules.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {unreadCount > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleMarkAllRead}
-                className="text-xs gap-1.5 border-slate-200 hover:border-emerald-300 hover:text-emerald-700"
-              >
-                <CheckCheck className="w-4 h-4 text-emerald-600" />
-                Mark all as read
-              </Button>
-            )}
-          </div>
+    <div className="space-y-3">
+      {/* Clean Header Bar */}
+      <div className="flex items-center justify-between gap-2 pb-1">
+        <div className="flex items-center gap-2">
+          <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+            Notifications
+          </h2>
+          {unreadCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+              {unreadCount} new
+            </span>
+          )}
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex flex-wrap items-center gap-2 mt-6 pt-5 border-t border-emerald-100/80">
-          {[
-            { id: 'ALL', label: 'All Updates' },
-            { id: 'UNREAD', label: `Unread (${unreadCount})` },
-            { id: 'APPROVALS', label: 'Approvals' },
-            { id: 'DISTRIBUTIONS', label: 'Distributions' },
-            { id: 'REQUESTS', label: 'Requests' }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
-                activeFilter === tab.id
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Notifications List */}
-      <div className="space-y-3">
-        {filtered.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl border border-slate-200">
-            <Bell className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-sm font-semibold text-slate-800">No Notifications</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-              You are completely up to date! New updates regarding your applications or aid dispatches will appear here.
-            </p>
-          </div>
-        ) : (
-          filtered.map(notif => (
-            <div
-              key={notif.id}
-              className={`p-5 rounded-2xl border transition relative group ${
-                notif.is_read
-                  ? 'bg-white border-slate-200 hover:border-slate-300'
-                  : 'bg-emerald-50/40 border-emerald-300/80 shadow-xs'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3.5">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-                      notif.is_read
-                        ? 'bg-slate-50 border-slate-200 text-slate-500'
-                        : 'bg-white border-emerald-200 shadow-2xs'
-                    }`}
-                  >
-                    {getCategoryIcon(notif.category)}
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4
-                        className={`text-sm tracking-tight ${
-                          notif.is_read
-                            ? 'font-semibold text-slate-800'
-                            : 'font-bold text-slate-900'
-                        }`}
-                      >
-                        {notif.title}
-                      </h4>
-                      {!notif.is_read && (
-                        <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                      )}
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
-                        {notif.category}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
-                      {notif.message}
-                    </p>
-
-                    <div className="flex items-center gap-4 pt-2">
-                      <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {notif.created_at}
-                      </span>
-
-                      {notif.action_tab && onNavigateTab && (
-                        <button
-                          type="button"
-                          onClick={() => onNavigateTab(notif.action_tab)}
-                          className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
-                        >
-                          {notif.action_label}
-                          <ChevronRight className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Mark read button */}
-                <button
-                  type="button"
-                  onClick={() => handleToggleRead(notif.id)}
-                  className="text-xs text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition shrink-0"
-                  title={notif.is_read ? 'Mark as unread' : 'Mark as read'}
-                >
-                  {notif.is_read ? 'Mark unread' : 'Mark read'}
-                </button>
-              </div>
-            </div>
-          ))
+        {unreadCount > 0 && (
+          <button
+            type="button"
+            onClick={handleMarkAllRead}
+            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <CheckCheck className="w-3.5 h-3.5" />
+            <span>Mark all read</span>
+          </button>
         )}
       </div>
+
+      {/* Minimal Category Filter Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        {[
+          { id: 'ALL', label: 'All' },
+          { id: 'UNREAD', label: `Unread (${unreadCount})` },
+          { id: 'APPROVALS', label: 'Approvals' },
+          { id: 'DISTRIBUTIONS', label: 'Distributions' },
+          { id: 'REQUESTS', label: 'Requests' }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveFilter(tab.id)}
+            className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+              activeFilter === tab.id
+                ? 'bg-[#006B56] text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Main Container */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="text-center py-12 px-4">
+            <Bell className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-xs font-bold text-slate-700">No Notifications</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">You are all caught up.</p>
+          </div>
+        ) : (
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[10px] border-b border-slate-100">
+                  <tr>
+                    <th className="py-2.5 px-3 w-8 text-center"></th>
+                    <th className="py-2.5 px-3 w-28">Category</th>
+                    <th className="py-2.5 px-3">Title</th>
+                    <th className="py-2.5 px-3 w-28 text-slate-400">Date</th>
+                    <th className="py-2.5 px-3 w-24 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-800">
+                  {filtered.map(notif => (
+                    <tr
+                      key={notif.id}
+                      onClick={() => handleViewMore(notif)}
+                      className={`transition-colors cursor-pointer group ${
+                        notif.is_read
+                          ? 'hover:bg-slate-50/80 bg-white text-slate-700'
+                          : 'bg-emerald-50/40 hover:bg-emerald-50/70 text-slate-900 font-semibold'
+                      }`}
+                    >
+                      <td className="py-3 px-3 text-center align-middle">
+                        {!notif.is_read && (
+                          <span className="inline-block w-2 h-2 rounded-full bg-emerald-600" />
+                        )}
+                      </td>
+                      <td className="py-3 px-3 align-middle whitespace-nowrap text-slate-500 font-medium">
+                        {notif.category}
+                      </td>
+                      <td className="py-3 px-3 align-middle truncate max-w-md">
+                        {notif.title}
+                      </td>
+                      <td className="py-3 px-3 align-middle whitespace-nowrap text-slate-400 text-[11px]">
+                        {notif.created_at}
+                      </td>
+                      <td className="py-3 px-3 align-middle text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewMore(notif);
+                          }}
+                          className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white border border-slate-200 hover:border-emerald-500 hover:text-emerald-700 text-slate-600 transition shadow-2xs cursor-pointer"
+                        >
+                          View More
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Phone Mode: Uncluttered Single/Two-Line Rows */}
+            <div className="sm:hidden divide-y divide-slate-100">
+              {filtered.map(notif => (
+                <div
+                  key={notif.id}
+                  onClick={() => handleViewMore(notif)}
+                  className={`p-3 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                    notif.is_read
+                      ? 'hover:bg-slate-50 bg-white'
+                      : 'bg-emerald-50/40 hover:bg-emerald-50/70'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <div className="pt-1 shrink-0">
+                      {!notif.is_read ? (
+                        <span className="block w-2 h-2 rounded-full bg-emerald-600" />
+                      ) : (
+                        <span className="block w-2 h-2 rounded-full bg-slate-300" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-xs truncate ${notif.is_read ? 'text-slate-800' : 'font-bold text-slate-900'}`}>
+                        {notif.title}
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {notif.category} • {notif.created_at}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewMore(notif);
+                    }}
+                    className="shrink-0 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white border border-slate-200 hover:border-emerald-500 hover:text-emerald-700 text-slate-700 shadow-2xs cursor-pointer"
+                  >
+                    View More
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Details Modal ("View More") */}
+      {selectedNotification && (
+        <Modal
+          isOpen={!!selectedNotification}
+          onClose={() => setSelectedNotification(null)}
+          title={
+            <div className="flex items-center gap-2">
+              <div
+                className={`p-1.5 rounded-lg border ${getCategoryBadgeStyle(
+                  selectedNotification.category
+                )}`}
+              >
+                {getCategoryIcon(selectedNotification.category)}
+              </div>
+              <div>
+                <span className="text-sm font-bold text-slate-900 block leading-tight">
+                  Notification Details
+                </span>
+                <span className="text-[11px] text-slate-500 font-normal">
+                  {selectedNotification.category}
+                </span>
+              </div>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <span
+                  className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${getCategoryBadgeStyle(
+                    selectedNotification.category
+                  )}`}
+                >
+                  {selectedNotification.category}
+                </span>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{selectedNotification.created_at}</span>
+                </div>
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                {selectedNotification.title}
+              </h3>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
+              {selectedNotification.message}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs p-3 rounded-xl bg-slate-50/60 border border-slate-100">
+              <div>
+                <span className="text-[11px] text-slate-400 font-medium block">Status</span>
+                <span className="font-semibold text-slate-700 flex items-center gap-1 mt-0.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  Read
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-400 font-medium block">Category</span>
+                <span className="font-semibold text-slate-700 mt-0.5 block">
+                  {selectedNotification.category}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  handleToggleRead(selectedNotification.id);
+                  setSelectedNotification(prev =>
+                    prev ? { ...prev, is_read: !prev.is_read } : null
+                  );
+                }}
+                className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition w-full sm:w-auto text-center cursor-pointer"
+              >
+                {selectedNotification.is_read ? 'Mark as Unread' : 'Mark as Read'}
+              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSelectedNotification(null)}
+                >
+                  Close
+                </Button>
+
+                {selectedNotification.action_tab && onNavigateTab && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      const target = selectedNotification.action_tab;
+                      setSelectedNotification(null);
+                      onNavigateTab(target);
+                    }}
+                    icon={ChevronRight}
+                    className="bg-[#006B56] hover:bg-[#005544]"
+                  >
+                    {selectedNotification.action_label || 'View Details'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

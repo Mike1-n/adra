@@ -4,13 +4,17 @@ import {
   ArrowRight,
   FileText,
   Gift,
-  Bell,
-  MessageSquare,
   Calendar,
-  Megaphone,
   Package,
   Truck,
-  HandHeart
+  HandHeart,
+  QrCode,
+  ShieldCheck,
+  PhoneCall,
+  Info,
+  Clock,
+  CheckCircle2,
+  MapPin
 } from 'lucide-react';
 
 export function BeneficiaryMobileDashboard({
@@ -24,175 +28,144 @@ export function BeneficiaryMobileDashboard({
 }) {
   const currentReq = requests[0] || null;
   const currentDist = distributions[0] || null;
-  const latestNotif = notifications[0] || null;
 
-  // Extract initials for clean profile avatar
-  const initials = beneficiary?.full_name
-    ? beneficiary.full_name
-        .trim()
-        .split(/\s+/)
-        .map(n => n[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase()
-    : 'ID';
+  const firstName = beneficiary?.full_name ? beneficiary.full_name.trim().split(' ')[0] : 'Beneficiary';
 
   return (
-    <div className="space-y-3.5 p-4 pb-12 bg-[#F4F7F5] text-slate-900 font-sans">
-      {/* 1. CLEAN CONSOLIDATED BENEFICIARY PROFILE (COMPACT) */}
-      <div className="bg-white rounded-2xl p-3 border border-slate-200/70 shadow-2xs">
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Avatar circle with initials */}
-          <div className="w-10 h-10 rounded-xl bg-[#006B56] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-2xs">
-            {initials}
+    <div className="w-full max-w-2xl mx-auto space-y-4 pb-12 font-sans text-slate-900 antialiased">
+      
+      {/* 1. COMPACT TOP GREETING & PRIMARY ACTION */}
+      <div className="flex items-start justify-between gap-2.5 sm:gap-3 pt-1 pb-1">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold mb-0.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse shrink-0" />
+            <span className="truncate">{beneficiary?.verification_status || 'Verified Active'}</span>
           </div>
-
-          <div className="min-w-0">
-            <span className="text-[10px] font-semibold text-slate-400 block leading-tight">
-              Welcome back,
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+            Hi, {firstName}
+          </h1>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+            <span className="font-mono font-bold text-slate-700 bg-slate-100/90 border border-slate-200/70 px-1.5 py-0.5 rounded text-[11px] shrink-0">
+              {beneficiary?.beneficiary_code || 'ADRA-SS-000104'}
             </span>
-            <h2 className="text-sm font-black text-slate-900 tracking-tight truncate leading-tight mt-0.5">
-              {beneficiary?.full_name || 'Beneficiary'}
-            </h2>
-            <div className="flex items-center gap-1 mt-0.5">
-              <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                {beneficiary?.beneficiary_code || 'ADRA-SS-PENDING'}
+            {beneficiary?.location && (
+              <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs text-slate-600 font-medium">
+                <MapPin className="w-3 h-3 text-[#006B56] shrink-0" />
+                <span className="break-words leading-tight">{beneficiary.location}</span>
               </span>
-            </div>
+            )}
           </div>
         </div>
+
+        {/* Primary Action Button */}
+        <button
+          type="button"
+          onClick={onRequestAssistance}
+          className="px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl bg-[#006B56] hover:bg-[#005443] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 shrink-0 mt-0.5"
+        >
+          <HandHeart className="w-4 h-4 text-emerald-200 shrink-0" />
+          <span>Request Aid</span>
+        </button>
       </div>
 
-      {/* 2. QUICK ACTIONS GRID (4 CLEAN TILES) */}
-      <div className="space-y-2 pt-1">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-            Quick Actions
-          </h3>
-          <button
-            type="button"
-            onClick={() => onNavigateTab('my_requests')}
-            className="text-xs font-bold text-[#006B56] hover:underline flex items-center cursor-pointer"
-          >
-            <span>View All</span>
-            <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-4 gap-2.5">
-          {/* My Requests */}
-          <button
-            type="button"
-            onClick={() => onNavigateTab('my_requests')}
-            className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-2xs hover:shadow-sm group"
-          >
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-black flex items-center justify-center mb-1.5 shadow-2xs group-hover:scale-105 transition relative">
-              <FileText className="w-6 h-6 stroke-[2.5] text-black" />
-              {requests.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 bg-black text-white text-[9px] font-black rounded-full shadow-2xs">
-                  {requests.length}
-                </span>
-              )}
-            </div>
-            <span className="text-[11px] font-extrabold text-black leading-tight">
-              My Requests
-            </span>
-          </button>
-
-          {/* Aid History */}
-          <button
-            type="button"
-            onClick={() => onNavigateTab('history')}
-            className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-2xs hover:shadow-sm group"
-          >
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-black flex items-center justify-center mb-1.5 shadow-2xs group-hover:scale-105 transition">
-              <Gift className="w-6 h-6 stroke-[2.5] text-black" />
-            </div>
-            <span className="text-[11px] font-extrabold text-black leading-tight">
-              Aid History
-            </span>
-          </button>
-
-          {/* Notifications */}
-          <button
-            type="button"
-            onClick={() => onNavigateTab('notifications')}
-            className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-2xs hover:shadow-sm group"
-          >
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-black flex items-center justify-center mb-1.5 shadow-2xs group-hover:scale-105 transition relative">
-              <Bell className="w-6 h-6 stroke-[2.5] text-black" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 bg-[#E53E3E] text-white text-[9px] font-black rounded-full shadow-2xs">
-                  {unreadCount}
-                </span>
-              )}
-            </div>
-            <span className="text-[11px] font-extrabold text-black leading-tight">
-              Notifications
-            </span>
-          </button>
-
-          {/* Feedback & Complaints */}
-          <button
-            type="button"
-            onClick={() => onNavigateTab('feedback')}
-            className="bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 flex flex-col items-center justify-center text-center cursor-pointer transition shadow-2xs hover:shadow-sm group"
-          >
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-black flex items-center justify-center mb-1.5 shadow-2xs group-hover:scale-105 transition">
-              <MessageSquare className="w-6 h-6 stroke-[2.5] text-black" />
-            </div>
-            <span className="text-[11px] font-extrabold text-black leading-tight">
-              Feedback
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* 3. PRIMARY ACTION: REQUEST ASSISTANCE */}
-      <button
-        type="button"
-        onClick={onRequestAssistance}
-        className="w-full py-3.5 px-5 rounded-2xl bg-[#006B56] hover:bg-[#005745] text-white font-extrabold text-sm flex items-center justify-between shadow-sm cursor-pointer transition active:scale-[0.99]"
-      >
-        <div className="flex items-center gap-2.5">
-          <HandHeart className="w-5 h-5 text-white shrink-0" />
-          <span className="tracking-wide">Request Assistance</span>
-        </div>
-        <ArrowRight className="w-5 h-5 text-white shrink-0" />
-      </button>
-
-      {/* 4. DYNAMIC: MY CURRENT REQUEST (ONLY REAL DATA) */}
-      <div className="space-y-1.5 pt-1">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5 text-[#006B56]" />
-            My Current Request
+      {/* 2. COMPACT 4-ICON QUICK SERVICE BAR (CLEAN & MINIMAL) */}
+      <div className="grid grid-cols-4 gap-2 py-1">
+        {/* Requests */}
+        <button
+          type="button"
+          onClick={() => onNavigateTab('my_requests')}
+          className="p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-emerald-300 transition flex flex-col items-center justify-center text-center cursor-pointer shadow-2xs group"
+        >
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#006B56] flex items-center justify-center mb-1 relative group-hover:scale-105 transition">
+            <FileText className="w-5 h-5 stroke-[2]" />
+            {requests.length > 0 && (
+              <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-[9px] font-black bg-[#006B56] text-white">
+                {requests.length}
+              </span>
+            )}
+          </div>
+          <span className="text-[11px] font-bold text-slate-800 truncate w-full">
+            Requests
           </span>
-          {requests.length > 0 && (
+        </button>
+
+        {/* Distributions */}
+        <button
+          type="button"
+          onClick={() => onNavigateTab('distributions')}
+          className="p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-teal-300 transition flex flex-col items-center justify-center text-center cursor-pointer shadow-2xs group"
+        >
+          <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center mb-1 relative group-hover:scale-105 transition">
+            <Truck className="w-5 h-5 stroke-[2]" />
+            {distributions.length > 0 && (
+              <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-[9px] font-black bg-teal-700 text-white">
+                {distributions.length}
+              </span>
+            )}
+          </div>
+          <span className="text-[11px] font-bold text-slate-800 truncate w-full">
+            Schedules
+          </span>
+        </button>
+
+        {/* Digital ID */}
+        <button
+          type="button"
+          onClick={() => onNavigateTab('id_card')}
+          className="p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-blue-300 transition flex flex-col items-center justify-center text-center cursor-pointer shadow-2xs group"
+        >
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center mb-1 group-hover:scale-105 transition">
+            <QrCode className="w-5 h-5 stroke-[2]" />
+          </div>
+          <span className="text-[11px] font-bold text-slate-800 truncate w-full">
+            Digital ID
+          </span>
+        </button>
+
+        {/* Aid History */}
+        <button
+          type="button"
+          onClick={() => onNavigateTab('history')}
+          className="p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-amber-300 transition flex flex-col items-center justify-center text-center cursor-pointer shadow-2xs group"
+        >
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center mb-1 group-hover:scale-105 transition">
+            <Gift className="w-5 h-5 stroke-[2]" />
+          </div>
+          <span className="text-[11px] font-bold text-slate-800 truncate w-full">
+            History
+          </span>
+        </button>
+      </div>
+
+      {/* 3. CONSOLIDATED ACTIVE STATUS CARD (ONE SINGLE COMPACT CARD INSTEAD OF MANY) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-3.5">
+        
+        {/* Active Request Row */}
+        <div>
+          <div className="flex items-center justify-between text-xs mb-2">
+            <span className="font-bold text-slate-800 flex items-center gap-1.5">
+              <Package className="w-4 h-4 text-[#006B56]" />
+              <span>Current Assistance Request</span>
+            </span>
             <button
               type="button"
               onClick={() => onNavigateTab('my_requests')}
-              className="text-[11px] font-bold text-[#006B56] hover:underline cursor-pointer"
+              className="text-[#006B56] font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
             >
-              View All ({requests.length})
+              <span>View</span>
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
-          )}
-        </div>
+          </div>
 
-        {currentReq ? (
-          <div
-            onClick={() => onNavigateTab('my_requests')}
-            className="bg-white rounded-2xl p-3.5 shadow-2xs border border-slate-100 flex items-center justify-between cursor-pointer hover:border-emerald-200 transition"
-          >
-            <div className="w-11 h-11 rounded-xl bg-[#EAF5F0] text-[#006B56] flex items-center justify-center shrink-0">
-              <Package className="w-5 h-5" />
-            </div>
-
-            <div className="flex-1 px-3 min-w-0">
-              <div className="flex items-center gap-2">
-                <h4 className="text-xs font-extrabold text-slate-900 truncate">
-                  {currentReq.category ? `${currentReq.category} Assistance` : 'Assistance Request'}
-                </h4>
+          {currentReq ? (
+            <div
+              onClick={() => onNavigateTab('my_requests')}
+              className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/40 border border-slate-100 transition cursor-pointer space-y-2"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-xs text-slate-900 truncate">
+                  {currentReq.category ? `${currentReq.category} Assistance` : 'Assistance Case'}
+                </span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
                   currentReq.status === 'Approved'
                     ? 'bg-emerald-100 text-emerald-800'
@@ -205,121 +178,123 @@ export function BeneficiaryMobileDashboard({
                   {currentReq.status_label || currentReq.status || 'Under Review'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5 font-mono">
-                {currentReq.request_code}
-              </p>
-              {currentReq.created_at && (
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  Submitted: {new Date(currentReq.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </p>
-              )}
+
+              {/* Progress bar */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500">
+                  <span className="font-mono">{currentReq.request_code}</span>
+                  <span className="text-[#006B56] font-bold">
+                    {currentReq.status === 'Fulfilled'
+                      ? '100% Completed'
+                      : currentReq.status === 'Approved'
+                      ? '75% Approved'
+                      : '35% Under Assessment'}
+                  </span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                  <div
+                    className="h-full bg-[#006B56] rounded-full transition-all duration-300"
+                    style={{
+                      width: currentReq.status === 'Fulfilled' ? '100%' : currentReq.status === 'Approved' ? '75%' : '35%'
+                    }}
+                  />
+                </div>
+              </div>
             </div>
-
-            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl p-4 border border-slate-200/70 text-center space-y-1.5 shadow-2xs">
-            <p className="text-xs font-bold text-slate-700">No active assistance requests</p>
-            <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-              Need food rations, clean water, or agricultural support?
-            </p>
-            <button
-              type="button"
-              onClick={onRequestAssistance}
-              className="text-xs font-extrabold text-[#006B56] hover:underline pt-0.5 inline-flex items-center gap-1 cursor-pointer"
-            >
-              <span>Submit a Request</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* 5. DYNAMIC: UPCOMING DISTRIBUTION (ONLY REAL DATA) */}
-      <div className="space-y-1.5 pt-1">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-[#006B56]" />
-            Upcoming Distribution
-          </span>
-          {distributions.length > 0 && (
-            <button
-              type="button"
-              onClick={() => onNavigateTab('distributions')}
-              className="text-[11px] font-bold text-[#006B56] hover:underline cursor-pointer"
-            >
-              Schedules ({distributions.length})
-            </button>
+          ) : (
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center text-xs text-slate-500">
+              No active assistance request.{' '}
+              <button
+                type="button"
+                onClick={onRequestAssistance}
+                className="text-[#006B56] font-bold hover:underline cursor-pointer"
+              >
+                Submit one now
+              </button>
+            </div>
           )}
         </div>
 
-        {currentDist ? (
-          <div
-            onClick={() => onNavigateTab('distributions')}
-            className="bg-white rounded-2xl p-3.5 shadow-2xs border border-slate-100 flex items-center justify-between cursor-pointer hover:border-emerald-200 transition"
-          >
-            <div className="w-11 h-11 rounded-xl bg-[#EAF5F0] text-[#006B56] flex items-center justify-center shrink-0">
-              <Truck className="w-5 h-5" />
-            </div>
+        {/* Divider */}
+        <div className="border-t border-slate-100" />
 
-            <div className="flex-1 px-3 min-w-0">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-extrabold text-slate-900 truncate">
-                  {currentDist.title || currentDist.aid_type || 'Aid Distribution'}
-                </h4>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold shrink-0 ml-2">
+        {/* Upcoming Distribution Row */}
+        <div>
+          <div className="flex items-center justify-between text-xs mb-2">
+            <span className="font-bold text-slate-800 flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-teal-700" />
+              <span>Next Distribution</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('distributions')}
+              className="text-teal-700 font-bold hover:underline flex items-center gap-0.5 cursor-pointer"
+            >
+              <span>Schedules</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {currentDist ? (
+            <div
+              onClick={() => onNavigateTab('distributions')}
+              className="p-3 rounded-xl bg-slate-50 hover:bg-teal-50/40 border border-slate-100 transition cursor-pointer flex items-center justify-between gap-3"
+            >
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-xs font-bold text-slate-900 truncate">
+                  {currentDist.title || currentDist.aid_type || 'Relief Dispatch'}
+                </p>
+                <p className="text-[11px] text-slate-500 truncate">
+                  📍 {currentDist.centre_name || 'Designated Community Center'}
+                </p>
+              </div>
+
+              <div className="text-right shrink-0">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 inline-block mb-0.5">
                   {currentDist.status || 'Upcoming'}
                 </span>
-              </div>
-              <div className="flex items-center gap-2 text-[11px] text-slate-600 mt-1 font-medium">
-                <span>📅 {currentDist.date || 'Scheduled'}</span>
-                {currentDist.time_window && <span>🕒 {currentDist.time_window}</span>}
-              </div>
-              {currentDist.centre_name && (
-                <p className="text-[11px] text-slate-500 mt-0.5 truncate">
-                  📍 {currentDist.centre_name}
+                <p className="text-[10px] text-slate-500 font-medium">
+                  {currentDist.date || 'Scheduled'}
                 </p>
-              )}
+              </div>
             </div>
+          ) : (
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center text-xs text-slate-500">
+              No distributions currently scheduled in your area.
+            </div>
+          )}
+        </div>
 
-            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl p-3.5 border border-slate-200/70 text-xs text-slate-500 shadow-2xs">
-            No distributions currently scheduled in your area.
-          </div>
-        )}
       </div>
 
-      {/* 6. DYNAMIC: LATEST NOTIFICATION (ONLY IF NOTIFICATIONS EXIST) */}
-      {latestNotif && (
-        <div
-          onClick={() => onNavigateTab('notifications')}
-          className="bg-white rounded-2xl p-3.5 shadow-2xs border border-slate-100 flex items-center justify-between cursor-pointer hover:border-emerald-200 transition"
-        >
-          <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#006B56] flex items-center justify-center shrink-0 mr-2.5">
-            <Megaphone className="w-4 h-4" />
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-slate-900 truncate">
-                {latestNotif.title || 'Latest Notification'}
-              </h4>
-              {latestNotif.created_at && (
-                <span className="text-[10px] text-slate-400 shrink-0 ml-2">
-                  {latestNotif.created_at}
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">
-              {latestNotif.message}
-            </p>
-          </div>
-
-          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+      {/* 4. DISCREET MINIMAL FOOTER: FREE AID & HELPLINE (NO GIANT CARDS) */}
+      <div className="pt-2 px-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 border-t border-slate-100">
+        <div className="flex items-center gap-1.5 text-slate-600">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <span>ADRA Aid is 100% Free. Never pay for aid.</span>
         </div>
-      )}
+
+        <div className="flex items-center gap-3 font-semibold text-xs">
+          <a
+            href="tel:0800720112"
+            className="text-[#006B56] hover:underline flex items-center gap-1"
+          >
+            <PhoneCall className="w-3 h-3" />
+            <span>0800-720-112</span>
+          </a>
+          <span className="text-slate-300">•</span>
+          <button
+            type="button"
+            onClick={() => onNavigateTab('about')}
+            className="text-slate-600 hover:text-slate-900 cursor-pointer"
+          >
+            About ADRA
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 }
+
+export default BeneficiaryMobileDashboard;
