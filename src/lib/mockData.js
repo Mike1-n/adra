@@ -1387,11 +1387,16 @@ export const initialBeneficiaryComplaints = [
     id: 'cmp-1',
     ticket_code: 'CMP-2025-001',
     beneficiary_id: 'b7',
+    sender_name: 'Mary Nyambura',
+    sender_role: 'Beneficiary',
+    sender_location: 'Lodwar Central, Turkana',
     beneficiary_name: 'Mary Nyambura',
     category: 'Distribution Logistics',
     severity: 'Medium',
+    priority: 'Normal',
     recipient_role: 'Compliance Officer',
     recipient_name: 'David Ochieng',
+    recipient_department: 'Safeguarding & Compliance Desk',
     is_anonymous: false,
     subject: 'Long waiting hours at Lodwar depot checkpoint',
     description: 'During the July 18 distribution, elderly and mothers with infants queued for over 4 hours under the sun before registration desks opened.',
@@ -1399,7 +1404,255 @@ export const initialBeneficiaryComplaints = [
     created_at: '2025-07-19T10:00:00Z',
     resolution_notes: 'Shaded waiting canopy and priority queue line for vulnerable mothers established for all future distributions.',
     resolved_by: 'David Ochieng (Compliance Officer)',
-    resolved_at: '2025-07-24T16:00:00Z'
+    resolved_at: '2025-07-24T16:00:00Z',
+    responses: [
+      {
+        sender: 'Mary Nyambura',
+        role: 'Beneficiary',
+        message: 'Elderly women and nursing mothers had to wait over 4 hours in the direct sun.',
+        timestamp: '2025-07-19T10:00:00Z'
+      },
+      {
+        sender: 'David Ochieng',
+        role: 'Compliance Officer',
+        message: 'Thank you Mary for reporting this immediately. We conducted a depot visit with the Turkana zonal team.',
+        timestamp: '2025-07-20T14:30:00Z'
+      },
+      {
+        sender: 'David Ochieng',
+        role: 'Compliance Officer',
+        message: 'A 40-metre shaded canopy has been installed, and elderly/nursing queues will now be processed at Counter 1 on priority.',
+        timestamp: '2025-07-24T16:00:00Z'
+      }
+    ]
+  },
+  {
+    id: 'cmp-2',
+    ticket_code: 'CMP-2025-002',
+    beneficiary_id: 'b8',
+    sender_name: 'Deng James Lual',
+    sender_role: 'Beneficiary',
+    sender_location: 'Juba Central, Zone 3',
+    beneficiary_name: 'Deng James Lual',
+    category: 'Token & QR Verification',
+    severity: 'High',
+    priority: 'High',
+    recipient_role: 'Field Worker',
+    recipient_name: 'Rose Poni',
+    recipient_department: 'Zonal Household Enumeration Team',
+    is_anonymous: false,
+    subject: 'QR card scanning error at mobile food distribution point',
+    description: 'The field scanning device showed an unverified token status for my household card during the Tuesday maize distribution, even though my registration was approved last week.',
+    status: 'In Progress',
+    created_at: '2025-08-04T08:30:00Z',
+    resolution_notes: 'Manual validation authorized; scanner offline key cache synchronized.',
+    resolved_by: null,
+    resolved_at: null,
+    responses: [
+      {
+        sender: 'Deng James Lual',
+        role: 'Beneficiary',
+        message: 'My QR relief credential was rejected by the scanner at Counter 3 despite being verified by SMS.',
+        timestamp: '2025-08-04T08:30:00Z'
+      },
+      {
+        sender: 'Rose Poni',
+        role: 'Field Worker',
+        message: 'Hello Deng, I have checked your registration. The scanner in Zone 3 had a delayed sync. I have manually verified your household token on the roster.',
+        timestamp: '2025-08-04T11:15:00Z'
+      }
+    ]
+  },
+  {
+    id: 'cmp-3',
+    ticket_code: 'CMP-2025-003',
+    beneficiary_id: 'b12',
+    sender_name: 'Fatima Hassan',
+    sender_role: 'Beneficiary',
+    sender_location: 'Malakal Payam, Upper Nile',
+    beneficiary_name: 'Fatima Hassan',
+    category: 'Relief Item Quality',
+    severity: 'Medium',
+    priority: 'Normal',
+    recipient_role: 'Supervisor',
+    recipient_name: 'Mary Akech',
+    recipient_department: 'Zonal Field Operations',
+    is_anonymous: false,
+    subject: 'Damaged cap seal on cooking oil container during Malakal dispatch',
+    description: 'One of the 5L vegetable oil containers collected at the Malakal depot on August 12 was cracked at the base cap with noticeable spillage.',
+    status: 'Resolved',
+    created_at: '2025-08-12T13:40:00Z',
+    resolution_notes: 'Replacement 5L oil container dispatched via zonal distribution depot. Lot batch inspection conducted on remaining pallet.',
+    resolved_by: 'Mary Akech (Zonal Supervisor)',
+    resolved_at: '2025-08-14T09:20:00Z',
+    responses: [
+      {
+        sender: 'Fatima Hassan',
+        role: 'Beneficiary',
+        message: 'The cap seal was broken on one 5L oil jug when unpacking at home.',
+        timestamp: '2025-08-12T13:40:00Z'
+      },
+      {
+        sender: 'Mary Akech',
+        role: 'Supervisor',
+        message: 'Apologies for this Fatima. Please bring the container to the depot desk tomorrow morning for an immediate sealed replacement.',
+        timestamp: '2025-08-12T15:10:00Z'
+      },
+      {
+        sender: 'Mary Akech',
+        role: 'Supervisor',
+        message: 'Replacement issued and verified. Batch #MK-881 checked for transit compression issues.',
+        timestamp: '2025-08-14T09:20:00Z'
+      }
+    ]
+  },
+  {
+    id: 'cmp-4',
+    ticket_code: 'CMP-2025-004',
+    beneficiary_id: 'fw-042',
+    sender_name: 'Rose Poni Lado',
+    sender_role: 'Field Worker',
+    sender_location: 'Juba Central, South Sudan',
+    beneficiary_name: 'Rose Poni Lado',
+    category: 'Field Resource Depletion',
+    severity: 'Urgent',
+    priority: 'Urgent',
+    recipient_role: 'Program Manager',
+    recipient_name: 'Grace Ochieng',
+    recipient_department: 'Humanitarian Programme Management',
+    is_anonymous: false,
+    subject: 'Emergency cereal stock depletion during morning distribution session',
+    description: 'Morning beneficiary turnout in Zone 2 exceeded the estimated register by 38 households due to recent displaced arrivals. Requesting additional 50 bags of CSB+ cereal buffer.',
+    status: 'Under Review',
+    created_at: '2025-08-18T10:15:00Z',
+    resolution_notes: 'Supplementary dispatch authorized from regional central warehouse.',
+    resolved_by: null,
+    resolved_at: null,
+    responses: [
+      {
+        sender: 'Rose Poni Lado',
+        role: 'Field Worker',
+        message: 'Turnout exceeded roster by 38 families. Buffer stock exhausted at 10:00 AM.',
+        timestamp: '2025-08-18T10:15:00Z'
+      },
+      {
+        sender: 'Grace Ochieng',
+        role: 'Program Manager',
+        message: 'Logistics dispatched a 60-bag supplementary lorry from Gumbo depot. Expected arrival by 1:00 PM.',
+        timestamp: '2025-08-18T10:45:00Z'
+      }
+    ]
+  },
+  {
+    id: 'cmp-5',
+    ticket_code: 'CMP-2025-005',
+    beneficiary_id: 'anon-09',
+    sender_name: 'Confidential Community Reporter',
+    sender_role: 'Community Member',
+    sender_location: 'Wau Township Gate',
+    beneficiary_name: 'Anonymous Community Member',
+    category: 'Safeguarding / Protection (PSEA)',
+    severity: 'Urgent',
+    priority: 'Urgent',
+    recipient_role: 'Compliance Officer',
+    recipient_name: 'David Ochieng',
+    recipient_department: 'Independent Safeguarding & Integrity Desk',
+    is_anonymous: true,
+    subject: 'Inappropriate demand for facilitation fee at community checkpoint',
+    description: 'A local gate attendant near the secondary registration post asked three elderly women for 500 SSP cash to allow access to the token line.',
+    status: 'Under Review',
+    created_at: '2025-08-22T14:05:00Z',
+    resolution_notes: 'Independent safeguarding investigator assigned; checkpoint attendant suspended.',
+    resolved_by: null,
+    resolved_at: null,
+    responses: [
+      {
+        sender: 'Anonymous Reporter',
+        role: 'Community Member',
+        message: 'Gate attendant at Wau checkpoint demanding money for token access.',
+        timestamp: '2025-08-22T14:05:00Z'
+      },
+      {
+        sender: 'David Ochieng',
+        role: 'Compliance Officer',
+        message: 'Report received with utmost confidentiality. Attendant removed from perimeter duties immediately. Safeguarding field audit initiated.',
+        timestamp: '2025-08-22T15:30:00Z'
+      }
+    ]
+  },
+  {
+    id: 'cmp-6',
+    ticket_code: 'CMP-2025-006',
+    beneficiary_id: 'sup-nile',
+    sender_name: 'Tariq Al-Mansoor',
+    sender_role: 'Supplier',
+    sender_location: 'Nile Valley Logistics Hub, Juba',
+    beneficiary_name: 'Tariq Al-Mansoor (Supplier)',
+    category: 'Procurement & Invoicing',
+    severity: 'Medium',
+    priority: 'Normal',
+    recipient_role: 'Finance Officer',
+    recipient_name: 'Alex Morgan',
+    recipient_department: 'Finance & Procurement Division',
+    is_anonymous: false,
+    subject: 'Electronic GRN sign-off confirmation for PO-2025-081 fuel delivery',
+    description: 'Delivered 4,000 litres of diesel to Wau pumping station on Sept 22. Inquiring regarding verified Good Received Note upload for invoice processing.',
+    status: 'Resolved',
+    created_at: '2025-09-23T09:10:00Z',
+    resolution_notes: 'GRN confirmed and uploaded to purchase order tracking ledger. Payment milestone authorized for disbursement.',
+    resolved_by: 'Alex Morgan (Finance Desk)',
+    resolved_at: '2025-09-24T14:00:00Z',
+    responses: [
+      {
+        sender: 'Tariq Al-Mansoor',
+        role: 'Supplier',
+        message: 'Diesel fuel delivery at Wau pumping station complete. Requesting signed GRN upload.',
+        timestamp: '2025-09-23T09:10:00Z'
+      },
+      {
+        sender: 'Alex Morgan',
+        role: 'Finance Officer',
+        message: 'Signed electronic GRN verified from Wau field engineer. Invoice cleared for payment cycle #3.',
+        timestamp: '2025-09-24T14:00:00Z'
+      }
+    ]
+  },
+  {
+    id: 'cmp-7',
+    ticket_code: 'CMP-2025-007',
+    beneficiary_id: 'supv-02',
+    sender_name: 'Mary Akech',
+    sender_role: 'Supervisor',
+    sender_location: 'Bubisa Zonal Sector',
+    beneficiary_name: 'Mary Akech (Supervisor)',
+    category: 'Access & Security',
+    severity: 'High',
+    priority: 'High',
+    recipient_role: 'Program Manager',
+    recipient_name: 'Grace Ochieng',
+    recipient_department: 'Humanitarian Programme Management',
+    is_anonymous: false,
+    subject: 'Seasonal road flooding affecting distribution access to Bubisa',
+    description: 'Heavy rainfall has made the secondary dirt bridge impassable for standard 10-tonne trucks. Requesting authorization to utilize 4x4 light trailers for the next 7 days.',
+    status: 'In Progress',
+    created_at: '2025-09-27T11:20:00Z',
+    resolution_notes: 'Emergency 4x4 transport charter approved under emergency contingency grant.',
+    resolved_by: null,
+    resolved_at: null,
+    responses: [
+      {
+        sender: 'Mary Akech',
+        role: 'Supervisor',
+        message: 'Heavy rain rendered the river crossing impassable for heavy trucks. Need light trailer authorization.',
+        timestamp: '2025-09-27T11:20:00Z'
+      },
+      {
+        sender: 'Grace Ochieng',
+        role: 'Program Manager',
+        message: 'Contingency transport budget approved. Local 4x4 fleet engaged to ensure no dispatch interruption.',
+        timestamp: '2025-09-27T12:45:00Z'
+      }
+    ]
   }
 ];
 

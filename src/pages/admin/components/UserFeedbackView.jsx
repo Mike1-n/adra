@@ -200,14 +200,6 @@ export function UserFeedbackView() {
 
         <div className="flex flex-wrap items-center gap-2.5">
           <Button
-            variant="primary"
-            onClick={() => setIsSubmitModalOpen(true)}
-            icon={Plus}
-            className="text-xs"
-          >
-            Submit Feedback
-          </Button>
-          <Button
             variant="secondary"
             onClick={handleExportCSV}
             icon={FileSpreadsheet}
@@ -370,7 +362,7 @@ export function UserFeedbackView() {
                     <td colSpan={8} className="py-12 text-center text-slate-500">
                       <MessageSquareText className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                       <p className="font-semibold text-xs">No feedback matches your filter criteria</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Try resetting filters or click 'Submit Feedback' to log a review.</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Try resetting search keywords or selecting different filter criteria.</p>
                     </td>
                   </tr>
                 ) : (

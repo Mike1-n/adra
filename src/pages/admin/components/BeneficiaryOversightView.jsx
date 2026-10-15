@@ -20,7 +20,9 @@ import {
   IdCard,
   Phone,
   Mail,
-  Home
+  Home,
+  Edit2,
+  Power
 } from 'lucide-react';
 import { Card, CardHeader } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
@@ -41,6 +43,21 @@ export function BeneficiaryOversightView() {
   const [reviewNotes, setReviewNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const toast = useToast();
+
+  // Edit Beneficiary State
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingBen, setEditingBen] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    full_name: '',
+    email: '',
+    national_id: '',
+    phone_number: '',
+    location: '',
+    vulnerability_category: 'Extremely Poor Household',
+    gender: 'Female',
+    age: '',
+    verification_status: 'Verified Active'
+  });
 
   const loadBeneficiaries = async () => {
     try {
@@ -109,10 +126,113 @@ export function BeneficiaryOversightView() {
   };
 
   const getStatus = (b) => {
-    const raw = b.verification_status || b.status || 'Verified Active';
-    if (raw === 'Under Verification' || raw === 'Pending' || raw === 'pending') return 'Pending Verification';
-    if (raw === 'Active' && !b.verification_status) return 'Verified Active';
-    return raw;
+    const raw = (b.verification_status || b.status || '').trim();
+    if (raw === 'Deactivated' || b.status === 'Deactivated' || b.verification_status === 'Deactivated') {
+      return 'Deactivated';
+    }
+    if (raw === 'Under Verification' || raw === 'Pending' || raw === 'pending' || raw === 'Pending Verification') {
+      return 'Pending Verification';
+    }
+    if (raw === 'Flagged') return 'Flagged';
+    if (raw === 'Rejected') return 'Rejected';
+    if (raw === 'Active' || raw === 'Verified Active' || raw === 'Verified') return 'Verified Active';
+    return raw || 'Verified Active';
+  };
+
+  const handleOpenEdit = (ben) => {
+    setEditingBen(ben);
+    setEditFormData({
+      full_name: ben.full_name || '',
+      email: ben.email || (ben.beneficiary_code ? `${ben.beneficiary_code.toLowerCase()}@adra.community` : ''),
+      national_id: ben.national_id || ben.id_number || '',
+      phone_number: ben.phone_number || ben.phone || '',
+      location: ben.location || '',
+      vulnerability_category: ben.vulnerability_category || 'Extremely Poor Household',
+      gender: ben.gender || 'Female',
+      age: ben.age || '',
+      verification_status: getStatus(ben)
+    });
+    setIsEditOpen(true);
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editingBen) return;
+    try {
+      setActionLoading(true);
+      const isDeact = editFormData.verification_status === 'Deactivated';
+      const updates = {
+        full_name: editFormData.full_name.trim(),
+        email: editFormData.email.trim() || null,
+        national_id: editFormData.national_id.trim(),
+        id_number: editFormData.national_id.trim(),
+        phone_number: editFormData.phone_number.trim(),
+        phone: editFormData.phone_number.trim(),
+        location: editFormData.location.trim(),
+        vulnerability_category: editFormData.vulnerability_category,
+        gender: editFormData.gender,
+        age: editFormData.age ? Number(editFormData.age) : null,
+        verification_status: editFormData.verification_status,
+        status: editFormData.verification_status,
+        is_active: !isDeact
+      };
+
+      // Optimistic update
+      setBeneficiaries((prev) =>
+        prev.map((item) =>
+          item.id === editingBen.id || item.beneficiary_code === editingBen.beneficiary_code
+            ? { ...item, ...updates }
+            : item
+        )
+      );
+
+      await db.updateBeneficiary(editingBen.id || editingBen.beneficiary_code, updates);
+      toast.success(`Beneficiary ${updates.full_name} (${editingBen.beneficiary_code}) updated successfully.`);
+      setIsEditOpen(false);
+      await loadBeneficiaries();
+    } catch (err) {
+      toast.error(`Update failed: ${err.message}`);
+      await loadBeneficiaries();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleToggleDeactivate = async (ben) => {
+    const isCurrentlyDeactivated = getStatus(ben) === 'Deactivated';
+    const newStatus = isCurrentlyDeactivated ? 'Verified Active' : 'Deactivated';
+    const targetId = ben.id || ben.beneficiary_code;
+
+    // Optimistically update table UI immediately
+    setBeneficiaries((prev) =>
+      prev.map((item) =>
+        item.id === ben.id || item.beneficiary_code === ben.beneficiary_code
+          ? {
+              ...item,
+              verification_status: newStatus,
+              status: newStatus,
+              is_active: !isCurrentlyDeactivated
+            }
+          : item
+      )
+    );
+
+    try {
+      setActionLoading(true);
+      if (isCurrentlyDeactivated) {
+        await db.reactivateBeneficiary(targetId);
+        toast.success(`Beneficiary ${ben.full_name} (${ben.beneficiary_code}) reactivated.`);
+      } else {
+        await db.deactivateBeneficiary(targetId, 'Deactivated from administrative beneficiary table');
+        toast.info(`Beneficiary ${ben.full_name} (${ben.beneficiary_code}) deactivated.`);
+      }
+      await loadBeneficiaries();
+    } catch (err) {
+      toast.error(`Action failed: ${err.message}`);
+      await loadBeneficiaries();
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const filtered = beneficiaries.filter((b) => {
@@ -137,6 +257,7 @@ export function BeneficiaryOversightView() {
     }
     else if (statusFilter === 'Flagged') matchesStat = status === 'Flagged';
     else if (statusFilter === 'Rejected') matchesStat = status === 'Rejected';
+    else if (statusFilter === 'Deactivated') matchesStat = status === 'Deactivated';
 
     return matchesSearch && matchesCat && matchesStat;
   });
@@ -151,6 +272,7 @@ export function BeneficiaryOversightView() {
     return s === 'Pending Verification' || s === 'Under Verification' || s === 'Pending';
   }).length;
   const flaggedCount = beneficiaries.filter(b => getStatus(b) === 'Flagged').length;
+  const deactivatedCount = beneficiaries.filter(b => getStatus(b) === 'Deactivated').length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -240,6 +362,7 @@ export function BeneficiaryOversightView() {
           <option value="Pending Verification">Pending Verification ({pendingCount})</option>
           <option value="Verified">Verified & Active ({verifiedCount})</option>
           <option value="Flagged">Flagged / Discrepancies ({flaggedCount})</option>
+          <option value="Deactivated">Deactivated ({deactivatedCount})</option>
         </select>
 
         <select
@@ -330,14 +453,18 @@ export function BeneficiaryOversightView() {
                       <td className="py-3.5 px-4">
                         <span
                           className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-                            status === 'Verified' || status === 'Verified Active'
+                            status === 'Deactivated'
+                              ? 'bg-slate-100 text-slate-600 border-slate-300'
+                              : status === 'Verified' || status === 'Verified Active'
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
                               : status === 'Flagged'
                               ? 'bg-rose-50 text-rose-800 border-rose-300'
                               : 'bg-amber-50 text-amber-800 border-amber-300'
                           }`}
                         >
-                          {status === 'Verified' || status === 'Verified Active' ? (
+                          {status === 'Deactivated' ? (
+                            <Power className="w-3 h-3 text-slate-500" />
+                          ) : status === 'Verified' || status === 'Verified Active' ? (
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                           ) : status === 'Flagged' ? (
                             <AlertTriangle className="w-3 h-3 text-rose-600" />
@@ -349,36 +476,50 @@ export function BeneficiaryOversightView() {
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {isPending ? (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                className="text-xs px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700"
-                                onClick={() => handleVerify(b)}
-                                title="Quick Verify Household"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Verify</span>
-                              </Button>
-                              <button
-                                onClick={() => handleOpenDetail(b)}
-                                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition border border-slate-200"
-                                title="Review Compliance Dossier"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          ) : (
+                          {isPending && (
                             <button
-                              onClick={() => handleOpenDetail(b)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-700 hover:bg-slate-100 transition border border-slate-200 flex items-center gap-1 text-[11px] font-medium"
-                              title="Inspect Compliance Profile"
+                              type="button"
+                              onClick={() => handleVerify(b)}
+                              title="Quick Verify Household"
+                              className="px-2 py-1 rounded-md text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition border border-emerald-300 flex items-center gap-1 cursor-pointer"
                             >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Inspect</span>
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              <span>Verify</span>
                             </button>
                           )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(b)}
+                            title="Edit Beneficiary Details"
+                            className="px-2 py-1 rounded-md text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 transition border border-slate-300 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit2 className="w-3 h-3 text-blue-600" />
+                            <span>Edit</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDeactivate(b)}
+                            title={status === 'Deactivated' ? 'Reactivate Beneficiary' : 'Deactivate Beneficiary'}
+                            className={`px-2 py-1 rounded-md text-xs font-medium transition border flex items-center gap-1 cursor-pointer ${
+                              status === 'Deactivated'
+                                ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-300'
+                                : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-300'
+                            }`}
+                          >
+                            <Power className="w-3 h-3" />
+                            <span>{status === 'Deactivated' ? 'Activate' : 'Deactivate'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDetail(b)}
+                            className="p-1.5 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition border border-slate-200 cursor-pointer"
+                            title="Inspect Compliance Dossier"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -437,7 +578,9 @@ export function BeneficiaryOversightView() {
               <div className="flex items-center justify-between pt-1">
                 <span className="text-slate-500">Current Verification State:</span>
                 <span className={`font-bold px-2 py-0.5 rounded text-xs ${
-                  getStatus(selectedBen) === 'Verified' || getStatus(selectedBen) === 'Verified Active'
+                  getStatus(selectedBen) === 'Deactivated'
+                    ? 'text-slate-700 bg-slate-100 border border-slate-300'
+                    : getStatus(selectedBen) === 'Verified' || getStatus(selectedBen) === 'Verified Active'
                     ? 'text-emerald-700 bg-emerald-50 border border-emerald-300'
                     : getStatus(selectedBen) === 'Flagged'
                     ? 'text-rose-700 bg-rose-50 border border-rose-300'
@@ -463,7 +606,16 @@ export function BeneficiaryOversightView() {
             </div>
 
             {/* Information Banner */}
-            {getStatus(selectedBen) === 'Pending Verification' ? (
+            {getStatus(selectedBen) === 'Deactivated' ? (
+              <div className="p-3.5 rounded-xl bg-slate-100 border border-slate-300 text-[11px] text-slate-800">
+                <p className="font-bold flex items-center gap-1.5 mb-1 text-slate-900">
+                  <Power className="w-4 h-4 text-slate-600" /> Beneficiary Record Currently Deactivated
+                </p>
+                <p className="text-slate-600 leading-relaxed">
+                  This household record is deactivated. Aid distributions, voucher redemptions, and self-service portal sessions remain suspended until reactivated.
+                </p>
+              </div>
+            ) : getStatus(selectedBen) === 'Pending Verification' ? (
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-[11px] text-amber-900">
                 <p className="font-bold flex items-center gap-1.5 mb-1 text-amber-900">
                   <Clock className="w-4 h-4 text-amber-700" /> Pending Administrator Authorization
@@ -495,7 +647,34 @@ export function BeneficiaryOversightView() {
               </Button>
 
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                {getStatus(selectedBen) === 'Pending Verification' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleOpenEdit(selectedBen);
+                    setIsDetailOpen(false);
+                  }}
+                  className="text-blue-700 border-blue-200 hover:bg-blue-50"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Edit Beneficiary</span>
+                </Button>
+
+                {getStatus(selectedBen) === 'Deactivated' ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => {
+                      handleToggleDeactivate(selectedBen);
+                      setIsDetailOpen(false);
+                    }}
+                    disabled={actionLoading}
+                  >
+                    <Power className="w-3.5 h-3.5" />
+                    <span>Reactivate Beneficiary</span>
+                  </Button>
+                ) : getStatus(selectedBen) === 'Pending Verification' ? (
                   <>
                     <Button
                       variant="danger"
@@ -527,23 +706,182 @@ export function BeneficiaryOversightView() {
                       <span>Verify & Activate</span>
                     </Button>
                   </>
-                )}
-
-                {getStatus(selectedBen) !== 'Pending Verification' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-amber-300 text-amber-800 hover:bg-amber-50"
-                    onClick={() => handleFlag(selectedBen)}
-                    disabled={actionLoading}
-                  >
-                    <Flag className="w-3.5 h-3.5" />
-                    <span>Re-flag for Audit</span>
-                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-300 text-amber-800 hover:bg-amber-50"
+                      onClick={() => handleFlag(selectedBen)}
+                      disabled={actionLoading}
+                    >
+                      <Flag className="w-3.5 h-3.5" />
+                      <span>Re-flag for Audit</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-rose-300 text-rose-700 hover:bg-rose-50"
+                      onClick={() => {
+                        handleToggleDeactivate(selectedBen);
+                        setIsDetailOpen(false);
+                      }}
+                      disabled={actionLoading}
+                    >
+                      <Power className="w-3.5 h-3.5" />
+                      <span>Deactivate</span>
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Edit Beneficiary Modal */}
+      {editingBen && (
+        <Modal
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          title={`Edit Beneficiary: ${editingBen.beneficiary_code}`}
+        >
+          <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-slate-500 block">Household Identity Code</span>
+                <span className="font-mono font-bold text-emerald-700 text-sm">{editingBen.beneficiary_code}</span>
+              </div>
+              <span className="text-[11px] text-slate-500 font-medium">Reg: {formatDate(editingBen.registration_date)}</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">Full Legal Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={editFormData.full_name}
+                  onChange={(e) => setEditFormData({ ...editFormData, full_name: e.target.value })}
+                  className="adra-input text-xs sm:text-sm"
+                  placeholder="e.g. Mary Ajak Deng"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">Email Address</label>
+                <input
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                  className="adra-input text-xs sm:text-sm"
+                  placeholder="e.g. mary.deng@adra.community"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">National ID / Civil Registry ID</label>
+                <input
+                  type="text"
+                  value={editFormData.national_id}
+                  onChange={(e) => setEditFormData({ ...editFormData, national_id: e.target.value })}
+                  className="adra-input text-xs sm:text-sm font-mono"
+                  placeholder="e.g. SSD-NAT-489201"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">Contact Phone Number</label>
+                <input
+                  type="text"
+                  value={editFormData.phone_number}
+                  onChange={(e) => setEditFormData({ ...editFormData, phone_number: e.target.value })}
+                  className="adra-input text-xs sm:text-sm"
+                  placeholder="e.g. +211-920-112233"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">Settlement / Location *</label>
+                <input
+                  type="text"
+                  required
+                  value={editFormData.location}
+                  onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
+                  className="adra-input text-xs sm:text-sm"
+                  placeholder="e.g. Juba Central, Zone 3"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">Gender</label>
+                <select
+                  value={editFormData.gender}
+                  onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
+                  className="adra-select text-xs sm:text-sm"
+                >
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">Age</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={editFormData.age}
+                  onChange={(e) => setEditFormData({ ...editFormData, age: e.target.value })}
+                  className="adra-input text-xs sm:text-sm"
+                  placeholder="e.g. 34"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">Vulnerability Category</label>
+                <select
+                  value={editFormData.vulnerability_category}
+                  onChange={(e) => setEditFormData({ ...editFormData, vulnerability_category: e.target.value })}
+                  className="adra-select text-xs sm:text-sm"
+                >
+                  <option value="Female-headed Household">Female-headed Household</option>
+                  <option value="Persons with Disability">Persons with Disability</option>
+                  <option value="Internally Displaced Person (IDP)">Internally Displaced Person (IDP)</option>
+                  <option value="Elderly">Elderly</option>
+                  <option value="Youth at Risk">Youth at Risk</option>
+                  <option value="Extremely Poor Household">Extremely Poor Household</option>
+                  <option value="Child-Headed Household">Child-Headed Household</option>
+                  <option value="Pregnant / Lactating Mother">Pregnant / Lactating Mother</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">Verification / Account Status</label>
+                <select
+                  value={editFormData.verification_status}
+                  onChange={(e) => setEditFormData({ ...editFormData, verification_status: e.target.value })}
+                  className="adra-select text-xs sm:text-sm font-semibold"
+                >
+                  <option value="Verified Active">Verified & Active</option>
+                  <option value="Pending Verification">Pending Verification</option>
+                  <option value="Flagged">Flagged for Review</option>
+                  <option value="Deactivated">Deactivated</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
+              <Button type="button" variant="secondary" onClick={() => setIsEditOpen(false)} disabled={actionLoading}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" disabled={actionLoading} className="bg-emerald-600 hover:bg-emerald-700">
+                {actionLoading ? 'Saving Changes...' : 'Save Changes'}
+              </Button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>
