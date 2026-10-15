@@ -12,7 +12,6 @@ import {
   UserCheck,
   History,
   Settings,
-  LogOut,
   ShieldCheck,
   ChevronRight,
   ChevronLeft,
@@ -40,7 +39,7 @@ export function Sidebar({
   isCollapsed: externalIsCollapsed,
   onToggleCollapse,
 }) {
-  const { currentUser, logout, quickSwitchRole } = useAuth();
+  const { currentUser, quickSwitchRole } = useAuth();
   const [internalIsCollapsed, setInternalIsCollapsed] = useState(false);
   const [pendingApprovals, setPendingApprovals] = useState(0);
 
@@ -323,13 +322,6 @@ export function Sidebar({
                 {currentUser?.role || 'Guest'}
               </p>
             </div>
-            <button
-              onClick={logout}
-              title="Logout"
-              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
@@ -339,13 +331,6 @@ export function Sidebar({
               title={`${currentUser?.full_name || 'User'} (${currentUser?.role || 'Guest'})`}
               className="w-9 h-9 rounded-full object-cover border border-emerald-500/40 cursor-pointer"
             />
-            <button
-              onClick={logout}
-              title="Logout"
-              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
         )}
       </div>

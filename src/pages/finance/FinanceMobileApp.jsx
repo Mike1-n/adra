@@ -813,26 +813,9 @@ export function FinanceMobileApp({
                   <span>Officer Profile</span>
                 </button>
               </div>
-
-              {/* Drawer Footer / Sign Out */}
-              <div className="pt-2 border-t border-slate-100 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    if (onLogout) onLogout();
-                    else logout();
-                  }}
-                  className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign Out</span>
-                </button>
-              </div>
-
-              </div>
             </div>
           </div>
+        </div>
         )}
 
         {/* 4. MODALS */}

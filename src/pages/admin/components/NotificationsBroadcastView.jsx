@@ -9,7 +9,9 @@ import {
   CheckCircle2,
   ShieldAlert,
   Send,
-  Sliders
+  Sliders,
+  Eye,
+  Clock
 } from 'lucide-react';
 import { Card, CardHeader } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
@@ -22,6 +24,7 @@ import { useToast } from '../../../context/ToastContext';
 export function NotificationsBroadcastView() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBroadcast, setSelectedBroadcast] = useState(null);
   const toast = useToast();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -159,7 +162,7 @@ export function NotificationsBroadcastView() {
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                   <tr>
-                    <th className="py-3.5 px-4">Type</th>
+                    <th className="py-3.5 px-4 hidden sm:table-cell">Type</th>
                     <th className="py-3.5 px-4">Broadcast Title & Message</th>
                     <th className="py-3.5 px-4 hidden sm:table-cell">Target Audience</th>
                     <th className="py-3.5 px-4 hidden md:table-cell">Published</th>
@@ -171,12 +174,17 @@ export function NotificationsBroadcastView() {
                     const badge = getNotificationTypeBadge(n.type);
                     return (
                       <tr key={n.id} className="hover:bg-slate-50/80 transition group">
-                        <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                        <td className="py-3.5 px-4 align-top whitespace-nowrap hidden sm:table-cell">
                           <span className={`text-[10px] px-2 py-0.5 rounded-full border inline-block ${badge.className}`}>
                             {badge.label}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 align-top">
+                          <div className="sm:hidden mb-1">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full border inline-block ${badge.className}`}>
+                              {badge.label}
+                            </span>
+                          </div>
                           <p className="font-bold text-slate-900 text-xs sm:text-sm">{n.title}</p>
                           <p className="text-xs text-slate-600 line-clamp-2 mt-0.5 leading-relaxed font-normal">
                             {n.message}
@@ -194,13 +202,25 @@ export function NotificationsBroadcastView() {
                           {formatDate(n.created_at)}
                         </td>
                         <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
-                          <button
-                            onClick={() => handleDelete(n.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                            title="Delete Broadcast"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedBroadcast(n)}
+                              className="px-2.5 py-1 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition text-xs font-semibold inline-flex items-center gap-1 border border-slate-200 cursor-pointer shadow-2xs"
+                              title="View Broadcast Details"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-slate-400" />
+                              <span>View More</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(n.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Delete Broadcast"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -352,6 +372,49 @@ export function NotificationsBroadcastView() {
           </div>
         </form>
       </Modal>
+
+      {/* Broadcast Details Modal */}
+      {selectedBroadcast && (
+        <Modal
+          isOpen={!!selectedBroadcast}
+          onClose={() => setSelectedBroadcast(null)}
+          title={
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] px-2.5 py-0.5 rounded-full border inline-block ${getNotificationTypeBadge(selectedBroadcast.type).className}`}>
+                {getNotificationTypeBadge(selectedBroadcast.type).label}
+              </span>
+              <span className="text-sm font-bold text-slate-900">Broadcast Details</span>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
+              <span className="text-slate-500 font-medium">
+                Audience: <span className="font-bold text-slate-800">{Array.isArray(selectedBroadcast.target_roles) ? selectedBroadcast.target_roles.join(', ') : (selectedBroadcast.target_roles || 'All')}</span>
+              </span>
+              <span className="text-slate-400 flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                {formatDate(selectedBroadcast.created_at)}
+              </span>
+            </div>
+
+            <div>
+              <h4 className="text-base font-bold text-slate-900 leading-snug">{selectedBroadcast.title}</h4>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 leading-relaxed font-normal whitespace-pre-line text-xs sm:text-sm">
+              {selectedBroadcast.message}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <Button variant="secondary" size="sm" onClick={() => setSelectedBroadcast(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
+

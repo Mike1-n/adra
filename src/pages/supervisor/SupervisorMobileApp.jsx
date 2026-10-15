@@ -1325,15 +1325,6 @@ export function SupervisorMobileApp({
                   </span>
                 </div>
               </div>
-
-              <button
-                type="button"
-                onClick={onLogout || logout}
-                className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition"
-                title="Log Out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
             </div>
 
             {/* Quick Role Switcher */}

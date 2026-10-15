@@ -3893,34 +3893,87 @@ export const db = {
     return updated.find(c => c.id === id);
   },
 
-  // --- BENEFICIARY FEEDBACK & COMPLAINTS ---
-  async getComplaints(beneficiaryId = null) {
+  async getComplaints(queryId = null, role = null) {
     if (isSupabaseConfigured) {
-      let query = supabase.from('beneficiary_complaints').select('*').order('created_at', { ascending: false });
-      if (beneficiaryId) query = query.eq('beneficiary_id', beneficiaryId);
-      const { data, error } = await query;
-      if (!error && data) return data;
+      try {
+        let query = supabase.from('beneficiary_complaints').select('*').order('created_at', { ascending: false });
+        if (queryId && queryId !== 'all') {
+          query = query.or(`beneficiary_id.eq.${queryId},recipient_id.eq.${queryId},recipient_name.ilike.%${queryId}%,recipient_role.ilike.%${queryId}%`);
+        }
+        const { data, error } = await query;
+        if (!error && data) return data;
+      } catch (e) {
+        // Fallback to local storage
+      }
     }
-    const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints);
-    if (beneficiaryId) {
-      return all.filter(c => c.beneficiary_id === beneficiaryId || c.beneficiary_name?.toLowerCase() === beneficiaryId?.toLowerCase());
+    const rawAll = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
+    let hasChanges = false;
+    const all = rawAll.map(c => {
+      if (c.resolution_notes && (
+        c.resolution_notes === 'Under review by ADRA Independent Safeguarding Unit.' ||
+        c.resolution_notes.includes('Independent Safeguarding Unit') ||
+        c.status === 'Submitted'
+      )) {
+        hasChanges = true;
+        return { ...c, resolution_notes: null };
+      }
+      return c;
+    });
+    if (hasChanges) {
+      saveLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, all);
     }
-    return all;
+    if (!queryId || queryId === 'all') {
+      return all;
+    }
+    const q = String(queryId).toLowerCase().trim();
+    const r = role ? String(role).toLowerCase().trim() : '';
+
+    return all.filter(c => {
+      const benIdMatch = c.beneficiary_id && String(c.beneficiary_id).toLowerCase() === q;
+      const benNameMatch = c.beneficiary_name && c.beneficiary_name.toLowerCase().includes(q);
+      const recIdMatch = c.recipient_id && String(c.recipient_id).toLowerCase() === q;
+      const recNameMatch = c.recipient_name && (c.recipient_name.toLowerCase().includes(q) || q.includes(c.recipient_name.toLowerCase()));
+      const recRoleMatch = c.recipient_role && (c.recipient_role.toLowerCase().includes(q) || q.includes(c.recipient_role.toLowerCase()));
+      const roleFilterMatch = r && c.recipient_role && c.recipient_role.toLowerCase().includes(r);
+      return benIdMatch || benNameMatch || recIdMatch || recNameMatch || recRoleMatch || roleFilterMatch;
+    });
+  },
+
+  async updateComplaint(id, updates) {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('beneficiary_complaints').update(updates).eq('id', id).select().single();
+        if (!error && data) return data;
+      } catch (err) {
+        // Fallback to local storage
+      }
+    }
+    const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
+    const updated = all.map(c => (c.id === id || c.ticket_code === id) ? { ...c, ...updates, updated_at: new Date().toISOString() } : c);
+    saveLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, updated);
+    return updated.find(c => c.id === id || c.ticket_code === id);
   },
 
   async createComplaint(complaintData) {
-    const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints);
+    const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
     const codeNum = String(all.length + 1).padStart(3, '0');
     const newComplaint = {
       id: isSupabaseConfigured ? undefined : `cmp_${Date.now()}`,
       ticket_code: `CMP-2025-${codeNum}`,
       status: 'Submitted',
       created_at: new Date().toISOString(),
+      resolution_notes: complaintData.resolution_notes || null,
+      resolved_by: complaintData.resolved_by || null,
+      resolved_at: complaintData.resolved_at || null,
       ...complaintData
     };
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('beneficiary_complaints').insert([newComplaint]).select().single();
-      if (!error && data) return data;
+      try {
+        const { data, error } = await supabase.from('beneficiary_complaints').insert([newComplaint]).select().single();
+        if (!error && data) return data;
+      } catch (err) {
+        // Fallback to local storage
+      }
     }
     const updated = [newComplaint, ...all];
     saveLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, updated);
@@ -3928,7 +3981,7 @@ export const db = {
       action: 'CREATE',
       module: 'Beneficiary Complaints',
       record_id: newComplaint.ticket_code,
-      details: `Grievance ticket created: ${newComplaint.category} - ${newComplaint.subject}`
+      details: `Grievance ticket created: ${newComplaint.category || 'Feedback'} - ${newComplaint.subject || newComplaint.description?.substring(0, 30)}`
     });
     return newComplaint;
   },
@@ -6726,56 +6779,8 @@ export const db = {
     return true;
   },
 
-  // --- BENEFICIARY PORTAL: COMPLAINTS & FEEDBACK ---
-  async getComplaints(beneficiaryId = null) {
-    if (isSupabaseConfigured) {
-      try {
-        let query = supabase.from('complaints').select('*').order('created_at', { ascending: false });
-        if (beneficiaryId) query = query.eq('beneficiary_id', beneficiaryId);
-        const { data, error } = await query;
-        if (!error && data) return data;
-      } catch (err) {
-        // Fallback to local storage
-      }
-    }
-    const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
-    if (beneficiaryId) {
-      return all.filter(c => 
-        c.beneficiary_id === beneficiaryId || 
-        c.beneficiary_id === 'b7' || 
-        c.beneficiary_name?.toLowerCase() === String(beneficiaryId)?.toLowerCase()
-      );
-    }
-    return all;
-  },
+  // --- BENEFICIARY PORTAL: COMPLAINTS & FEEDBACK (Handled by main complaints methods) ---
 
-  async createComplaint(complaintData) {
-    const current = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
-    const nextNum = (current.length + 1).toString().padStart(3, '0');
-    const newComplaint = {
-      id: `cmp_${Date.now()}`,
-      ticket_code: `CMP-2025-${nextNum}`,
-      status: 'Submitted',
-      created_at: new Date().toISOString(),
-      resolution_notes: 'Under review by ADRA Independent Safeguarding Unit.',
-      resolved_by: null,
-      resolved_at: null,
-      ...complaintData
-    };
-    if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('complaints').insert([newComplaint]).select().single();
-      if (!error && data) return data;
-    }
-    const updated = [newComplaint, ...current];
-    saveLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, updated);
-    await this.logAudit({
-      action: 'CREATE',
-      module: 'Beneficiary Feedback',
-      record_id: newComplaint.ticket_code,
-      details: `Complaint/Feedback submitted (Confidential Ticket: ${newComplaint.ticket_code})`
-    });
-    return newComplaint;
-  },
 
   // --- BENEFICIARY PORTAL: DISTRIBUTIONS ---
   async getDistributions() {

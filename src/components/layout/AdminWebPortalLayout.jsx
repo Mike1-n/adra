@@ -378,18 +378,9 @@ export function AdminWebPortalLayout({
                 <Smartphone className="w-4 h-4 text-emerald-600" /> Open Field Application
               </button>
 
-              <button
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  logout();
-                }}
-                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-xs font-bold text-rose-700 transition cursor-pointer"
-              >
-                <LogOut className="w-4 h-4 text-rose-600" /> Log Out
-              </button>
+              </div>
             </div>
           </div>
-        </div>
       )}
 
       {/* Global Search Modal */}

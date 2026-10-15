@@ -140,45 +140,6 @@ export function AssistanceRequestView({
     return reqStatus === filter || reqLabel === filter;
   });
 
-  const filterTabs = [
-    { id: 'ALL', label: 'All', count: requests.length },
-    {
-      id: 'Pending',
-      label: 'Pending Review',
-      count: requests.filter(r => {
-        const s = (r.status || '').toLowerCase();
-        const l = (r.status_label || '').toLowerCase();
-        return s === 'submitted' || s.includes('pending') || s.includes('assessment') || s.includes('queue') || l.includes('pending') || l.includes('submitted');
-      }).length
-    },
-    {
-      id: 'Under Review',
-      label: 'Under Review',
-      count: requests.filter(r => {
-        const s = (r.status || '').toLowerCase();
-        const l = (r.status_label || '').toLowerCase();
-        return (s.includes('review') || l.includes('review')) && !s.includes('pending') && s !== 'submitted' && !l.includes('pending');
-      }).length
-    },
-    {
-      id: 'Approved',
-      label: 'Approved',
-      count: requests.filter(r => {
-        const s = (r.status || '').toLowerCase();
-        const l = (r.status_label || '').toLowerCase();
-        return s.includes('approv') || s.includes('assign') || l.includes('approv');
-      }).length
-    },
-    {
-      id: 'Fulfilled',
-      label: 'Disbursed',
-      count: requests.filter(r => {
-        const s = (r.status || '').toLowerCase();
-        const l = (r.status_label || '').toLowerCase();
-        return s.includes('fulfill') || s.includes('disburs') || s.includes('complet');
-      }).length
-    }
-  ];
 
   const getStageNum = (req) => {
     if (req.status_stage) return req.status_stage;
@@ -253,32 +214,6 @@ export function AssistanceRequestView({
         </button>
       </div>
 
-      {/* Horizontal Filter Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-        {filterTabs.map(tab => {
-          const isSelected = (statusFilter === 'ALL' && tab.id === 'ALL') ||
-            (statusFilter !== 'ALL' && String(statusFilter).toLowerCase() === String(tab.id).toLowerCase());
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                isSelected
-                  ? 'bg-[#006B56] text-white shadow-xs'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
-              }`}>
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
 
       {/* Requests List */}
       {loading ? (

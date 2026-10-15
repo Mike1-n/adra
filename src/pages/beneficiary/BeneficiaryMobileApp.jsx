@@ -20,7 +20,8 @@ import {
   Sparkles,
   ExternalLink,
   QrCode,
-  CheckCircle2
+  CheckCircle2,
+  Info
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/supabase';
@@ -41,6 +42,7 @@ import { FeedbackComplaintsView } from './components/FeedbackComplaintsView';
 import { BeneficiaryProfileView } from './components/BeneficiaryProfileView';
 import { HelpSupportContactView } from './components/HelpSupportContactView';
 import { SecuritySettingsView } from './components/SecuritySettingsView';
+import { AboutUsView } from './components/AboutUsView';
 import { AdraLogo } from '../../components/common/AdraLogo';
 
 export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
@@ -58,7 +60,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [requestStatusFilter, setRequestStatusFilter] = useState('ALL');
-  const [isRequestsMenuOpen, setIsRequestsMenuOpen] = useState(false);
+  const [isRequestsMenuOpen, setIsRequestsMenuOpen] = useState(true);
 
   // Load beneficiary profile, requests, and schedules
   const loadData = async () => {
@@ -168,6 +170,8 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
         return 'My Household Profile';
       case 'support':
         return 'Help & Contact ADRA';
+      case 'about':
+        return 'About ADRA';
       case 'security':
         return 'Security & PIN';
       default:
@@ -203,6 +207,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
       items: [
         { id: 'notifications', name: 'Notifications', icon: Bell, badge: unreadCount > 0 ? unreadCount : null, alert: true },
         { id: 'feedback', name: 'Feedback & Complaints', icon: MessageSquare },
+        { id: 'about', name: 'About Us', icon: Info },
         { id: 'support', name: 'Contact Us', icon: Headphones },
       ]
     }
@@ -233,19 +238,17 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
   };
 
   const requestSubFilters = [
-    { id: 'ALL', label: 'All Requests', count: requestFilterCounts.ALL },
+    { id: 'ALL', label: 'All', count: requestFilterCounts.ALL },
     { id: 'Pending', label: 'Pending Review', count: requestFilterCounts.Pending },
     { id: 'Under Review', label: 'Under Review', count: requestFilterCounts['Under Review'] },
     { id: 'Approved', label: 'Approved', count: requestFilterCounts.Approved },
-    { id: 'Fulfilled', label: 'Fulfilled / Disbursed', count: requestFilterCounts.Fulfilled },
+    { id: 'Fulfilled', label: 'Disbursed', count: requestFilterCounts.Fulfilled },
   ];
 
   const handleNavClick = (tabId) => {
     if (tabId === 'my_requests') {
-      setIsRequestsMenuOpen(prev => !prev);
+      setIsRequestsMenuOpen(true);
       setRequestStatusFilter('ALL');
-    } else {
-      setIsRequestsMenuOpen(false);
     }
     setCurrentView(tabId);
     setIsSidebarOpen(false);
@@ -424,14 +427,6 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
               {beneficiary?.beneficiary_code || 'ADRA-SS-PENDING'}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={logout}
-            title="Logout"
-            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
         </div>
 
       </div>
@@ -462,7 +457,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
       )}
 
       {/* 3. MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#F4F7F5]">
+      <div className={`flex-1 flex flex-col min-w-0 h-full overflow-hidden ${currentView === 'about' ? 'bg-white' : 'bg-[#F8FAF9]'}`}>
         {/* TOP BRAND/NAV HEADER (DARK GREEN) */}
         <header className="bg-[#004D3F] px-4 sm:px-6 shrink-0 z-20 shadow-xs pt-safe">
           <div className="h-14 sm:h-16 flex items-center justify-between">
@@ -506,8 +501,8 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
       </header>
 
         {/* SCROLLABLE MAIN CONTENT BODY (NO BOTTOM NAVIGATION) */}
-        <main className={`flex-1 overflow-y-auto ${currentView === 'feedback' ? 'p-0 flex flex-col' : 'p-3 sm:p-6 lg:p-8'}`}>
-          <div className={`${currentView === 'feedback' ? 'w-full flex-1 flex flex-col h-full' : 'max-w-4xl mx-auto w-full space-y-4'}`}>
+        <main className={`flex-1 overflow-y-auto ${currentView === 'feedback' || currentView === 'about' ? 'p-0 flex flex-col bg-white' : 'p-3.5 sm:p-6 lg:p-8 bg-[#F8FAF9]'}`}>
+          <div className={`${currentView === 'feedback' || currentView === 'about' ? 'w-full flex-1 flex flex-col h-full bg-white' : 'max-w-4xl mx-auto w-full space-y-4'}`}>
             {/* AUTH CHOICE SCREEN (IF LOGGED OUT) */}
             {currentView === 'auth_choice' && (
               <div className="max-w-md mx-auto my-8 p-8 text-center bg-white rounded-3xl border border-slate-200 shadow-xl">
@@ -623,19 +618,20 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
 
             {/* AID HISTORY & RECEIPTS */}
             {currentView === 'history' && (
-              <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-                <AidHistoryView beneficiary={beneficiary} />
+              <div className="p-4 sm:p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+                <AidHistoryView
+                  beneficiary={beneficiary}
+                  onNavigateTab={(tab) => setCurrentView(tab)}
+                />
               </div>
             )}
 
             {/* NOTIFICATIONS */}
             {currentView === 'notifications' && (
-              <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-                <NotificationsView
-                  beneficiary={beneficiary}
-                  onNavigateTab={(tab) => setCurrentView(tab)}
-                />
-              </div>
+              <NotificationsView
+                beneficiary={beneficiary}
+                onNavigateTab={(tab) => setCurrentView(tab)}
+              />
             )}
 
             {/* FEEDBACK & COMPLAINTS */}
@@ -656,6 +652,11 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
             {/* HELP & CONTACT */}
             {currentView === 'support' && (
               <HelpSupportContactView beneficiary={beneficiary} />
+            )}
+
+            {/* ABOUT US */}
+            {currentView === 'about' && (
+              <AboutUsView onNavigateTab={(tab) => setCurrentView(tab)} />
             )}
 
             {/* SECURITY & SETTINGS */}
