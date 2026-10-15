@@ -743,13 +743,44 @@ export const db = {
   },
 
   async updateBeneficiary(id, updates) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+    const ALLOWED_BENEFICIARY_COLS = [
+      'full_name', 'gender', 'date_of_birth', 'age', 'phone_number',
+      'location', 'vulnerability_category', 'registration_date',
+      'project_id', 'national_id', 'verification_status', 'email'
+    ];
+
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('beneficiaries').update(updates).eq('id', id).select().single();
-      if (error) throw error;
-      return data;
+      try {
+        const sanitized = {};
+        for (const [k, v] of Object.entries(updates)) {
+          if (ALLOWED_BENEFICIARY_COLS.includes(k)) {
+            sanitized[k] = v;
+          }
+        }
+        if (updates.status && !sanitized.verification_status) {
+          sanitized.verification_status = updates.status;
+        }
+
+        const query = isUuid
+          ? supabase.from('beneficiaries').update(sanitized).eq('id', id)
+          : supabase.from('beneficiaries').update(sanitized).eq('beneficiary_code', id);
+
+        const { data, error } = await query.select();
+        if (error) {
+          console.warn('Supabase update beneficiary error:', error.message);
+        } else if (data && data.length > 0) {
+          const current = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
+          const updated = current.map(b => (b.id === id || b.beneficiary_code === id) ? { ...b, ...updates, ...sanitized } : b);
+          saveLocalData(STORAGE_KEYS.BENEFICIARIES, updated);
+          return data[0];
+        }
+      } catch (err) {
+        console.warn('Supabase update beneficiary error:', err?.message);
+      }
     }
     const current = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
-    const updated = current.map(b => b.id === id ? { ...b, ...updates } : b);
+    const updated = current.map(b => (b.id === id || b.beneficiary_code === id) ? { ...b, ...updates } : b);
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updated);
     db.logAudit({
       action: 'UPDATE',
@@ -757,8 +788,109 @@ export const db = {
       record_id: updates.beneficiary_code || id,
       details: `Updated beneficiary: ${updates.full_name || id}`
     });
-    return updated.find(b => b.id === id);
+    return updated.find(b => b.id === id || b.beneficiary_code === id);
   },
+
+  async deactivateBeneficiary(id, reason = 'Deactivated by administrator') {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+
+    if (isSupabaseConfigured) {
+      try {
+        const query = isUuid
+          ? supabase.from('beneficiaries').update({ verification_status: 'Deactivated' }).eq('id', id)
+          : supabase.from('beneficiaries').update({ verification_status: 'Deactivated' }).eq('beneficiary_code', id);
+        const { error } = await query;
+        if (error) {
+          console.warn('Supabase deactivate beneficiary error:', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase deactivate beneficiary error:', err?.message);
+      }
+    }
+
+    const current = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
+    const target = current.find(b => b.id === id || b.beneficiary_code === id);
+    const updated = current.map(b => (b.id === id || b.beneficiary_code === id) 
+      ? { ...b, status: 'Deactivated', verification_status: 'Deactivated', is_active: false, deactivation_reason: reason } 
+      : b
+    );
+    saveLocalData(STORAGE_KEYS.BENEFICIARIES, updated);
+
+    // Sync linked user profile if exists
+    const users = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
+    const benId = target?.id || id;
+    const updatedUsers = users.map(u => {
+      const matches = (target?.email && u.email?.toLowerCase() === target.email.toLowerCase()) ||
+                      (target?.phone_number && u.phone === target.phone_number) ||
+                      (benId && (u.beneficiary_id === benId || u.id === benId)) ||
+                      (target?.beneficiary_code && u.beneficiary_code === target.beneficiary_code);
+      if (matches) {
+        return { ...u, status: 'Deactivated', is_active: false, verification_status: 'Deactivated' };
+      }
+      return u;
+    });
+    saveLocalData(STORAGE_KEYS.USERS, updatedUsers);
+
+    await this.logAudit({
+      action: 'DEACTIVATE',
+      module: 'Beneficiaries',
+      record_id: target?.beneficiary_code || id,
+      details: `Administrator deactivated beneficiary: ${target?.full_name || id}. Reason: ${reason}`
+    });
+
+    return { ...target, status: 'Deactivated', verification_status: 'Deactivated', is_active: false };
+  },
+
+  async reactivateBeneficiary(id) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+
+    if (isSupabaseConfigured) {
+      try {
+        const query = isUuid
+          ? supabase.from('beneficiaries').update({ verification_status: 'Verified Active' }).eq('id', id)
+          : supabase.from('beneficiaries').update({ verification_status: 'Verified Active' }).eq('beneficiary_code', id);
+        const { error } = await query;
+        if (error) {
+          console.warn('Supabase reactivate beneficiary error:', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase reactivate beneficiary error:', err?.message);
+      }
+    }
+
+    const current = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
+    const target = current.find(b => b.id === id || b.beneficiary_code === id);
+    const updated = current.map(b => (b.id === id || b.beneficiary_code === id) 
+      ? { ...b, status: 'Verified Active', verification_status: 'Verified Active', is_active: true } 
+      : b
+    );
+    saveLocalData(STORAGE_KEYS.BENEFICIARIES, updated);
+
+    // Sync linked user profile if exists
+    const users = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
+    const benId = target?.id || id;
+    const updatedUsers = users.map(u => {
+      const matches = (target?.email && u.email?.toLowerCase() === target.email.toLowerCase()) ||
+                      (target?.phone_number && u.phone === target.phone_number) ||
+                      (benId && (u.beneficiary_id === benId || u.id === benId)) ||
+                      (target?.beneficiary_code && u.beneficiary_code === target.beneficiary_code);
+      if (matches) {
+        return { ...u, status: 'Active', is_active: true, verification_status: 'Verified Active' };
+      }
+      return u;
+    });
+    saveLocalData(STORAGE_KEYS.USERS, updatedUsers);
+
+    await this.logAudit({
+      action: 'ACTIVATE',
+      module: 'Beneficiaries',
+      record_id: target?.beneficiary_code || id,
+      details: `Administrator reactivated beneficiary: ${target?.full_name || id}`
+    });
+
+    return { ...target, status: 'Verified Active', verification_status: 'Verified Active', is_active: true };
+  },
+
 
   async deleteBeneficiary(id) {
     if (isSupabaseConfigured) {
@@ -3799,6 +3931,32 @@ export const db = {
       details: `Grievance ticket created: ${newComplaint.category} - ${newComplaint.subject}`
     });
     return newComplaint;
+  },
+
+  async updateComplaintStatus(id, updates) {
+    const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints);
+    const updated = all.map(c => (c.id === id || c.ticket_code === id) ? { ...c, ...updates } : c);
+    saveLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, updated);
+    db.logAudit({
+      action: 'UPDATE',
+      module: 'Beneficiary Complaints',
+      record_id: updates.ticket_code || id,
+      details: `Administrative review updated complaint: ${updates.status || 'Updated'}`
+    });
+    return updated.find(c => c.id === id || c.ticket_code === id);
+  },
+
+  async deleteComplaint(id) {
+    const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints);
+    const updated = all.filter(c => c.id !== id && c.ticket_code !== id);
+    saveLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, updated);
+    db.logAudit({
+      action: 'DELETE',
+      module: 'Beneficiary Complaints',
+      record_id: id,
+      details: `Admin deleted complaint ticket: ${id}`
+    });
+    return true;
   },
 
   // --- AID DISTRIBUTIONS ---

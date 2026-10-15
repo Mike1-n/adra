@@ -555,17 +555,6 @@ export function UserRoleManagementView() {
                           >
                             <Power className="w-3 h-3 text-white" />
                           </button>
-
-                          <button
-                            onClick={() => {
-                              setSelectedUser(u);
-                              setIsDeleteOpen(true);
-                            }}
-                            title="Delete User Account"
-                            className="p-1 rounded-md text-white bg-red-600 hover:bg-red-700 active:bg-red-800 transition cursor-pointer shadow-2xs border border-red-700"
-                          >
-                            <Trash2 className="w-3 h-3 text-white" />
-                          </button>
                         </div>
                       </td>
                     </tr>
