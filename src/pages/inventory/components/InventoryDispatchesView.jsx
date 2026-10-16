@@ -86,7 +86,39 @@ export function InventoryDispatchesView({
       };
     });
 
-    return [...pendingList, ...dispatches];
+    // Deduplicate by unique waybill number and request ID so rows never repeat
+    const combined = [...dispatches, ...pendingList];
+    const seenWaybills = new Set();
+    const seenRequestCodes = new Set();
+    const uniqueManifests = [];
+
+    for (const item of combined) {
+      if (!item) continue;
+      const wbKey = (item.waybill_number || '').trim().toLowerCase();
+      const reqKey = String(item.request_code || item.linked_request_id || '').trim().toLowerCase();
+      const idKey = String(item.id || '').trim().toLowerCase();
+
+      // Skip duplicate waybill numbers
+      if (wbKey && seenWaybills.has(wbKey)) {
+        continue;
+      }
+      // Skip duplicate IDs
+      if (idKey && seenWaybills.has(idKey)) {
+        continue;
+      }
+      // If an issued waybill dispatch already exists for this request, skip the duplicate pending stub
+      if (item.is_pending_waybill && reqKey && seenRequestCodes.has(reqKey)) {
+        continue;
+      }
+
+      if (wbKey) seenWaybills.add(wbKey);
+      if (idKey) seenWaybills.add(idKey);
+      if (reqKey) seenRequestCodes.add(reqKey);
+
+      uniqueManifests.push(item);
+    }
+
+    return uniqueManifests;
   }, [dispatches, approvedRequests]);
 
   const filteredDispatches = useMemo(() => {
@@ -329,190 +361,348 @@ export function InventoryDispatchesView({
           <p className="text-xs text-slate-400 mt-1">Click "Issue Waybill" to stage relief items for transport.</p>
         </div>
       ) : viewMode === 'table' ? (
-        /* ULTRA-CLEAN COMPACT TABLE VIEW */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-100/90 text-black font-black border-b border-slate-200 text-[11px] uppercase tracking-wider">
-                  <th className="py-3 px-3 sm:px-4">Waybill #</th>
-                  <th className="py-3 px-3 sm:px-4 hidden md:table-cell">Date</th>
-                  <th className="py-3 px-3 sm:px-4">Destination</th>
-                  <th className="py-3 px-3 sm:px-4 hidden lg:table-cell">Driver</th>
-                  <th className="py-3 px-3 sm:px-4 hidden xl:table-cell">Vehicle</th>
-                  <th className="py-3 px-3 sm:px-4 hidden sm:table-cell">Qty</th>
-                  <th className="py-3 px-2 sm:px-4 text-center">Status</th>
-                  <th className="py-3 px-3 sm:px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredDispatches.map(d => {
-                  const isPending = Boolean(d.is_pending_waybill);
-                  const st = (d.status || '').toLowerCase().trim();
-                  const dst = (d.dispatch_status || '').toLowerCase().trim();
-                  const isDelivered = !isPending && (st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
-                  const isInTransit = !isPending && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit');
+        /* ULTRA-CLEAN COMPACT TABLE VIEW & MOBILE CARDS */
+        <>
+          {/* MOBILE PHONE MODE (< sm): FULL-WIDTH WAYBILL CARDS */}
+          <div className="sm:hidden space-y-3">
+            {filteredDispatches.map(d => {
+              const isPending = Boolean(d.is_pending_waybill);
+              const st = (d.status || '').toLowerCase().trim();
+              const dst = (d.dispatch_status || '').toLowerCase().trim();
+              const isDelivered = !isPending && (st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
+              const isInTransit = !isPending && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit');
+              const totalQty = d.items?.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0) || 0;
+              const unit = d.items?.[0]?.unit || 'Items';
 
-                  const totalQty = d.items?.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0) || 0;
-                  const unit = d.items?.[0]?.unit || 'Items';
+              return (
+                <div
+                  key={d.id}
+                  onClick={() => {
+                    if (isPending) {
+                      onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data);
+                    } else {
+                      onOpenWaybillDetail(d);
+                    }
+                  }}
+                  className={`bg-white rounded-xl border p-3.5 space-y-3 shadow-2xs transition active:scale-[0.99] cursor-pointer ${
+                    isPending ? 'border-orange-300 ring-1 ring-orange-400/30' : 'border-slate-200/90'
+                  }`}
+                >
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono font-black text-sm text-black tracking-tight">
+                          {d.waybill_number}
+                        </span>
+                        {isPending && d.request_code && (
+                          <span className="font-mono text-[10px] text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-bold">
+                            Req: {d.request_code}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
+                        <Calendar className="w-3 h-3 text-slate-400" />
+                        <span>{d.dispatch_date || 'Today'}</span>
+                      </div>
+                    </div>
 
-                  return (
-                    <tr
-                      key={d.id}
-                      onClick={() => {
-                        if (isPending) {
-                          onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data);
-                        } else {
-                          onOpenWaybillDetail(d);
-                        }
-                      }}
-                      className="hover:bg-slate-50/80 transition cursor-pointer"
-                    >
-                      {/* Waybill # */}
-                      <td className="py-3 px-3 sm:px-4 whitespace-nowrap">
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-mono font-black text-xs sm:text-sm text-black tracking-tight">
-                              {d.waybill_number}
-                            </span>
-                            {isPending && d.request_code && (
-                              <span className="font-mono text-[10px] text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-bold">
-                                Req: {d.request_code}
+                    {isPending ? (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black inline-flex items-center gap-1 bg-orange-100 text-orange-950 border border-orange-300 shadow-2xs shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
+                        <span>Pending</span>
+                      </span>
+                    ) : (
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 shrink-0 ${
+                        isDelivered
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : isInTransit
+                          ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                          : 'bg-blue-50 text-blue-900 border border-blue-200'
+                      }`}>
+                        {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />}
+                        {isDelivered && <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />}
+                        <span>{isDelivered ? 'Delivered' : isInTransit ? 'In Transit' : d.status || 'Active'}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Body: Destination, Driver, Qty */}
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-start gap-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
+                      <MapPin className="w-3.5 h-3.5 text-[#006B56] shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                          Destination Hub
+                        </span>
+                        <p className="font-semibold text-slate-800 text-xs leading-snug break-words">
+                          {d.destination || 'Field Relief Hub'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-emerald-50/60 p-2 rounded-lg border border-emerald-100">
+                        <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block flex items-center gap-1">
+                          <Package className="w-3 h-3 text-emerald-600" /> Quantity
+                        </span>
+                        <p className="font-black text-[#006B56] text-xs mt-0.5">
+                          {totalQty > 0 ? `${totalQty.toLocaleString()} ${unit}` : '1 Bundle'}
+                        </p>
+                      </div>
+
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+                          <Truck className="w-3 h-3 text-slate-400" /> Transport
+                        </span>
+                        <p className="font-bold text-slate-800 text-xs truncate mt-0.5">
+                          {d.driver_name || 'Assigned Driver'}
+                        </p>
+                        <p className="font-mono text-[10px] text-slate-500 mt-0.5">
+                          {d.vehicle_reg || 'SSD Logistics'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Collected by Worker Note */}
+                    {((d.status || '').toLowerCase().includes('collect') || d.collected_by) && (
+                      <div className="bg-blue-50/80 p-2.5 rounded-lg border border-blue-200 flex items-center gap-2">
+                        <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <div className="min-w-0 text-xs">
+                          <span className="text-[10px] text-blue-700 font-bold uppercase block">Handed Over To Field Worker</span>
+                          <span className="font-black text-blue-950 truncate block">
+                            {d.collected_by || d.goods_collected_by || d.assigned_field_worker_name || 'Field Officer'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions Footer */}
+                  <div className="pt-1 flex items-center gap-2 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+                    {isPending ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data)}
+                        className="flex-1 py-2 rounded-lg bg-black hover:bg-slate-800 text-white font-black text-xs inline-flex items-center justify-center gap-1.5 transition active:scale-95 shadow-2xs cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Issue Waybill</span>
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onOpenWaybillDetail(d)}
+                          className="flex-1 py-2 rounded-lg bg-[#006B56] hover:bg-[#005242] text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>View Details</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => exportWaybillPDF(d)}
+                          className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer inline-flex items-center justify-center"
+                          title="Download PDF"
+                        >
+                          <Download className="w-4 h-4 text-emerald-700" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* TABLET & DESKTOP (>= sm) */}
+          <div className="hidden sm:block bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-100/90 text-black font-black border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                    <th className="py-3 px-3 sm:px-4">Waybill #</th>
+                    <th className="py-3 px-3 sm:px-4 hidden md:table-cell">Date</th>
+                    <th className="py-3 px-3 sm:px-4">Destination</th>
+                    <th className="py-3 px-3 sm:px-4 hidden lg:table-cell">Driver</th>
+                    <th className="py-3 px-3 sm:px-4 hidden xl:table-cell">Vehicle</th>
+                    <th className="py-3 px-3 sm:px-4 hidden sm:table-cell">Qty</th>
+                    <th className="py-3 px-2 sm:px-4 text-center">Status</th>
+                    <th className="py-3 px-3 sm:px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredDispatches.map(d => {
+                    const isPending = Boolean(d.is_pending_waybill);
+                    const st = (d.status || '').toLowerCase().trim();
+                    const dst = (d.dispatch_status || '').toLowerCase().trim();
+                    const isDelivered = !isPending && (st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
+                    const isInTransit = !isPending && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit');
+
+                    const totalQty = d.items?.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0) || 0;
+                    const unit = d.items?.[0]?.unit || 'Items';
+
+                    return (
+                      <tr
+                        key={d.id}
+                        onClick={() => {
+                          if (isPending) {
+                            onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data);
+                          } else {
+                            onOpenWaybillDetail(d);
+                          }
+                        }}
+                        className="hover:bg-slate-50/80 transition cursor-pointer"
+                      >
+                        {/* Waybill # */}
+                        <td className="py-3 px-3 sm:px-4 whitespace-nowrap">
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono font-black text-xs sm:text-sm text-black tracking-tight">
+                                {d.waybill_number}
                               </span>
+                              {isPending && d.request_code && (
+                                <span className="font-mono text-[10px] text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-bold">
+                                  Req: {d.request_code}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 md:hidden font-medium">
+                              <span>{d.dispatch_date || 'Today'}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Date */}
+                        <td className="py-3 px-3 sm:px-4 text-slate-600 whitespace-nowrap hidden md:table-cell">
+                          {d.dispatch_date || 'N/A'}
+                        </td>
+
+                        {/* Destination */}
+                        <td className="py-3 px-3 sm:px-4 max-w-[170px] sm:max-w-[220px]">
+                          <div className="text-slate-900 font-bold truncate text-xs">
+                            {d.destination || 'Field Centre'}
+                          </div>
+                          {d.beneficiary_name && (
+                            <div className="text-[10px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                              <User className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                              <span className="truncate">{d.beneficiary_name}</span>
+                            </div>
+                          )}
+                          <div className="text-[10px] text-slate-500 truncate lg:hidden mt-0.5">
+                            {isPending ? (
+                              <span className="text-slate-400 italic">Depot staging</span>
+                            ) : d.driver_name ? (
+                              <span className="text-slate-600 font-medium">Driver: {d.driver_name}</span>
+                            ) : null}
+                          </div>
+                        </td>
+
+                        {/* Driver */}
+                        <td className="py-3 px-3 sm:px-4 whitespace-nowrap hidden lg:table-cell">
+                          {isPending ? (
+                            <span className="text-[11px] font-medium text-slate-500 italic bg-slate-100/80 px-2 py-0.5 rounded border border-slate-200">
+                              Awaiting Driver
+                            </span>
+                          ) : (
+                            <span className="text-slate-800 font-medium">{d.driver_name || 'N/A'}</span>
+                          )}
+                        </td>
+
+                        {/* Vehicle */}
+                        <td className="py-3 px-3 sm:px-4 font-mono whitespace-nowrap hidden xl:table-cell">
+                          {isPending ? (
+                            <span className="text-[11px] font-medium text-slate-500 italic">
+                              Depot Staging
+                            </span>
+                          ) : (
+                            <span className="text-slate-600">{d.vehicle_reg || 'N/A'}</span>
+                          )}
+                        </td>
+
+                        {/* Quantity */}
+                        <td className="py-3 px-3 sm:px-4 font-mono font-bold text-[#006B56] whitespace-nowrap hidden sm:table-cell">
+                          {totalQty > 0 ? `${totalQty.toLocaleString()} ${unit}` : '1 Bundle'}
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3 px-2 sm:px-4 text-center whitespace-nowrap">
+                          {isPending ? (
+                            <span className="px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-black inline-flex items-center gap-1 bg-orange-100 text-orange-950 border border-orange-300 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
+                              <span>Pending</span>
+                            </span>
+                          ) : (
+                            <div>
+                              <span className={`px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold inline-flex items-center gap-1 ${
+                                isDelivered
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : isInTransit
+                                  ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                                  : 'bg-blue-50 text-blue-900 border border-blue-200'
+                              }`}>
+                                {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />}
+                                {isDelivered && <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />}
+                                <span>{isDelivered ? 'Delivered' : isInTransit ? 'In Transit' : d.status || 'Active'}</span>
+                              </span>
+
+                              {((d.status || '').toLowerCase().includes('collect') || d.collected_by) && (
+                                <div className="text-[10px] font-bold text-blue-900 mt-1 flex items-center justify-center gap-1">
+                                  <User className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+                                  <span className="truncate max-w-[140px]" title={`Collected by: ${d.collected_by || d.goods_collected_by || d.assigned_field_worker_name}`}>
+                                    {d.collected_by || d.goods_collected_by || d.assigned_field_worker_name || 'Field Officer'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Action */}
+                        <td className="py-3 px-3 sm:px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {isPending ? (
+                              <button
+                                type="button"
+                                onClick={() => onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data)}
+                                className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-black hover:bg-slate-800 text-white font-black text-xs inline-flex items-center gap-1 transition active:scale-95 shadow-2xs cursor-pointer"
+                                title="Issue Official Waybill for this Request"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Issue Waybill</span>
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenWaybillDetail(d)}
+                                  className="px-2.5 py-1 rounded-lg bg-[#006B56] hover:bg-[#005242] text-white font-semibold text-xs inline-flex items-center gap-1 transition cursor-pointer"
+                                  title="View Waybill Details"
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  <span>View</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => exportWaybillPDF(d)}
+                                  className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs inline-flex items-center gap-1 transition cursor-pointer"
+                                  title="Download PDF Waybill Receipt"
+                                >
+                                  <Download className="w-3 h-3 text-emerald-700" />
+                                  <span>PDF</span>
+                                </button>
+                              </>
                             )}
                           </div>
-                          {/* Mobile-only secondary line: Date & Qty since those columns are hidden on phone */}
-                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 md:hidden font-medium">
-                            <span>{d.dispatch_date || 'Today'}</span>
-                            <span className="sm:hidden">•</span>
-                            <span className="font-bold text-[#006B56] sm:hidden">
-                              {totalQty > 0 ? `${totalQty.toLocaleString()} ${unit}` : '1 Bundle'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Date */}
-                      <td className="py-3 px-3 sm:px-4 text-slate-600 whitespace-nowrap hidden md:table-cell">
-                        {d.dispatch_date || 'N/A'}
-                      </td>
-
-                      {/* Destination */}
-                      <td className="py-3 px-3 sm:px-4 max-w-[170px] sm:max-w-[220px]">
-                        <div className="text-slate-900 font-bold truncate text-xs">
-                          {d.destination || 'Field Centre'}
-                        </div>
-                        {d.beneficiary_name && (
-                          <div className="text-[10px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
-                            <User className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                            <span className="truncate">{d.beneficiary_name}</span>
-                          </div>
-                        )}
-                        <div className="text-[10px] text-slate-500 truncate lg:hidden mt-0.5">
-                          {isPending ? (
-                            <span className="text-slate-400 italic">Depot staging</span>
-                          ) : d.driver_name ? (
-                            <span className="text-slate-600 font-medium">Driver: {d.driver_name}</span>
-                          ) : null}
-                        </div>
-                      </td>
-
-                      {/* Driver */}
-                      <td className="py-3 px-3 sm:px-4 whitespace-nowrap hidden lg:table-cell">
-                        {isPending ? (
-                          <span className="text-[11px] font-medium text-slate-500 italic bg-slate-100/80 px-2 py-0.5 rounded border border-slate-200">
-                            Awaiting Driver
-                          </span>
-                        ) : (
-                          <span className="text-slate-800 font-medium">{d.driver_name || 'N/A'}</span>
-                        )}
-                      </td>
-
-                      {/* Vehicle */}
-                      <td className="py-3 px-3 sm:px-4 font-mono whitespace-nowrap hidden xl:table-cell">
-                        {isPending ? (
-                          <span className="text-[11px] font-medium text-slate-500 italic">
-                            Depot Staging
-                          </span>
-                        ) : (
-                          <span className="text-slate-600">{d.vehicle_reg || 'N/A'}</span>
-                        )}
-                      </td>
-
-                      {/* Quantity */}
-                      <td className="py-3 px-3 sm:px-4 font-mono font-bold text-[#006B56] whitespace-nowrap hidden sm:table-cell">
-                        {totalQty > 0 ? `${totalQty.toLocaleString()} ${unit}` : '1 Bundle'}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3 px-2 sm:px-4 text-center whitespace-nowrap">
-                        {isPending ? (
-                          <span className="px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-black inline-flex items-center gap-1 bg-orange-100 text-orange-950 border border-orange-300 shadow-2xs">
-                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
-                            <span className="hidden sm:inline">Pending Aid Waybill</span>
-                            <span className="sm:hidden">Pending</span>
-                          </span>
-                        ) : (
-                          <span className={`px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold inline-flex items-center gap-1 ${
-                            isDelivered
-                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                              : isInTransit
-                              ? 'bg-amber-50 text-amber-900 border border-amber-200'
-                              : 'bg-blue-50 text-blue-900 border border-blue-200'
-                          }`}>
-                            {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />}
-                            {isDelivered && <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />}
-                            <span className="hidden sm:inline">{isDelivered ? 'Delivered' : isInTransit ? 'In Transit' : d.status || 'Active'}</span>
-                            <span className="sm:hidden">{isDelivered ? 'Delivered' : isInTransit ? 'Transit' : d.status || 'Active'}</span>
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Action */}
-                      <td className="py-3 px-3 sm:px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          {isPending ? (
-                            <button
-                              type="button"
-                              onClick={() => onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data)}
-                              className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-black hover:bg-slate-800 text-white font-black text-xs inline-flex items-center gap-1 transition active:scale-95 shadow-2xs cursor-pointer"
-                              title="Issue Official Waybill for this Request"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Issue Waybill</span>
-                              <span className="sm:hidden">Issue</span>
-                            </button>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => onOpenWaybillDetail(d)}
-                                className="px-2.5 py-1 rounded-lg bg-[#006B56] hover:bg-[#005242] text-white font-semibold text-xs inline-flex items-center gap-1 transition cursor-pointer"
-                                title="View Waybill Details"
-                              >
-                                <FileText className="w-3 h-3" />
-                                <span>View</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => exportWaybillPDF(d)}
-                                className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs hidden sm:inline-flex items-center gap-1 transition cursor-pointer"
-                                title="Download PDF Waybill Receipt"
-                              >
-                                <Download className="w-3 h-3 text-emerald-700" />
-                                <span>PDF</span>
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        </>
       ) : (
         /* GRID / CARDS VIEW (CLEAN, SPACIOUS, UNCLUTTERED) */
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">

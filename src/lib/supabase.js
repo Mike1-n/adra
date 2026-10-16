@@ -6412,10 +6412,19 @@ export const db = {
       });
     }
 
-    const clean = combined.filter(d => 
-      !SEEDED_DISP_IDS.includes(d.id) && 
-      !SEEDED_WAYBILLS.includes(d.waybill_number)
-    );
+    const clean = [];
+    const seen = new Set();
+    for (const d of combined) {
+      if (!d) continue;
+      if (SEEDED_DISP_IDS.includes(d.id) || SEEDED_WAYBILLS.includes(d.waybill_number)) {
+        continue;
+      }
+      const key = (d.waybill_number || d.id || '').trim().toLowerCase();
+      if (!key || !seen.has(key)) {
+        if (key) seen.add(key);
+        clean.push(d);
+      }
+    }
 
     saveLocalData(STORAGE_KEYS.DISPATCHES, clean);
     return clean;
@@ -6568,9 +6577,6 @@ export const db = {
 
     saveLocalData(STORAGE_KEYS.INVENTORY, updatedInventory);
     saveLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, newTxList);
-
-    const currentDispatches = await this.getDispatches();
-    saveLocalData(STORAGE_KEYS.DISPATCHES, [newDispatch, ...currentDispatches]);
 
     // If linked to an assistance request, update request status with waybill and qr token
     if (targetReq) {
@@ -6773,29 +6779,34 @@ export const db = {
   },
 
   async confirmGoodsCollection(requestIdOrWaybill, workerName = 'Field Worker', supervisorName = 'Emmanuel Adeyemi (Supervisor)', collectionNotes = '') {
+    const lookupKey = typeof requestIdOrWaybill === 'object' && requestIdOrWaybill !== null
+      ? (requestIdOrWaybill.waybill_number || requestIdOrWaybill.id || requestIdOrWaybill.request_code)
+      : requestIdOrWaybill;
+
     const allDispatches = await this.getDispatches();
     const reqs = await this.getAssistanceRequests();
 
     // Match dispatch
     let targetDispatch = allDispatches.find(d => 
-      d.id === requestIdOrWaybill || 
-      d.waybill_number === requestIdOrWaybill || 
-      d.linked_request_id === requestIdOrWaybill ||
-      d.request_code === requestIdOrWaybill
+      d.id === lookupKey || 
+      d.waybill_number === lookupKey || 
+      d.linked_request_id === lookupKey ||
+      d.request_code === lookupKey ||
+      (typeof lookupKey === 'string' && d.waybill_number && d.waybill_number.toLowerCase() === lookupKey.toLowerCase())
     );
 
     // Match request
     let targetReq = reqs.find(r => 
-      r.id === requestIdOrWaybill || 
-      r.request_code === requestIdOrWaybill || 
+      r.id === lookupKey || 
+      r.request_code === lookupKey || 
       (targetDispatch && (r.id === targetDispatch.linked_request_id || r.request_code === targetDispatch.request_code || r.waybill_number === targetDispatch.waybill_number)) ||
-      (r.waybill_number && r.waybill_number === requestIdOrWaybill)
+      (r.waybill_number && r.waybill_number === lookupKey)
     );
 
     const now = new Date().toISOString();
     const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const supCleanName = supervisorName || 'Emmanuel Adeyemi (Supervisor)';
-    const workerCleanName = workerName || targetReq?.assigned_field_worker_name || targetDispatch?.assigned_field_worker_name || targetDispatch?.collected_by || 'Field Worker';
+    const workerCleanName = workerName || targetReq?.assigned_field_worker_name || targetDispatch?.assigned_field_worker_name || targetDispatch?.collected_by || 'Agnes Dawa';
 
     // Update dispatch record
     if (targetDispatch) {
@@ -6806,8 +6817,11 @@ export const db = {
             status: 'Collected by Field Worker',
             dispatch_status: 'Collected by Field Worker',
             collected_by: workerCleanName,
+            goods_collected_by: workerCleanName,
+            assigned_field_worker_name: workerCleanName,
             collected_at: now,
             handed_over_by: supCleanName,
+            goods_handed_over_by: supCleanName,
             notes: collectionNotes ? `${d.notes ? d.notes + ' | ' : ''}Collected by ${workerCleanName}: ${collectionNotes}` : `${d.notes ? d.notes + ' | ' : ''}Collected by ${workerCleanName}`
           };
         }
@@ -6825,6 +6839,21 @@ export const db = {
           console.warn('Supabase update dispatch collection error:', e);
         }
       }
+    } else if (typeof requestIdOrWaybill === 'object' && requestIdOrWaybill?.waybill_number) {
+      // Dispatch was passed directly as object but not in initial memory
+      const synthesizedDispatch = {
+        ...requestIdOrWaybill,
+        status: 'Collected by Field Worker',
+        dispatch_status: 'Collected by Field Worker',
+        collected_by: workerCleanName,
+        goods_collected_by: workerCleanName,
+        assigned_field_worker_name: workerCleanName,
+        collected_at: now,
+        handed_over_by: supCleanName,
+        goods_handed_over_by: supCleanName,
+        notes: collectionNotes ? `Collected by ${workerCleanName}: ${collectionNotes}` : `Collected by ${workerCleanName}`
+      };
+      saveLocalData(STORAGE_KEYS.DISPATCHES, [synthesizedDispatch, ...allDispatches.filter(d => d.waybill_number !== synthesizedDispatch.waybill_number)]);
     }
 
     // Update assistance request
@@ -6835,7 +6864,10 @@ export const db = {
         status_label: 'Goods Collected - Out for Distribution',
         goods_collected_at: now,
         goods_collected_by: workerCleanName,
+        collected_by: workerCleanName,
+        assigned_field_worker_name: workerCleanName,
         goods_handed_over_by: supCleanName,
+        handed_over_by: supCleanName,
         hub_collection_notes: collectionNotes || `Commodities issued and handed over to Field Worker ${workerCleanName} by ${supCleanName} at ${timeStr}.`
       });
 

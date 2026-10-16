@@ -28,13 +28,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LayoutDashboard,
-  MessageSquare,
 } from 'lucide-react';
 import { db } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AdraLogo } from '../../components/common/AdraLogo';
-import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
 
 // Subviews
 import { InventoryOverviewView } from './components/InventoryOverviewView';
@@ -48,11 +46,10 @@ import { InventoryReportsView } from './components/InventoryReportsView';
 
 // Modals
 import { ReceiveStockModal } from './components/ReceiveStockModal';
-import { StockAdjustmentModal } from './components/StockAdjustmentModal';
 import { CreateDispatchModal } from './components/CreateDispatchModal';
 import { CreatePOModal } from './components/CreatePOModal';
 import { WaybillDetailModal } from './components/WaybillDetailModal';
-import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
+import { UserProfileModal } from '../../components/common/UserProfileModal';
 
 export function InventoryManagerDashboard({
   currentUser,
@@ -88,12 +85,11 @@ export function InventoryManagerDashboard({
   // Modal States
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
   const [selectedReceiveItem, setSelectedReceiveItem] = useState(null);
-  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
-  const [selectedAdjustItem, setSelectedAdjustItem] = useState(null);
   const [dispatchModalOpen, setDispatchModalOpen] = useState(false);
   const [poModalOpen, setPoModalOpen] = useState(false);
   const [waybillModalOpen, setWaybillModalOpen] = useState(false);
   const [selectedWaybill, setSelectedWaybill] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Load Data
   const loadData = async () => {
@@ -122,8 +118,14 @@ export function InventoryManagerDashboard({
       setInventory(invData || []);
       setWarehouses(whData || []);
       setSuppliers(supData || []);
-      setPurchaseOrders(poData || []);
-      setDispatches(dispData || []);
+      const seenWbs = new Set();
+      const uniqueDispatches = (dispData || []).filter(d => {
+        const k = (d.waybill_number || d.id || '').trim().toLowerCase();
+        if (!k || seenWbs.has(k)) return false;
+        seenWbs.add(k);
+        return true;
+      });
+      setDispatches(uniqueDispatches);
       setTransactions(txData || []);
       setResources(resData || []);
       setAssistanceRequests(reqData || []);
@@ -228,20 +230,19 @@ export function InventoryManagerDashboard({
     return res;
   };
 
-  const handleAdjustStock = async (adjData) => {
-    const res = await db.adjustStock(adjData);
-    const updated = await db.getInventory();
-    setInventory([...updated]);
-    await loadData();
-    return res;
-  };
-
   const handleCreateDispatch = async (dispData) => {
     const res = await db.createDispatch(dispData);
     const updated = await db.getInventory();
     setInventory([...updated]);
     const updatedDispatches = await db.getDispatches();
-    setDispatches([...updatedDispatches]);
+    const seenWbs = new Set();
+    const cleanDispatches = (updatedDispatches || []).filter(d => {
+      const k = (d.waybill_number || d.id || '').trim().toLowerCase();
+      if (!k || seenWbs.has(k)) return false;
+      seenWbs.add(k);
+      return true;
+    });
+    setDispatches(cleanDispatches);
     const updatedRequests = await db.getAssistanceRequests();
     setAssistanceRequests([...updatedRequests]);
     await loadData();
@@ -323,11 +324,6 @@ export function InventoryManagerDashboard({
   const handleOpenWaybillDetail = (waybill) => {
     setSelectedWaybill(waybill);
     setWaybillModalOpen(true);
-  };
-
-  const handleOpenAdjustForItem = (item) => {
-    setSelectedAdjustItem(item);
-    setAdjustModalOpen(true);
   };
 
   const roles = [
@@ -417,7 +413,6 @@ export function InventoryManagerDashboard({
       case 'resources': return 'Fleet & Capital Assets';
       case 'warehouses': return 'State Relief Depots';
       case 'reports': return 'Reports & Audit Ledger';
-      case 'feedback': return 'Feedback & Complaints Desk';
       default: return 'Logistics & Supply Chain';
     }
   }, [activeTab, dispatchStatusFilter, supplierSubTab]);
@@ -932,22 +927,6 @@ export function InventoryManagerDashboard({
               <span>Reports & Audit Ledger</span>
             </div>
           </button>
-
-          {/* Feedback & Complaints */}
-          <button
-            type="button"
-            onClick={() => handleNavClick('feedback')}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
-              activeTab === 'feedback'
-                ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <div className="flex items-center space-x-2.5">
-              <MessageSquare className={`w-4 h-4 ${activeTab === 'feedback' ? 'text-white' : 'text-[#006B56]'}`} />
-              <span>Feedback & Complaints</span>
-            </div>
-          </button>
         </div>
 
         {/* 4. Drawer Footer: Switch Role & Logout */}
@@ -1027,11 +1006,19 @@ export function InventoryManagerDashboard({
           {/* User Profile Avatar Button */}
           <button
             type="button"
-            onClick={() => setActiveTab('profile')}
-            className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition cursor-pointer shadow-2xs"
-            title="Profile"
+            onClick={() => setIsProfileModalOpen(true)}
+            className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition cursor-pointer shadow-2xs active:scale-95"
+            title="My Profile"
           >
-            <User className="w-4 h-4 text-white" />
+            {currentUser?.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser?.full_name || 'Profile'}
+                className="w-4 h-4 rounded-full object-cover border border-white/40 shrink-0"
+              />
+            ) : (
+              <User className="w-4 h-4 text-white shrink-0" />
+            )}
           </button>
 
           {/* Logout Button */}
@@ -1078,10 +1065,6 @@ export function InventoryManagerDashboard({
                   setSelectedReceiveItem(item && item.item_name ? item : null);
                   setReceiveModalOpen(true);
                 }}
-                onOpenAdjustModal={(item) => {
-                  setSelectedAdjustItem(item || null);
-                  setAdjustModalOpen(true);
-                }}
                 onOpenCreateDispatchModal={(req) => {
                   setSelectedDispatchReq(req || null);
                   setActiveTab('dispatches-issue');
@@ -1105,10 +1088,6 @@ export function InventoryManagerDashboard({
                  onOpenReceiveModal={(item) => {
                    setSelectedReceiveItem(item && item.item_name ? item : null);
                    setReceiveModalOpen(true);
-                 }}
-                 onOpenAdjustModal={(item) => {
-                   setSelectedAdjustItem(item || null);
-                   setAdjustModalOpen(true);
                  }}
                  onDeleteItem={handleDeleteInventoryItem}
                  onClearAllStock={handleClearAllStock}
@@ -1200,10 +1179,48 @@ export function InventoryManagerDashboard({
               />
             )}
 
-            {/* View 7: Feedback & Complaints */}
-            {activeTab === 'feedback' && (
-              <div className="w-full flex-1 flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                <FeedbackComplaintsView currentUser={currentUser} />
+            {/* View 7: Officer Profile Fallback */}
+            {activeTab === 'profile' && (
+              <div className="bg-white sm:rounded-2xl sm:border border-slate-200 p-4 sm:p-6 sm:shadow-2xs max-w-xl mx-auto space-y-4 -mx-2.5 -my-2.5 sm:mx-auto sm:my-6 min-h-[calc(100vh-120px)] sm:min-h-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-700 flex items-center justify-center text-white shrink-0 shadow-sm overflow-hidden border border-emerald-600">
+                    {currentUser?.avatar ? (
+                      <img src={currentUser.avatar} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-7 h-7 text-white" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-bold text-slate-900 truncate">
+                      {currentUser?.full_name || 'ADRA Logistics Officer'}
+                    </h3>
+                    <p className="text-xs text-slate-500 truncate">
+                      {currentUser?.email || 'inventory@adra.org'}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        {currentUser?.role || 'Inventory Manager'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">ADRA South Sudan</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="pt-3 border-t border-slate-100 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsProfileModalOpen(true)}
+                    className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer active:scale-98"
+                  >
+                    Manage Account & Role
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('overview')}
+                    className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
+                  >
+                    Back to Overview
+                  </button>
+                </div>
               </div>
             )}
           </>
@@ -1224,19 +1241,6 @@ export function InventoryManagerDashboard({
         purchaseOrders={purchaseOrders}
         selectedItem={selectedReceiveItem}
         onReceiveSuccess={handleReceiveStock}
-      />
-
-      {/* Stock Adjustment Modal */}
-      <StockAdjustmentModal
-        isOpen={adjustModalOpen}
-        onClose={() => {
-          setAdjustModalOpen(false);
-          setSelectedAdjustItem(null);
-        }}
-        inventoryItems={inventory}
-        warehouses={warehouses}
-        selectedItem={selectedAdjustItem}
-        onAdjustSuccess={handleAdjustStock}
       />
 
       {/* Create Waybill Dispatch Modal */}
@@ -1277,8 +1281,15 @@ export function InventoryManagerDashboard({
         }}
       />
 
-      {/* Module Feedback Trigger */}
-      <FloatingFeedbackButton currentModule="Inventory & Logistics Management" onOpenFeedbackTab={() => handleNavClick('feedback')} />
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        currentUser={currentUser}
+        onLogout={onLogout || authLogout}
+        onSwitchRole={onSwitchRole}
+      />
+
       </div>
     </div>
   );

@@ -397,6 +397,8 @@ export function AdminWebPortalLayout({
       <UserProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
+        currentUser={currentUser}
+        onLogout={logout}
       />
 
       {/* Universal Module Feedback Modal */}

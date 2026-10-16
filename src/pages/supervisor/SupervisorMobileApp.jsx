@@ -41,6 +41,7 @@ import { SupervisorNotificationsView } from './components/SupervisorNotification
 import { SupervisorActivityHistoryView } from './components/SupervisorActivityHistoryView';
 import { SupervisorFacilitationsView } from './components/SupervisorFacilitationsView';
 import { WaybillDetailModal } from '../inventory/components/WaybillDetailModal';
+import { HandoverModal } from './components/HandoverModal';
 import { AdraLogo } from '../../components/common/AdraLogo';
 
 export function SupervisorMobileApp({
@@ -94,6 +95,7 @@ export function SupervisorMobileApp({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [showStateMenu, setShowStateMenu] = useState(false);
+  const [handoverTargetItem, setHandoverTargetItem] = useState(null);
 
   // Load all supervisory data
   const loadData = async (targetSupervisor = null, isSilent = false) => {
@@ -273,9 +275,9 @@ export function SupervisorMobileApp({
   const handleHandoverToFieldWorker = async (item, workerName, notes = '') => {
     try {
       const supName = activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi (Supervisor)';
-      const targetWorker = workerName || item.assigned_field_worker_name || item.driver_name || 'Field Officer';
+      const targetWorker = (workerName || item.assigned_field_worker_name || 'Agnes Dawa').trim();
       await db.confirmGoodsCollection(
-        item.id || item.request_code || item.waybill_number,
+        item.waybill_number || item.id || item.request_code,
         targetWorker,
         supName,
         notes
@@ -292,7 +294,23 @@ export function SupervisorMobileApp({
           status_label: 'Goods Collected - Out for Distribution',
           goods_collected_at: new Date().toISOString(),
           goods_collected_by: targetWorker,
-          goods_handed_over_by: supName
+          collected_by: targetWorker,
+          assigned_field_worker_name: targetWorker,
+          goods_handed_over_by: supName,
+          handed_over_by: supName
+        } : null);
+      }
+      if (selectedWaybillModal) {
+        setSelectedWaybillModal(prev => prev ? {
+          ...prev,
+          status: 'Collected by Field Worker',
+          dispatch_status: 'Collected by Field Worker',
+          collected_by: targetWorker,
+          goods_collected_by: targetWorker,
+          assigned_field_worker_name: targetWorker,
+          handed_over_by: supName,
+          goods_handed_over_by: supName,
+          collected_at: new Date().toISOString()
         } : null);
       }
     } catch (err) {
@@ -420,7 +438,7 @@ export function SupervisorMobileApp({
             onAssignWorker={handleAssignFieldWorker}
             onReassignWorker={handleReassignWorker}
             onConfirmArrival={handleConfirmArrival}
-            onHandoverToWorker={handleHandoverToFieldWorker}
+            onHandoverToWorker={(item) => setHandoverTargetItem(item)}
             onOpenReport={() => {
               const ass = assessments.find(a => 
                 (selectedAssignment.id && (a.request_id === selectedAssignment.id || a.request_code === selectedAssignment.id)) ||
@@ -590,7 +608,7 @@ export function SupervisorMobileApp({
               }}
               onAssignFieldWorker={handleAssignFieldWorker}
               onConfirmArrival={handleConfirmArrival}
-              onHandoverToWorker={handleHandoverToFieldWorker}
+              onHandoverToWorker={(item) => setHandoverTargetItem(item)}
               onOpenReport={(item) => {
                 const ass = assessments.find(a => a.request_id === item.id || a.request_code === item.request_code);
                 if (ass) {
@@ -615,8 +633,8 @@ export function SupervisorMobileApp({
                 const freshDispatches = await (db.getDispatches ? db.getDispatches() : []);
                 setDispatches(freshDispatches || []);
               }}
-              onHandoverToWorker={async (item, notes) => {
-                await handleHandoverToFieldWorker(item, item.assigned_field_worker_name, notes);
+              onHandoverToWorker={(item) => {
+                setHandoverTargetItem(item);
               }}
               onOpenWaybillDetail={(dispatch) => setSelectedWaybillModal(dispatch)}
               activeSupervisorName={activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi'}
@@ -1505,11 +1523,23 @@ export function SupervisorMobileApp({
             setDispatches(freshDispatches || []);
             setSelectedWaybillModal(null);
           }}
-          onHandoverToWorker={async (dispatch) => {
-            await handleHandoverToFieldWorker(dispatch, dispatch.assigned_field_worker_name);
-            const freshDispatches = await (db.getDispatches ? db.getDispatches() : []);
-            setDispatches(freshDispatches || []);
-            setSelectedWaybillModal(null);
+          onHandoverToWorker={(dispatch) => {
+            setHandoverTargetItem(dispatch);
+          }}
+        />
+      )}
+
+      {/* Handover to Field Worker Modal */}
+      {handoverTargetItem && (
+        <HandoverModal
+          isOpen={Boolean(handoverTargetItem)}
+          onClose={() => setHandoverTargetItem(null)}
+          item={handoverTargetItem}
+          fieldWorkers={fieldWorkers}
+          activeSupervisor={activeSupervisor}
+          onConfirmHandover={async (item, workerName, notes) => {
+            await handleHandoverToFieldWorker(item, workerName, notes);
+            setHandoverTargetItem(null);
           }}
         />
       )}
