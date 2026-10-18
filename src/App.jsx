@@ -5,6 +5,8 @@ import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { Login } from './pages/auth/Login';
 import { initializeNativeApp } from './lib/capacitor';
 
+import { ShieldAlert, ShieldCheck, ArrowLeft, LogOut } from 'lucide-react';
+
 // Humanitarian Field Application Pages
 import { Dashboard } from './pages/Dashboard';
 import { ProgramsPage } from './pages/ProgramsPage';
@@ -46,9 +48,74 @@ import { SupplierPortalApp } from './pages/supplier/SupplierPortalApp';
 // Universal Feedback & Complaints Desk
 import { FeedbackComplaintsView } from './components/common/FeedbackComplaintsView';
 
+// URL Path Routing Helper
+function getPathInfo() {
+  if (typeof window === 'undefined') {
+    return { pathname: '/', hash: '', cleanPath: '/', isAdminPath: false, adminSection: 'overview' };
+  }
+
+  const pathname = window.location.pathname || '/';
+  const hash = window.location.hash || '';
+
+  // Determine effective path from pathname or hash (#/admin or #admin)
+  let effectivePath = pathname;
+  if (pathname === '/' || pathname === '/index.html' || pathname === '') {
+    if (hash.startsWith('#/')) {
+      effectivePath = hash.slice(1);
+    } else if (hash.startsWith('#admin')) {
+      effectivePath = '/' + hash.slice(1);
+    }
+  }
+
+  // Normalize: remove trailing slashes
+  const cleanPath = effectivePath.replace(/\/+$/, '') || '/';
+  const segments = cleanPath.split('/').filter(Boolean);
+  const isAdminPath = segments.length > 0 && segments[0].toLowerCase() === 'admin';
+
+  let adminSection = 'overview';
+  if (isAdminPath && segments.length > 1) {
+    const sub = segments[1].toLowerCase();
+    const sectionMap = {
+      overview: 'overview',
+      dashboard: 'overview',
+      lifecycle: 'lifecycle',
+      projects: 'lifecycle',
+      aid: 'lifecycle',
+      pipeline: 'lifecycle',
+      identity: 'identity',
+      users: 'identity',
+      roles: 'identity',
+      approvals: 'identity',
+      beneficiaries: 'beneficiaries',
+      households: 'beneficiaries',
+      field: 'field',
+      programmes: 'field',
+      locations: 'field',
+      operations: 'field',
+      feedback: 'feedback',
+      complaints: 'feedback',
+      aap: 'feedback',
+      security: 'security',
+      audit: 'security',
+      policies: 'security',
+      reports: 'reports',
+    };
+    adminSection = sectionMap[sub] || 'overview';
+  }
+
+  return {
+    pathname,
+    hash,
+    cleanPath,
+    isAdminPath,
+    adminSection,
+  };
+}
+
 export function App() {
   const { currentUser, logout, quickSwitchRole } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
+  const [pathInfo, setPathInfo] = useState(getPathInfo);
 
   // Dual Architecture:
   // 'field_app' = Specialized Humanitarian Field Application (mobile/native feel)
@@ -63,6 +130,43 @@ export function App() {
     return 'admin_web_app'; // Default administrators to their dedicated web app
   });
 
+  // Browser History Navigation Helper
+  const navigateTo = (newPath, replace = false) => {
+    try {
+      if (window.location.pathname !== newPath) {
+        if (replace) {
+          window.history.replaceState({}, '', newPath);
+        } else {
+          window.history.pushState({}, '', newPath);
+        }
+        setPathInfo(getPathInfo());
+      }
+    } catch (e) {
+      window.location.hash = newPath.startsWith('/') ? '#' + newPath : '#/' + newPath;
+      setPathInfo(getPathInfo());
+    }
+  };
+
+  // Sync state on browser back/forward buttons and hashchange
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setPathInfo(getPathInfo());
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
+  }, []);
+
+  // When an administrator is in admin_web_app mode but URL is on root path, synchronize URL to /admin
+  useEffect(() => {
+    if (currentUser?.role === 'Administrator' && appMode === 'admin_web_app' && !pathInfo.isAdminPath) {
+      navigateTo('/admin', true);
+    }
+  }, [currentUser?.role, appMode, pathInfo.isAdminPath]);
+
   useEffect(() => {
     try {
       localStorage.setItem('adra_app_mode', appMode);
@@ -74,8 +178,9 @@ export function App() {
   useEffect(() => {
     initializeNativeApp({
       onHardwareBack: () => {
-        if (appMode === 'admin_web_app') {
+        if (appMode === 'admin_web_app' || pathInfo.isAdminPath) {
           setAppMode('field_app');
+          navigateTo('/');
           return true; // handled
         }
         if (currentTab !== 'dashboard') {
@@ -85,7 +190,7 @@ export function App() {
         return false; // exit app
       }
     });
-  }, [currentTab, appMode]);
+  }, [currentTab, appMode, pathInfo.isAdminPath]);
 
   // Automatically open the right page depending on user role fetched from database
   useEffect(() => {
@@ -146,6 +251,83 @@ export function App() {
     return <Login onLoginSuccess={() => setCurrentTab('dashboard')} />;
   }
 
+  // Dedicated Administrator Web Portal Route (/admin and /admin/:section)
+  if (pathInfo.isAdminPath) {
+    if (currentUser.role === 'Administrator') {
+      return (
+        <AdminWebPortalPage
+          initialSection={pathInfo.adminSection}
+          onSectionChange={(section) => {
+            const slug = section === 'overview' ? '' : `/${section === 'identity' ? 'users' : section}`;
+            navigateTo(`/admin${slug}`);
+          }}
+          onSwitchToFieldApp={() => {
+            setAppMode('field_app');
+            navigateTo('/');
+          }}
+        />
+      );
+    }
+
+    // Informative Access Guard if a non-administrator accesses /admin
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 selection:bg-emerald-500 selection:text-white">
+        <div className="max-w-md w-full bg-slate-800 border border-slate-700/80 rounded-2xl p-6 sm:p-8 shadow-2xl text-center space-y-6">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-inner">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-medium">
+              <span>Path:</span>
+              <span className="font-bold">{pathInfo.cleanPath}</span>
+            </div>
+            <h1 className="text-xl font-bold text-white tracking-tight">Administrator Privileges Required</h1>
+            <p className="text-sm text-slate-300 leading-relaxed">
+              You are currently signed in as <span className="text-white font-semibold">{currentUser.full_name || 'Staff Member'}</span> with the role <span className="inline-block px-2 py-0.5 rounded bg-slate-700 text-emerald-300 text-xs font-semibold">{currentUser.role}</span>.
+            </p>
+            <p className="text-xs text-slate-400">
+              The Enterprise Admin Web Portal path is reserved for Humanitarian System Administrators.
+            </p>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                quickSwitchRole('Administrator');
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition shadow-lg shadow-emerald-900/30 active:scale-95 cursor-pointer"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              Switch to Administrator (Demo Mode)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                navigateTo('/');
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium text-sm transition border border-slate-600 active:scale-95 cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Return to Field Application (/)
+            </button>
+
+            <button
+              type="button"
+              onClick={logout}
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 text-xs text-rose-400 hover:text-rose-300 transition cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // If Beneficiary logs in, route directly to dedicated Beneficiary Mobile App:
   if (currentUser.role === 'Beneficiary') {
     return (
@@ -156,7 +338,17 @@ export function App() {
   // If Administrator chooses the dedicated Web App Portal:
   if (currentUser.role === 'Administrator' && appMode === 'admin_web_app') {
     return (
-      <AdminWebPortalPage onSwitchToFieldApp={() => setAppMode('field_app')} />
+      <AdminWebPortalPage
+        initialSection={pathInfo.adminSection}
+        onSectionChange={(section) => {
+          const slug = section === 'overview' ? '' : `/${section === 'identity' ? 'users' : section}`;
+          navigateTo(`/admin${slug}`);
+        }}
+        onSwitchToFieldApp={() => {
+          setAppMode('field_app');
+          navigateTo('/');
+        }}
+      />
     );
   }
 
@@ -376,12 +568,16 @@ export function App() {
       onSelectTab={(tabId) => {
         if (tabId === 'users' || tabId === 'admin_web') {
           setAppMode('admin_web_app');
+          navigateTo('/admin');
         } else {
           setCurrentTab(tabId);
         }
       }}
       currentTabTitle={tabTitles[currentTab] || 'ADRA Management'}
-      onSwitchToAdminWeb={() => setAppMode('admin_web_app')}
+      onSwitchToAdminWeb={() => {
+        setAppMode('admin_web_app');
+        navigateTo('/admin');
+      }}
     >
       {renderContent()}
     </AppLayout>

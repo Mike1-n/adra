@@ -33,10 +33,22 @@ import { NotificationsBroadcastView } from './components/NotificationsBroadcastV
 import { AdminFeedbackComplaintsOversightView } from './components/AdminFeedbackComplaintsOversightView';
 import { ReportsPage } from '../ReportsPage';
 
-export function AdminWebPortalPage({ onSwitchToFieldApp }) {
+export function AdminWebPortalPage({ onSwitchToFieldApp, initialSection = 'overview', onSectionChange }) {
   const { currentUser } = useAuth();
   // Primary Sections: 'overview', 'lifecycle', 'identity', 'beneficiaries', 'field', 'security', 'reports', 'feedback'
-  const [activeSection, setActiveSection] = useState('overview');
+  const [activeSection, setActiveSection] = useState(initialSection || 'overview');
+
+  // Keep activeSection in sync if initialSection changes via browser navigation
+  React.useEffect(() => {
+    if (initialSection && initialSection !== activeSection) {
+      setActiveSection(initialSection);
+    }
+  }, [initialSection]);
+
+  const handleSelectSection = (section) => {
+    setActiveSection(section);
+    if (onSectionChange) onSectionChange(section);
+  };
 
   // Sub-tabs for each section
   const [subTabs, setSubTabs] = useState({
@@ -51,56 +63,59 @@ export function AdminWebPortalPage({ onSwitchToFieldApp }) {
 
   // Callback from overview dashboard quick action buttons
   const handleOverviewNavigate = (target) => {
+    let nextSec = 'overview';
     switch (target) {
       case 'lifecycle':
-        setActiveSection('lifecycle');
+        nextSec = 'lifecycle';
         break;
       case 'users':
-        setActiveSection('identity');
+        nextSec = 'identity';
         setSectionSubTab('identity', 'users');
         break;
       case 'permissions':
-        setActiveSection('identity');
+        nextSec = 'identity';
         setSectionSubTab('identity', 'permissions');
         break;
       case 'approvals':
-        setActiveSection('identity');
+        nextSec = 'identity';
         setSectionSubTab('identity', 'approvals');
         break;
       case 'beneficiaries':
-        setActiveSection('beneficiaries');
+        nextSec = 'beneficiaries';
         break;
       case 'programmes':
-        setActiveSection('field');
+        nextSec = 'field';
         setSectionSubTab('field', 'programmes');
         break;
       case 'locations':
-        setActiveSection('field');
+        nextSec = 'field';
         setSectionSubTab('field', 'locations');
         break;
       case 'security':
-        setActiveSection('security');
+        nextSec = 'security';
         setSectionSubTab('security', 'policies');
         break;
       case 'audit':
-        setActiveSection('security');
+        nextSec = 'security';
         setSectionSubTab('security', 'audit');
         break;
       case 'feedback':
-        setActiveSection('feedback');
+        nextSec = 'feedback';
         break;
       case 'reports':
-        setActiveSection('reports');
+        nextSec = 'reports';
         break;
       default:
-        setActiveSection('overview');
+        nextSec = 'overview';
     }
+    setActiveSection(nextSec);
+    if (onSectionChange) onSectionChange(nextSec);
   };
 
   return (
     <AdminWebPortalLayout
       activeSection={activeSection}
-      onSelectSection={setActiveSection}
+      onSelectSection={handleSelectSection}
       onSwitchToFieldApp={onSwitchToFieldApp}
     >
       {/* 1. OVERVIEW */}
