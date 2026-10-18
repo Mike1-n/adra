@@ -155,11 +155,6 @@ export function AuthProvider({ children }) {
 
             // Verify account status
             if (profile && profile.role !== 'Administrator') {
-              const isPending = profile.status === 'Pending Verification' || profile.is_active === false;
-              if (isPending) {
-                await supabase.auth.signOut();
-                throw new Error('Account verification pending: As we await administrator verification, your account is in pending status. You will be able to log in once your account has been reviewed and approved.');
-              }
               if (profile.status === 'Deactivated' || profile.status === 'Suspended') {
                 await supabase.auth.signOut();
                 throw new Error('This account has been deactivated. Please contact an ADRA Administrator.');
@@ -188,7 +183,7 @@ export function AuthProvider({ children }) {
             return userObj;
           }
         } catch (supabaseErr) {
-          if (supabaseErr.message && (supabaseErr.message.includes('pending') || supabaseErr.message.includes('deactivated'))) {
+          if (supabaseErr.message && supabaseErr.message.includes('deactivated')) {
             throw supabaseErr;
           }
           // If Supabase auth error is about wrong credentials or other issues, fall through to db.authenticateUser
@@ -233,7 +228,7 @@ export function AuthProvider({ children }) {
           }
         }
 
-        toast.info(`Account verification pending: As we await administrator verification, ID ${res.beneficiary?.beneficiary_code || 'new ID'} has been registered.`);
+        toast.success(`Account registered successfully for ${signupData.full_name}!`);
         return { ...userObj, beneficiary: res.beneficiary };
       } else {
         const newUser = await db.createUser({
@@ -268,7 +263,7 @@ export function AuthProvider({ children }) {
           }
         }
 
-        toast.info(`Account verification pending: As we await administrator verification, account for ${newUser.full_name} is under review.`);
+        toast.success(`Account registered successfully for ${newUser.full_name}!`);
         return newUser;
       }
     } catch (err) {

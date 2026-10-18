@@ -31,8 +31,6 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
 
   // Mode: 'login' | 'signup'
   const [isSignUp, setIsSignUp] = useState(false);
-  const [pendingAccountData, setPendingAccountData] = useState(null);
-  const [pendingNotice, setPendingNotice] = useState(null);
 
   // Form State - Login
   const [identifier, setIdentifier] = useState('');
@@ -100,13 +98,10 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
     }
 
     try {
-      setPendingNotice(null);
       const user = await login(cleanIdent, cleanPass);
       if (onLoginSuccess) onLoginSuccess(user);
     } catch (err) {
-      if (err.message && (err.message.toLowerCase().includes('pending') || err.message.toLowerCase().includes('verification'))) {
-        setPendingNotice('Account verification pending: As we await administrator verification, your account cannot log in yet. You will be able to log in once your account has been reviewed and approved.');
-      }
+      // Error handled in AuthContext
     }
   };
 
@@ -150,7 +145,7 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
     const fullPhone = `+211 ${phoneDigits}`;
 
     try {
-      const newUser = await signup({
+      await signup({
         accountType: signupType,
         ...signupForm,
         full_name: fullName,
@@ -159,14 +154,9 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
         phone_number: fullPhone,
         email: signupForm.email.trim()
       });
-      // Store pending account data to render verification notice screen
-      setPendingAccountData({
-        ...newUser,
-        full_name: fullName,
-        accountType: signupType,
-        id_number: idDigits,
-        identifier: signupForm.email.trim()
-      });
+      setIdentifier(signupForm.email.trim());
+      setIsSignUp(false);
+      toast.success(`Account registered successfully for ${fullName}! You can now log in.`);
     } catch (err) {
       // Error handled in AuthContext
     }
@@ -190,134 +180,38 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
       <div className={`w-full sm:max-w-[400px] bg-white rounded-3xl shadow-xl border border-slate-100 p-7 flex flex-col justify-between ${isSignUp ? 'max-h-[92vh] overflow-y-auto' : ''}`}>
         <div className="w-full">
 
-            {pendingAccountData ? (
-              <div className="space-y-4 py-1 animate-in fade-in zoom-in-95 duration-200">
-                {/* Shield / Clock Icon Header */}
-                <div className="text-center space-y-2">
-                  <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
-                    <div className="absolute inset-0 rounded-full bg-amber-400/20 animate-ping opacity-75" />
-                    <div className="relative w-14 h-14 rounded-full bg-amber-50 border-2 border-amber-400 flex items-center justify-center text-amber-600 shadow-xs">
-                      <Clock className="w-7 h-7" strokeWidth={2} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 uppercase tracking-wide">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                      Account Verification Pending
-                    </span>
-                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight mt-2">
-                      Account Verification Pending
-                    </h2>
-                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                      Your details have been submitted. As we await administrator verification, your account is in pending status.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Account Details Card */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
-                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                    <span className="text-slate-500 text-[11px]">Full Name:</span>
-                    <span className="font-bold text-slate-900 text-right">{pendingAccountData.full_name}</span>
-                  </div>
-                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                    <span className="text-slate-500 text-[11px]">Account Role:</span>
-                    <span className="font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      {pendingAccountData.accountType === 'Beneficiary' ? 'Community Beneficiary' : (pendingAccountData.role || 'Staff')}
-                    </span>
-                  </div>
-                  {pendingAccountData.id_number && (
-                    <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                      <span className="text-slate-500 text-[11px]">ID / Refugee No:</span>
-                      <span className="font-mono font-semibold text-slate-800">{pendingAccountData.id_number}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                    <span className="text-slate-500 text-[11px]">Login Identifier:</span>
-                    <span className="font-medium text-slate-900">{pendingAccountData.identifier}</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-0.5">
-                    <span className="text-slate-500 text-[11px]">Status:</span>
-                    <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1 text-[11px]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                      Account Verification Pending
-                    </span>
-                  </div>
-                </div>
-
-                {/* Safeguarding Security Note */}
-                <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200/70 text-[11px] text-amber-900 flex items-start gap-2 leading-relaxed">
-                  <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <span>
-                    To safeguard humanitarian aid distribution in South Sudan, accounts remain inactive until verified by our Field Administrator team.
-                  </span>
-                </div>
-
-                {/* Back to Login Action */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (pendingAccountData?.identifier) {
-                      setIdentifier(pendingAccountData.identifier);
-                    }
-                    setPendingNotice('Account verification pending: As we await administrator verification, your account is in pending status.');
-                    setPendingAccountData(null);
-                    setIsSignUp(false);
-                  }}
-                  className="w-full py-3.5 rounded-xl bg-[#006B56] hover:bg-[#005443] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-[0.99] cursor-pointer"
-                >
-                  <ArrowRight className="w-4 h-4 rotate-180" />
-                  <span>Return to Log In</span>
-                </button>
+            {/* Form Header (Centered Logo & Text for Login & Sign Up) */}
+            <div className="pt-2 pb-1 text-center">
+              {/* Centered Official ADRA Logo */}
+              <div className="flex items-center justify-center mb-3">
+                <img
+                  src="/images/adra-logo-expanded.png"
+                  alt="ADRA Logo"
+                  className="h-16 w-auto object-contain"
+                />
               </div>
-            ) : (
-              <>
-                {/* Form Header (Centered Logo & Text for Login & Sign Up) */}
-                <div className="pt-2 pb-1 text-center">
-                  {/* Centered Official ADRA Logo */}
-                  <div className="flex items-center justify-center mb-3">
-                    <img
-                      src="/images/adra-logo-expanded.png"
-                      alt="ADRA Logo"
-                      className="h-16 w-auto object-contain"
-                    />
-                  </div>
 
-                  {!isSignUp ? (
-                    <>
-                      {/* Welcome Back & Humanitarian Assistance App */}
-                      <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                        Welcome Back
-                      </h1>
-                      <p className="text-xs text-slate-500 mt-1 font-medium">
-                        Humanitarian Assistance App
-                      </p>
-                    </>
-                  ) : (
-                    <div className="mb-4">
-                      <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                        Create Account
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-1 leading-relaxed font-normal">
-                        Register your profile to access ADRA humanitarian assistance.
-                      </p>
-                    </div>
-                  )}
+              {!isSignUp ? (
+                <>
+                  {/* Welcome Back & Humanitarian Assistance App */}
+                  <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                    Welcome Back
+                  </h1>
+                  <p className="text-xs text-slate-500 mt-1 font-medium">
+                    Humanitarian Assistance App
+                  </p>
+                </>
+              ) : (
+                <div className="mb-4">
+                  <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                    Create Account
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed font-normal">
+                    Register your profile to access ADRA humanitarian assistance.
+                  </p>
                 </div>
-
-                {/* Account Verification Pending Notice if triggered */}
-                {pendingNotice && !isSignUp && (
-                  <div className="my-3 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5 animate-in fade-in duration-200">
-                    <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold block text-amber-950">Account Verification Pending</span>
-                      <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                        {pendingNotice}
-                      </p>
-                    </div>
-                  </div>
-                )}
+              )}
+            </div>
 
                 {/* A. LOGIN FORM (100% Mockup Match) */}
                 {!isSignUp ? (
@@ -686,8 +580,6 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                 </button>
               </form>
             )}
-          </>
-        )}
 
           </div>
         </div>

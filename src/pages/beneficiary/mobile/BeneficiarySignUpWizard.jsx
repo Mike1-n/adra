@@ -586,10 +586,10 @@ export function BeneficiarySignUpWizard({ onBackToLogin, onRegistrationComplete 
 
             <div className="space-y-1">
               <h3 className="text-lg font-black text-slate-900 tracking-tight">
-                Account Verification Pending
+                Registration Successful
               </h3>
               <p className="text-xs text-slate-500">
-                Your details have been registered. As we await administrator verification, your account is in pending status.
+                Your profile has been registered in the ADRA humanitarian database.
               </p>
             </div>
 

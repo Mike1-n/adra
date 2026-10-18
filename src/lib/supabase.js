@@ -4951,12 +4951,6 @@ export const db = {
 
     // Verify account active / approval status (Administrator bypasses verification)
     if (matchedUser.role !== 'Administrator') {
-      const isPending = matchedUser.status === 'Pending Verification' ||
-                        matchedUser.verification_status === 'Pending Verification' ||
-                        matchedUser.is_active === false;
-      if (isPending) {
-        throw new Error('Account verification pending: As we await administrator verification, your account is in pending status. You will be able to log in once your account has been reviewed and approved.');
-      }
       if (matchedUser.status === 'Deactivated' || matchedUser.status === 'Suspended') {
         throw new Error('This account has been deactivated. Please contact an ADRA Administrator.');
       }
