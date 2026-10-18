@@ -85,12 +85,6 @@ export function UsersPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {users.map((u) => (
             <Card key={u.id} className="adra-card-hover flex items-start gap-4">
-              <img
-                src={u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                alt={u.full_name}
-                className="w-14 h-14 rounded-2xl object-cover border border-slate-700 shrink-0"
-              />
-
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-sm font-bold text-slate-100 truncate">

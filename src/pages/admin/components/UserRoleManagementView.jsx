@@ -440,31 +440,21 @@ export function UserRoleManagementView() {
                     >
                       {/* User Profile */}
                       <td className="py-2.5 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <img
-                            src={u.avatar || u.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                            alt={u.full_name}
-                            className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0 bg-slate-100"
-                            onError={(e) => {
-                              e.target.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150';
-                            }}
-                          />
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-900 truncate">
-                              {u.full_name}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
-                              <span className="flex items-center gap-1 truncate">
-                                <Mail className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                                {u.email}
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 truncate">
+                            {u.full_name}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
+                            <span className="flex items-center gap-1 truncate">
+                              <Mail className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                              {u.email}
+                            </span>
+                            {u.phone && (
+                              <span className="flex items-center gap-1 text-slate-400">
+                                • <Phone className="w-2 h-2 shrink-0" />
+                                {u.phone}
                               </span>
-                              {u.phone && (
-                                <span className="flex items-center gap-1 text-slate-400">
-                                  • <Phone className="w-2 h-2 shrink-0" />
-                                  {u.phone}
-                                </span>
-                              )}
-                            </div>
+                            )}
                           </div>
                         </div>
                       </td>
