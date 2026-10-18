@@ -11,11 +11,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export function AdminLogin({ onLoginSuccess }) {
-  const { login, loading } = useAuth();
+  const { login, logout, loading } = useAuth();
   const toast = useToast();
 
-  const [identifier, setIdentifier] = useState('admin@adra.org');
-  const [password, setPassword] = useState('admin123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,8 +39,9 @@ export function AdminLogin({ onLoginSuccess }) {
       const user = await login(cleanIdent, cleanPass);
       if (user) {
         if (user.role !== 'Administrator') {
-          setErrorMessage(`Access restricted: Authenticated user (${user.role}) is not an Administrator.`);
-          toast.error('Access restricted to System Administrators.');
+          await logout();
+          setErrorMessage('Administrator Privileges Required');
+          toast.error('Administrator Privileges Required');
           return;
         }
         toast.success(`Welcome to ADRA Admin Console, ${user.full_name || 'Administrator'}`);
@@ -81,9 +82,15 @@ export function AdminLogin({ onLoginSuccess }) {
             <div className="my-3 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-950 flex items-start gap-2.5 animate-in fade-in duration-200">
               <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold block text-rose-950">Authentication Failed</span>
+                <span className="font-bold block text-rose-950">
+                  {errorMessage === 'Administrator Privileges Required'
+                    ? 'Administrator Privileges Required'
+                    : 'Authentication Failed'}
+                </span>
                 <p className="text-[11px] text-rose-800 mt-0.5 leading-relaxed">
-                  {errorMessage}
+                  {errorMessage === 'Administrator Privileges Required'
+                    ? 'Access to the Admin Portal is restricted to authorized System Administrators only.'
+                    : errorMessage}
                 </p>
               </div>
             </div>
