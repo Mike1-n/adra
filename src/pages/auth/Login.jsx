@@ -39,6 +39,7 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
 
   // Form State - Sign Up (Essential identity parameters only)
   const [signupType, setSignupType] = useState('Beneficiary'); // 'Beneficiary' | 'Staff'
@@ -134,6 +135,11 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
 
     if (!signupForm.password) {
       toast.warning('Please enter a password.');
+      return;
+    }
+
+    if (signupForm.password !== signupForm.confirm_password) {
+      toast.warning('Passwords do not match. Please verify your confirm password.');
       return;
     }
 
@@ -619,7 +625,7 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                     <input
                       type={showSignupPassword ? 'text' : 'password'}
                       value={signupForm.password}
-                      onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value, confirm_password: e.target.value })}
+                      onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
                       placeholder="Enter a secure password"
                       className="w-full pl-9 pr-10 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
                       required
@@ -631,6 +637,32 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                       tabIndex={-1}
                     >
                       {showSignupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 6. Confirm Password */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Confirm Password <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type={showSignupConfirmPassword ? 'text' : 'password'}
+                      value={signupForm.confirm_password}
+                      onChange={(e) => setSignupForm({ ...signupForm, confirm_password: e.target.value })}
+                      placeholder="Confirm your password"
+                      className="w-full pl-9 pr-10 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSignupConfirmPassword(!showSignupConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      tabIndex={-1}
+                    >
+                      {showSignupConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
