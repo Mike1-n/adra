@@ -4,7 +4,6 @@ import {
   Truck,
   Building2,
   ShoppingCart,
-  Radio,
   FileText,
   SlidersHorizontal,
   PackagePlus,
@@ -16,7 +15,6 @@ import {
   AlertTriangle,
   Menu,
   X,
-  Plus,
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
@@ -28,13 +26,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LayoutDashboard,
-  MessageSquare,
 } from 'lucide-react';
 import { db } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { AdraLogo } from '../../components/common/AdraLogo';
-import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
 
 // Subviews
 import { InventoryOverviewView } from './components/InventoryOverviewView';
@@ -42,7 +38,6 @@ import { InventoryStockView } from './components/InventoryStockView';
 import { InventoryDispatchesView } from './components/InventoryDispatchesView';
 import { IssueWaybillView } from './components/IssueWaybillView';
 import { InventorySuppliersView } from './components/InventorySuppliersView';
-import { InventoryResourcesView } from './components/InventoryResourcesView';
 import { InventoryWarehousesView } from './components/InventoryWarehousesView';
 import { InventoryReportsView } from './components/InventoryReportsView';
 
@@ -52,7 +47,6 @@ import { StockAdjustmentModal } from './components/StockAdjustmentModal';
 import { CreateDispatchModal } from './components/CreateDispatchModal';
 import { CreatePOModal } from './components/CreatePOModal';
 import { WaybillDetailModal } from './components/WaybillDetailModal';
-import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
 
 export function InventoryManagerDashboard({
   currentUser,
@@ -63,11 +57,9 @@ export function InventoryManagerDashboard({
   const { logout: authLogout, quickSwitchRole } = useAuth();
   const toast = useToast();
 
-  // Active Tab: 'overview' | 'stock' | 'dispatches' | 'suppliers' | 'resources' | 'warehouses' | 'reports'
+  // Active Tab: 'overview' | 'stock' | 'dispatches' | 'suppliers' | 'warehouses' | 'reports'
   const [activeTab, setActiveTab] = useState('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDispatchesMenuOpen, setIsDispatchesMenuOpen] = useState(false);
-  const [isSuppliersMenuOpen, setIsSuppliersMenuOpen] = useState(false);
   const [supplierSubTab, setSupplierSubTab] = useState('all'); // 'all' | 'stage1' | 'stage2' | 'stage3' | 'stage4' | 'suppliers'
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [showDrawerRoleSwitcher, setShowDrawerRoleSwitcher] = useState(false);
@@ -352,57 +344,6 @@ export function InventoryManagerDashboard({
     return inventory.filter(i => i.status === 'Low Stock' || (i.quantity > 0 && i.quantity < (i.min_threshold || 10))).length;
   }, [inventory]);
 
-  const inTransitWaybillsCount = useMemo(() => {
-    return dispatches.filter(d => {
-      const st = (d.status || '').toLowerCase().trim();
-      const dst = (d.dispatch_status || '').toLowerCase().trim();
-      return st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit';
-    }).length;
-  }, [dispatches]);
-
-  const deliveredWaybillsCount = useMemo(() => {
-    return dispatches.filter(d => {
-      const st = (d.status || '').toLowerCase().trim();
-      const dst = (d.dispatch_status || '').toLowerCase().trim();
-      return st.includes('deliver') || st.includes('arrived') || st === 'goods_arrived_at_hub' || dst.includes('arrived');
-    }).length;
-  }, [dispatches]);
-
-  const stagedWaybillsCount = useMemo(() => {
-    return approvedRequestsForDispatch.length;
-  }, [approvedRequestsForDispatch]);
-
-  const getPOStage = (po) => {
-    if (po.stage) return Number(po.stage);
-    if (po.status === 'Paid & Settled' || po.payment_status === 'Paid') return 4;
-    if (po.status?.includes('Received') || po.status?.includes('Confirmed') || po.grn_number) return 3;
-    if (po.status?.includes('Transit') || po.status?.includes('Supplied') || po.waybill_number) return 2;
-    return 1;
-  };
-
-  const poPipelineStats = useMemo(() => {
-    let stage1Count = 0;
-    let stage2Count = 0;
-    let stage3Count = 0;
-    let stage4Count = 0;
-
-    purchaseOrders.forEach(po => {
-      const st = getPOStage(po);
-      if (st === 1) stage1Count++;
-      else if (st === 2) stage2Count++;
-      else if (st === 3) stage3Count++;
-      else if (st === 4) stage4Count++;
-    });
-
-    return {
-      total: purchaseOrders.length,
-      stage1Count,
-      stage2Count,
-      stage3Count,
-      stage4Count
-    };
-  }, [purchaseOrders]);
-
   const activeTabTitle = useMemo(() => {
     switch (activeTab) {
       case 'overview': return 'Executive Overview Dashboard';
@@ -420,10 +361,8 @@ export function InventoryManagerDashboard({
         if (supplierSubTab === 'stage4') return 'Suppliers & POs — 4. Paid & Settled';
         if (supplierSubTab === 'suppliers') return 'Suppliers Directory & Vendor Partners';
         return 'Suppliers & Purchase Orders — All Manifests';
-      case 'resources': return 'Fleet & Capital Assets';
       case 'warehouses': return 'State Relief Depots';
       case 'reports': return 'Reports & Audit Ledger';
-      case 'feedback': return 'Feedback & Complaints Desk';
       default: return 'Logistics & Supply Chain';
     }
   }, [activeTab, dispatchStatusFilter, supplierSubTab]);
@@ -431,36 +370,6 @@ export function InventoryManagerDashboard({
   const handleNavClick = (tab) => {
     setActiveTab(tab);
     setIsSidebarOpen(false);
-  };
-
-  const toggleDispatchesMenu = (forceOpen) => {
-    if (forceOpen === true) {
-      setIsDispatchesMenuOpen(true);
-      setIsSuppliersMenuOpen(false);
-    } else if (forceOpen === false) {
-      setIsDispatchesMenuOpen(false);
-    } else {
-      setIsDispatchesMenuOpen(prev => {
-        const next = !prev;
-        if (next) setIsSuppliersMenuOpen(false);
-        return next;
-      });
-    }
-  };
-
-  const toggleSuppliersMenu = (forceOpen) => {
-    if (forceOpen === true) {
-      setIsSuppliersMenuOpen(true);
-      setIsDispatchesMenuOpen(false);
-    } else if (forceOpen === false) {
-      setIsSuppliersMenuOpen(false);
-    } else {
-      setIsSuppliersMenuOpen(prev => {
-        const next = !prev;
-        if (next) setIsDispatchesMenuOpen(false);
-        return next;
-      });
-    }
   };
 
   return (
@@ -542,361 +451,48 @@ export function InventoryManagerDashboard({
           </button>
 
           {/* Aid Dispatches & Waybills */}
-          <div className="space-y-1">
-            <div
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition ${
-                activeTab === 'dispatches'
-                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('dispatches');
-                  toggleDispatchesMenu();
-                }}
-                className="flex items-center space-x-2.5 min-w-0 flex-1 text-left cursor-pointer"
-              >
-                <Truck className={`w-4 h-4 shrink-0 ${activeTab === 'dispatches' ? 'text-white' : 'text-blue-600'}`} />
-                <span className="truncate">Aid Dispatches & Waybills</span>
-              </button>
-
-              <div className="flex items-center gap-1 shrink-0 ml-1">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                  activeTab === 'dispatches' ? 'bg-white text-[#006B56]' : 'bg-emerald-100 text-emerald-900'
-                }`}>
-                  {dispatches.length}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleDispatchesMenu();
-                  }}
-                  className={`p-1 rounded-md transition hover:bg-black/10 cursor-pointer ${
-                    activeTab === 'dispatches' ? 'text-white' : 'text-slate-400 hover:text-slate-700'
-                  }`}
-                  title={isDispatchesMenuOpen ? 'Collapse sub-menu' : 'Expand sub-menu'}
-                >
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    isDispatchesMenuOpen ? 'rotate-180' : ''
-                  }`} />
-                </button>
-              </div>
-            </div>
-
-            {/* Collapsible Sub-Filters & Quick Action for Dispatches */}
-            {isDispatchesMenuOpen && (
-              <div className="pl-3 pr-1 py-1.5 space-y-1.5 bg-slate-50/90 rounded-xl border border-slate-200/80 my-1">
-                <div className="space-y-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('dispatches');
-                      setDispatchStatusFilter('ALL');
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      activeTab === 'dispatches' && dispatchStatusFilter === 'ALL'
-                        ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>All</span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                      {dispatches.length}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('dispatches');
-                      setDispatchStatusFilter('IN_TRANSIT');
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      activeTab === 'dispatches' && dispatchStatusFilter === 'IN_TRANSIT'
-                        ? 'bg-amber-100/90 text-amber-950 shadow-2xs border border-amber-300 font-extrabold'
-                        : 'text-amber-900/80 hover:text-amber-950 hover:bg-amber-50'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                      In Transit
-                    </span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-200/80 text-amber-950 font-black">
-                      {inTransitWaybillsCount}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('dispatches');
-                      setDispatchStatusFilter('DELIVERED');
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      activeTab === 'dispatches' && dispatchStatusFilter === 'DELIVERED'
-                        ? 'bg-emerald-100/90 text-emerald-950 shadow-2xs border border-emerald-300 font-extrabold'
-                        : 'text-emerald-900/80 hover:text-emerald-950 hover:bg-emerald-50'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                      Delivered
-                    </span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-emerald-200/80 text-emerald-950 font-black">
-                      {deliveredWaybillsCount}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('dispatches');
-                      setDispatchStatusFilter('STAGED');
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      activeTab === 'dispatches' && dispatchStatusFilter === 'STAGED'
-                        ? 'bg-indigo-100/90 text-indigo-950 shadow-2xs border border-indigo-300 font-extrabold'
-                        : 'text-indigo-900/80 hover:text-indigo-950 hover:bg-indigo-50'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                      Staged
-                    </span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-indigo-200/80 text-indigo-950 font-black">
-                      {stagedWaybillsCount}
-                    </span>
-                  </button>
-                </div>
-
-                {/* Dedicated Issue Waybill Sub-Page Link */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('dispatches-issue');
-                  }}
-                  className={`w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer mt-1 ${
-                    activeTab === 'dispatches-issue'
-                      ? 'bg-[#006B56] text-white ring-2 ring-emerald-400'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Issue Waybill</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Suppliers & Purchase Orders */}
-          <div className="space-y-1">
-            <div
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition ${
-                activeTab === 'suppliers'
-                  ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('suppliers');
-                  toggleSuppliersMenu();
-                }}
-                className="flex items-center space-x-2.5 min-w-0 flex-1 text-left cursor-pointer"
-              >
-                <ShoppingCart className={`w-4 h-4 shrink-0 ${activeTab === 'suppliers' ? 'text-white' : 'text-teal-600'}`} />
-                <span className="truncate">Suppliers & Purchase Orders</span>
-              </button>
-
-              <div className="flex items-center gap-1 shrink-0 ml-1">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                  activeTab === 'suppliers' ? 'bg-white text-[#006B56]' : 'bg-slate-100 text-slate-700'
-                }`}>
-                  {purchaseOrders.length}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSuppliersMenu();
-                  }}
-                  className={`p-1 rounded-md transition hover:bg-black/10 cursor-pointer ${
-                    activeTab === 'suppliers' ? 'text-white' : 'text-slate-400 hover:text-slate-700'
-                  }`}
-                  title={isSuppliersMenuOpen ? 'Collapse sub-menu' : 'Expand sub-menu'}
-                >
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    isSuppliersMenuOpen ? 'rotate-180' : ''
-                  }`} />
-                </button>
-              </div>
-            </div>
-
-            {/* Collapsible Sub-Filters for Suppliers & Purchase Orders */}
-            {isSuppliersMenuOpen && (
-              <div className="pl-3 pr-1 py-1.5 space-y-1.5 bg-slate-50/90 rounded-xl border border-slate-200/80 my-1">
-                <div className="space-y-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('suppliers');
-                      setSupplierSubTab('all');
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      activeTab === 'suppliers' && supplierSubTab === 'all'
-                        ? 'bg-white text-slate-900 shadow-2xs border border-slate-200/80'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>All Orders</span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                      {poPipelineStats.total}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('suppliers');
-                      setSupplierSubTab('stage1');
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      activeTab === 'suppliers' && supplierSubTab === 'stage1'
-                        ? 'bg-amber-100/90 text-amber-950 shadow-2xs border border-amber-300 font-extrabold'
-                        : 'text-amber-900/80 hover:text-amber-950 hover:bg-amber-50'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                      Requested
-                    </span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-200/80 text-amber-950 font-black">
-                      {poPipelineStats.stage1Count}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('suppliers');
-                      setSupplierSubTab('stage2');
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      activeTab === 'suppliers' && supplierSubTab === 'stage2'
-                        ? 'bg-blue-100/90 text-blue-950 shadow-2xs border border-blue-300 font-extrabold'
-                        : 'text-blue-900/80 hover:text-blue-950 hover:bg-blue-50'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                      In Transit
-                    </span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-blue-200/80 text-blue-950 font-black">
-                      {poPipelineStats.stage2Count}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('suppliers');
-                      setSupplierSubTab('stage3');
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      activeTab === 'suppliers' && supplierSubTab === 'stage3'
-                        ? 'bg-emerald-100/90 text-emerald-950 shadow-2xs border border-emerald-300 font-extrabold'
-                        : 'text-emerald-900/80 hover:text-emerald-950 hover:bg-emerald-50'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#006B56]" />
-                      GRN Received
-                    </span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-emerald-200/80 text-emerald-950 font-black">
-                      {poPipelineStats.stage3Count}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('suppliers');
-                      setSupplierSubTab('stage4');
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      activeTab === 'suppliers' && supplierSubTab === 'stage4'
-                        ? 'bg-teal-100/90 text-teal-950 shadow-2xs border border-teal-300 font-extrabold'
-                        : 'text-teal-900/80 hover:text-teal-950 hover:bg-teal-50'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-teal-600" />
-                      Paid
-                    </span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-teal-200/80 text-teal-950 font-black">
-                      {poPipelineStats.stage4Count}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab('suppliers');
-                      setSupplierSubTab('suppliers');
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                      activeTab === 'suppliers' && supplierSubTab === 'suppliers'
-                        ? 'bg-[#006B56]/10 text-[#006B56] shadow-2xs border border-[#006B56]/30 font-extrabold'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                      Suppliers Directory
-                    </span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                      {suppliers.length}
-                    </span>
-                  </button>
-                </div>
-
-                {/* Quick Action: Request Supplies */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPoModalOpen(true);
-                  }}
-                  className="w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer mt-1 bg-[#006B56] hover:bg-[#005443] text-white"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Request Supplies</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Fleet & Capital Resources */}
           <button
             type="button"
-            onClick={() => handleNavClick('resources')}
+            onClick={() => handleNavClick('dispatches')}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
-              activeTab === 'resources'
+              activeTab === 'dispatches' || activeTab === 'dispatches-issue'
                 ? 'bg-[#006B56] text-white font-bold shadow-xs'
                 : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <div className="flex items-center space-x-2.5">
-              <Radio className={`w-4 h-4 ${activeTab === 'resources' ? 'text-white' : 'text-indigo-600'}`} />
-              <span>Fleet & Capital Assets</span>
+              <Truck className={`w-4 h-4 ${activeTab === 'dispatches' || activeTab === 'dispatches-issue' ? 'text-white' : 'text-blue-600'}`} />
+              <span>Aid Dispatches & Waybills</span>
             </div>
-            <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-1.5 py-0.5 rounded-md">
-              {resources.length}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+              activeTab === 'dispatches' || activeTab === 'dispatches-issue'
+                ? 'bg-white text-[#006B56]'
+                : 'bg-emerald-100 text-emerald-900'
+            }`}>
+              {dispatches.length}
+            </span>
+          </button>
+
+          {/* Suppliers & Purchase Orders */}
+          <button
+            type="button"
+            onClick={() => handleNavClick('suppliers')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
+              activeTab === 'suppliers'
+                ? 'bg-[#006B56] text-white font-bold shadow-xs'
+                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <div className="flex items-center space-x-2.5">
+              <ShoppingCart className={`w-4 h-4 ${activeTab === 'suppliers' ? 'text-white' : 'text-teal-600'}`} />
+              <span>Suppliers & Purchase Orders</span>
+            </div>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+              activeTab === 'suppliers'
+                ? 'bg-white text-[#006B56]'
+                : 'bg-slate-100 text-slate-700'
+            }`}>
+              {purchaseOrders.length}
             </span>
           </button>
 
@@ -932,22 +528,6 @@ export function InventoryManagerDashboard({
             <div className="flex items-center space-x-2.5">
               <FileText className={`w-4 h-4 ${activeTab === 'reports' ? 'text-white' : 'text-slate-500'}`} />
               <span>Reports & Audit Ledger</span>
-            </div>
-          </button>
-
-          {/* Feedback & Complaints */}
-          <button
-            type="button"
-            onClick={() => handleNavClick('feedback')}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition cursor-pointer ${
-              activeTab === 'feedback'
-                ? 'bg-[#006B56] text-white font-bold shadow-xs'
-                : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <div className="flex items-center space-x-2.5">
-              <MessageSquare className={`w-4 h-4 ${activeTab === 'feedback' ? 'text-white' : 'text-[#006B56]'}`} />
-              <span>Feedback & Complaints</span>
             </div>
           </button>
         </div>
@@ -1163,15 +743,7 @@ export function InventoryManagerDashboard({
               />
             )}
 
-            {/* View 4: Fleet & Capital Assets */}
-            {activeTab === 'resources' && (
-              <InventoryResourcesView
-                resources={resources}
-                warehouses={warehouses}
-              />
-            )}
-
-            {/* View 5: State Depots */}
+            {/* View 4: State Depots */}
             {activeTab === 'warehouses' && (
               <InventoryWarehousesView
                 warehouses={warehouses}
@@ -1179,7 +751,7 @@ export function InventoryManagerDashboard({
               />
             )}
 
-            {/* View 6: Reports & Audit */}
+            {/* View 5: Reports & Audit */}
             {activeTab === 'reports' && (
               <InventoryReportsView
                 inventory={inventory}
@@ -1188,13 +760,6 @@ export function InventoryManagerDashboard({
                 transactions={transactions}
                 warehouses={warehouses}
               />
-            )}
-
-            {/* View 7: Feedback & Complaints */}
-            {activeTab === 'feedback' && (
-              <div className="w-full flex-1 flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                <FeedbackComplaintsView currentUser={currentUser} />
-              </div>
             )}
           </>
         )}
@@ -1263,8 +828,7 @@ export function InventoryManagerDashboard({
         onUpdateStatus={handleUpdateDispatchStatus}
       />
 
-      {/* Module Feedback Trigger */}
-      <FloatingFeedbackButton currentModule="Inventory & Logistics Management" onOpenFeedbackTab={() => handleNavClick('feedback')} />
+
       </div>
     </div>
   );

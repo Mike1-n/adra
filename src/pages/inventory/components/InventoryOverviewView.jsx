@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Layers,
   ChevronRight,
-  Plus,
   PackagePlus,
   SlidersHorizontal,
   ShoppingCart
@@ -254,84 +253,6 @@ export function InventoryOverviewView({
             </div>
           </button>
         </div>
-      </div>
-
-      {/* 3. OPERATIONAL DASHBOARD: ACTIVE CONVOYS & DISPATCHES */}
-      <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-200 shadow-2xs">
-        <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 mb-2.5">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-900 flex items-center justify-center shrink-0">
-              <Truck className="w-4 h-4 text-blue-700" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">Active Convoys & Transit</h3>
-              <p className="text-[10px] sm:text-[11px] text-slate-400 truncate hidden sm:block">Real-time field shipments en route</p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onNavigateTab && onNavigateTab('dispatches')}
-            className="text-xs font-bold text-[#006B56] hover:underline cursor-pointer"
-          >
-            All Waybills
-          </button>
-        </div>
-
-        {inTransitDispatches.length === 0 ? (
-          <div className="p-3 sm:p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <Truck className="w-4 h-4 text-slate-400 shrink-0" />
-              <span className="text-xs text-slate-600 font-semibold truncate">No active field convoys currently en route</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => onOpenCreateDispatchModal && onOpenCreateDispatchModal()}
-              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold shadow-2xs flex items-center gap-1 shrink-0 transition cursor-pointer active:scale-95"
-            >
-              <Plus className="w-3 h-3" />
-              <span>Issue Waybill</span>
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-1.5 sm:space-y-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {inTransitDispatches.map((disp, idx) => (
-                <div
-                  key={disp.id || disp.waybill_number || idx}
-                  className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-blue-50/50 border border-blue-200/80 space-y-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-[11px] font-black text-blue-950">
-                      #{disp.waybill_number || `WB-2026-00${idx + 1}`}
-                    </span>
-                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 bg-amber-200 text-amber-950 rounded">
-                      In Transit
-                    </span>
-                  </div>
-                  <div className="text-[10px] sm:text-[11px] text-slate-700">
-                    <p className="font-bold truncate">{disp.items_summary || disp.cargo_description || 'Humanitarian Supplies'}</p>
-                    <p className="text-slate-500 text-[10px] mt-0.5 flex items-center gap-1 truncate">
-                      <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                      <span className="truncate">Dest: <strong>{disp.destination_hub || disp.payam || 'Field Hub'}</strong></span>
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 flex justify-end">
-              <button
-                type="button"
-                onClick={() => onOpenCreateDispatchModal && onOpenCreateDispatchModal()}
-                className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-300/80 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3 h-3" />
-                <span>Issue New Waybill</span>
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 3. STATE DEPOTS NETWORK SUMMARY (Compact / High-density) */}
