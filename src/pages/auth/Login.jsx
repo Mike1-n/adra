@@ -531,8 +531,12 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                     Phone Number <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative flex items-center rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition overflow-hidden">
-                    <div className="flex items-center gap-1 px-2.5 py-2.5 bg-slate-50 border-r border-slate-200 text-slate-700 font-bold text-xs select-none shrink-0">
-                      <span className="text-sm">🇸🇸</span>
+                    <div className="flex items-center gap-1.5 px-2.5 py-2.5 bg-slate-50 border-r border-slate-200 text-slate-700 font-bold text-xs select-none shrink-0">
+                      <img
+                        src="/images/south-sudan-flag.svg"
+                        alt="South Sudan Flag"
+                        className="w-5 h-3.5 object-cover rounded-xs border border-slate-300 shadow-2xs"
+                      />
                       <span>+211</span>
                     </div>
                     <input
