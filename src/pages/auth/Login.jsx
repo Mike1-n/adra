@@ -149,27 +149,6 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
       {/* Clean Auth Card (Non-scrollable on Login, clean & centered) */}
       <div className={`w-full sm:max-w-[400px] bg-white rounded-3xl shadow-xl border border-slate-100 p-7 flex flex-col justify-between ${isSignUp ? 'max-h-[92vh] overflow-y-auto' : ''}`}>
         <div className="w-full">
-            {/* If Sign Up, show compact brand bar with Back to Login button */}
-            {isSignUp && (
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <img
-                    src="/images/adra-logo-expanded.png"
-                    alt="ADRA Logo"
-                    className="h-9 w-auto object-contain"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsSignUp(false)}
-                  className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer py-1 px-2.5 rounded-lg hover:bg-slate-100 transition"
-                >
-                  <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-                  <span>Back to Login</span>
-                </button>
-              </div>
-            )}
 
             {pendingAccountData ? (
               <div className="space-y-4 py-1 animate-in fade-in zoom-in-95 duration-200">
@@ -254,36 +233,38 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
               </div>
             ) : (
               <>
-                {/* Form Header (Distinct for Login vs Sign Up) */}
-                {!isSignUp ? (
-                  <div className="pt-2 pb-1 text-center">
-                    {/* Centered Official ADRA Logo */}
-                    <div className="flex items-center justify-center mb-3">
-                      <img
-                        src="/images/adra-logo-expanded.png"
-                        alt="ADRA Logo"
-                        className="h-16 w-auto object-contain"
-                      />
-                    </div>
+                {/* Form Header (Centered Logo & Text for Login & Sign Up) */}
+                <div className="pt-2 pb-1 text-center">
+                  {/* Centered Official ADRA Logo */}
+                  <div className="flex items-center justify-center mb-3">
+                    <img
+                      src="/images/adra-logo-expanded.png"
+                      alt="ADRA Logo"
+                      className="h-16 w-auto object-contain"
+                    />
+                  </div>
 
-                    {/* Welcome Back & Humanitarian Assistance App */}
-                    <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                      Welcome Back
-                    </h1>
-                    <p className="text-xs text-slate-500 mt-1 font-medium">
-                      Humanitarian Assistance App
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mb-4">
-                    <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                      Create Account
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed font-normal">
-                      Register your profile to access ADRA humanitarian assistance.
-                    </p>
-                  </div>
-                )}
+                  {!isSignUp ? (
+                    <>
+                      {/* Welcome Back & Humanitarian Assistance App */}
+                      <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                        Welcome Back
+                      </h1>
+                      <p className="text-xs text-slate-500 mt-1 font-medium">
+                        Humanitarian Assistance App
+                      </p>
+                    </>
+                  ) : (
+                    <div className="mb-4">
+                      <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                        Create Account
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed font-normal">
+                        Register your profile to access ADRA humanitarian assistance.
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 {/* Account Verification Pending Notice if triggered */}
                 {pendingNotice && !isSignUp && (
