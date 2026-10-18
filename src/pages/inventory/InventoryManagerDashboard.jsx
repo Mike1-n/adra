@@ -768,7 +768,7 @@ export function InventoryManagerDashboard({
             )}
             {/* View 7: Officer Profile Fallback */}
             {activeTab === 'profile' && (
-              <div className="bg-white sm:rounded-2xl sm:border border-slate-200 p-4 sm:p-6 sm:shadow-2xs max-w-xl mx-auto space-y-4 -mx-2.5 -my-2.5 sm:mx-auto sm:my-6 min-h-[calc(100vh-120px)] sm:min-h-0">
+              <div className="bg-white sm:rounded-2xl sm:border border-slate-200 p-4 sm:p-6 sm:shadow-2xs max-w-xl space-y-4 -mx-2.5 -my-2.5 sm:mx-auto sm:my-6 min-h-[calc(100vh-120px)] sm:min-h-0">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-emerald-700 flex items-center justify-center text-white shrink-0 shadow-sm overflow-hidden border border-emerald-600">
                     {currentUser?.avatar ? (

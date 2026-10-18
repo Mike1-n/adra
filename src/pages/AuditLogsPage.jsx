@@ -204,7 +204,7 @@ export function AuditLogsPage() {
             </div>
 
             <div>
-              <span className="text-slate-400 font-semibold block mb-1.5 flex items-center gap-1.5">
+              <span className="text-slate-400 font-semibold mb-1.5 flex items-center gap-1.5">
                 <FileCode2 className="w-3.5 h-3.5 text-emerald-400" />
                 Payload / Event Payload
               </span>
