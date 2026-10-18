@@ -527,14 +527,9 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
 
                 {/* 3. Phone Number (Autofilled South Sudan Code +211, Regulated 9 Digits) */}
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-slate-700">
-                      Phone Number <span className="text-rose-500">*</span>
-                    </label>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {phoneDigits.length}/9 digits
-                    </span>
-                  </div>
+                  <label className="block text-xs font-bold text-slate-700">
+                    Phone Number <span className="text-rose-500">*</span>
+                  </label>
                   <div className="relative flex items-center rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition overflow-hidden">
                     <div className="flex items-center gap-1 px-2.5 py-2.5 bg-slate-50 border-r border-slate-200 text-slate-700 font-bold text-xs select-none shrink-0">
                       <span className="text-sm">🇸🇸</span>
@@ -551,9 +546,6 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                       required
                     />
                   </div>
-                  <p className="text-[10px] text-slate-400">
-                    South Sudan code (+211) &bull; Regulated to 9 digits
-                  </p>
                 </div>
 
                 {/* 4. National ID / Identification Number (Regulated 9 Digits, Same as Phone) */}
@@ -562,23 +554,18 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                     <label className="block text-xs font-bold text-slate-700">
                       National ID Number <span className="text-rose-500">*</span>
                     </label>
-                    <div className="flex items-center gap-2">
-                      {phoneDigits && idDigits !== phoneDigits && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIdDigits(phoneDigits);
-                            setSignupForm(prev => ({ ...prev, id_number: phoneDigits }));
-                          }}
-                          className="text-[10px] font-semibold text-[#006B56] hover:underline cursor-pointer"
-                        >
-                          Use phone numbers
-                        </button>
-                      )}
-                      <span className="text-[10px] font-mono text-slate-400">
-                        {idDigits.length}/9 digits
-                      </span>
-                    </div>
+                    {phoneDigits && idDigits !== phoneDigits && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIdDigits(phoneDigits);
+                          setSignupForm(prev => ({ ...prev, id_number: phoneDigits }));
+                        }}
+                        className="text-[10px] font-semibold text-[#006B56] hover:underline cursor-pointer"
+                      >
+                        Use phone numbers
+                      </button>
+                    )}
                   </div>
                   <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
                     <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -593,9 +580,6 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                       required
                     />
                   </div>
-                  <p className="text-[10px] text-slate-400">
-                    Regulated to 9 digits (same length as phone number)
-                  </p>
                 </div>
 
                 {/* 4. Location / County */}
