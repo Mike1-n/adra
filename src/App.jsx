@@ -296,22 +296,22 @@ export function App() {
 
     // Informative Access Guard if a non-administrator accesses /admin
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 selection:bg-emerald-500 selection:text-white">
-        <div className="max-w-md w-full bg-slate-800 border border-slate-700/80 rounded-2xl p-6 sm:p-8 shadow-2xl text-center space-y-6">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-inner">
+      <div className="min-h-screen bg-white text-slate-900 flex flex-col items-center justify-center p-4 selection:bg-emerald-600 selection:text-white">
+        <div className="max-w-md w-full bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-200/50 text-center space-y-6">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-2xs">
             <ShieldAlert className="w-8 h-8" />
           </div>
 
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-medium">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-mono font-medium">
               <span>Path:</span>
               <span className="font-bold">{pathInfo.cleanPath}</span>
             </div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Administrator Privileges Required</h1>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              You are currently signed in as <span className="text-white font-semibold">{currentUser.full_name || 'Staff Member'}</span> with the role <span className="inline-block px-2 py-0.5 rounded bg-slate-700 text-emerald-300 text-xs font-semibold">{currentUser.role}</span>.
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Administrator Privileges Required</h1>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              You are currently signed in as <span className="text-slate-900 font-semibold">{currentUser.full_name || 'Staff Member'}</span> with the role <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-emerald-800 text-xs font-semibold border border-slate-200">{currentUser.role}</span>.
             </p>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               The Enterprise Admin Web Portal path is reserved for Humanitarian System Administrators.
             </p>
           </div>
@@ -322,7 +322,7 @@ export function App() {
               onClick={() => {
                 quickSwitchRole('Administrator');
               }}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition shadow-lg shadow-emerald-900/30 active:scale-95 cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
             >
               <ShieldCheck className="w-4 h-4" />
               Switch to Administrator (Demo Mode)
@@ -333,7 +333,7 @@ export function App() {
               onClick={() => {
                 navigateTo('/');
               }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium text-sm transition border border-slate-600 active:scale-95 cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm transition border border-slate-200 active:scale-95 cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               Return to Field Application (/)
@@ -342,7 +342,7 @@ export function App() {
             <button
               type="button"
               onClick={logout}
-              className="w-full flex items-center justify-center gap-2 py-2 px-4 text-xs text-rose-400 hover:text-rose-300 transition cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 text-xs text-rose-600 hover:text-rose-700 transition cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               Sign Out
