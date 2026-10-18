@@ -91,15 +91,15 @@ export function AdminLogin({ onLoginSuccess }) {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-3.5 mt-4">
-            {/* Phone/Email input */}
+            {/* Email Address input */}
             <div>
               <div className="relative rounded-2xl bg-[#F4F5F7] border border-slate-200/70 focus-within:border-emerald-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" strokeWidth={1.75} />
                 <input
-                  type="text"
+                  type="email"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="Phone/Email"
+                  placeholder="Email Address"
                   className="w-full pl-11 pr-4 py-3.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
                   required
                 />

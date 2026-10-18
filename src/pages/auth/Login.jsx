@@ -42,6 +42,8 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
 
   // Form State - Sign Up (Essential identity parameters only)
   const [signupType, setSignupType] = useState('Beneficiary'); // 'Beneficiary' | 'Staff'
+  const [phoneDigits, setPhoneDigits] = useState('');
+  const [idDigits, setIdDigits] = useState('');
   const [signupForm, setSignupForm] = useState({
     first_name: '',
     middle_name: '',
@@ -58,6 +60,30 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
     confirm_password: ''
   });
 
+  const handlePhoneChange = (e) => {
+    let raw = e.target.value.replace(/\D/g, '');
+    if (raw.startsWith('211')) {
+      raw = raw.slice(3);
+    } else if (raw.startsWith('0')) {
+      raw = raw.slice(1);
+    }
+    const regulated = raw.slice(0, 9);
+    setPhoneDigits(regulated);
+    setSignupForm(prev => ({
+      ...prev,
+      phone_number: regulated ? `+211 ${regulated}` : ''
+    }));
+  };
+
+  const handleIdChange = (e) => {
+    const regulated = e.target.value.replace(/\D/g, '').slice(0, 9);
+    setIdDigits(regulated);
+    setSignupForm(prev => ({
+      ...prev,
+      id_number: regulated
+    }));
+  };
+
   // Modals
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
@@ -68,7 +94,7 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
     const cleanIdent = identifier?.trim();
     const cleanPass = password?.trim();
     if (!cleanIdent || !cleanPass) {
-      toast.warning('Please enter your phone number, email, or Beneficiary ID and password.');
+      toast.warning('Please enter your email address and password.');
       return;
     }
 
@@ -91,13 +117,18 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
       return;
     }
 
-    if (!signupForm.phone_number?.trim()) {
-      toast.warning('Please provide a mobile phone number for aid notifications.');
+    if (!signupForm.email?.trim() || !signupForm.email.includes('@')) {
+      toast.warning('Please enter a valid email address for login.');
       return;
     }
 
-    if (!signupForm.id_number?.trim()) {
-      toast.warning('Please enter your National or Refugee ID Number.');
+    if (phoneDigits.length !== 9) {
+      toast.warning('Phone number must have exactly 9 digits (South Sudan +211 standard).');
+      return;
+    }
+
+    if (idDigits.length !== 9) {
+      toast.warning('National ID number must have exactly 9 digits.');
       return;
     }
 
@@ -110,22 +141,25 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
       .filter(Boolean)
       .join(' ');
 
+    const fullPhone = `+211 ${phoneDigits}`;
+
     try {
       const newUser = await signup({
         accountType: signupType,
         ...signupForm,
         full_name: fullName,
-        national_id: signupForm.id_number.trim(),
-        id_number: signupForm.id_number.trim(),
-        email: signupForm.email?.trim() || ''
+        national_id: idDigits,
+        id_number: idDigits,
+        phone_number: fullPhone,
+        email: signupForm.email.trim()
       });
       // Store pending account data to render verification notice screen
       setPendingAccountData({
         ...newUser,
         full_name: fullName,
         accountType: signupType,
-        id_number: signupForm.id_number.trim(),
-        identifier: signupForm.email?.trim() || (signupType === 'Beneficiary' ? signupForm.phone_number : signupForm.email)
+        id_number: idDigits,
+        identifier: signupForm.email.trim()
       });
     } catch (err) {
       // Error handled in AuthContext
@@ -282,15 +316,15 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                 {/* A. LOGIN FORM (100% Mockup Match) */}
                 {!isSignUp ? (
                   <form onSubmit={handleLoginSubmit} className="space-y-3.5 mt-4">
-                    {/* Phone/Email input */}
+                    {/* Email Address input */}
                     <div>
                       <div className="relative rounded-2xl bg-[#F4F5F7] border border-slate-200/70 focus-within:border-emerald-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                        <Phone className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" strokeWidth={1.75} />
+                        <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" strokeWidth={1.75} />
                         <input
-                          type="text"
+                          type="email"
                           value={identifier}
                           onChange={(e) => setIdentifier(e.target.value)}
-                          placeholder="Phone/Email"
+                          placeholder="Email Address"
                           className="w-full pl-11 pr-4 py-3.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
                           required
                         />
@@ -473,40 +507,95 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                   </div>
                 </div>
 
-                {/* 2. Phone Number */}
+                {/* 2. Email Address (Used for Login) */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-700">
-                    Phone Number <span className="text-rose-500">*</span>
+                    Email Address <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                    <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
-                      type="tel"
-                      value={signupForm.phone_number}
-                      onChange={(e) => setSignupForm({ ...signupForm, phone_number: e.target.value })}
-                      placeholder="e.g. 0920 123 456"
+                      type="email"
+                      value={signupForm.email}
+                      onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
+                      placeholder="name@example.com"
                       className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
                       required
                     />
                   </div>
                 </div>
 
-                {/* 3. National ID / Identification Number */}
+                {/* 3. Phone Number (Autofilled South Sudan Code +211, Regulated 9 Digits) */}
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">
-                    National ID / Identification Number <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Phone Number <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {phoneDigits.length}/9 digits
+                    </span>
+                  </div>
+                  <div className="relative flex items-center rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition overflow-hidden">
+                    <div className="flex items-center gap-1 px-2.5 py-2.5 bg-slate-50 border-r border-slate-200 text-slate-700 font-bold text-xs select-none shrink-0">
+                      <span className="text-sm">🇸🇸</span>
+                      <span>+211</span>
+                    </div>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      value={phoneDigits}
+                      onChange={handlePhoneChange}
+                      placeholder="920 123 456"
+                      maxLength={9}
+                      className="w-full px-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
+                      required
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    South Sudan code (+211) &bull; Regulated to 9 digits
+                  </p>
+                </div>
+
+                {/* 4. National ID / Identification Number (Regulated 9 Digits, Same as Phone) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700">
+                      National ID Number <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {phoneDigits && idDigits !== phoneDigits && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIdDigits(phoneDigits);
+                            setSignupForm(prev => ({ ...prev, id_number: phoneDigits }));
+                          }}
+                          className="text-[10px] font-semibold text-[#006B56] hover:underline cursor-pointer"
+                        >
+                          Use phone numbers
+                        </button>
+                      )}
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {idDigits.length}/9 digits
+                      </span>
+                    </div>
+                  </div>
                   <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
                     <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      value={signupForm.id_number}
-                      onChange={(e) => setSignupForm({ ...signupForm, id_number: e.target.value })}
-                      placeholder="e.g. SSD-90821-X or National ID"
+                      inputMode="numeric"
+                      value={idDigits}
+                      onChange={handleIdChange}
+                      placeholder="e.g. 920123456"
+                      maxLength={9}
                       className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
                       required
                     />
                   </div>
+                  <p className="text-[10px] text-slate-400">
+                    Regulated to 9 digits (same length as phone number)
+                  </p>
                 </div>
 
                 {/* 4. Location / County */}
