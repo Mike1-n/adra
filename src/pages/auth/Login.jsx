@@ -25,7 +25,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
-export function Login({ onLoginSuccess }) {
+export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
   const { login, signup, demoAccounts, loading } = useAuth();
   const toast = useToast();
 
@@ -461,14 +461,31 @@ export function Login({ onLoginSuccess }) {
                         <button
                           type="button"
                           onClick={() => {
-                            setIdentifier('admin@adra.org');
-                            setPassword('Password123!');
+                            if (onSwitchToAdminLogin) {
+                              onSwitchToAdminLogin();
+                            } else {
+                              setIdentifier('admin@adra.org');
+                              setPassword('Password123!');
+                            }
                           }}
                           className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold border border-slate-200 text-center transition cursor-pointer"
                         >
                           ⚙️ Admin
                         </button>
                       </div>
+
+                      {onSwitchToAdminLogin && (
+                        <div className="pt-2.5 text-center">
+                          <button
+                            type="button"
+                            onClick={onSwitchToAdminLogin}
+                            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-700 font-semibold transition cursor-pointer"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            Administrator Console Login (/admin)
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </form>
                 ) : (

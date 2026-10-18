@@ -23,6 +23,7 @@ import { SettingsPage } from './pages/SettingsPage';
 
 // Standalone Administrator Web Application Portal
 import { AdminWebPortalPage } from './pages/admin/AdminWebPortalPage';
+import { AdminLogin } from './pages/admin/AdminLogin';
 
 // Specialized Beneficiary Mobile Application (Section 1.5.4)
 import { BeneficiaryMobileApp } from './pages/beneficiary/BeneficiaryMobileApp';
@@ -248,7 +249,31 @@ export function App() {
   }, [currentUser?.role]);
 
   if (!currentUser) {
-    return <Login onLoginSuccess={() => setCurrentTab('dashboard')} />;
+    if (pathInfo.isAdminPath) {
+      return (
+        <AdminLogin
+          onLoginSuccess={(user) => {
+            if (user?.role === 'Administrator') {
+              setAppMode('admin_web_app');
+              navigateTo('/admin');
+            }
+          }}
+          onSwitchToFieldLogin={() => {
+            setAppMode('field_app');
+            navigateTo('/');
+          }}
+        />
+      );
+    }
+    return (
+      <Login
+        onLoginSuccess={() => setCurrentTab('dashboard')}
+        onSwitchToAdminLogin={() => {
+          setAppMode('admin_web_app');
+          navigateTo('/admin');
+        }}
+      />
+    );
   }
 
   // Dedicated Administrator Web Portal Route (/admin and /admin/:section)
