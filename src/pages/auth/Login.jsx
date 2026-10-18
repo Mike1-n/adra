@@ -38,8 +38,9 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
 
-  // Form State - Sign Up (First Name, Middle Name, Last Name, ID Number, plus remaining parameters)
+  // Form State - Sign Up (Essential identity parameters only)
   const [signupType, setSignupType] = useState('Beneficiary'); // 'Beneficiary' | 'Staff'
   const [signupForm, setSignupForm] = useState({
     first_name: '',
@@ -50,9 +51,9 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
     phone_number: '',
     location: 'Juba Central, South Sudan',
     household_size: 4,
-    vulnerability_category: 'Female-headed Household',
-    role: 'Project Officer',
-    department: 'Humanitarian Response',
+    vulnerability_category: 'General Community',
+    role: 'Beneficiary',
+    department: 'Community',
     password: '',
     confirm_password: ''
   });
@@ -90,8 +91,13 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
       return;
     }
 
+    if (!signupForm.phone_number?.trim()) {
+      toast.warning('Please provide a mobile phone number for aid notifications.');
+      return;
+    }
+
     if (!signupForm.id_number?.trim()) {
-      toast.warning('Please enter your ID Number (National / Refugee / Staff ID).');
+      toast.warning('Please enter your National or Refugee ID Number.');
       return;
     }
 
@@ -100,22 +106,7 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
       return;
     }
 
-    if (signupForm.password !== signupForm.confirm_password) {
-      toast.error('Passwords do not match.');
-      return;
-    }
-
-    if (signupType === 'Beneficiary' && !signupForm.phone_number?.trim()) {
-      toast.warning('Please provide a mobile phone number for aid notifications.');
-      return;
-    }
-
-    if (signupType === 'Staff' && !signupForm.email?.trim()) {
-      toast.warning('Please provide an official work email address.');
-      return;
-    }
-
-    const fullName = [signupForm.first_name?.trim(), signupForm.middle_name?.trim(), signupForm.last_name?.trim()]
+    const fullName = [signupForm.first_name?.trim(), signupForm.last_name?.trim()]
       .filter(Boolean)
       .join(' ');
 
@@ -462,62 +453,64 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                     </div>
                   </form>
                 ) : (
-              /* B. SIGN UP FORM (Vertical arrangement with labels above inputs) */
+              /* B. SIGN UP FORM (Essential fields only) */
               <form onSubmit={handleSignupSubmit} className="space-y-3.5">
-                {/* 1. First Name */}
+                {/* 1. First Name & Last Name (Compact 2-Column Grid) */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      First Name <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
+                      <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={signupForm.first_name}
+                        onChange={(e) => setSignupForm({ ...signupForm, first_name: e.target.value })}
+                        placeholder="First name"
+                        className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Last Name <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
+                      <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={signupForm.last_name}
+                        onChange={(e) => setSignupForm({ ...signupForm, last_name: e.target.value })}
+                        placeholder="Last name"
+                        className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Phone Number */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-700">
-                    First Name <span className="text-rose-500">*</span>
+                    Phone Number <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
-                      type="text"
-                      value={signupForm.first_name}
-                      onChange={(e) => setSignupForm({ ...signupForm, first_name: e.target.value })}
-                      placeholder="Enter your first name"
+                      type="tel"
+                      value={signupForm.phone_number}
+                      onChange={(e) => setSignupForm({ ...signupForm, phone_number: e.target.value })}
+                      placeholder="e.g. 0920 123 456"
                       className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
                       required
                     />
                   </div>
                 </div>
 
-                {/* 2. Middle Name */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Middle Name <span className="text-slate-400 font-normal">(Optional)</span>
-                  </label>
-                  <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={signupForm.middle_name}
-                      onChange={(e) => setSignupForm({ ...signupForm, middle_name: e.target.value })}
-                      placeholder="Enter middle name (optional)"
-                      className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* 3. Last Name */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Last Name <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={signupForm.last_name}
-                      onChange={(e) => setSignupForm({ ...signupForm, last_name: e.target.value })}
-                      placeholder="Enter your last name"
-                      className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* 4. National ID / Identification Number */}
+                {/* 3. National ID / Identification Number */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-700">
                     National ID / Identification Number <span className="text-rose-500">*</span>
@@ -535,161 +528,30 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                   </div>
                 </div>
 
-                {/* 5. Email Address (Vertical with label above for both Beneficiary and Staff) */}
+                {/* 4. Location / County */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-700">
-                    Email Address {signupType === 'Staff' ? (
-                      <span className="text-rose-500">*</span>
-                    ) : (
-                      <span className="text-slate-400 font-normal">(Optional)</span>
-                    )}
+                    Location / County <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="email"
-                      value={signupForm.email}
-                      onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                      placeholder={signupType === 'Staff' ? 'official.email@adra.org' : 'name@example.com'}
-                      className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
-                      required={signupType === 'Staff'}
-                    />
+                    <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <select
+                      value={signupForm.location}
+                      onChange={(e) => setSignupForm({ ...signupForm, location: e.target.value })}
+                      className="w-full pl-9 pr-3 py-2.5 text-xs text-slate-900 bg-transparent outline-none font-medium cursor-pointer"
+                    >
+                      <option value="Juba Central, South Sudan">Juba Central, South Sudan</option>
+                      <option value="Malakal, South Sudan">Malakal, South Sudan</option>
+                      <option value="Wau, South Sudan">Wau, South Sudan</option>
+                      <option value="Yambio, South Sudan">Yambio, South Sudan</option>
+                      <option value="Bor, South Sudan">Bor, South Sudan</option>
+                      <option value="Bentiu, South Sudan">Bentiu, South Sudan</option>
+                      <option value="Aweil, South Sudan">Aweil, South Sudan</option>
+                    </select>
                   </div>
                 </div>
 
-                {/* 6. Phone Number */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Phone Number {signupType === 'Beneficiary' ? (
-                      <span className="text-rose-500">*</span>
-                    ) : (
-                      <span className="text-slate-400 font-normal">(Optional)</span>
-                    )}
-                  </label>
-                  <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                    <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="tel"
-                      value={signupForm.phone_number}
-                      onChange={(e) => setSignupForm({ ...signupForm, phone_number: e.target.value })}
-                      placeholder="e.g. 0920 123 456"
-                      className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
-                      required={signupType === 'Beneficiary'}
-                    />
-                  </div>
-                </div>
-
-                {/* 7. Beneficiary-specific parameters */}
-                {signupType === 'Beneficiary' ? (
-                  <>
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-bold text-slate-700">
-                        Household Size (Family Members) <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                        <Users className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="number"
-                          min="1"
-                          max="25"
-                          value={signupForm.household_size}
-                          onChange={(e) => setSignupForm({ ...signupForm, household_size: e.target.value })}
-                          placeholder="Number of family members (e.g. 4)"
-                          className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-bold text-slate-700">
-                        Location / County <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                        <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <select
-                          value={signupForm.location}
-                          onChange={(e) => setSignupForm({ ...signupForm, location: e.target.value })}
-                          className="w-full pl-9 pr-3 py-2.5 text-xs text-slate-900 bg-transparent outline-none font-medium cursor-pointer"
-                        >
-                          <option value="Juba Central, South Sudan">Juba Central, South Sudan</option>
-                          <option value="Malakal, South Sudan">Malakal, South Sudan</option>
-                          <option value="Wau, South Sudan">Wau, South Sudan</option>
-                          <option value="Yambio, South Sudan">Yambio, South Sudan</option>
-                          <option value="Bor, South Sudan">Bor, South Sudan</option>
-                          <option value="Bentiu, South Sudan">Bentiu, South Sudan</option>
-                          <option value="Aweil, South Sudan">Aweil, South Sudan</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-bold text-slate-700">
-                        Vulnerability Category <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                        <HeartHandshake className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <select
-                          value={signupForm.vulnerability_category}
-                          onChange={(e) => setSignupForm({ ...signupForm, vulnerability_category: e.target.value })}
-                          className="w-full pl-9 pr-3 py-2.5 text-xs text-slate-900 bg-transparent outline-none font-medium cursor-pointer"
-                        >
-                          <option value="Female-headed Household">Female-headed Household</option>
-                          <option value="Internally Displaced Person (IDP)">Internally Displaced Person (IDP)</option>
-                          <option value="Persons with Disability">Persons with Disability</option>
-                          <option value="Elderly">Elderly</option>
-                          <option value="Child-headed Household">Child-headed Household</option>
-                          <option value="Extremely Poor Household">Extremely Poor Household</option>
-                          <option value="Youth at Risk">Youth at Risk</option>
-                          <option value="General Community">General Community</option>
-                        </select>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  /* Staff-specific parameters */
-                  <>
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-bold text-slate-700">
-                        Staff Role / Position <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                        <Building className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <select
-                          value={signupForm.role}
-                          onChange={(e) => setSignupForm({ ...signupForm, role: e.target.value })}
-                          className="w-full pl-9 pr-3 py-2.5 text-xs text-slate-900 bg-transparent outline-none font-medium cursor-pointer"
-                        >
-                          <option value="Project Officer">Project Officer</option>
-                          <option value="Finance Officer">Finance Officer</option>
-                          <option value="M&E Officer">M&E Officer</option>
-                          <option value="Field Worker">Field Worker</option>
-                          <option value="Supervisor">Supervisor</option>
-                          <option value="Program Manager">Program Manager</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-bold text-slate-700">
-                        Department <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                        <Building className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          value={signupForm.department}
-                          onChange={(e) => setSignupForm({ ...signupForm, department: e.target.value })}
-                          placeholder="e.g. Humanitarian Response / Field Ops"
-                          className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* 8. Password Fields */}
+                {/* 5. Password */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-700">
                     Create Password <span className="text-rose-500">*</span>
@@ -697,30 +559,21 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                   <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
-                      type="password"
+                      type={showSignupPassword ? 'text' : 'password'}
                       value={signupForm.password}
-                      onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
+                      onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value, confirm_password: e.target.value })}
                       placeholder="Enter a secure password"
-                      className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
+                      className="w-full pl-9 pr-10 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
                       required
                     />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Confirm Password <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative rounded-xl border border-slate-200 bg-white hover:border-slate-300 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
-                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="password"
-                      value={signupForm.confirm_password}
-                      onChange={(e) => setSignupForm({ ...signupForm, confirm_password: e.target.value })}
-                      placeholder="Confirm your password"
-                      className="w-full pl-9 pr-3 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
-                      required
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSignupPassword(!showSignupPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      tabIndex={-1}
+                    >
+                      {showSignupPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
 
