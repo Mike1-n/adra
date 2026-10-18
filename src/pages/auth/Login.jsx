@@ -458,20 +458,6 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                         >
                           🚚 Supplier
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (onSwitchToAdminLogin) {
-                              onSwitchToAdminLogin();
-                            } else {
-                              setIdentifier('admin@adra.org');
-                              setPassword('Password123!');
-                            }
-                          }}
-                          className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold border border-slate-200 text-center transition cursor-pointer"
-                        >
-                          ⚙️ Admin
-                        </button>
                       </div>
 
                       {onSwitchToAdminLogin && (
