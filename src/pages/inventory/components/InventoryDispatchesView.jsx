@@ -43,52 +43,134 @@ export function InventoryDispatchesView({
   const statusFilter = externalStatusFilter !== undefined ? externalStatusFilter : internalStatusFilter;
   const setStatusFilter = onStatusFilterChange || setInternalStatusFilter;
 
+  // Unify official dispatches and PM-approved requests into a single manifests list
+  const allManifests = useMemo(() => {
+    const pendingList = (approvedRequests || []).map(r => {
+      const reqCode = r.request_code || r.tracking_number || r.id;
+      const numDigits = String(reqCode).replace(/[^0-9]/g, '');
+      const codeDigits = numDigits.length >= 4 ? numDigits.slice(-5) : '63214';
+      const destination = r.location || [r.county, r.payam].filter(Boolean).join(', ') || r.state || 'Field Centre';
+      const ben = r.beneficiary_name || r.full_name || 'Beneficiary';
+      const benId = r.beneficiary_code || r.beneficiary_id || r.national_id || r.id_number || '';
+      const cat = r.category || r.assistance_type || 'Relief Commodities';
+      const supervisor = r.assigned_supervisor_name || 'Assigned Supervisor';
+      const worker = r.assigned_field_worker_name || 'Field Officer';
+
+      return {
+        id: `pending-wb-${r.id || reqCode}`,
+        waybill_number: `WB-PEND-${codeDigits}`,
+        is_pending_waybill: true,
+        request_data: r,
+        linked_request_id: r.id || reqCode,
+        request_code: reqCode,
+        dispatch_date: r.reviewed_at ? r.reviewed_at.split('T')[0] : (r.created_at ? r.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
+        origin_warehouse: r.preferred_depot || 'Juba Central Logistics Base',
+        destination: destination,
+        beneficiary_name: benId ? `${ben} (${benId})` : ben,
+        beneficiary_code: benId,
+        driver_name: 'Pending Assignment',
+        driver_phone: 'N/A',
+        vehicle_reg: 'ADRA Logistics Fleet (Queued)',
+        status: 'Pending Aid Waybill',
+        dispatch_status: 'Pending Waybill',
+        items: [
+          {
+            item_name: cat,
+            quantity: r.household_members ? Number(r.household_members) : 1,
+            unit: r.household_members ? 'HH Pack' : 'Kit'
+          }
+        ],
+        notes: `PM Grace Ochieng approved request #${reqCode}. Ready for waybill dispatch.`,
+        assigned_supervisor_name: supervisor,
+        assigned_field_worker_name: worker
+      };
+    });
+
+    // Deduplicate by unique waybill number and request ID so rows never repeat
+    const combined = [...dispatches, ...pendingList];
+    const seenWaybills = new Set();
+    const seenRequestCodes = new Set();
+    const uniqueManifests = [];
+
+    for (const item of combined) {
+      if (!item) continue;
+      const wbKey = (item.waybill_number || '').trim().toLowerCase();
+      const reqKey = String(item.request_code || item.linked_request_id || '').trim().toLowerCase();
+      const idKey = String(item.id || '').trim().toLowerCase();
+
+      // Skip duplicate waybill numbers
+      if (wbKey && seenWaybills.has(wbKey)) {
+        continue;
+      }
+      // Skip duplicate IDs
+      if (idKey && seenWaybills.has(idKey)) {
+        continue;
+      }
+      // If an issued waybill dispatch already exists for this request, skip the duplicate pending stub
+      if (item.is_pending_waybill && reqKey && seenRequestCodes.has(reqKey)) {
+        continue;
+      }
+
+      if (wbKey) seenWaybills.add(wbKey);
+      if (idKey) seenWaybills.add(idKey);
+      if (reqKey) seenRequestCodes.add(reqKey);
+
+      uniqueManifests.push(item);
+    }
+
+    return uniqueManifests;
+  }, [dispatches, approvedRequests]);
+
   const filteredDispatches = useMemo(() => {
-    return dispatches.filter(d => {
+    return allManifests.filter(d => {
       const q = searchTerm.toLowerCase();
       const matchesSearch =
         (d.waybill_number || '').toLowerCase().includes(q) ||
+        (d.request_code || '').toLowerCase().includes(q) ||
         (d.destination || '').toLowerCase().includes(q) ||
         (d.origin_warehouse || '').toLowerCase().includes(q) ||
         (d.driver_name || '').toLowerCase().includes(q) ||
         (d.vehicle_reg || '').toLowerCase().includes(q) ||
-        (d.beneficiary_name || '').toLowerCase().includes(q);
+        (d.beneficiary_name || '').toLowerCase().includes(q) ||
+        (d.status || '').toLowerCase().includes(q);
 
       if (!matchesSearch) return false;
 
       const st = (d.status || '').toLowerCase().trim();
       const dst = (d.dispatch_status || '').toLowerCase().trim();
-      const isInTransit = st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit';
-      const isDelivered = st.includes('deliver') || st.includes('arrived') || st === 'goods_arrived_at_hub' || dst.includes('arrived');
-      const isStaged = st.includes('stage') || st.includes('draft') || st.includes('pend');
+      const isPending = Boolean(d.is_pending_waybill) || st.includes('pend') || st.includes('stage') || st.includes('draft');
+      const isInTransit = !isPending && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit');
+      const isDelivered = !isPending && (st.includes('deliver') || st.includes('arrived') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
 
+      if (statusFilter === 'PENDING' && !isPending) return false;
+      if (statusFilter === 'STAGED' && !isPending) return false;
       if (statusFilter === 'IN_TRANSIT' && !isInTransit) return false;
       if (statusFilter === 'DELIVERED' && !isDelivered) return false;
-      if (statusFilter === 'STAGED' && !isStaged) return false;
 
       return true;
     });
-  }, [dispatches, searchTerm, statusFilter]);
+  }, [allManifests, searchTerm, statusFilter]);
 
   const stats = useMemo(() => {
-    const totalWaybills = dispatches.length;
-    const inTransitCount = dispatches.filter(d => {
+    const totalWaybills = allManifests.length;
+    const pendingCount = allManifests.filter(d => 
+      Boolean(d.is_pending_waybill) || (d.status || '').toLowerCase().includes('pend') || (d.status || '').toLowerCase().includes('stage')
+    ).length;
+    const inTransitCount = allManifests.filter(d => {
+      if (d.is_pending_waybill) return false;
       const st = (d.status || '').toLowerCase().trim();
       const dst = (d.dispatch_status || '').toLowerCase().trim();
       return st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit';
     }).length;
-    const deliveredCount = dispatches.filter(d => {
+    const deliveredCount = allManifests.filter(d => {
+      if (d.is_pending_waybill) return false;
       const st = (d.status || '').toLowerCase().trim();
       const dst = (d.dispatch_status || '').toLowerCase().trim();
       return st.includes('deliver') || st.includes('arrived') || st === 'goods_arrived_at_hub' || dst.includes('arrived');
     }).length;
-    const stagedCount = dispatches.filter(d => {
-      const st = (d.status || '').toLowerCase().trim();
-      return st.includes('stage') || st.includes('draft') || st.includes('pend');
-    }).length;
 
-    return { totalWaybills, inTransitCount, deliveredCount, stagedCount };
-  }, [dispatches]);
+    return { totalWaybills, pendingCount, inTransitCount, deliveredCount };
+  }, [allManifests]);
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -121,7 +203,34 @@ export function InventoryDispatchesView({
           </div>
         </button>
 
-        {/* Metric 2: In Transit (Amber Theme) */}
+        {/* Metric 2: Pending Aid Waybills (Orange Theme) */}
+        <button
+          type="button"
+          onClick={() => setStatusFilter('PENDING')}
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs ${
+            statusFilter === 'PENDING' || statusFilter === 'STAGED'
+              ? 'bg-orange-100/90 border-orange-400 ring-2 ring-orange-500/20'
+              : 'bg-orange-50/50 border-orange-200/80 hover:bg-orange-50 hover:border-orange-300'
+          }`}
+        >
+          <div className="space-y-0.5 min-w-0">
+            <span className="text-[10px] sm:text-[11px] font-extrabold text-orange-900 uppercase tracking-wider block truncate">
+              Pending Aid Waybills
+            </span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg sm:text-xl font-black text-orange-950">{stats.pendingCount}</span>
+              <span className="text-xs font-bold text-orange-700">Awaiting Dispatch</span>
+            </div>
+            <span className="text-[10px] sm:text-[11px] text-orange-700/90 block truncate">
+              {approvedRequests.length > 0 ? `${approvedRequests.length} PM-Authorized` : 'Depot queue cleared'}
+            </span>
+          </div>
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shrink-0 ml-2 shadow-xs">
+            <Package className="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+        </button>
+
+        {/* Metric 3: In Transit (Amber Theme) */}
         <button
           type="button"
           onClick={() => setStatusFilter('IN_TRANSIT')}
@@ -146,7 +255,7 @@ export function InventoryDispatchesView({
           </div>
         </button>
 
-        {/* Metric 3: Delivered (Emerald Theme) */}
+        {/* Metric 4: Delivered (Emerald Theme) */}
         <button
           type="button"
           onClick={() => setStatusFilter('DELIVERED')}
@@ -170,33 +279,6 @@ export function InventoryDispatchesView({
             <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
         </button>
-
-        {/* Metric 4: Staged at Depot (Purple Theme) */}
-        <button
-          type="button"
-          onClick={() => setStatusFilter('STAGED')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs ${
-            statusFilter === 'STAGED'
-              ? 'bg-purple-100/80 border-purple-400 ring-2 ring-purple-500/20'
-              : 'bg-purple-50/50 border-purple-200/80 hover:bg-purple-50 hover:border-purple-300'
-          }`}
-        >
-          <div className="space-y-0.5 min-w-0">
-            <span className="text-[10px] sm:text-[11px] font-extrabold text-purple-800 uppercase tracking-wider block truncate">
-              Staged at Depot
-            </span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-lg sm:text-xl font-black text-purple-950">{approvedRequests.length || stats.stagedCount}</span>
-              <span className="text-xs font-bold text-purple-700">Ready</span>
-            </div>
-            <span className="text-[10px] sm:text-[11px] text-purple-600/90 block truncate">
-              {approvedRequests.length > 0 ? `${approvedRequests.length} PM-Authorized` : 'Loading bay queued'}
-            </span>
-          </div>
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 ml-2 shadow-xs">
-            <Package className="w-4 h-4 sm:w-5 sm:h-5" />
-          </div>
-        </button>
       </div>
 
       {/* 2. SEARCH & ACTIVE FILTER BAR & VIEW TOGGLE */}
@@ -208,7 +290,7 @@ export function InventoryDispatchesView({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search waybill #, driver, truck, or destination..."
+            placeholder="Search waybill #, request #, driver, or destination..."
             className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white focus:bg-white focus:border-[#006B56] outline-none font-medium text-slate-900 transition"
           />
         </div>
@@ -224,9 +306,9 @@ export function InventoryDispatchesView({
                   ? 'bg-amber-100 text-amber-950 border border-amber-300'
                   : statusFilter === 'DELIVERED'
                   ? 'bg-emerald-100 text-[#006B56] border border-emerald-300'
-                  : 'bg-purple-100 text-purple-950 border border-purple-300'
+                  : 'bg-orange-100 text-orange-950 border border-orange-300'
               }`}>
-                <span>{statusFilter === 'IN_TRANSIT' ? 'In Transit' : statusFilter === 'DELIVERED' ? 'Delivered' : 'Staged'}</span>
+                <span>{statusFilter === 'IN_TRANSIT' ? 'In Transit' : statusFilter === 'DELIVERED' ? 'Delivered' : 'Pending Aid Waybill'}</span>
                 <button
                   type="button"
                   onClick={() => setStatusFilter('ALL')}
@@ -279,132 +361,370 @@ export function InventoryDispatchesView({
           <p className="text-xs text-slate-400 mt-1">Click "Issue Waybill" to stage relief items for transport.</p>
         </div>
       ) : viewMode === 'table' ? (
-        /* ULTRA-CLEAN COMPACT TABLE VIEW */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
-                  <th className="py-3 px-4">Waybill #</th>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Destination</th>
-                  <th className="py-3 px-4">Driver</th>
-                  <th className="py-3 px-4">Vehicle</th>
-                  <th className="py-3 px-4">Qty</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredDispatches.map(d => {
-                  const st = (d.status || '').toLowerCase().trim();
-                  const dst = (d.dispatch_status || '').toLowerCase().trim();
-                  const isDelivered = st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived');
-                  const isInTransit = st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit';
+        /* ULTRA-CLEAN COMPACT TABLE VIEW & MOBILE CARDS */
+        <>
+          {/* MOBILE PHONE MODE (< sm): FULL-WIDTH WAYBILL CARDS */}
+          <div className="sm:hidden space-y-3">
+            {filteredDispatches.map(d => {
+              const isPending = Boolean(d.is_pending_waybill);
+              const st = (d.status || '').toLowerCase().trim();
+              const dst = (d.dispatch_status || '').toLowerCase().trim();
+              const isDelivered = !isPending && (st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
+              const isInTransit = !isPending && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit');
+              const totalQty = d.items?.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0) || 0;
+              const unit = d.items?.[0]?.unit || 'Items';
 
-                  const totalQty = d.items?.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0) || 0;
-                  const unit = d.items?.[0]?.unit || 'Items';
-
-                  return (
-                    <tr
-                      key={d.id}
-                      onClick={() => onOpenWaybillDetail(d)}
-                      className="hover:bg-slate-50/80 transition cursor-pointer"
-                    >
-                      {/* Waybill # */}
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
-                        {d.waybill_number}
-                      </td>
-
-                      {/* Date */}
-                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                        {d.dispatch_date || 'N/A'}
-                      </td>
-
-                      {/* Destination */}
-                      <td className="py-3 px-4 max-w-[200px] text-slate-800 font-medium truncate">
-                        {d.destination || 'Field Centre'}
-                      </td>
-
-                      {/* Driver */}
-                      <td className="py-3 px-4 text-slate-800 whitespace-nowrap">
-                        {d.driver_name || 'N/A'}
-                      </td>
-
-                      {/* Vehicle */}
-                      <td className="py-3 px-4 font-mono text-slate-600 whitespace-nowrap">
-                        {d.vehicle_reg || 'N/A'}
-                      </td>
-
-                      {/* Quantity */}
-                      <td className="py-3 px-4 font-mono font-bold text-[#006B56] whitespace-nowrap">
-                        {totalQty > 0 ? `${totalQty.toLocaleString()} ${unit}` : '1 Bundle'}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold inline-flex items-center gap-1 ${
-                          isDelivered
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            : isInTransit
-                            ? 'bg-amber-50 text-amber-900 border border-amber-200'
-                            : 'bg-blue-50 text-blue-900 border border-blue-200'
-                        }`}>
-                          {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
-                          {isDelivered && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
-                          <span>{isDelivered ? 'Delivered' : isInTransit ? 'In Transit' : d.status || 'Active'}</span>
+              return (
+                <div
+                  key={d.id}
+                  onClick={() => {
+                    if (isPending) {
+                      onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data);
+                    } else {
+                      onOpenWaybillDetail(d);
+                    }
+                  }}
+                  className={`bg-white rounded-xl border p-3.5 space-y-3 shadow-2xs transition active:scale-[0.99] cursor-pointer ${
+                    isPending ? 'border-orange-300 ring-1 ring-orange-400/30' : 'border-slate-200/90'
+                  }`}
+                >
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono font-black text-sm text-black tracking-tight">
+                          {d.waybill_number}
                         </span>
-                      </td>
+                        {isPending && d.request_code && (
+                          <span className="font-mono text-[10px] text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-bold">
+                            Req: {d.request_code}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
+                        <Calendar className="w-3 h-3 text-slate-400" />
+                        <span>{d.dispatch_date || 'Today'}</span>
+                      </div>
+                    </div>
 
-                      {/* Action */}
-                      <td className="py-3 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => onOpenWaybillDetail(d)}
-                            className="px-2.5 py-1 rounded-lg bg-[#006B56] hover:bg-[#005242] text-white font-semibold text-xs inline-flex items-center gap-1 transition cursor-pointer"
-                            title="View Waybill Details"
-                          >
-                            <FileText className="w-3 h-3" />
-                            <span>View</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => exportWaybillPDF(d)}
-                            className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs inline-flex items-center gap-1 transition cursor-pointer"
-                            title="Download PDF Waybill Receipt"
-                          >
-                            <Download className="w-3 h-3 text-emerald-700" />
-                            <span>PDF</span>
-                          </button>
+                    {isPending ? (
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black inline-flex items-center gap-1 bg-orange-100 text-orange-950 border border-orange-300 shadow-2xs shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
+                        <span>Pending</span>
+                      </span>
+                    ) : (
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 shrink-0 ${
+                        isDelivered
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : isInTransit
+                          ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                          : 'bg-blue-50 text-blue-900 border border-blue-200'
+                      }`}>
+                        {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />}
+                        {isDelivered && <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />}
+                        <span>{isDelivered ? 'Delivered' : isInTransit ? 'In Transit' : d.status || 'Active'}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Body: Destination, Driver, Qty */}
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-start gap-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
+                      <MapPin className="w-3.5 h-3.5 text-[#006B56] shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                          Destination Hub
+                        </span>
+                        <p className="font-semibold text-slate-800 text-xs leading-snug break-words">
+                          {d.destination || 'Field Relief Hub'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-emerald-50/60 p-2 rounded-lg border border-emerald-100">
+                        <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block flex items-center gap-1">
+                          <Package className="w-3 h-3 text-emerald-600" /> Quantity
+                        </span>
+                        <p className="font-black text-[#006B56] text-xs mt-0.5">
+                          {totalQty > 0 ? `${totalQty.toLocaleString()} ${unit}` : '1 Bundle'}
+                        </p>
+                      </div>
+
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block flex items-center gap-1">
+                          <Truck className="w-3 h-3 text-slate-400" /> Transport
+                        </span>
+                        <p className="font-bold text-slate-800 text-xs truncate mt-0.5">
+                          {d.driver_name || 'Assigned Driver'}
+                        </p>
+                        <p className="font-mono text-[10px] text-slate-500 mt-0.5">
+                          {d.vehicle_reg || 'SSD Logistics'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Collected by Worker Note */}
+                    {((d.status || '').toLowerCase().includes('collect') || d.collected_by) && (
+                      <div className="bg-blue-50/80 p-2.5 rounded-lg border border-blue-200 flex items-center gap-2">
+                        <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <div className="min-w-0 text-xs">
+                          <span className="text-[10px] text-blue-700 font-bold uppercase block">Handed Over To Field Worker</span>
+                          <span className="font-black text-blue-950 truncate block">
+                            {d.collected_by || d.goods_collected_by || d.assigned_field_worker_name || 'Field Officer'}
+                          </span>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions Footer */}
+                  <div className="pt-1 flex items-center gap-2 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+                    {isPending ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data)}
+                        className="flex-1 py-2 rounded-lg bg-black hover:bg-slate-800 text-white font-black text-xs inline-flex items-center justify-center gap-1.5 transition active:scale-95 shadow-2xs cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Issue Waybill</span>
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onOpenWaybillDetail(d)}
+                          className="flex-1 py-2 rounded-lg bg-[#006B56] hover:bg-[#005242] text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>View Details</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => exportWaybillPDF(d)}
+                          className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer inline-flex items-center justify-center"
+                          title="Download PDF"
+                        >
+                          <Download className="w-4 h-4 text-emerald-700" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+
+          {/* TABLET & DESKTOP (>= sm) */}
+          <div className="hidden sm:block bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-100/90 text-black font-black border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                    <th className="py-3 px-3 sm:px-4">Waybill #</th>
+                    <th className="py-3 px-3 sm:px-4 hidden md:table-cell">Date</th>
+                    <th className="py-3 px-3 sm:px-4">Destination</th>
+                    <th className="py-3 px-3 sm:px-4 hidden lg:table-cell">Driver</th>
+                    <th className="py-3 px-3 sm:px-4 hidden xl:table-cell">Vehicle</th>
+                    <th className="py-3 px-3 sm:px-4 hidden sm:table-cell">Qty</th>
+                    <th className="py-3 px-2 sm:px-4 text-center">Status</th>
+                    <th className="py-3 px-3 sm:px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredDispatches.map(d => {
+                    const isPending = Boolean(d.is_pending_waybill);
+                    const st = (d.status || '').toLowerCase().trim();
+                    const dst = (d.dispatch_status || '').toLowerCase().trim();
+                    const isDelivered = !isPending && (st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
+                    const isInTransit = !isPending && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit');
+
+                    const totalQty = d.items?.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0) || 0;
+                    const unit = d.items?.[0]?.unit || 'Items';
+
+                    return (
+                      <tr
+                        key={d.id}
+                        onClick={() => {
+                          if (isPending) {
+                            onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data);
+                          } else {
+                            onOpenWaybillDetail(d);
+                          }
+                        }}
+                        className="hover:bg-slate-50/80 transition cursor-pointer"
+                      >
+                        {/* Waybill # */}
+                        <td className="py-3 px-3 sm:px-4 whitespace-nowrap">
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono font-black text-xs sm:text-sm text-black tracking-tight">
+                                {d.waybill_number}
+                              </span>
+                              {isPending && d.request_code && (
+                                <span className="font-mono text-[10px] text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-bold">
+                                  Req: {d.request_code}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 md:hidden font-medium">
+                              <span>{d.dispatch_date || 'Today'}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Date */}
+                        <td className="py-3 px-3 sm:px-4 text-slate-600 whitespace-nowrap hidden md:table-cell">
+                          {d.dispatch_date || 'N/A'}
+                        </td>
+
+                        {/* Destination */}
+                        <td className="py-3 px-3 sm:px-4 max-w-[170px] sm:max-w-[220px]">
+                          <div className="text-slate-900 font-bold truncate text-xs">
+                            {d.destination || 'Field Centre'}
+                          </div>
+                          {d.beneficiary_name && (
+                            <div className="text-[10px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                              <User className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                              <span className="truncate">{d.beneficiary_name}</span>
+                            </div>
+                          )}
+                          <div className="text-[10px] text-slate-500 truncate lg:hidden mt-0.5">
+                            {isPending ? (
+                              <span className="text-slate-400 italic">Depot staging</span>
+                            ) : d.driver_name ? (
+                              <span className="text-slate-600 font-medium">Driver: {d.driver_name}</span>
+                            ) : null}
+                          </div>
+                        </td>
+
+                        {/* Driver */}
+                        <td className="py-3 px-3 sm:px-4 whitespace-nowrap hidden lg:table-cell">
+                          {isPending ? (
+                            <span className="text-[11px] font-medium text-slate-500 italic bg-slate-100/80 px-2 py-0.5 rounded border border-slate-200">
+                              Awaiting Driver
+                            </span>
+                          ) : (
+                            <span className="text-slate-800 font-medium">{d.driver_name || 'N/A'}</span>
+                          )}
+                        </td>
+
+                        {/* Vehicle */}
+                        <td className="py-3 px-3 sm:px-4 font-mono whitespace-nowrap hidden xl:table-cell">
+                          {isPending ? (
+                            <span className="text-[11px] font-medium text-slate-500 italic">
+                              Depot Staging
+                            </span>
+                          ) : (
+                            <span className="text-slate-600">{d.vehicle_reg || 'N/A'}</span>
+                          )}
+                        </td>
+
+                        {/* Quantity */}
+                        <td className="py-3 px-3 sm:px-4 font-mono font-bold text-[#006B56] whitespace-nowrap hidden sm:table-cell">
+                          {totalQty > 0 ? `${totalQty.toLocaleString()} ${unit}` : '1 Bundle'}
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3 px-2 sm:px-4 text-center whitespace-nowrap">
+                          {isPending ? (
+                            <span className="px-2 sm:px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-black inline-flex items-center gap-1 bg-orange-100 text-orange-950 border border-orange-300 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
+                              <span>Pending</span>
+                            </span>
+                          ) : (
+                            <div>
+                              <span className={`px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold inline-flex items-center gap-1 ${
+                                isDelivered
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : isInTransit
+                                  ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                                  : 'bg-blue-50 text-blue-900 border border-blue-200'
+                              }`}>
+                                {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />}
+                                {isDelivered && <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />}
+                                <span>{isDelivered ? 'Delivered' : isInTransit ? 'In Transit' : d.status || 'Active'}</span>
+                              </span>
+
+                              {((d.status || '').toLowerCase().includes('collect') || d.collected_by) && (
+                                <div className="text-[10px] font-bold text-blue-900 mt-1 flex items-center justify-center gap-1">
+                                  <User className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+                                  <span className="truncate max-w-[140px]" title={`Collected by: ${d.collected_by || d.goods_collected_by || d.assigned_field_worker_name}`}>
+                                    {d.collected_by || d.goods_collected_by || d.assigned_field_worker_name || 'Field Officer'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Action */}
+                        <td className="py-3 px-3 sm:px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {isPending ? (
+                              <button
+                                type="button"
+                                onClick={() => onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data)}
+                                className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-black hover:bg-slate-800 text-white font-black text-xs inline-flex items-center gap-1 transition active:scale-95 shadow-2xs cursor-pointer"
+                                title="Issue Official Waybill for this Request"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Issue Waybill</span>
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenWaybillDetail(d)}
+                                  className="px-2.5 py-1 rounded-lg bg-[#006B56] hover:bg-[#005242] text-white font-semibold text-xs inline-flex items-center gap-1 transition cursor-pointer"
+                                  title="View Waybill Details"
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  <span>View</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => exportWaybillPDF(d)}
+                                  className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-xs inline-flex items-center gap-1 transition cursor-pointer"
+                                  title="Download PDF Waybill Receipt"
+                                >
+                                  <Download className="w-3 h-3 text-emerald-700" />
+                                  <span>PDF</span>
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       ) : (
         /* GRID / CARDS VIEW (CLEAN, SPACIOUS, UNCLUTTERED) */
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
           {filteredDispatches.map(d => {
+            const isPending = Boolean(d.is_pending_waybill);
             const st = (d.status || '').toLowerCase().trim();
             const dst = (d.dispatch_status || '').toLowerCase().trim();
-            const isDelivered = st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived');
-            const isInTransit = st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit';
+            const isDelivered = !isPending && (st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
+            const isInTransit = !isPending && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit');
 
             return (
               <div
                 key={d.id}
-                className="bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-md hover:border-slate-300 transition-all duration-200 flex flex-col justify-between overflow-hidden"
+                className={`bg-white rounded-2xl border shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden ${
+                  isPending ? 'border-orange-300 ring-1 ring-orange-400/30' : 'border-slate-200/90 hover:border-slate-300'
+                }`}
               >
                 {/* 1. CARD TOP BANNER & HEADER */}
                 <div>
                   {/* Top Status Accent Bar */}
                   <div className={`h-1.5 w-full ${
-                    isDelivered ? 'bg-emerald-500' : isInTransit ? 'bg-amber-500' : 'bg-blue-500'
+                    isPending ? 'bg-orange-500' : isDelivered ? 'bg-emerald-500' : isInTransit ? 'bg-amber-500' : 'bg-blue-500'
                   }`} />
 
                   <div className="p-4 sm:p-5 space-y-4">
@@ -412,9 +732,14 @@ export function InventoryDispatchesView({
                     <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono font-black text-slate-900 text-sm sm:text-base tracking-tight">
+                          <span className="font-mono font-black text-sm sm:text-base tracking-tight text-black">
                             {d.waybill_number}
                           </span>
+                          {isPending && d.request_code && (
+                            <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-md">
+                              Request #{d.request_code}
+                            </span>
+                          )}
                           {d.dispatch_token && (
                             <span className="font-mono text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md flex items-center gap-1">
                               <QrCode className="w-3 h-3 text-[#006B56]" />
@@ -425,20 +750,31 @@ export function InventoryDispatchesView({
                         <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            Dispatched: <strong className="text-slate-700 font-semibold">{d.dispatch_date || 'Today'}</strong>
+                            {isPending ? 'PM Approved: ' : 'Dispatched: '}
+                            <strong className="text-slate-700 font-semibold">{d.dispatch_date || 'Today'}</strong>
                           </span>
                         </div>
                       </div>
 
                       {/* Prominent Status Pill */}
                       <span className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide flex items-center gap-1.5 shrink-0 shadow-2xs ${
-                        isDelivered
+                        isPending
+                          ? 'bg-orange-100 text-orange-950 border border-orange-300'
+                          : isDelivered
                           ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
                           : isInTransit
                           ? 'bg-amber-50 text-amber-900 border border-amber-300'
                           : 'bg-blue-50 text-blue-900 border border-blue-300'
                       }`}>
-                        {isInTransit ? (
+                        {isPending ? (
+                          <>
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                            </span>
+                            <span className="font-black">Pending Aid Waybill</span>
+                          </>
+                        ) : isInTransit ? (
                           <>
                             <span className="relative flex h-2 w-2">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
@@ -579,22 +915,35 @@ export function InventoryDispatchesView({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => exportWaybillPDF(d)}
-                      className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
-                    >
-                      <Download className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>PDF</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onOpenWaybillDetail(d)}
-                      className="px-4 py-2 rounded-xl bg-[#006B56] hover:bg-[#005242] text-white font-bold text-xs flex items-center gap-2 shadow-2xs hover:shadow transition cursor-pointer shrink-0"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-emerald-200" />
-                      <span>View Waybill</span>
-                    </button>
+                    {isPending ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data)}
+                        className="px-4 py-2 rounded-xl bg-black hover:bg-slate-800 text-white font-black text-xs flex items-center gap-1.5 shadow-2xs hover:shadow transition active:scale-95 cursor-pointer ml-auto"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Issue Waybill & Assign Convoy</span>
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => exportWaybillPDF(d)}
+                          className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                        >
+                          <Download className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>PDF</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onOpenWaybillDetail(d)}
+                          className="px-4 py-2 rounded-xl bg-[#006B56] hover:bg-[#005242] text-white font-bold text-xs flex items-center gap-2 shadow-2xs hover:shadow transition cursor-pointer shrink-0"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-emerald-200" />
+                          <span>View Waybill</span>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

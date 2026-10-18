@@ -122,7 +122,7 @@ export function FieldWorkerApp({
         db.getFieldAssessments ? db.getFieldAssessments(null, current.id, current.name) : [],
         db.getFieldWorkerActivities ? db.getFieldWorkerActivities(current.id, current.name) : [],
         db.getBeneficiaries ? db.getBeneficiaries() : [],
-        db.getFieldFundingRequests ? db.getFieldFundingRequests(current.id) : [],
+        db.getFieldFundingRequests ? db.getFieldFundingRequests(current.id, null, current.name, current.email) : [],
         db.getProjects ? db.getProjects() : [],
         db.getComplaints ? db.getComplaints('all') : []
       ]);

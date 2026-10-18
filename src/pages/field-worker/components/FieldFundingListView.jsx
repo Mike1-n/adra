@@ -159,19 +159,19 @@ export function FieldFundingListView({
         .filter(b => b.item && Number(b.amount) > 0)
         .map(b => ({ item: b.item.trim(), amount: Number(b.amount) }));
 
-      const effectiveSupId = revisingReq?.supervisor_id || task?.assigned_supervisor_id || task?.supervisor_id || worker.supervisor_id || 'sup-2';
-      const effectiveSupName = revisingReq?.supervisor_name || task?.assigned_supervisor_name || task?.supervisor_name || worker.supervisor_name || 'Mary Akech';
-      const effectiveState = task?.state || revisingReq?.state || worker.state || 'Central Equatoria';
-      const effectiveCounty = task?.county || revisingReq?.county || worker.county || 'Juba';
-      const effectivePayam = task?.payam || revisingReq?.payam || worker.payam || 'Munuki';
+      const effectiveSupId = revisingReq?.supervisor_id || task?.assigned_supervisor_id || task?.supervisor_id || worker?.supervisor_id || 'sup-1';
+      const effectiveSupName = revisingReq?.supervisor_name || task?.assigned_supervisor_name || task?.supervisor_name || worker?.supervisor_name || 'Emmanuel Adeyemi';
+      const effectiveState = task?.state || revisingReq?.state || worker?.state || 'Eastern Equatoria';
+      const effectiveCounty = task?.county || revisingReq?.county || worker?.county || 'Kapoeta South';
+      const effectivePayam = task?.payam || revisingReq?.payam || worker?.payam || 'Kapoeta Town';
 
       const payload = {
         id: revisingReq?.id,
         request_code: revisingReq?.request_code,
-        field_worker_id: worker.id || revisingReq?.field_worker_id || 'fw-7',
-        field_worker_name: worker.name || revisingReq?.field_worker_name || 'Rose Poni',
-        field_worker_email: worker.email || revisingReq?.field_worker_email || 'rose.poni@adra.org',
-        field_worker_phone: worker.phone || revisingReq?.field_worker_phone || '+211-922-550202',
+        field_worker_id: worker?.id || revisingReq?.field_worker_id || 'fw-1',
+        field_worker_name: worker?.name || revisingReq?.field_worker_name || 'John Deng',
+        field_worker_email: worker?.email || revisingReq?.field_worker_email || 'john.deng@adra.org',
+        field_worker_phone: worker?.phone || revisingReq?.field_worker_phone || '+211-921-550101',
         supervisor_id: effectiveSupId,
         supervisor_name: effectiveSupName,
         linked_request_code: task?.request_code || revisingReq?.linked_request_code || 'GEN-OPS',
@@ -184,7 +184,7 @@ export function FieldFundingListView({
         category: 'Field Operational Facilitation',
         urgency: task?.urgency || revisingReq?.urgency || 'Standard SLA (48h)',
         preferred_payout: 'm-Gurush Mobile Money',
-        payout_phone: worker.phone || revisingReq?.field_worker_phone || '+211-922-550202',
+        payout_phone: worker?.phone || revisingReq?.field_worker_phone || '+211-921-550101',
         amount: totalAmount,
         currency: 'SSP',
         purpose: justificationNote?.trim() || `Field operational facilitation for ${task?.beneficiary_name || revisingReq?.linked_beneficiary_name || 'Assigned Case'}`,

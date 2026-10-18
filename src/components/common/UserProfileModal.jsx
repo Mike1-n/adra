@@ -8,35 +8,31 @@ import {
   Building2,
   MapPin,
   LogOut,
-  X,
-  CheckCircle2,
-  RefreshCw,
-  Sparkles
+  X
 } from 'lucide-react';
 import { Modal } from './Modal';
 import { useAuth } from '../../context/AuthContext';
 
-export function UserProfileModal({ isOpen, onClose }) {
-  const { currentUser, logout, quickSwitchRole, demoAccounts } = useAuth();
-
-  if (!currentUser) return null;
+export function UserProfileModal({
+  isOpen,
+  onClose,
+  currentUser: propUser,
+  onLogout: propLogout
+}) {
+  const auth = useAuth() || {};
+  const currentUser = propUser || auth.currentUser || {
+    full_name: 'ADRA Logistics Officer',
+    email: 'logistics.juba@adra.org',
+    role: 'Inventory Manager',
+    department: 'Humanitarian Logistics & Supply Chain',
+    location: 'Juba Central Logistics Base'
+  };
+  const logout = propLogout || auth.logout || (() => {});
 
   const handleLogout = () => {
     onClose();
     logout();
   };
-
-  const roles = [
-    'Administrator',
-    'Program Manager',
-    'Supervisor',
-    'Field Worker',
-    'Inventory Manager',
-    'Finance Officer',
-    'Beneficiary',
-    'Project Officer',
-    'M&E Officer'
-  ];
 
   return (
     <Modal
@@ -122,38 +118,6 @@ export function UserProfileModal({ isOpen, onClose }) {
                 {currentUser?.location || currentUser?.duty_station || 'Juba Country Office / Field Response'}
               </span>
             </div>
-          </div>
-        </div>
-
-        {/* Quick Role Switcher for Viva Defense */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Quick Role Switch (Viva Presentation)
-            </span>
-            <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-              Demo Active
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto p-1 bg-slate-50 rounded-2xl border border-slate-200">
-            {roles.map(r => {
-              const isCurrent = currentUser?.role === r;
-              return (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => quickSwitchRole(r)}
-                  className={`text-left px-2.5 py-1.5 rounded-xl text-xs font-medium flex items-center justify-between transition cursor-pointer ${
-                    isCurrent
-                      ? 'bg-emerald-600 text-white font-bold shadow-2xs'
-                      : 'bg-white hover:bg-emerald-50 text-slate-700 border border-slate-200/80'
-                  }`}
-                >
-                  <span className="truncate">{r}</span>
-                  {isCurrent && <CheckCircle2 className="w-3 h-3 text-white shrink-0" />}
-                </button>
-              );
-            })}
           </div>
         </div>
 

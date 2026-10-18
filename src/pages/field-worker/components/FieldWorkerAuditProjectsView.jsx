@@ -540,7 +540,7 @@ export function FieldWorkerAuditProjectsView({
                       isSubmitted ? 'bg-purple-100 text-purple-900 border border-purple-200' :
                       'bg-emerald-100 text-emerald-900 border border-emerald-200'
                     }`}>
-                      {isRejected ? 'Returned by PM' : isPending ? 'Pending Audit' : isSubmitted ? 'Submitted' : 'Delivered'}
+                      {isRejected ? (task.status === 'Rejected by Supervisor' || task.status_label === 'Rejected by Supervisor' || task.review_notes?.includes('Supervisor') ? 'Returned by Supervisor' : 'Returned by PM') : isPending ? 'Pending Audit' : isSubmitted ? 'Submitted' : 'Delivered'}
                     </span>
                   </div>
 
@@ -549,7 +549,11 @@ export function FieldWorkerAuditProjectsView({
                     <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 text-xs text-rose-950 space-y-1">
                       <div className="flex items-center gap-1.5 font-bold text-rose-900 text-[11px]">
                         <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                        <span>Audit Returned by Program Manager</span>
+                        <span>
+                          {task.status === 'Rejected by Supervisor' || task.status_label === 'Rejected by Supervisor' || task.review_notes?.includes('Supervisor')
+                            ? 'Audit Rejected by State Supervisor'
+                            : 'Audit Returned by Program Manager'}
+                        </span>
                       </div>
                       <p className="text-[11px] text-rose-800 italic pl-5">
                         "{task.rejection_reason || task.review_notes || 'Declined during PM review. Returned for on-ground re-assessment.'}"

@@ -528,24 +528,39 @@ export async function exportWaybillPDF(dispatch) {
   currentY = doc.lastAutoTable.finalY + 30;
 
   // 4. Sign-Off & Verification
+  const isCollected = (dispatch.status || '').toLowerCase().includes('collect') || Boolean(dispatch.collected_by);
+  const headCols = isCollected 
+    ? [['1. DISPATCHED (WAREHOUSE)', '2. HUB VERIFICATION (SUPERVISOR)', '3. FIELD WORKER HANDOVER']]
+    : [['1. DISPATCHED BY (WAREHOUSE OFFICER)', '2. RECEIVED & VERIFIED BY (FIELD OFFICER)']];
+  
+  const bodyRows = isCollected
+    ? [
+        [
+          `Officer: ${dispatch.released_by || 'Gabriel Majok'}\nRole: Inventory Manager\nStatus: DISPATCHED & VERIFIED`,
+          `Supervisor: ${dispatch.handed_over_by || dispatch.supervisor_name || 'Emmanuel Adeyemi'}\nHub: ${dispatch.destination || 'Relief Hub'}\nStatus: GOODS RECEIVED AT HUB`,
+          `Field Worker: ${dispatch.collected_by || dispatch.goods_collected_by || 'Field Worker'}\nRole: Distribution Agent\nStatus: HANDED OVER & VERIFIED`
+        ]
+      ]
+    : [
+        [
+          `Officer: ${dispatch.released_by || 'Gabriel Majok'}\nRole: Inventory Manager\nStatus: DISPATCHED & VERIFIED`,
+          `Receiving Officer: ${dispatch.supervisor_name || 'Field Supervisor'}\nStatus: PENDING ARRIVAL / VERIFIED`
+        ]
+      ];
+
   doc.autoTable({
     startY: currentY,
-    head: [['1. DISPATCHED BY (WAREHOUSE OFFICER)', '2. RECEIVED & VERIFIED BY (FIELD OFFICER)']],
-    body: [
-      [
-        `Officer: ${dispatch.released_by || 'Gabriel Majok'}\nRole: Inventory Manager\nStatus: DISPATCHED & VERIFIED`,
-        `Receiving Officer: ${dispatch.supervisor_name || 'Field Supervisor'}\nStatus: PENDING ARRIVAL / VERIFIED`
-      ]
-    ],
+    head: headCols,
+    body: bodyRows,
     theme: 'grid',
     headStyles: {
       fillColor: [241, 245, 249],
       textColor: [51, 65, 85],
-      fontSize: 8.5,
+      fontSize: 8,
       fontStyle: 'bold'
     },
     bodyStyles: {
-      fontSize: 8,
+      fontSize: 7.5,
       textColor: [51, 65, 85]
     },
     margin: { left: 40, right: 40 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Printer, Truck, CheckCircle2, QrCode, FileText, MapPin, Calendar, User, Building2, Download, PackageCheck, UserCheck } from 'lucide-react';
+import { X, Printer, Truck, CheckCircle2, QrCode, FileText, MapPin, Calendar, User, Building2, Download, PackageCheck, UserCheck, Plus } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 import { exportWaybillPDF } from '../../../lib/reportGenerator';
 
@@ -9,7 +9,8 @@ export function WaybillDetailModal({
   dispatch,
   onUpdateStatus,
   onConfirmArrival,
-  onHandoverToWorker
+  onHandoverToWorker,
+  onIssueWaybill
 }) {
   const toast = useToast();
 
@@ -97,16 +98,37 @@ export function WaybillDetailModal({
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/60">
             <span className="text-slate-500 font-semibold">Dispatch Status:</span>
             <span className={`px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
-              isDelivered
+              dispatch.is_pending_waybill
+                ? 'bg-orange-100 text-orange-950 border border-orange-300'
+                : isDelivered
                 ? 'bg-emerald-100 text-emerald-900'
                 : isInTransit
                 ? 'bg-amber-100 text-amber-900'
                 : 'bg-blue-100 text-blue-900'
             }`}>
-              {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
-              {isDelivered && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
-              {isCollected && <UserCheck className="w-3.5 h-3.5 text-blue-600" />}
-              <span>{dispatch.status || 'Active'}</span>
+              {dispatch.is_pending_waybill ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                  <span>Pending Aid Waybill (PM Approved)</span>
+                </>
+              ) : isInTransit ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span>{dispatch.status || 'Active'}</span>
+                </>
+              ) : isDelivered ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{dispatch.status || 'Active'}</span>
+                </>
+              ) : isCollected ? (
+                <>
+                  <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{dispatch.status || 'Active'}</span>
+                </>
+              ) : (
+                <span>{dispatch.status || 'Active'}</span>
+              )}
             </span>
           </div>
 
@@ -161,6 +183,40 @@ export function WaybillDetailModal({
             </div>
           )}
 
+          {/* Chain of Custody & Handover Record if Collected */}
+          {isCollected && (
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50/70 border border-blue-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-blue-600" />
+                  Chain of Custody Verification
+                </span>
+                <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-200">
+                  Collected for Distribution
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-blue-100">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Handed Over To (Field Worker):</span>
+                  <span className="font-black text-blue-950 text-sm block mt-0.5">
+                    {dispatch.collected_by || dispatch.goods_collected_by || dispatch.assigned_field_worker_name || 'Field Officer'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Authorized By (Supervisor):</span>
+                  <span className="font-bold text-slate-800 block mt-0.5">
+                    {dispatch.handed_over_by || dispatch.goods_handed_over_by || 'Supervisor (Hub Custodian)'}
+                  </span>
+                </div>
+              </div>
+              {dispatch.collected_at && (
+                <div className="text-[10px] text-blue-600 font-medium">
+                  Recorded: {new Date(dispatch.collected_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Items Manifest */}
           <div className="space-y-1.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
@@ -198,6 +254,20 @@ export function WaybillDetailModal({
               <span>PDF</span>
             </button>
 
+            {dispatch.is_pending_waybill && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onIssueWaybill) onIssueWaybill(dispatch.request_data);
+                }}
+                className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer active:scale-98"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Issue Official Waybill</span>
+              </button>
+            )}
+
             {isInTransit && onConfirmArrival && (
               <button
                 type="button"
@@ -221,9 +291,9 @@ export function WaybillDetailModal({
             )}
 
             {isCollected && (
-              <span className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 font-bold text-xs flex items-center gap-1.5">
+              <span className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 font-bold text-xs flex items-center gap-1.5">
                 <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                <span>Collected by Field Worker</span>
+                <span>Collected by {dispatch.collected_by || dispatch.goods_collected_by || 'Field Worker'}</span>
               </span>
             )}
           </div>
@@ -231,7 +301,7 @@ export function WaybillDetailModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs transition cursor-pointer"
           >
             Close
           </button>

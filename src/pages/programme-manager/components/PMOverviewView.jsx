@@ -36,6 +36,7 @@ export function PMOverviewView({
     return requests.filter(
       r => r.status !== 'Rejected' &&
            r.status_label !== 'Rejected by PM' &&
+           r.status !== 'Rejected by Supervisor' &&
            !r.returned_to_worker &&
            !r.status?.toLowerCase()?.includes('reject') &&
            (r.status === 'Pending' || 
@@ -43,8 +44,7 @@ export function PMOverviewView({
             r.status === 'My Decision' || 
             r.status === 'Submitted' ||
             r.status === 'Awaiting Program Manager Decision' ||
-            r.status === 'Forwarded to Program Manager' ||
-            r.status === 'Assessment Submitted')
+            r.status === 'Forwarded to Program Manager')
     );
   }, [requests]);
 

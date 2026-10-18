@@ -102,6 +102,9 @@ export function Header({
       <UserProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
+        currentUser={currentUser}
+        onLogout={logout}
+        onSwitchRole={quickSwitchRole}
       />
 
       {/* Universal Module Feedback Modal */}

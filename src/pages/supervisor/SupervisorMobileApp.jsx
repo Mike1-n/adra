@@ -24,7 +24,6 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
 import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
 import { db } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
@@ -42,6 +41,7 @@ import { SupervisorNotificationsView } from './components/SupervisorNotification
 import { SupervisorActivityHistoryView } from './components/SupervisorActivityHistoryView';
 import { SupervisorFacilitationsView } from './components/SupervisorFacilitationsView';
 import { WaybillDetailModal } from '../inventory/components/WaybillDetailModal';
+import { HandoverModal } from './components/HandoverModal';
 import { AdraLogo } from '../../components/common/AdraLogo';
 
 export function SupervisorMobileApp({
@@ -95,6 +95,7 @@ export function SupervisorMobileApp({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [showStateMenu, setShowStateMenu] = useState(false);
+  const [handoverTargetItem, setHandoverTargetItem] = useState(null);
 
   // Load all supervisory data
   const loadData = async (targetSupervisor = null, isSilent = false) => {
@@ -190,9 +191,10 @@ export function SupervisorMobileApp({
   };
 
   // Handler: Forward Assessment to Program Manager
-  const handleForwardToPM = async (assessmentId, notes) => {
+  const handleForwardToPM = async (assessmentId, requestId, notes) => {
     await db.forwardAssessmentToPM(
       assessmentId,
+      requestId,
       notes,
       activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi'
     );
@@ -200,10 +202,32 @@ export function SupervisorMobileApp({
     setActiveSubview(null);
   };
 
+  // Handler: Reject Assessment (Return to Field Worker)
+  const handleRejectAssessment = async (assessmentId, requestId, reason) => {
+    await db.rejectAssessmentBySupervisor(
+      assessmentId,
+      requestId,
+      reason,
+      activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi'
+    );
+    await loadData(activeSupervisor);
+    setSelectedAssignment(prev => prev ? {
+      ...prev,
+      status: 'Rejected by Supervisor',
+      status_label: 'Rejected by Supervisor',
+      rejection_reason: reason,
+      returned_to_worker: true,
+      review_notes: `Supervisor rejected field audit: ${reason}`
+    } : null);
+    setSelectedAssessment(null);
+    setActiveSubview(null);
+  };
+
   // Handler: Request Correction from Field Worker
-  const handleRequestCorrection = async (assessmentId, reason) => {
+  const handleRequestCorrection = async (assessmentId, requestId, reason) => {
     await db.requestAssessmentCorrection(
       assessmentId,
+      requestId,
       reason,
       activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi'
     );
@@ -251,9 +275,9 @@ export function SupervisorMobileApp({
   const handleHandoverToFieldWorker = async (item, workerName, notes = '') => {
     try {
       const supName = activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi (Supervisor)';
-      const targetWorker = workerName || item.assigned_field_worker_name || item.driver_name || 'Field Officer';
+      const targetWorker = (workerName || item.assigned_field_worker_name || 'Agnes Dawa').trim();
       await db.confirmGoodsCollection(
-        item.id || item.request_code || item.waybill_number,
+        item.waybill_number || item.id || item.request_code,
         targetWorker,
         supName,
         notes
@@ -270,7 +294,23 @@ export function SupervisorMobileApp({
           status_label: 'Goods Collected - Out for Distribution',
           goods_collected_at: new Date().toISOString(),
           goods_collected_by: targetWorker,
-          goods_handed_over_by: supName
+          collected_by: targetWorker,
+          assigned_field_worker_name: targetWorker,
+          goods_handed_over_by: supName,
+          handed_over_by: supName
+        } : null);
+      }
+      if (selectedWaybillModal) {
+        setSelectedWaybillModal(prev => prev ? {
+          ...prev,
+          status: 'Collected by Field Worker',
+          dispatch_status: 'Collected by Field Worker',
+          collected_by: targetWorker,
+          goods_collected_by: targetWorker,
+          assigned_field_worker_name: targetWorker,
+          handed_over_by: supName,
+          goods_handed_over_by: supName,
+          collected_at: new Date().toISOString()
         } : null);
       }
     } catch (err) {
@@ -398,13 +438,35 @@ export function SupervisorMobileApp({
             onAssignWorker={handleAssignFieldWorker}
             onReassignWorker={handleReassignWorker}
             onConfirmArrival={handleConfirmArrival}
-            onHandoverToWorker={handleHandoverToFieldWorker}
+            onHandoverToWorker={(item) => setHandoverTargetItem(item)}
             onOpenReport={() => {
-              const ass = assessments.find(a => a.request_id === selectedAssignment.id || a.request_code === selectedAssignment.request_code);
+              const ass = assessments.find(a => 
+                (selectedAssignment.id && (a.request_id === selectedAssignment.id || a.request_code === selectedAssignment.id)) ||
+                (selectedAssignment.request_code && (a.request_code === selectedAssignment.request_code || a.request_id === selectedAssignment.request_code)) ||
+                (selectedAssignment.assessment_code && a.assessment_code === selectedAssignment.assessment_code) ||
+                (selectedAssignment.beneficiary_name && a.beneficiary_name?.toLowerCase() === selectedAssignment.beneficiary_name?.toLowerCase())
+              );
               if (ass) {
                 setSelectedAssessment(ass);
-                setActiveSubview('report_review');
+              } else {
+                setSelectedAssessment({
+                  id: selectedAssignment.assessment_code || `ass-${selectedAssignment.id}`,
+                  assessment_code: selectedAssignment.assessment_code || 'FA-PENDING',
+                  request_id: selectedAssignment.id,
+                  request_code: selectedAssignment.request_code,
+                  beneficiary_name: selectedAssignment.beneficiary_name,
+                  beneficiary_code: selectedAssignment.beneficiary_code,
+                  field_worker_name: selectedAssignment.assigned_field_worker_name || 'Agnes Dawa',
+                  status: selectedAssignment.status || 'Under Supervisor Review',
+                  vulnerability_score: selectedAssignment.vulnerability_score || 85,
+                  family_size: selectedAssignment.household_members || 8,
+                  ground_situation_report: selectedAssignment.ground_situation_report || selectedAssignment.field_justification || selectedAssignment.review_notes || 'Ground verification submitted.',
+                  field_justification: selectedAssignment.field_justification || selectedAssignment.review_notes || '',
+                  evidence_photos: selectedAssignment.evidence_photos || [],
+                  evidence_documents: selectedAssignment.evidence_documents || []
+                });
               }
+              setActiveSubview('report_review');
             }}
           />
         </div>
@@ -435,7 +497,7 @@ export function SupervisorMobileApp({
             activeAssessment={selectedAssessment}
             onBack={() => setActiveSubview(null)}
             onForwardToPM={handleForwardToPM}
-            onRequestCorrection={handleRequestCorrection}
+            onRejectAssessment={handleRejectAssessment}
             onAddComment={handleAddComment}
           />
         </div>
@@ -546,7 +608,7 @@ export function SupervisorMobileApp({
               }}
               onAssignFieldWorker={handleAssignFieldWorker}
               onConfirmArrival={handleConfirmArrival}
-              onHandoverToWorker={handleHandoverToFieldWorker}
+              onHandoverToWorker={(item) => setHandoverTargetItem(item)}
               onOpenReport={(item) => {
                 const ass = assessments.find(a => a.request_id === item.id || a.request_code === item.request_code);
                 if (ass) {
@@ -571,8 +633,8 @@ export function SupervisorMobileApp({
                 const freshDispatches = await (db.getDispatches ? db.getDispatches() : []);
                 setDispatches(freshDispatches || []);
               }}
-              onHandoverToWorker={async (item, notes) => {
-                await handleHandoverToFieldWorker(item, item.assigned_field_worker_name, notes);
+              onHandoverToWorker={(item) => {
+                setHandoverTargetItem(item);
               }}
               onOpenWaybillDetail={(dispatch) => setSelectedWaybillModal(dispatch)}
               activeSupervisorName={activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi'}
@@ -604,7 +666,7 @@ export function SupervisorMobileApp({
                 setActiveSubview('report_review');
               }}
               onForwardToPM={handleForwardToPM}
-              onRequestCorrection={handleRequestCorrection}
+              onRejectAssessment={handleRejectAssessment}
               onAddComment={handleAddComment}
             />
           </div>
@@ -1461,17 +1523,26 @@ export function SupervisorMobileApp({
             setDispatches(freshDispatches || []);
             setSelectedWaybillModal(null);
           }}
-          onHandoverToWorker={async (dispatch) => {
-            await handleHandoverToFieldWorker(dispatch, dispatch.assigned_field_worker_name);
-            const freshDispatches = await (db.getDispatches ? db.getDispatches() : []);
-            setDispatches(freshDispatches || []);
-            setSelectedWaybillModal(null);
+          onHandoverToWorker={(dispatch) => {
+            setHandoverTargetItem(dispatch);
           }}
         />
       )}
 
-      {/* Module Feedback Trigger */}
-      <FloatingFeedbackButton currentModule="Supervisor Operations" onOpenFeedbackTab={() => { setActiveTab('feedback'); setActiveSubview(null); }} />
+      {/* Handover to Field Worker Modal */}
+      {handoverTargetItem && (
+        <HandoverModal
+          isOpen={Boolean(handoverTargetItem)}
+          onClose={() => setHandoverTargetItem(null)}
+          item={handoverTargetItem}
+          fieldWorkers={fieldWorkers}
+          activeSupervisor={activeSupervisor}
+          onConfirmHandover={async (item, workerName, notes) => {
+            await handleHandoverToFieldWorker(item, workerName, notes);
+            setHandoverTargetItem(null);
+          }}
+        />
+      )}
 
       </div>
     </div>

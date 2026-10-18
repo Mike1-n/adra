@@ -94,14 +94,19 @@ function saveLocalData(key, data) {
 export function normalizeAssistanceRequest(r) {
   if (!r) return r;
 
-  const isRej = r.status === 'Rejected' || 
+  const isSupervisorRej = r.status === 'Rejected by Supervisor' || 
+                          r.status_label === 'Rejected by Supervisor' ||
+                          (typeof r.review_notes === 'string' && r.review_notes.toLowerCase().includes('supervisor') && r.review_notes.toLowerCase().includes('reject'));
+
+  const isRej = isSupervisorRej ||
+                r.status === 'Rejected' || 
                 r.status_label === 'Rejected by PM' || 
                 Boolean(r.returned_to_worker) || 
                 (typeof r.status === 'string' && r.status.toLowerCase().includes('reject')) ||
                 (typeof r.status_label === 'string' && r.status_label.toLowerCase().includes('reject')) ||
                 (typeof r.review_notes === 'string' && (r.review_notes.toLowerCase().includes('reject') || r.review_notes.toLowerCase().includes('declined')));
 
-  let status = isRej ? 'Rejected' : (r.status || 'Submitted');
+  let status = isSupervisorRej ? 'Rejected by Supervisor' : (isRej ? 'Rejected' : (r.status || 'Submitted'));
   if (!isRej && (status === 'Pending' || status === 'Pending Review')) {
     status = 'Submitted';
   }
@@ -142,22 +147,32 @@ export function normalizeAssistanceRequest(r) {
 
   let extractedRejectionReason = r.rejection_reason;
   if (!extractedRejectionReason && r.review_notes && typeof r.review_notes === 'string' && r.review_notes.toLowerCase().includes('reject')) {
-    extractedRejectionReason = r.review_notes.replace(/^Rejected by (Programme Manager|Program Manager|PM):\s*/i, '').trim();
+    extractedRejectionReason = r.review_notes
+      .replace(/^Rejected by (Programme Manager|Program Manager|PM):\s*/i, '')
+      .replace(/^Supervisor\s+[A-Za-z\s]+\s+rejected field audit:\s*/i, '')
+      .replace(/^Rejected by Supervisor:\s*/i, '')
+      .trim();
   }
   if (!extractedRejectionReason && isRej) {
-    extractedRejectionReason = 'Application rejected during Programme Manager review. Returned for field re-assessment.';
+    extractedRejectionReason = isSupervisorRej 
+      ? 'Field assessment rejected by State Supervisor. Returned to field worker for re-audit.'
+      : 'Application rejected during Programme Manager review. Returned for field re-assessment.';
   }
+
+  const statusLabel = isSupervisorRej 
+    ? 'Rejected by Supervisor' 
+    : (isRej ? 'Rejected by PM' : (r.status_label || (status === 'Submitted' ? 'Pending Review' : status)));
 
   return {
     ...r,
     id,
     request_code,
-    status: isRej ? 'Rejected' : ((status === 'Assigned to Field Worker' && !assigned_field_worker_name) ? 'Assigned to Supervisor' : status),
-    status_label: isRej ? 'Rejected by PM' : (r.status_label || (status === 'Submitted' ? 'Pending Review' : status)),
-    status_stage: isRej ? 6 : (r.status_stage || (status === 'Submitted' ? 1 : (status === 'Under Review' ? 2 : 3))),
+    status: isSupervisorRej ? 'Rejected by Supervisor' : (isRej ? 'Rejected' : ((status === 'Assigned to Field Worker' && !assigned_field_worker_name) ? 'Assigned to Supervisor' : status)),
+    status_label: statusLabel,
+    status_stage: isRej ? (isSupervisorRej ? -1 : 6) : (r.status_stage || (status === 'Submitted' ? 1 : (status === 'Under Review' ? 2 : 3))),
     returned_to_worker: isRej ? true : Boolean(r.returned_to_worker),
     rejection_reason: isRej ? extractedRejectionReason : null,
-    review_notes: r.review_notes || (isRej ? `Rejected by Programme Manager: ${extractedRejectionReason}` : null),
+    review_notes: r.review_notes || (isSupervisorRej ? `Supervisor rejected field audit: ${extractedRejectionReason}` : (isRej ? `Rejected by Programme Manager: ${extractedRejectionReason}` : null)),
     category,
     assistance_type,
     urgency,
@@ -963,19 +978,50 @@ export const db = {
         if (locMatch) {
           const normRem = normalizeAssistanceRequest(rem);
           const normLoc = normalizeAssistanceRequest(locMatch);
-          const isRemRejected = normRem.status === 'Rejected' || normRem.status_label === 'Rejected by PM' || Boolean(normRem.returned_to_worker);
-          const isLocRejected = normLoc.status === 'Rejected' || normLoc.status_label === 'Rejected by PM' || Boolean(normLoc.returned_to_worker);
-          const isAnyRejected = isRemRejected || isLocRejected;
+          const isRemApproved = normRem.status === 'Approved' || normRem.status?.toLowerCase().includes('approved') || normRem.status_stage >= 3;
+          const isLocApproved = normLoc.status === 'Approved' || normLoc.status?.toLowerCase().includes('approved') || normLoc.status_stage >= 3;
+
+          const isRemSupervisorRej = !isRemApproved && (normRem.status === 'Rejected by Supervisor' || normRem.status_label === 'Rejected by Supervisor');
+          const isLocSupervisorRej = !isLocApproved && !isRemApproved && (normLoc.status === 'Rejected by Supervisor' || normLoc.status_label === 'Rejected by Supervisor');
+          const isAnySupervisorRej = (isRemSupervisorRej || isLocSupervisorRej) && !isRemApproved;
+
+          const isRemRejected = isRemSupervisorRej || (!isRemApproved && (normRem.status === 'Rejected' || normRem.status_label === 'Rejected by PM' || Boolean(normRem.returned_to_worker)));
+          const isLocRejected = isLocSupervisorRej || (!isLocApproved && !isRemApproved && (normLoc.status === 'Rejected' || normLoc.status_label === 'Rejected by PM' || Boolean(normLoc.returned_to_worker)));
+          const isAnyRejected = (isRemRejected || isLocRejected) && !isRemApproved;
+
+          const remTime = normRem.updated_at ? new Date(normRem.updated_at).getTime() : 0;
+          const locTime = normLoc.updated_at ? new Date(normLoc.updated_at).getTime() : 0;
+          const isRemNewer = remTime >= locTime || isRemApproved;
+
+          const finalStatus = isRemApproved 
+            ? normRem.status 
+            : (isAnySupervisorRej 
+              ? 'Rejected by Supervisor' 
+              : (isAnyRejected 
+                ? 'Rejected' 
+                : (isRemNewer ? (normRem.status || normLoc.status) : (normLoc.status || normRem.status))));
+          const finalLabel = isRemApproved 
+            ? (normRem.status_label || 'Approved')
+            : (isAnySupervisorRej 
+              ? 'Rejected by Supervisor' 
+              : (isAnyRejected 
+                ? 'Rejected by PM' 
+                : (isRemNewer ? (normRem.status_label || normLoc.status_label) : (normLoc.status_label || normRem.status_label))));
+          const finalStage = isRemApproved 
+            ? (normRem.status_stage ?? 3)
+            : (isAnyRejected 
+              ? (isAnySupervisorRej ? -1 : 6) 
+              : (isRemNewer ? (normRem.status_stage ?? normLoc.status_stage) : (normLoc.status_stage ?? normRem.status_stage)));
 
           return {
             ...normRem,
             ...normLoc,
-            status: isAnyRejected ? 'Rejected' : (normLoc.status || normRem.status),
-            status_label: isAnyRejected ? 'Rejected by PM' : (normLoc.status_label || normRem.status_label),
-            status_stage: isAnyRejected ? 6 : (normLoc.status_stage || normRem.status_stage),
+            status: finalStatus,
+            status_label: finalLabel,
+            status_stage: finalStage,
             rejection_reason: isAnyRejected ? (normLoc.rejection_reason || normRem.rejection_reason) : null,
-            review_notes: isAnyRejected ? (normLoc.review_notes || normRem.review_notes) : (normLoc.review_notes || normRem.review_notes),
-            returned_to_worker: isAnyRejected ? true : (normLoc.returned_to_worker ?? normRem.returned_to_worker)
+            review_notes: normRem.review_notes || normLoc.review_notes,
+            returned_to_worker: isAnyRejected ? true : (normRem.returned_to_worker ?? normLoc.returned_to_worker)
           };
         }
         return normalizeAssistanceRequest(rem);
@@ -2303,15 +2349,43 @@ export const db = {
     return newReport;
   },
 
-  async forwardAssessmentToPM(assessmentId, requestId, notes = '', supervisorName = 'Emmanuel Adeyemi') {
+  async forwardAssessmentToPM(assessmentId, arg2 = '', arg3 = '', arg4 = '') {
+    // Flexible arg handling: (assessmentId, requestId, notes, supervisorName) or (assessmentId, notes, supervisorName)
+    let requestId = null;
+    let notes = '';
+    let supervisorName = 'Emmanuel Adeyemi';
+
+    if (arg4) {
+      requestId = arg2;
+      notes = arg3 || '';
+      supervisorName = arg4 || 'Emmanuel Adeyemi';
+    } else if (arg3) {
+      if (typeof arg2 === 'string' && (arg2.startsWith('ADR-') || arg2.startsWith('req-') || arg2.includes('-') || arg2.length > 20)) {
+        requestId = arg2;
+        notes = arg3 || '';
+      } else {
+        notes = arg2 || '';
+        supervisorName = arg3 || 'Emmanuel Adeyemi';
+      }
+    } else if (arg2) {
+      if (typeof arg2 === 'string' && (arg2.startsWith('ADR-') || arg2.startsWith('req-') || arg2.length > 20)) {
+        requestId = arg2;
+      } else {
+        notes = arg2;
+      }
+    }
+
     const allAssessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
     const targetAss = allAssessments.find(a => a.id === assessmentId || a.assessment_code === assessmentId);
-    
+    const targetReqId = requestId || targetAss?.request_id || targetAss?.request_code;
     const now = new Date().toISOString();
 
     const updatedAssessments = allAssessments.map(a => (a.id === assessmentId || a.assessment_code === assessmentId) ? {
       ...a,
       status: 'Forwarded to Program Manager',
+      stage: 2,
+      returned_to_worker: false,
+      rejection_reason: null,
       supervisor_notes: notes || `Verified by Supervisor ${supervisorName}. Forwarded to Program Manager Grace Ochieng for final assistance decision.`,
       forwarded_at: now,
       forwarded_by: supervisorName
@@ -2321,11 +2395,13 @@ export const db = {
 
     // Update assistance request status to 'Awaiting Program Manager Decision'
     const allRequests = await this.getAssistanceRequests();
-    const updatedRequests = allRequests.map(r => (r.id === requestId || r.request_code === requestId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code))) ? {
+    const updatedRequests = allRequests.map(r => (r.id === targetReqId || r.request_code === targetReqId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code))) ? {
       ...r,
       status: 'Awaiting Program Manager Decision',
       status_label: 'Awaiting PM Decision',
       status_stage: 4,
+      returned_to_worker: false,
+      rejection_reason: null,
       review_notes: notes ? `Supervisor ${supervisorName} verified & forwarded: ${notes}` : `Supervisor ${supervisorName} verified & forwarded for final approval.`,
       updated_at: now
     } : r);
@@ -2335,8 +2411,8 @@ export const db = {
     // Sync to Supabase
     if (isSupabaseConfigured) {
       try {
-        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-        const reqTarget = updatedRequests.find(r => r.id === requestId || r.request_code === requestId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code)));
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const reqTarget = updatedRequests.find(r => r.id === targetReqId || r.request_code === targetReqId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code)));
         if (reqTarget) {
           const updates = {
             status: 'Awaiting Program Manager Decision',
@@ -2375,13 +2451,171 @@ export const db = {
     return updatedAssessments.find(a => a.id === assessmentId || a.assessment_code === assessmentId);
   },
 
-  async requestAssessmentCorrection(assessmentId, requestId, reason, supervisorName = 'Emmanuel Adeyemi') {
+  async rejectAssessmentBySupervisor(assessmentId, arg2, arg3, arg4) {
+    let requestId = null;
+    let reason = '';
+    let supervisorName = 'Emmanuel Adeyemi';
+
+    if (arg4) {
+      requestId = arg2;
+      reason = arg3 || '';
+      supervisorName = arg4 || 'Emmanuel Adeyemi';
+    } else if (arg3) {
+      if (typeof arg2 === 'string' && (arg2.startsWith('ADR-') || arg2.startsWith('req-') || arg2.includes('-') || arg2.length > 20)) {
+        requestId = arg2;
+        reason = arg3 || '';
+      } else {
+        reason = arg2 || '';
+        supervisorName = arg3 || 'Emmanuel Adeyemi';
+      }
+    } else if (arg2) {
+      reason = arg2;
+    }
+
+    if (!reason || !reason.trim()) {
+      throw new Error('Please enter a specific reason for rejecting the audit.');
+    }
+
+    const allAssessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
+    const targetAss = allAssessments.find(a => 
+      a.id === assessmentId || 
+      a.assessment_code === assessmentId ||
+      (requestId && (a.request_id === requestId || a.request_code === requestId))
+    );
+    const targetReqId = requestId || targetAss?.request_id || targetAss?.request_code || assessmentId;
+    const now = new Date().toISOString();
+
+    let updatedAssessments;
+    const hasAssMatch = allAssessments.some(a => a.id === assessmentId || a.assessment_code === assessmentId || (targetReqId && (a.request_id === targetReqId || a.request_code === targetReqId)));
+    if (hasAssMatch) {
+      updatedAssessments = allAssessments.map(a => (a.id === assessmentId || a.assessment_code === assessmentId || (targetReqId && (a.request_id === targetReqId || a.request_code === targetReqId))) ? {
+        ...a,
+        status: 'Rejected by Supervisor',
+        stage: -1,
+        returned_to_worker: true,
+        rejection_reason: reason,
+        supervisor_notes: `Rejected by Supervisor ${supervisorName}: ${reason}`,
+        rejected_at: now,
+        rejected_by: supervisorName
+      } : a);
+    } else {
+      updatedAssessments = [
+        ...allAssessments,
+        {
+          id: assessmentId || `ass-${Date.now()}`,
+          assessment_code: assessmentId?.startsWith('FA-') ? assessmentId : `FA-REJ-${Date.now().toString().slice(-4)}`,
+          request_id: targetReqId,
+          request_code: targetReqId,
+          status: 'Rejected by Supervisor',
+          stage: -1,
+          returned_to_worker: true,
+          rejection_reason: reason,
+          supervisor_notes: `Rejected by Supervisor ${supervisorName}: ${reason}`,
+          rejected_at: now,
+          rejected_by: supervisorName
+        }
+      ];
+    }
+
+    saveLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, updatedAssessments);
+
+    // Update assistance request status
+    const allRequests = await this.getAssistanceRequests();
+    const updatedRequests = allRequests.map(r => (
+      r.id === targetReqId || 
+      r.request_code === targetReqId || 
+      r.id === assessmentId || 
+      r.request_code === assessmentId || 
+      (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code || r.assessment_code === targetAss.assessment_code))
+    ) ? {
+      ...r,
+      status: 'Rejected by Supervisor',
+      status_label: 'Rejected by Supervisor',
+      status_stage: -1,
+      returned_to_worker: true,
+      rejection_reason: reason,
+      review_notes: `Supervisor ${supervisorName} rejected field audit: ${reason}`,
+      updated_at: now
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedRequests);
+
+    // Sync to Supabase PostgreSQL using only valid table columns
+    if (isSupabaseConfigured) {
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const reqTarget = updatedRequests.find(r => 
+          r.id === targetReqId || 
+          r.request_code === targetReqId || 
+          r.id === assessmentId || 
+          r.request_code === assessmentId || 
+          (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code))
+        );
+        if (reqTarget) {
+          const updates = {
+            status: 'Rejected by Supervisor',
+            status_label: 'Rejected by Supervisor',
+            review_notes: `Supervisor ${supervisorName} rejected field audit: ${reason}`,
+            updated_at: now
+          };
+          if (isUUID(reqTarget.id)) {
+            await supabase.from('assistance_requests').update(updates).eq('id', reqTarget.id);
+          } else if (reqTarget.request_code) {
+            await supabase.from('assistance_requests').update(updates).eq('request_code', reqTarget.request_code);
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase reject by supervisor sync warning:', err?.message);
+      }
+    }
+
+    // Activity log
+    await this.logSupervisorActivity({
+      user_name: supervisorName,
+      role: 'Supervisor',
+      action: 'REJECT_ASSESSMENT',
+      details: `You rejected audit ${targetAss?.assessment_code || assessmentId} for ${targetAss?.beneficiary_name || 'beneficiary'}. Reason: ${reason}`
+    });
+
+    // Audit log
+    await this.logAudit({
+      action: 'SUPERVISOR_REJECT_ASSESSMENT',
+      module: 'Supervisor Quality & Compliance',
+      record_id: targetAss?.assessment_code || assessmentId,
+      details: `Supervisor ${supervisorName} rejected field audit ${targetAss?.assessment_code || assessmentId}. Reason: ${reason}`
+    });
+
+    return updatedAssessments.find(a => a.id === assessmentId || a.assessment_code === assessmentId);
+  },
+
+  async requestAssessmentCorrection(assessmentId, arg2, arg3, arg4) {
+    let requestId = null;
+    let reason = '';
+    let supervisorName = 'Emmanuel Adeyemi';
+
+    if (arg4) {
+      requestId = arg2;
+      reason = arg3 || '';
+      supervisorName = arg4 || 'Emmanuel Adeyemi';
+    } else if (arg3) {
+      if (typeof arg2 === 'string' && (arg2.startsWith('ADR-') || arg2.startsWith('req-') || arg2.includes('-') || arg2.length > 20)) {
+        requestId = arg2;
+        reason = arg3 || '';
+      } else {
+        reason = arg2 || '';
+        supervisorName = arg3 || 'Emmanuel Adeyemi';
+      }
+    } else if (arg2) {
+      reason = arg2;
+    }
+
     if (!reason || !reason.trim()) {
       throw new Error('Please enter a specific reason for the correction request.');
     }
 
     const allAssessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
     const targetAss = allAssessments.find(a => a.id === assessmentId || a.assessment_code === assessmentId);
+    const targetReqId = requestId || targetAss?.request_id || targetAss?.request_code;
     const now = new Date().toISOString();
 
     const updatedAssessments = allAssessments.map(a => (a.id === assessmentId || a.assessment_code === assessmentId) ? {
@@ -2396,7 +2630,7 @@ export const db = {
 
     // Update assistance request status
     const allRequests = await this.getAssistanceRequests();
-    const updatedRequests = allRequests.map(r => (r.id === requestId || r.request_code === requestId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code))) ? {
+    const updatedRequests = allRequests.map(r => (r.id === targetReqId || r.request_code === targetReqId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code))) ? {
       ...r,
       status: 'Correction Required',
       status_label: 'Correction Required',
@@ -2410,8 +2644,8 @@ export const db = {
     // Sync to Supabase
     if (isSupabaseConfigured) {
       try {
-        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-        const reqTarget = updatedRequests.find(r => r.id === requestId || r.request_code === requestId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code)));
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const reqTarget = updatedRequests.find(r => r.id === targetReqId || r.request_code === targetReqId || (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code)));
         if (reqTarget) {
           const updates = {
             status: 'Correction Required',
@@ -2456,6 +2690,10 @@ export const db = {
     } : a);
     saveLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, updated);
     return updated.find(a => a.id === assessmentId || a.assessment_code === assessmentId);
+  },
+
+  async addSupervisorAssessmentComment(assessmentId, comment, authorName = 'Emmanuel Adeyemi') {
+    return this.addAssessmentComment(assessmentId, comment, authorName);
   },
 
   // --- SUPERVISOR NOTIFICATIONS ---
@@ -3202,19 +3440,12 @@ export const db = {
   },
 
   // --- FIELD WORKER OPERATIONAL FUNDING REQUISITIONS (3-TIER APPROVAL) ---
-  async getFieldFundingRequests(workerId = null, supervisorId = null) {
+  async getFieldFundingRequests(workerId = null, supervisorId = null, workerName = null, workerEmail = null) {
     const raw = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
     let needsSave = false;
 
-    // Filter out legacy mock demo records, normalize rejected vs resubmitted/pending status, and auto-sync amount with breakdown
+    // Normalize rejected vs resubmitted/pending status, and auto-sync amount with breakdown
     const all = (Array.isArray(raw) ? raw : [])
-      .filter(r => {
-        if (r.id === 'fnd-104' || r.request_code === 'REQ-FND-2026-004') {
-          needsSave = true;
-          return false;
-        }
-        return true;
-      })
       .map(r => {
         let modified = { ...r };
         const isRejectedStatus = r.status?.includes('Rejected') || r.status?.toLowerCase().includes('reject') || r.status === 'Returned to Field Worker';
@@ -3259,11 +3490,47 @@ export const db = {
 
     if (workerId && workerId !== 'all') {
       const cleanId = String(workerId).toLowerCase().trim();
-      return all.filter(r => 
-        (r.field_worker_id && String(r.field_worker_id).toLowerCase() === cleanId) ||
-        (r.field_worker_name && r.field_worker_name.toLowerCase().includes(cleanId)) ||
-        (r.field_worker_email && r.field_worker_email.toLowerCase() === cleanId)
-      );
+      const cleanName = workerName ? String(workerName).toLowerCase().trim() : '';
+      const cleanEmail = workerEmail ? String(workerEmail).toLowerCase().trim() : '';
+
+      const workerIds = new Set([cleanId]);
+      const workerNames = new Set(cleanName ? [cleanName] : []);
+      const workerEmails = new Set(cleanEmail ? [cleanEmail] : []);
+
+      try {
+        const workers = await this.getFieldWorkers();
+        const matched = workers.find(w => 
+          String(w.id).toLowerCase() === cleanId ||
+          (cleanEmail && String(w.email || '').toLowerCase() === cleanEmail) ||
+          (cleanName && String(w.name || '').toLowerCase() === cleanName) ||
+          String(w.email || '').toLowerCase() === cleanId ||
+          String(w.name || '').toLowerCase() === cleanId ||
+          (cleanId === 'fw-1' && w.name?.toLowerCase().includes('deng')) ||
+          (cleanId.includes('deng') && (w.id === 'fw-1' || w.name?.toLowerCase().includes('deng')))
+        );
+        if (matched) {
+          if (matched.id) workerIds.add(String(matched.id).toLowerCase());
+          if (matched.name) workerNames.add(matched.name.toLowerCase().trim());
+          if (matched.email) workerEmails.add(matched.email.toLowerCase().trim());
+        }
+      } catch (e) {}
+
+      return all.filter(r => {
+        const rWorkerId = String(r.field_worker_id || '').toLowerCase().trim();
+        const rWorkerName = String(r.field_worker_name || '').toLowerCase().trim();
+        const rWorkerEmail = String(r.field_worker_email || '').toLowerCase().trim();
+
+        if (rWorkerId && workerIds.has(rWorkerId)) return true;
+        if (rWorkerEmail && (workerEmails.has(rWorkerEmail) || rWorkerEmail === cleanId)) return true;
+        if (rWorkerName) {
+          if (workerNames.has(rWorkerName)) return true;
+          for (const name of workerNames) {
+            if (name && (rWorkerName.includes(name) || name.includes(rWorkerName))) return true;
+          }
+          if (cleanId && !cleanId.includes('-') && (rWorkerName.includes(cleanId) || cleanId.includes(rWorkerName))) return true;
+        }
+        return false;
+      });
     }
 
     if (supervisorId && supervisorId !== 'all') {
@@ -3288,6 +3555,7 @@ export const db = {
       const workers = await this.getFieldWorkers(supervisorId);
       const workerIds = new Set(workers.map(w => String(w.id).toLowerCase()));
       const workerNames = new Set(workers.map(w => (w.name || '').toLowerCase().trim()));
+      const workerEmails = new Set(workers.map(w => (w.email || '').toLowerCase().trim()));
 
       return all.filter(r => {
         const rSupId = String(r.supervisor_id || '').toLowerCase().trim();
@@ -3295,12 +3563,14 @@ export const db = {
         const rState = String(r.state || '').toLowerCase().trim();
         const rWorkerId = String(r.field_worker_id || '').toLowerCase().trim();
         const rWorkerName = String(r.field_worker_name || '').toLowerCase().trim();
+        const rWorkerEmail = String(r.field_worker_email || '').toLowerCase().trim();
 
         // 1. Worker roster match: If the field worker belongs to this supervisor's roster, show it
         if (rWorkerId && workerIds.has(rWorkerId)) return true;
         if (rWorkerName && workerNames.has(rWorkerName)) return true;
+        if (rWorkerEmail && workerEmails.has(rWorkerEmail)) return true;
         if (cleanSupId === 'sup-2' || cleanSupId === 'a0000001-0000-0000-0000-000000000002' || cleanSupId.includes('akech') || targetName.includes('akech')) {
-          if (rWorkerName.includes('rose') || rWorkerName.includes('poni') || rWorkerId === 'fw-7' || rWorkerId === 'fw-2') return true;
+          if (rWorkerName.includes('rose') || rWorkerName.includes('poni') || rWorkerId === 'fw-7') return true;
         }
 
         // 2. Direct ID match (UUID or mock id)
@@ -3314,7 +3584,7 @@ export const db = {
 
         // 3. Supervisor Name match
         if (targetName && rSupName && (rSupName.includes(targetName) || targetName.includes(rSupName))) return true;
-        if (rSupName && rSupName.includes(cleanSupId)) return true;
+        if (rSupName && (rSupName.includes(cleanSupId) || cleanSupId.includes(rSupName))) return true;
         if ((cleanSupId.includes('akech') || targetName.includes('akech')) && (rSupName.includes('akech') || rState.includes('central'))) return true;
         if ((cleanSupId.includes('adeyemi') || targetName.includes('adeyemi')) && (rSupName.includes('adeyemi') || rState.includes('eastern'))) return true;
 
@@ -3336,17 +3606,29 @@ export const db = {
 
   async createFieldFundingRequest(fundingData) {
     const raw = getLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, mock.initialFieldFundingRequests || []);
-    let all = (Array.isArray(raw) ? raw : []).filter(r => r.id !== 'fnd-104' && r.request_code !== 'REQ-FND-2026-004');
-    const nextNum = (all.length + 1).toString().padStart(3, '0');
+    let all = Array.isArray(raw) ? [...raw] : [];
+
+    // Calculate maximum existing sequence number for sequential REQ-FND-YYYY-XXX generation
+    let maxSeq = 0;
+    for (const r of all) {
+      const match = String(r.request_code || '').match(/REQ-FND-\d+-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxSeq) {
+          maxSeq = num;
+        }
+      }
+    }
+    const nextNum = (maxSeq + 1).toString().padStart(3, '0');
     const now = new Date().toISOString();
 
-    // Check if there is an existing requisition for this id, code, or linked case/request to re-activate
-    const existingIndex = all.findIndex(r => 
-      (fundingData.id && (r.id === fundingData.id || r.request_code === fundingData.id)) ||
-      (fundingData.request_code && (r.request_code === fundingData.request_code || r.id === fundingData.request_code)) ||
-      (fundingData.linked_request_code && fundingData.linked_request_code !== 'GEN-OPS' && r.linked_request_code === fundingData.linked_request_code) ||
-      (fundingData.linked_beneficiary_name && r.linked_beneficiary_name === fundingData.linked_beneficiary_name)
-    );
+    // Check if updating an existing requisition (only when explicitly provided ID or code, e.g. revisions)
+    const existingIndex = (fundingData.id || fundingData.request_code)
+      ? all.findIndex(r => 
+          (fundingData.id && (r.id === fundingData.id || r.request_code === fundingData.id)) ||
+          (fundingData.request_code && (r.request_code === fundingData.request_code || r.id === fundingData.request_code))
+        )
+      : -1;
 
     // Compute accurate amount from itemized breakdown if present
     const computedAmount = fundingData.breakdown && fundingData.breakdown.length > 0
@@ -3359,24 +3641,26 @@ export const db = {
     let resolvedCounty = fundingData.county;
     let resolvedPayam = fundingData.payam;
 
-    const workerLookup = mock.initialFieldWorkers?.find(w => 
+    const allRosterWorkers = mock.initialFieldWorkers || [];
+    const workerLookup = allRosterWorkers.find(w => 
       (fundingData.field_worker_id && String(w.id).toLowerCase() === String(fundingData.field_worker_id).toLowerCase()) ||
+      (fundingData.field_worker_email && String(w.email).toLowerCase() === String(fundingData.field_worker_email).toLowerCase()) ||
       (fundingData.field_worker_name && w.name?.toLowerCase().includes(fundingData.field_worker_name.toLowerCase()))
     );
 
     if (workerLookup) {
-      if (!resolvedSupId || resolvedSupId === 'sup-1') {
-        resolvedSupId = workerLookup.supervisor_id || resolvedSupId || 'sup-2';
-      }
-      if (!resolvedSupName || resolvedSupName === 'Emmanuel Adeyemi') {
-        resolvedSupName = workerLookup.supervisor_name || resolvedSupName || 'Mary Akech';
-      }
-      if (!resolvedState || resolvedState === 'Eastern Equatoria') {
-        resolvedState = workerLookup.state || resolvedState || 'Central Equatoria';
-      }
+      if (!resolvedSupId) resolvedSupId = workerLookup.supervisor_id;
+      if (!resolvedSupName) resolvedSupName = workerLookup.supervisor_name;
+      if (!resolvedState) resolvedState = workerLookup.state;
       if (!resolvedCounty) resolvedCounty = workerLookup.county;
       if (!resolvedPayam) resolvedPayam = workerLookup.payam;
     }
+
+    if (!resolvedSupId) resolvedSupId = 'sup-1';
+    if (!resolvedSupName) resolvedSupName = 'Emmanuel Adeyemi';
+    if (!resolvedState) resolvedState = 'Eastern Equatoria';
+    if (!resolvedCounty) resolvedCounty = 'Kapoeta South';
+    if (!resolvedPayam) resolvedPayam = 'Kapoeta Town';
 
     let targetRequest;
     if (existingIndex >= 0) {
@@ -3421,11 +3705,6 @@ export const db = {
       };
       all[existingIndex] = targetRequest;
     } else {
-      // If there are any previous rejected items for this same linked request or beneficiary, filter them out to prevent duplicate state
-      if (fundingData.linked_request_code && fundingData.linked_request_code !== 'GEN-OPS') {
-        all = all.filter(r => !(r.linked_request_code === fundingData.linked_request_code && (r.stage === -1 || r.status?.includes('Rejected'))));
-      }
-
       targetRequest = {
         id: `fnd-${Date.now()}`,
         request_code: fundingData.request_code || `REQ-FND-2026-${nextNum}`,
@@ -3433,13 +3712,13 @@ export const db = {
         field_worker_name: fundingData.field_worker_name || 'John Deng',
         field_worker_email: fundingData.field_worker_email || 'john.deng@adra.org',
         field_worker_phone: fundingData.field_worker_phone || '+211-921-550101',
-        supervisor_id: resolvedSupId || 'sup-1',
-        supervisor_name: resolvedSupName || 'Emmanuel Adeyemi',
+        supervisor_id: resolvedSupId,
+        supervisor_name: resolvedSupName,
         program_manager_name: fundingData.program_manager_name || 'Grace Ochieng',
         finance_officer_name: 'Finance Department',
-        payam: resolvedPayam || fundingData.payam || 'Field Location',
-        county: resolvedCounty || fundingData.county || 'Operational County',
-        state: resolvedState || fundingData.state || 'Central Equatoria',
+        payam: resolvedPayam,
+        county: resolvedCounty,
+        state: resolvedState,
         project_id: fundingData.project_id || 'prg1',
         project_name: fundingData.project_name || 'Emergency Food Security & Livelihoods (EFSLR)',
         category: fundingData.category || 'Field Operational Facilitation',
@@ -3449,7 +3728,7 @@ export const db = {
         breakdown: fundingData.breakdown || [],
         linked_request_code: fundingData.linked_request_code || 'GEN-OPS',
         linked_beneficiary_name: fundingData.linked_beneficiary_name || 'Field Assignment',
-        linked_location: fundingData.linked_location || fundingData.payam || 'Field Location',
+        linked_location: fundingData.linked_location || resolvedPayam,
         urgency: fundingData.urgency || 'Standard SLA (48h)',
         preferred_payout: fundingData.preferred_payout || 'm-Gurush Mobile Money',
         payout_phone: fundingData.payout_phone || fundingData.field_worker_phone || '+211-921-550101',
@@ -6133,10 +6412,19 @@ export const db = {
       });
     }
 
-    const clean = combined.filter(d => 
-      !SEEDED_DISP_IDS.includes(d.id) && 
-      !SEEDED_WAYBILLS.includes(d.waybill_number)
-    );
+    const clean = [];
+    const seen = new Set();
+    for (const d of combined) {
+      if (!d) continue;
+      if (SEEDED_DISP_IDS.includes(d.id) || SEEDED_WAYBILLS.includes(d.waybill_number)) {
+        continue;
+      }
+      const key = (d.waybill_number || d.id || '').trim().toLowerCase();
+      if (!key || !seen.has(key)) {
+        if (key) seen.add(key);
+        clean.push(d);
+      }
+    }
 
     saveLocalData(STORAGE_KEYS.DISPATCHES, clean);
     return clean;
@@ -6289,9 +6577,6 @@ export const db = {
 
     saveLocalData(STORAGE_KEYS.INVENTORY, updatedInventory);
     saveLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, newTxList);
-
-    const currentDispatches = await this.getDispatches();
-    saveLocalData(STORAGE_KEYS.DISPATCHES, [newDispatch, ...currentDispatches]);
 
     // If linked to an assistance request, update request status with waybill and qr token
     if (targetReq) {
@@ -6494,29 +6779,34 @@ export const db = {
   },
 
   async confirmGoodsCollection(requestIdOrWaybill, workerName = 'Field Worker', supervisorName = 'Emmanuel Adeyemi (Supervisor)', collectionNotes = '') {
+    const lookupKey = typeof requestIdOrWaybill === 'object' && requestIdOrWaybill !== null
+      ? (requestIdOrWaybill.waybill_number || requestIdOrWaybill.id || requestIdOrWaybill.request_code)
+      : requestIdOrWaybill;
+
     const allDispatches = await this.getDispatches();
     const reqs = await this.getAssistanceRequests();
 
     // Match dispatch
     let targetDispatch = allDispatches.find(d => 
-      d.id === requestIdOrWaybill || 
-      d.waybill_number === requestIdOrWaybill || 
-      d.linked_request_id === requestIdOrWaybill ||
-      d.request_code === requestIdOrWaybill
+      d.id === lookupKey || 
+      d.waybill_number === lookupKey || 
+      d.linked_request_id === lookupKey ||
+      d.request_code === lookupKey ||
+      (typeof lookupKey === 'string' && d.waybill_number && d.waybill_number.toLowerCase() === lookupKey.toLowerCase())
     );
 
     // Match request
     let targetReq = reqs.find(r => 
-      r.id === requestIdOrWaybill || 
-      r.request_code === requestIdOrWaybill || 
+      r.id === lookupKey || 
+      r.request_code === lookupKey || 
       (targetDispatch && (r.id === targetDispatch.linked_request_id || r.request_code === targetDispatch.request_code || r.waybill_number === targetDispatch.waybill_number)) ||
-      (r.waybill_number && r.waybill_number === requestIdOrWaybill)
+      (r.waybill_number && r.waybill_number === lookupKey)
     );
 
     const now = new Date().toISOString();
     const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const supCleanName = supervisorName || 'Emmanuel Adeyemi (Supervisor)';
-    const workerCleanName = workerName || targetReq?.assigned_field_worker_name || targetDispatch?.assigned_field_worker_name || targetDispatch?.collected_by || 'Field Worker';
+    const workerCleanName = workerName || targetReq?.assigned_field_worker_name || targetDispatch?.assigned_field_worker_name || targetDispatch?.collected_by || 'Agnes Dawa';
 
     // Update dispatch record
     if (targetDispatch) {
@@ -6527,8 +6817,11 @@ export const db = {
             status: 'Collected by Field Worker',
             dispatch_status: 'Collected by Field Worker',
             collected_by: workerCleanName,
+            goods_collected_by: workerCleanName,
+            assigned_field_worker_name: workerCleanName,
             collected_at: now,
             handed_over_by: supCleanName,
+            goods_handed_over_by: supCleanName,
             notes: collectionNotes ? `${d.notes ? d.notes + ' | ' : ''}Collected by ${workerCleanName}: ${collectionNotes}` : `${d.notes ? d.notes + ' | ' : ''}Collected by ${workerCleanName}`
           };
         }
@@ -6546,6 +6839,21 @@ export const db = {
           console.warn('Supabase update dispatch collection error:', e);
         }
       }
+    } else if (typeof requestIdOrWaybill === 'object' && requestIdOrWaybill?.waybill_number) {
+      // Dispatch was passed directly as object but not in initial memory
+      const synthesizedDispatch = {
+        ...requestIdOrWaybill,
+        status: 'Collected by Field Worker',
+        dispatch_status: 'Collected by Field Worker',
+        collected_by: workerCleanName,
+        goods_collected_by: workerCleanName,
+        assigned_field_worker_name: workerCleanName,
+        collected_at: now,
+        handed_over_by: supCleanName,
+        goods_handed_over_by: supCleanName,
+        notes: collectionNotes ? `Collected by ${workerCleanName}: ${collectionNotes}` : `Collected by ${workerCleanName}`
+      };
+      saveLocalData(STORAGE_KEYS.DISPATCHES, [synthesizedDispatch, ...allDispatches.filter(d => d.waybill_number !== synthesizedDispatch.waybill_number)]);
     }
 
     // Update assistance request
@@ -6556,7 +6864,10 @@ export const db = {
         status_label: 'Goods Collected - Out for Distribution',
         goods_collected_at: now,
         goods_collected_by: workerCleanName,
+        collected_by: workerCleanName,
+        assigned_field_worker_name: workerCleanName,
         goods_handed_over_by: supCleanName,
+        handed_over_by: supCleanName,
         hub_collection_notes: collectionNotes || `Commodities issued and handed over to Field Worker ${workerCleanName} by ${supCleanName} at ${timeStr}.`
       });
 

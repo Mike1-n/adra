@@ -177,18 +177,20 @@ export function PMAssistanceRequestsView({
   };
 
   const getAuditStatus = (r) => {
-    const isRejected = r.status === 'Rejected' || r.status_label === 'Rejected by PM' || r.returned_to_worker;
-    const isAssessed = !isRejected && Boolean(
-      r.status === 'Assessment Submitted' ||
+    const isRejected = r.status === 'Rejected' || r.status_label === 'Rejected by PM' || r.status === 'Rejected by Supervisor' || r.returned_to_worker || (typeof r.status === 'string' && r.status.toLowerCase().includes('reject'));
+    const isForwardedToPM = !isRejected && (
       r.status === 'Awaiting Program Manager Decision' ||
       r.status === 'Forwarded to Program Manager' ||
       r.status === 'Completed' ||
-      r.status === 'Fulfilled' ||
-      (r.assessment_code && r.status !== 'Rejected') ||
-      r.is_verified_on_ground === true
+      r.status === 'Fulfilled'
     );
+    const isUnderSupervisorReview = !isRejected && (
+      r.status === 'Assessment Submitted' ||
+      r.status === 'Under Supervisor Review'
+    );
+    const isAssessed = isForwardedToPM || (Boolean(r.assessment_code) && !isUnderSupervisorReview && !isRejected);
     const worker = getFieldWorkerStatus(r);
-    const isInProgress = !isAssessed && !isRejected && (
+    const isInProgress = !isAssessed && !isUnderSupervisorReview && !isRejected && (
       r.status === 'In Progress' ||
       r.status === 'Assigned to Field Worker' ||
       r.status === 'Assessment In Progress' ||
@@ -197,15 +199,28 @@ export function PMAssistanceRequestsView({
     );
 
     if (isRejected) {
+      const isSupRej = r.status === 'Rejected by Supervisor';
       return {
         stage: -1,
         isFinished: false,
         isInProgress: false,
         isRejected: true,
-        label: 'Audit Rejected by PM (Returned to Field Worker)',
-        shortLabel: 'Rejected by PM',
+        label: isSupRej ? 'Audit Rejected by Supervisor (Returned to Field Worker)' : 'Audit Rejected by PM (Returned to Field Worker)',
+        shortLabel: isSupRej ? 'Rejected by Supervisor' : 'Rejected by PM',
         color: 'rose',
         badgeClass: 'bg-rose-50 text-rose-800 border-rose-200'
+      };
+    }
+
+    if (isUnderSupervisorReview) {
+      return {
+        stage: 2.5,
+        isFinished: false,
+        isInProgress: true,
+        label: 'Assessment Submitted - Under Supervisor Review',
+        shortLabel: 'Under Supervisor Review',
+        color: 'amber',
+        badgeClass: 'bg-amber-50 text-amber-800 border-amber-200'
       };
     }
 
@@ -214,8 +229,8 @@ export function PMAssistanceRequestsView({
         stage: 3,
         isFinished: true,
         isInProgress: false,
-        label: 'Audit Completed & Evidence Submitted',
-        shortLabel: 'Audit Finished',
+        label: 'Audit Completed & Endorsed by Supervisor',
+        shortLabel: 'Forwarded to PM',
         color: 'emerald',
         badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200'
       };
@@ -817,6 +832,7 @@ export function PMAssistanceRequestsView({
   if (activeModalRequest) {
     const isModalRejected = activeModalRequest.status === 'Rejected' || 
                             activeModalRequest.status_label === 'Rejected by PM' || 
+                            activeModalRequest.status === 'Rejected by Supervisor' ||
                             Boolean(activeModalRequest.returned_to_worker) ||
                             (typeof activeModalRequest.status === 'string' && activeModalRequest.status.toLowerCase().includes('reject'));
 
@@ -831,7 +847,6 @@ export function PMAssistanceRequestsView({
 
     const isAwaitingPMDecision = !isModalRejected && (
       activeModalRequest.status === 'Awaiting Program Manager Decision' ||
-      activeModalRequest.status === 'Assessment Submitted' ||
       activeModalRequest.status === 'Forwarded to Program Manager' ||
       activeModalRequest.status === 'My Decision'
     );
@@ -1286,18 +1301,30 @@ export function PMAssistanceRequestsView({
               </p>
             </div>
           </div>
+        ) : activeModalRequest.status === 'Assessment Submitted' ? (
+          <div className="bg-amber-50/80 p-5 rounded-3xl border border-amber-300 shadow-2xs space-y-2 text-xs text-amber-950">
+            <div className="flex items-center gap-2.5">
+              <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+              <span className="font-black text-sm text-amber-900">Under State Supervisor Review</span>
+            </div>
+            <p className="text-amber-800 leading-relaxed">
+              Field Officer has submitted verification findings and evidence. The State Supervisor ({assignedSupervisor?.name || activeModalRequest.assigned_supervisor_name || 'Assigned Supervisor'}) is currently reviewing the audit before it reaches the Programme Manager. The supervisor can endorse &amp; forward to PM or reject it back to the field.
+            </p>
+          </div>
         ) : isModalRejected ? (
           <div className="bg-rose-50/90 p-5 rounded-3xl border border-rose-200 space-y-3 text-xs text-rose-950">
             <div className="flex items-center gap-2.5">
               <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
-              <span className="font-black text-sm text-rose-800">Request Officially Rejected</span>
+              <span className="font-black text-sm text-rose-800">
+                {activeModalRequest.status === 'Rejected by Supervisor' ? 'Audit Rejected by Field Supervisor' : 'Request Officially Rejected'}
+              </span>
             </div>
             <div className="p-3.5 bg-white/90 rounded-2xl border border-rose-200 text-rose-900 font-medium text-xs leading-relaxed space-y-1 shadow-2xs">
               <span className="text-[10px] uppercase font-bold text-rose-500 block tracking-wider">Recorded Rejection Reason</span>
               <p className="italic">"{activeModalRequest.rejection_reason || activeModalRequest.review_notes || 'No specific rejection reason recorded.'}"</p>
             </div>
             <div className="pt-1 flex flex-wrap items-center gap-3 text-[11px] text-rose-700/90 font-medium">
-              <span>Decision by: <strong className="text-rose-900">{activeModalRequest.reviewed_by || 'Grace Ochieng (Programme Manager)'}</strong></span>
+              <span>Decision by: <strong className="text-rose-900">{activeModalRequest.reviewed_by || (activeModalRequest.status === 'Rejected by Supervisor' ? 'Emmanuel Adeyemi (Supervisor)' : 'Grace Ochieng (Programme Manager)')}</strong></span>
               {activeModalRequest.reviewed_at && (
                 <>
                   <span>&bull;</span>
