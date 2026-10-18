@@ -459,19 +459,6 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                           🚚 Supplier
                         </button>
                       </div>
-
-                      {onSwitchToAdminLogin && (
-                        <div className="pt-2.5 text-center">
-                          <button
-                            type="button"
-                            onClick={onSwitchToAdminLogin}
-                            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-700 font-semibold transition cursor-pointer"
-                          >
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                            Administrator Console Login (/admin)
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </form>
                 ) : (
@@ -759,17 +746,6 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
           </>
         )}
 
-          </div>
-
-          {/* Contact Us Link at Bottom */}
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => setIsHelpModalOpen(true)}
-              className="text-xs font-semibold text-slate-500 hover:text-[#006B56] hover:underline cursor-pointer transition"
-            >
-              Contact Us
-            </button>
           </div>
         </div>
 
