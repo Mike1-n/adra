@@ -8,7 +8,6 @@ import {
   Settings,
   Search,
   Download,
-  Smartphone,
   LogOut,
   User,
   Menu,
@@ -170,7 +169,7 @@ export function AdminWebPortalLayout({
           <AdraLogo
             isCollapsed={isCollapsed}
             subtitle="Admin"
-            description="Enterprise Web Portal"
+            description=""
             onClick={isCollapsed ? () => setIsCollapsed(false) : undefined}
           />
           {!isCollapsed && (
@@ -199,13 +198,8 @@ export function AdminWebPortalLayout({
           </div>
         )}
 
-        {/* 6 Primary Navigation Items */}
+        {/* Primary Navigation Items */}
         <nav className={`flex-1 space-y-1 overflow-y-auto ${isCollapsed ? 'px-2 py-3' : 'px-3 py-4'}`}>
-          {!isCollapsed && (
-            <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Console Navigation
-            </p>
-          )}
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
@@ -238,21 +232,6 @@ export function AdminWebPortalLayout({
             );
           })}
         </nav>
-
-        {/* Bottom Footer: Switch to Field Application */}
-        <div className={`p-3 border-t border-slate-200 mt-auto ${isCollapsed ? 'px-2' : ''}`}>
-          <button
-            type="button"
-            onClick={onSwitchToFieldApp}
-            title="Open Field Operations Application (/)"
-            className={`w-full flex items-center rounded-xl text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-500/30 transition cursor-pointer active:scale-95 ${
-              isCollapsed ? 'justify-center p-2.5' : 'justify-center gap-2 px-3 py-2.5'
-            }`}
-          >
-            <Smartphone className="w-4 h-4 text-emerald-700 shrink-0" />
-            {!isCollapsed && <span>Field Operations App</span>}
-          </button>
-        </div>
       </aside>
 
       {/* Main Viewport */}
@@ -333,7 +312,7 @@ export function AdminWebPortalLayout({
               <AdraLogo
                 isCollapsed={false}
                 subtitle="Admin"
-                description="Enterprise Web Portal"
+                description=""
               />
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -382,20 +361,9 @@ export function AdminWebPortalLayout({
                   <p className="text-[10px] text-slate-500 truncate">{currentUser?.email || 'admin@adra.org'}</p>
                 </div>
               </div>
-
-              <button
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  onSwitchToFieldApp();
-                }}
-                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-500/30 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
-              >
-                <Smartphone className="w-4 h-4 text-emerald-600" /> Open Field Application
-              </button>
-
-              </div>
             </div>
           </div>
+        </div>
       )}
 
       {/* Global Search Modal */}
