@@ -90,7 +90,10 @@ export function AuthProvider({ children }) {
         warehouse: 'inventory.manager@adra.org',
         beneficiary: 'mary.nyambura@adra.community',
         supplier: 'procurement@africasupplies.com',
-        vendor: 'procurement@africasupplies.com'
+        vendor: 'procurement@africasupplies.com',
+        donor: 'sjenkins@usaid.gov',
+        usaid: 'sjenkins@usaid.gov',
+        echo: 'm.dupont@ec.europa.eu'
       };
 
       let candidateEmail = cleanIdent.includes('@') ? cleanIdent : ROLE_SHORTCUT_EMAILS[cleanLower];

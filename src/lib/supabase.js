@@ -59,7 +59,10 @@ const STORAGE_KEYS = {
   DISPATCHES: 'adra_dispatches',
   STOCK_TRANSACTIONS: 'adra_stock_transactions',
   WAREHOUSES: 'adra_warehouses',
-  USER_FEEDBACK: 'adra_user_feedback'
+  USER_FEEDBACK: 'adra_user_feedback',
+  DONOR_GRANTS: 'adra_donor_grants',
+  DONOR_DELIVERABLES: 'adra_donor_deliverables',
+  DONOR_QUERIES: 'adra_donor_queries'
 };
 
 function getLocalData(key, defaultData) {
@@ -4677,6 +4680,79 @@ export const db = {
     const updated = [newD, ...current];
     saveLocalData(STORAGE_KEYS.DONORS, updated);
     return newD;
+  },
+
+  async updateDonor(id, updates) {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase.from('donors').update(updates).eq('id', id).select().single();
+      if (!error && data) return data;
+    }
+    const current = getLocalData(STORAGE_KEYS.DONORS, mock.initialDonors);
+    const updated = current.map(d => d.id === id ? { ...d, ...updates } : d);
+    saveLocalData(STORAGE_KEYS.DONORS, updated);
+    return updated.find(d => d.id === id);
+  },
+
+  async getDonorGrants(donorId = null) {
+    const all = getLocalData(STORAGE_KEYS.DONOR_GRANTS, mock.initialDonorGrants || []);
+    if (!donorId) return all;
+    return all.filter(g => g.donor_id === donorId);
+  },
+
+  async createDonorGrant(grant) {
+    const newG = {
+      id: `grt_${Date.now()}`,
+      created_at: new Date().toISOString(),
+      ...grant
+    };
+    const current = getLocalData(STORAGE_KEYS.DONOR_GRANTS, mock.initialDonorGrants || []);
+    const updated = [newG, ...current];
+    saveLocalData(STORAGE_KEYS.DONOR_GRANTS, updated);
+    return newG;
+  },
+
+  async updateDonorGrant(id, updates) {
+    const current = getLocalData(STORAGE_KEYS.DONOR_GRANTS, mock.initialDonorGrants || []);
+    const updated = current.map(g => g.id === id ? { ...g, ...updates } : g);
+    saveLocalData(STORAGE_KEYS.DONOR_GRANTS, updated);
+    return updated.find(g => g.id === id);
+  },
+
+  async getDonorDeliverables(donorId = null) {
+    const all = getLocalData(STORAGE_KEYS.DONOR_DELIVERABLES, mock.initialDonorDeliverables || []);
+    if (!donorId) return all;
+    return all.filter(d => d.donor_id === donorId);
+  },
+
+  async createDonorDeliverable(deliverable) {
+    const newD = {
+      id: `del_${Date.now()}`,
+      submitted_date: new Date().toISOString().split('T')[0],
+      ...deliverable
+    };
+    const current = getLocalData(STORAGE_KEYS.DONOR_DELIVERABLES, mock.initialDonorDeliverables || []);
+    const updated = [newD, ...current];
+    saveLocalData(STORAGE_KEYS.DONOR_DELIVERABLES, updated);
+    return newD;
+  },
+
+  async getDonorQueries(donorId = null) {
+    const all = getLocalData(STORAGE_KEYS.DONOR_QUERIES, mock.initialDonorQueries || []);
+    if (!donorId) return all;
+    return all.filter(q => q.donor_id === donorId);
+  },
+
+  async sendDonorQuery(query) {
+    const newQ = {
+      id: `qry_${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      status: 'Under Review',
+      ...query
+    };
+    const current = getLocalData(STORAGE_KEYS.DONOR_QUERIES, mock.initialDonorQueries || []);
+    const updated = [newQ, ...current];
+    saveLocalData(STORAGE_KEYS.DONOR_QUERIES, updated);
+    return newQ;
   },
 
   async getPartners() {

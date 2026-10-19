@@ -2,39 +2,240 @@
 export const initialDonors = [
   {
     id: 'd1',
+    donor_code: 'USAID-BHA',
     donor_name: 'USAID (Bureau for Humanitarian Assistance)',
     contact_person: 'Sarah Jenkins',
     email: 'sjenkins@usaid.gov',
     phone: '+1-202-555-0143',
+    donor_type: 'Bilateral Government Agency',
+    country: 'United States',
     funding_amount: 2500000,
+    disbursed_amount: 1850000,
+    active_grants_count: 2,
+    compliance_status: 'Fully Compliant',
     funding_date: '2025-01-15'
   },
   {
     id: 'd2',
+    donor_code: 'EU-ECHO',
     donor_name: 'European Commission (ECHO)',
     contact_person: 'Marc Dupont',
     email: 'm.dupont@ec.europa.eu',
     phone: '+32-2-299-1111',
+    donor_type: 'Multilateral Humanitarian Agency',
+    country: 'European Union',
     funding_amount: 1800000,
+    disbursed_amount: 1200000,
+    active_grants_count: 1,
+    compliance_status: 'Fully Compliant',
     funding_date: '2025-03-01'
   },
   {
     id: 'd3',
+    donor_code: 'ADRA-IPF',
     donor_name: 'ADRA International Partnership Fund',
     contact_person: 'Dr. David Miller',
     email: 'dmiller@adra.org',
     phone: '+1-301-680-6000',
+    donor_type: 'Global Network Foundation',
+    country: 'Global / United States',
     funding_amount: 950000,
+    disbursed_amount: 950000,
+    active_grants_count: 1,
+    compliance_status: 'Fully Compliant',
     funding_date: '2025-02-10'
   },
   {
     id: 'd4',
+    donor_code: 'GAC-CAN',
     donor_name: 'Global Affairs Canada (GAC)',
     contact_person: 'Elena Rostova',
     email: 'elena.rostova@international.gc.ca',
     phone: '+1-613-996-2000',
+    donor_type: 'Bilateral Government Agency',
+    country: 'Canada',
     funding_amount: 1200000,
+    disbursed_amount: 890000,
+    active_grants_count: 1,
+    compliance_status: 'Audit Certified',
     funding_date: '2025-04-20'
+  }
+];
+
+export const initialDonorGrants = [
+  {
+    id: 'grt-1',
+    grant_code: 'GRT-USAID-2025-01',
+    donor_id: 'd1',
+    donor_name: 'USAID (Bureau for Humanitarian Assistance)',
+    project_id: 'pr1',
+    project_code: 'PRJ-2025-001',
+    project_name: 'Drought Resilience & Climate-Smart Agriculture (DR-CSA)',
+    total_committed: 1450000,
+    disbursed_amount: 1100000,
+    expended_amount: 875200,
+    start_date: '2025-01-01',
+    end_date: '2026-12-31',
+    currency: 'USD',
+    status: 'Active',
+    focal_officer: 'John Mwangi',
+    tranches: [
+      { tranche: 1, amount: 600000, date: '2025-01-15', status: 'Disbursed', ref: 'EFT-USAID-0091' },
+      { tranche: 2, amount: 500000, date: '2025-07-01', status: 'Disbursed', ref: 'EFT-USAID-0144' },
+      { tranche: 3, amount: 350000, date: '2026-03-01', status: 'Pending Milestone', ref: 'MILESTONE-MTR' }
+    ]
+  },
+  {
+    id: 'grt-2',
+    grant_code: 'GRT-USAID-2026-02',
+    donor_id: 'd1',
+    donor_name: 'USAID (Bureau for Humanitarian Assistance)',
+    project_id: 'pr5',
+    project_code: 'PRJ-2026-005',
+    project_name: 'Maternal & Child Nutrition Support Initiative',
+    total_committed: 750000,
+    disbursed_amount: 350000,
+    expended_amount: 120400,
+    start_date: '2025-06-01',
+    end_date: '2026-05-31',
+    currency: 'USD',
+    status: 'Active',
+    focal_officer: 'Grace Ochieng',
+    tranches: [
+      { tranche: 1, amount: 350000, date: '2025-06-15', status: 'Disbursed', ref: 'EFT-USAID-0210' },
+      { tranche: 2, amount: 400000, date: '2026-01-10', status: 'Scheduled', ref: 'TRANCHE-FINAL' }
+    ]
+  },
+  {
+    id: 'grt-3',
+    grant_code: 'GRT-ECHO-2025-01',
+    donor_id: 'd2',
+    donor_name: 'European Commission (ECHO)',
+    project_id: 'pr2',
+    project_code: 'PRJ-2025-002',
+    project_name: 'Clean Water Access & WASH Infrastructure Expansion',
+    total_committed: 680000,
+    disbursed_amount: 500000,
+    expended_amount: 412000,
+    start_date: '2025-02-15',
+    end_date: '2025-11-30',
+    currency: 'USD',
+    status: 'Active',
+    focal_officer: 'Alex Morgan',
+    tranches: [
+      { tranche: 1, amount: 300000, date: '2025-03-01', status: 'Disbursed', ref: 'EFT-ECHO-8812' },
+      { tranche: 2, amount: 200000, date: '2025-06-15', status: 'Disbursed', ref: 'EFT-ECHO-9102' }
+    ]
+  },
+  {
+    id: 'grt-4',
+    grant_code: 'GRT-GAC-2024-03',
+    donor_id: 'd4',
+    donor_name: 'Global Affairs Canada (GAC)',
+    project_id: 'pr4',
+    project_code: 'PRJ-2024-004',
+    project_name: 'Emergency Flood Relief & Shelter Rehabilitation',
+    total_committed: 890000,
+    disbursed_amount: 890000,
+    expended_amount: 884600,
+    start_date: '2024-04-01',
+    end_date: '2024-12-15',
+    currency: 'USD',
+    status: 'Completed',
+    focal_officer: 'Emmanuel Adeyemi',
+    tranches: [
+      { tranche: 1, amount: 890000, date: '2024-04-20', status: 'Disbursed', ref: 'EFT-GAC-3301' }
+    ]
+  }
+];
+
+export const initialDonorDeliverables = [
+  {
+    id: 'del-1',
+    grant_code: 'GRT-USAID-2025-01',
+    donor_id: 'd1',
+    title: 'Q1-2025 Narrative & Activity Progress Report',
+    type: 'Progress Report',
+    due_date: '2025-04-15',
+    submitted_date: '2025-04-12',
+    status: 'Approved',
+    file_name: 'ADRA_USAID_Q1_2025_Narrative.pdf',
+    notes: 'Approved without remarks by BHA focal point.'
+  },
+  {
+    id: 'del-2',
+    grant_code: 'GRT-USAID-2025-01',
+    donor_id: 'd1',
+    title: 'Semi-Annual Financial Expenditure & Voucher Statement (FMR)',
+    type: 'Financial Statement',
+    due_date: '2025-07-31',
+    submitted_date: '2025-07-28',
+    status: 'Approved',
+    file_name: 'ADRA_USAID_FMR_H1_2025.pdf',
+    notes: 'Verified against field bank statements and ledger.'
+  },
+  {
+    id: 'del-3',
+    grant_code: 'GRT-USAID-2025-01',
+    donor_id: 'd1',
+    title: 'Midterm M&E Indicator Verification & Field Survey Logframe',
+    type: 'M&E Evaluation',
+    due_date: '2025-10-31',
+    submitted_date: '2025-10-25',
+    status: 'Under Review',
+    file_name: 'ADRA_USAID_M&E_Midterm_Logframe.pdf',
+    notes: 'Submitted for final sign-off to USAID regional desk.'
+  },
+  {
+    id: 'del-4',
+    grant_code: 'GRT-USAID-2026-02',
+    donor_id: 'd1',
+    title: 'Inception Baseline Survey & Community Screening Results',
+    type: 'Inception Report',
+    due_date: '2025-08-31',
+    submitted_date: '2025-08-28',
+    status: 'Approved',
+    file_name: 'ADRA_Nutrition_Inception_Survey.pdf',
+    notes: 'Baseline target adjusted to 1,200 lactating mothers.'
+  },
+  {
+    id: 'del-5',
+    grant_code: 'GRT-USAID-2025-01',
+    donor_id: 'd1',
+    title: 'Independent Midterm External Financial Audit Report',
+    type: 'External Audit',
+    due_date: '2025-12-15',
+    submitted_date: null,
+    status: 'Scheduled',
+    file_name: 'ADRA_USAID_Audit_TermsOfRef.pdf',
+    notes: 'Auditor firm appointed; field sampling scheduled.'
+  }
+];
+
+export const initialDonorQueries = [
+  {
+    id: 'qry-1',
+    donor_id: 'd1',
+    subject: 'Verification of Turkana Seed Distribution Sign-off Records',
+    message: 'Could ADRA please provide confirmation on the warehouse dispatch vouchers for the certified sorghum seeds in Lodwar?',
+    sender: 'Sarah Jenkins (USAID BHA)',
+    date: '2025-02-18',
+    status: 'Clarified',
+    response: 'Verified distribution sheets and GPS-tagged beneficiary lists were uploaded under Activity ACT-2025-101. Total 520 farmers signed.',
+    responded_by: 'Grace Ochieng (Program Manager)',
+    responded_at: '2025-02-19'
+  },
+  {
+    id: 'qry-2',
+    donor_id: 'd1',
+    subject: 'Environmental Compliance for Solar Borehole Installation',
+    message: 'Requesting the hydrologic EIA clearance certification for Marsabit District borehole drilling sites.',
+    sender: 'Sarah Jenkins (USAID BHA)',
+    date: '2025-03-22',
+    status: 'Under Review',
+    response: 'EIA hydrology permit issued by NEMA has been attached to the Project Documents repository.',
+    responded_by: 'Dr. Elizabeth Warren (Country Director)',
+    responded_at: '2025-03-24'
   }
 ];
 

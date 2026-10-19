@@ -364,6 +364,16 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                         >
                           🚚 Supplier
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIdentifier('sjenkins@usaid.gov');
+                            setPassword('Password123!');
+                          }}
+                          className="px-2 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-900 text-[11px] font-bold border border-sky-200 text-center transition cursor-pointer"
+                        >
+                          🏛️ Donor Agency
+                        </button>
                       </div>
                     </div>
                   </form>

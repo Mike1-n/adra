@@ -46,6 +46,9 @@ import { InventoryManagerDashboard } from './pages/inventory/InventoryManagerDas
 // Specialized Supplier Portal
 import { SupplierPortalApp } from './pages/supplier/SupplierPortalApp';
 
+// Dedicated Institutional Donor Portal
+import { DonorPortalApp } from './pages/donor/DonorPortalApp';
+
 // Universal Feedback & Complaints Desk
 import { FeedbackComplaintsView } from './components/common/FeedbackComplaintsView';
 
@@ -240,8 +243,9 @@ export function App() {
       setCurrentTab('projects');
       setAppMode('field_app');
     } else if (currentUser.role === 'Donor') {
-      setCurrentTab('reports');
-      setAppMode('field_app');
+      setCurrentTab('donor_portal');
+      setAppMode('donor_portal');
+      return;
     } else {
       setCurrentTab('dashboard');
       setAppMode('field_app');
@@ -449,6 +453,21 @@ export function App() {
     );
   }
 
+  // If Donor logs in or switches to Donor mode:
+  if (currentUser.role === 'Donor' || appMode === 'donor_portal' || currentTab === 'donor_portal') {
+    return (
+      <DonorPortalApp
+        currentUser={currentUser}
+        onLogout={logout}
+        onSwitchRole={quickSwitchRole}
+        onBackToFieldApp={() => {
+          setAppMode('field_app');
+          setCurrentTab('dashboard');
+        }}
+      />
+    );
+  }
+
   const tabTitles = {
     dashboard: 'Field Operations Dashboard',
     supervisor: 'Supervisor Mobile App',
@@ -456,6 +475,7 @@ export function App() {
     programs: 'Programme Manager Dashboard',
     inventory: 'Inventory & Logistics Command Hub',
     supplier: 'Approved Supplier Portal',
+    donor_portal: 'Institutional Donor Portal',
     projects: 'Project Portfolio',
     beneficiaries: 'Beneficiary Management',
     activities: 'Project Activities',
