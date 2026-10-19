@@ -4,7 +4,8 @@ import {
   LogOut,
   Mail,
   Phone,
-  Building
+  Building,
+  User
 } from 'lucide-react';
 
 export function PMProfileView({
@@ -25,16 +26,8 @@ export function PMProfileView({
       
       {/* 1. PROFILE HEADER CARD */}
       <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-2xs text-center space-y-3 relative overflow-hidden">
-        <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-[#006B56] to-emerald-600 text-white flex items-center justify-center mx-auto shadow-md text-2xl font-black border-2 border-white">
-          {currentUser?.avatar ? (
-            <img
-              src={currentUser.avatar}
-              alt="Avatar"
-              className="w-full h-full object-cover rounded-2xl"
-            />
-          ) : (
-            <span>{pm.name?.slice(0, 2)?.toUpperCase() || 'GO'}</span>
-          )}
+        <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-[#006B56] to-emerald-600 text-white flex items-center justify-center mx-auto shadow-md border-2 border-white">
+          <User className="w-10 h-10 text-white" />
         </div>
 
         <div>

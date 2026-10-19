@@ -56,11 +56,9 @@ export function SupervisorProfileView({
       {/* Header Profile Card */}
       <div className="bg-gradient-to-r from-[#006B56] to-[#004D3D] text-white p-6 rounded-3xl shadow-lg relative overflow-hidden">
         <div className="relative z-10 flex items-center space-x-4">
-          <img
-            src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
-            alt={formData.full_name}
-            className="w-18 h-18 rounded-2xl object-cover border-2 border-white/30 shadow-md"
-          />
+          <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center border-2 border-white/30 shadow-md shrink-0">
+            <User className="w-8 h-8 text-white" />
+          </div>
           <div>
             <div className="flex items-center space-x-2">
               <h2 className="text-lg font-bold leading-tight">{formData.full_name}</h2>
@@ -129,7 +127,7 @@ export function SupervisorProfileView({
 
           {/* Immutable Role Field */}
           <div>
-            <label className="block text-slate-500 font-medium mb-1 flex items-center justify-between">
+            <label className="text-slate-500 font-medium mb-1 flex items-center justify-between">
               <span>Assigned User Role</span>
               <span className="text-[10px] text-amber-600 font-bold flex items-center space-x-1">
                 <Lock className="w-3 h-3" />

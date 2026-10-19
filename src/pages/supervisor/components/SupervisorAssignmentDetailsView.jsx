@@ -608,11 +608,9 @@ export function SupervisorAssignmentDetailsView({
 
                 <div className="flex items-center justify-between pt-1">
                   <div className="flex items-center space-x-3">
-                    <img
-                      src={assignedWorker.avatar || 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150'}
-                      alt={assignedWorker.name}
-                      className="w-12 h-12 rounded-full object-cover border border-slate-200"
-                    />
+                    <div className="w-12 h-12 rounded-full bg-emerald-50 border border-slate-200 flex items-center justify-center text-emerald-800 shrink-0">
+                      <User className="w-6 h-6" />
+                    </div>
                     <div>
                       <p className="text-sm font-bold text-slate-900">{assignedWorker.name}</p>
                       <p className="text-xs text-slate-500 font-mono">{assignedWorker.phone}</p>

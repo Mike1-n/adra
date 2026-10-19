@@ -9,7 +9,8 @@ import {
   Users,
   CheckCircle2,
   Sparkles,
-  Phone
+  Phone,
+  User
 } from 'lucide-react';
 import { Button } from '../../../components/common/Button';
 
@@ -94,13 +95,11 @@ export function BeneficiaryIdCard({ beneficiary }) {
           {/* Card Body */}
           <div className="p-6 space-y-5 bg-white">
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-              {/* Photo */}
+              {/* ID Badge Icon */}
               <div className="relative shrink-0">
-                <img
-                  src={ben.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200'}
-                  alt={ben.full_name}
-                  className="w-24 h-24 rounded-2xl object-cover border-2 border-emerald-500/40 shadow-md"
-                />
+                <div className="w-24 h-24 rounded-2xl bg-gradient-to-tr from-[#006B56] to-emerald-600 flex items-center justify-center text-white border-2 border-emerald-500/40 shadow-md">
+                  <User className="w-12 h-12" />
+                </div>
                 <div className="absolute -bottom-1 -right-1 p-1 bg-emerald-600 text-white rounded-full border-2 border-white shadow-sm">
                   <ShieldCheck className="w-3.5 h-3.5" />
                 </div>

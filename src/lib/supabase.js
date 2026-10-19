@@ -505,9 +505,7 @@ export const db = {
       project_id: regData.project_id || 'pr1',
       project_name: regData.project_name || 'Emergency Food Security & Livelihoods Resilience',
       qr_token: `${bCode}-VFD${Date.now().toString().slice(-4)}`,
-      avatar: regData.gender === 'Female'
-        ? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150'
-        : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      avatar: '',
       password: regData.password || 'Password123!'
     };
 
@@ -1768,7 +1766,7 @@ export const db = {
           workload_percentage: mockMatch.workload_percentage ?? 50,
           status: p.status || 'Active',
           managed_field_workers: mockMatch.managed_field_workers ?? 5,
-          avatar: p.avatar_url || mockMatch.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'
+          avatar: p.avatar_url || mockMatch.avatar || ''
         };
       });
     }
@@ -1828,7 +1826,7 @@ export const db = {
               completed_assignments: localMatch.completed_assignments || 12,
               pending_reports: localMatch.pending_reports || 0,
               overdue_assessments: localMatch.overdue_assessments || 0,
-              avatar: p.avatar_url || localMatch.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
+              avatar: p.avatar_url || localMatch.avatar || ''
             };
           });
 
@@ -4986,7 +4984,7 @@ export const db = {
           role: 'Beneficiary',
           department: `Community (${matchedBen.location || 'South Sudan'})`,
           status: matchedBen.verification_status || 'Active',
-          avatar: matchedBen.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
+          avatar: matchedBen.avatar || '',
           beneficiary_id: matchedBen.id,
           beneficiary_code: matchedBen.beneficiary_code,
           password: 'Password123!'
@@ -5065,8 +5063,8 @@ export const db = {
       role: userData.role || 'Field Worker',
       phone: userData.phone || userData.phone_number || '+211-920-000000',
       department: userData.department || 'Field Operations',
-      avatar: userData.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-      avatar_url: userData.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      avatar: userData.avatar || '',
+      avatar_url: userData.avatar || '',
       is_active: initialIsActive,
       status: initialStatus,
       created_at: new Date().toISOString()

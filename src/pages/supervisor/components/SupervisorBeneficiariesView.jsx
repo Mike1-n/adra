@@ -11,7 +11,8 @@ import {
   ChevronRight,
   ArrowLeft,
   FileText,
-  Gift
+  Gift,
+  User
 } from 'lucide-react';
 
 export function SupervisorBeneficiariesView({
@@ -75,11 +76,9 @@ export function SupervisorBeneficiariesView({
           {/* Main Profile Card */}
           <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 space-y-4">
             <div className="flex items-center space-x-4">
-              <img
-                src={activeBeneficiary.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150'}
-                alt={activeBeneficiary.full_name}
-                className="w-16 h-16 rounded-full object-cover border-2 border-[#006B56]/20 shadow-xs"
-              />
+              <div className="w-16 h-16 rounded-full bg-emerald-50 border-2 border-[#006B56]/20 flex items-center justify-center text-emerald-800 shadow-xs shrink-0">
+                <User className="w-8 h-8" />
+              </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-900">{activeBeneficiary.full_name}</h2>
                 <p className="text-xs text-[#006B56] font-bold">Household Head &bull; {activeBeneficiary.gender || 'Female'}</p>
@@ -174,11 +173,9 @@ export function SupervisorBeneficiariesView({
             className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between"
           >
             <div className="flex items-center space-x-3 min-w-0">
-              <img
-                src={b.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150'}
-                alt={b.full_name}
-                className="w-11 h-11 rounded-full object-cover border border-slate-200 shrink-0"
-              />
+              <div className="w-11 h-11 rounded-full bg-emerald-50 border border-slate-200 flex items-center justify-center text-emerald-800 shrink-0">
+                <User className="w-5 h-5" />
+              </div>
               <div className="min-w-0">
                 <h3 className="text-sm font-bold text-slate-900 truncate">{b.full_name}</h3>
                 <p className="text-xs text-[#006B56] font-mono">{b.beneficiary_code}</p>

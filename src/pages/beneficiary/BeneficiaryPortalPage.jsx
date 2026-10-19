@@ -184,11 +184,9 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
         {mobileMenuOpen && (
           <div className="md:hidden bg-white border-b border-slate-200 p-4 space-y-1 shadow-lg animate-in slide-in-from-top-2 duration-150">
             <div className="p-3 mb-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-3">
-              <img
-                src={beneficiary?.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80'}
-                alt=""
-                className="w-10 h-10 rounded-full object-cover border border-emerald-400"
-              />
+              <div className="w-10 h-10 rounded-full bg-[#004D3F] flex items-center justify-center text-white shrink-0 border border-emerald-400">
+                <User className="w-5 h-5" />
+              </div>
               <div>
                 <span className="font-bold text-sm text-slate-900 block">
                   {beneficiary?.full_name || 'Mary Nyambura'}

@@ -722,7 +722,7 @@ export const demoAccounts = [
     role: 'Administrator',
     department: 'Executive Country Leadership',
     status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'user-pm',
@@ -733,7 +733,7 @@ export const demoAccounts = [
     role: 'Program Manager',
     department: 'Emergency Response & Programs',
     status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'user-sup',
@@ -745,7 +745,7 @@ export const demoAccounts = [
     department: 'Field Operations & Supervisory (Eastern Equatoria State)',
     state: 'Eastern Equatoria',
     status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'user-po',
@@ -756,7 +756,7 @@ export const demoAccounts = [
     role: 'Project Officer',
     department: 'Humanitarian Operations',
     status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'user-fo',
@@ -767,7 +767,7 @@ export const demoAccounts = [
     role: 'Finance Officer',
     department: 'Financial Control & Grants',
     status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'user-im',
@@ -778,7 +778,7 @@ export const demoAccounts = [
     role: 'Inventory Manager',
     department: 'Central Warehousing & Logistics (Juba Hub)',
     status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'user-fw',
@@ -789,7 +789,7 @@ export const demoAccounts = [
     role: 'Field Worker',
     department: 'Community Mobilization (Kapoeta South)',
     status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'user-sup-vendor',
@@ -800,7 +800,7 @@ export const demoAccounts = [
     role: 'Supplier',
     department: 'Equatorial Relief Logistics',
     status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'user-donor',
@@ -811,7 +811,7 @@ export const demoAccounts = [
     role: 'Donor',
     department: 'USAID Bureau for Humanitarian Assistance',
     status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'user-ben',
@@ -824,7 +824,7 @@ export const demoAccounts = [
     role: 'Beneficiary',
     department: 'Community Self-Help Group (Lodwar)',
     status: 'Active',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   }
 ];
 
@@ -1145,7 +1145,7 @@ export const initialSupervisors = [
     workload_percentage: 65,
     status: 'Active',
     managed_field_workers: 6,
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'sup-2',
@@ -1166,7 +1166,7 @@ export const initialSupervisors = [
     workload_percentage: 50,
     status: 'Active',
     managed_field_workers: 8,
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'sup-3',
@@ -1187,7 +1187,7 @@ export const initialSupervisors = [
     workload_percentage: 85,
     status: 'High Load',
     managed_field_workers: 5,
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'sup-4',
@@ -1208,7 +1208,7 @@ export const initialSupervisors = [
     workload_percentage: 45,
     status: 'Active',
     managed_field_workers: 5,
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'sup-5',
@@ -1229,7 +1229,7 @@ export const initialSupervisors = [
     workload_percentage: 55,
     status: 'Active',
     managed_field_workers: 6,
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'sup-6',
@@ -1250,7 +1250,7 @@ export const initialSupervisors = [
     workload_percentage: 75,
     status: 'Active',
     managed_field_workers: 5,
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'sup-7',
@@ -1271,7 +1271,7 @@ export const initialSupervisors = [
     workload_percentage: 40,
     status: 'Active',
     managed_field_workers: 4,
-    avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'sup-8',
@@ -1292,7 +1292,7 @@ export const initialSupervisors = [
     workload_percentage: 60,
     status: 'Active',
     managed_field_workers: 5,
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'sup-9',
@@ -1313,7 +1313,7 @@ export const initialSupervisors = [
     workload_percentage: 45,
     status: 'Active',
     managed_field_workers: 5,
-    avatar: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'sup-10',
@@ -1334,7 +1334,7 @@ export const initialSupervisors = [
     workload_percentage: 50,
     status: 'Active',
     managed_field_workers: 6,
-    avatar: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   },
   {
     id: 'sup-11',
@@ -1355,7 +1355,7 @@ export const initialSupervisors = [
     workload_percentage: 70,
     status: 'Active',
     managed_field_workers: 4,
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80'
+    avatar: ''
   }
 ];
 

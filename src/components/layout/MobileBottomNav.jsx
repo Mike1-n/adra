@@ -18,7 +18,8 @@ import {
   LogOut,
   ShieldCheck,
   ChevronRight,
-  Globe
+  Globe,
+  User
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
@@ -189,11 +190,9 @@ export function MobileBottomNav({ currentTab, onSelectTab, onSwitchToAdminWeb })
             <div className="p-4 mx-4 my-3 rounded-2xl bg-slate-50 border border-slate-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <img
-                    src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                    alt={currentUser?.full_name}
-                    className="w-10 h-10 rounded-full object-cover border border-emerald-500/40"
-                  />
+                  <div className="w-10 h-10 rounded-full bg-[#004D3F] flex items-center justify-center text-white shrink-0 shadow-xs border border-emerald-500/40">
+                    <User className="w-5 h-5" />
+                  </div>
                   <div>
                     <p className="text-sm font-bold text-slate-900">
                       {currentUser?.full_name || 'Field Officer'}

@@ -1373,11 +1373,9 @@ export function SupervisorMobileApp({
           <div className="p-3 border-t border-slate-100 bg-slate-50/70 space-y-2">
             <div className="p-2 rounded-xl bg-white border border-slate-200/80 flex items-center justify-between">
               <div className="flex items-center space-x-2 min-w-0">
-                <img
-                  src={activeSupervisor?.avatar || currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
-                  alt="Supervisor"
-                  className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                />
+                <div className="w-7 h-7 rounded-full bg-[#004D3F] flex items-center justify-center text-white ring-1 ring-slate-200 shrink-0">
+                  <User className="w-3.5 h-3.5" />
+                </div>
                 <div className="min-w-0">
                   <span className="text-xs font-bold text-slate-900 block truncate leading-tight">
                     {activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi'}

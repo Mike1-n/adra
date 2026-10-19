@@ -44,14 +44,9 @@ export function UserProfileModal({
       <div className="space-y-5">
         {/* Profile Card Summary */}
         <div className="flex items-center gap-3.5 p-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-slate-50 border border-emerald-200/80 shadow-2xs">
-          <img
-            src={
-              currentUser?.avatar ||
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
-            }
-            alt={currentUser?.full_name || 'User'}
-            className="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow-sm shrink-0"
-          />
+          <div className="w-14 h-14 rounded-2xl bg-[#004D3F] text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0 border-2 border-emerald-600">
+            <User className="w-7 h-7 text-white" />
+          </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h4 className="text-base font-extrabold text-slate-900 truncate">

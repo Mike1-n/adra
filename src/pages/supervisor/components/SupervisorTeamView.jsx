@@ -11,7 +11,8 @@ import {
   Briefcase,
   ChevronRight,
   UserPlus,
-  AlertCircle
+  AlertCircle,
+  User
 } from 'lucide-react';
 
 export function SupervisorTeamView({
@@ -187,11 +188,9 @@ export function SupervisorTeamView({
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3">
-                  <img
-                    src={worker.avatar || 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150'}
-                    alt={worker.name}
-                    className="w-12 h-12 rounded-full object-cover border border-slate-200 shadow-2xs"
-                  />
+                  <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-800 shadow-2xs shrink-0">
+                    <User className="w-6 h-6" />
+                  </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">{worker.name}</h3>
                     <p className="text-[11px] font-bold text-[#006B56]">Role: Field Worker</p>

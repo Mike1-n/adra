@@ -38,8 +38,8 @@ export function FieldWorkerProfileView({
       
       {/* 1. WORKER AVATAR & HERO CARD */}
       <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-2xs text-center space-y-3 relative overflow-hidden">
-        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[#006B56] to-[#004d3d] text-white flex items-center justify-center font-black text-2xl mx-auto shadow-md">
-          {worker.name ? worker.name.split(' ').map(n => n[0]).join('') : 'FW'}
+        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[#006B56] to-[#004d3d] text-white flex items-center justify-center mx-auto shadow-md">
+          <User className="w-10 h-10 text-white" />
         </div>
 
         <div>

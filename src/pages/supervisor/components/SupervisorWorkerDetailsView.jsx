@@ -66,11 +66,9 @@ export function SupervisorWorkerDetailsView({
         {/* Worker Profile Card */}
         <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 space-y-4">
           <div className="flex items-center space-x-4">
-            <img
-              src={worker.avatar || 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150'}
-              alt={worker.name}
-              className="w-16 h-16 rounded-full object-cover border-2 border-[#006B56]/20 shadow-xs"
-            />
+            <div className="w-16 h-16 rounded-full bg-emerald-50 border-2 border-[#006B56]/20 flex items-center justify-center text-emerald-800 shadow-xs shrink-0">
+              <User className="w-8 h-8" />
+            </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900">{worker.name}</h2>
               <p className="text-xs text-[#006B56] font-bold">Role: Field Officer / Mobilizer</p>

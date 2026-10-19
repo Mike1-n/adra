@@ -11,7 +11,8 @@ import {
   ArrowRight,
   ShieldCheck,
   AlertCircle,
-  ChevronDown
+  ChevronDown,
+  User
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 
@@ -200,11 +201,9 @@ export function SupervisorAssignWorkerModal({
             {selectedWorker && (
               <div className="mt-2.5 p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-between text-xs animate-in fade-in">
                 <div className="flex items-center space-x-3">
-                  <img
-                    src={selectedWorker.avatar || 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150'}
-                    alt={selectedWorker.name}
-                    className="w-10 h-10 rounded-full object-cover border border-emerald-200"
-                  />
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-800 shrink-0">
+                    <User className="w-5 h-5" />
+                  </div>
                   <div>
                     <p className="font-bold text-slate-900">{selectedWorker.name}</p>
                     <p className="text-[11px] text-slate-600 font-medium">

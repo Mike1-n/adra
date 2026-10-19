@@ -267,15 +267,7 @@ export function AdminWebPortalLayout({
               className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition active:scale-95 cursor-pointer shadow-2xs"
               title="Administrator Profile"
             >
-              {currentUser?.avatar ? (
-                <img
-                  src={currentUser.avatar}
-                  alt={currentUser?.full_name || 'Admin'}
-                  className="w-5 h-5 rounded-full object-cover border border-white/40 shrink-0"
-                />
-              ) : (
-                <User className="w-4 h-4 text-white shrink-0" />
-              )}
+              <User className="w-4 h-4 text-white shrink-0" />
             </button>
 
             {/* Admin Logout Button */}
@@ -351,11 +343,9 @@ export function AdminWebPortalLayout({
 
             <div className="p-3 border-t border-slate-200 space-y-2">
               <div className="flex items-center gap-2.5 px-2 py-1">
-                <img
-                  src={currentUser?.avatar || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150'}
-                  alt={currentUser?.full_name}
-                  className="w-8 h-8 rounded-full object-cover border border-emerald-500/40"
-                />
+                <div className="w-8 h-8 rounded-full bg-[#004D3F] flex items-center justify-center text-white shrink-0 shadow-xs border border-emerald-500/40">
+                  <User className="w-4 h-4" />
+                </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-slate-900 truncate">{currentUser?.full_name || 'Administrator'}</p>
                   <p className="text-[10px] text-slate-500 truncate">{currentUser?.email || 'admin@adra.org'}</p>

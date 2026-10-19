@@ -606,15 +606,7 @@ export function InventoryManagerDashboard({
             className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition cursor-pointer shadow-2xs active:scale-95"
             title="My Profile"
           >
-            {currentUser?.avatar ? (
-              <img
-                src={currentUser.avatar}
-                alt={currentUser?.full_name || 'Profile'}
-                className="w-4 h-4 rounded-full object-cover border border-white/40 shrink-0"
-              />
-            ) : (
-              <User className="w-4 h-4 text-white shrink-0" />
-            )}
+            <User className="w-4 h-4 text-white shrink-0" />
           </button>
 
           {/* Logout Button */}
@@ -771,11 +763,7 @@ export function InventoryManagerDashboard({
               <div className="bg-white sm:rounded-2xl sm:border border-slate-200 p-4 sm:p-6 sm:shadow-2xs max-w-xl space-y-4 -mx-2.5 -my-2.5 sm:mx-auto sm:my-6 min-h-[calc(100vh-120px)] sm:min-h-0">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-emerald-700 flex items-center justify-center text-white shrink-0 shadow-sm overflow-hidden border border-emerald-600">
-                    {currentUser?.avatar ? (
-                      <img src={currentUser.avatar} alt="Profile" className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="w-7 h-7 text-white" />
-                    )}
+                    <User className="w-7 h-7 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="text-lg font-bold text-slate-900 truncate">

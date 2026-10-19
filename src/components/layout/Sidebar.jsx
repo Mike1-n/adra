@@ -23,7 +23,8 @@ import {
   Package,
   PanelLeftClose,
   PanelLeftOpen,
-  MessageSquare
+  MessageSquare,
+  User
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
@@ -308,11 +309,9 @@ export function Sidebar({
       <div className={cn('border-t border-slate-200 bg-white shrink-0', isCollapsed ? 'p-2' : 'p-3')}>
         {!isCollapsed ? (
           <div className="flex items-center gap-3 p-2 rounded-xl bg-slate-50 border border-slate-200">
-            <img
-              src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-              alt={currentUser?.full_name}
-              className="w-8 h-8 rounded-full object-cover border border-emerald-500/40"
-            />
+            <div className="w-8 h-8 rounded-full bg-[#004D3F] text-white flex items-center justify-center font-bold text-xs shrink-0">
+              <User className="w-4 h-4 text-white" />
+            </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-slate-900 truncate">
                 {currentUser?.full_name || 'User'}
@@ -325,12 +324,12 @@ export function Sidebar({
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
-            <img
-              src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-              alt={currentUser?.full_name}
+            <div
+              className="w-9 h-9 rounded-full bg-[#004D3F] text-white flex items-center justify-center font-bold text-xs shrink-0 cursor-pointer shadow-xs"
               title={`${currentUser?.full_name || 'User'} (${currentUser?.role || 'Guest'})`}
-              className="w-9 h-9 rounded-full object-cover border border-emerald-500/40 cursor-pointer"
-            />
+            >
+              <User className="w-4 h-4 text-white" />
+            </div>
           </div>
         )}
       </div>

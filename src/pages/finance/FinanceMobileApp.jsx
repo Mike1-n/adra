@@ -342,11 +342,7 @@ export function FinanceMobileApp({
               className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95 cursor-pointer shadow-2xs border border-white/20"
               title="Officer Profile"
             >
-              {currentUser?.avatar ? (
-                <img src={currentUser.avatar} alt="User" className="w-4 h-4 object-cover rounded-full" />
-              ) : (
-                <User className="w-4 h-4 text-white" />
-              )}
+              <User className="w-4 h-4 text-white" />
             </button>
 
             <button

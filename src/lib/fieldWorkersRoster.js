@@ -22,7 +22,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 21,
     "reports_returned": 1,
     "last_activity": "Active on field route (1h ago)",
-    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-2",
@@ -47,7 +47,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 24,
     "reports_returned": 2,
     "last_activity": "Active on field route (3h ago)",
-    "avatar": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-3",
@@ -72,7 +72,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 27,
     "reports_returned": 0,
     "last_activity": "Active on field route (5h ago)",
-    "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-4",
@@ -97,7 +97,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 30,
     "reports_returned": 1,
     "last_activity": "Active on field route (7h ago)",
-    "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-5",
@@ -122,7 +122,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 33,
     "reports_returned": 2,
     "last_activity": "Active on field route (9h ago)",
-    "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-6",
@@ -147,7 +147,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 36,
     "reports_returned": 0,
     "last_activity": "Active on field route (1h ago)",
-    "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-7",
@@ -172,7 +172,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 39,
     "reports_returned": 1,
     "last_activity": "Active on field route (3h ago)",
-    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-8",
@@ -197,7 +197,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 42,
     "reports_returned": 2,
     "last_activity": "Active on field route (5h ago)",
-    "avatar": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-9",
@@ -222,7 +222,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 20,
     "reports_returned": 0,
     "last_activity": "Active on field route (7h ago)",
-    "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-10",
@@ -247,7 +247,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 23,
     "reports_returned": 1,
     "last_activity": "Active on field route (9h ago)",
-    "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-11",
@@ -272,7 +272,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 26,
     "reports_returned": 2,
     "last_activity": "Active on field route (1h ago)",
-    "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-12",
@@ -297,7 +297,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 29,
     "reports_returned": 0,
     "last_activity": "Active on field route (3h ago)",
-    "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-13",
@@ -322,7 +322,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 32,
     "reports_returned": 1,
     "last_activity": "Active on field route (5h ago)",
-    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-14",
@@ -347,7 +347,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 35,
     "reports_returned": 2,
     "last_activity": "Active on field route (7h ago)",
-    "avatar": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-15",
@@ -372,7 +372,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 38,
     "reports_returned": 0,
     "last_activity": "Active on field route (9h ago)",
-    "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-16",
@@ -397,7 +397,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 41,
     "reports_returned": 1,
     "last_activity": "Active on field route (1h ago)",
-    "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-17",
@@ -422,7 +422,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 19,
     "reports_returned": 2,
     "last_activity": "Active on field route (3h ago)",
-    "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-18",
@@ -447,7 +447,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 22,
     "reports_returned": 0,
     "last_activity": "Active on field route (5h ago)",
-    "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-19",
@@ -472,7 +472,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 25,
     "reports_returned": 1,
     "last_activity": "Active on field route (7h ago)",
-    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-20",
@@ -497,7 +497,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 28,
     "reports_returned": 2,
     "last_activity": "Active on field route (9h ago)",
-    "avatar": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-21",
@@ -522,7 +522,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 31,
     "reports_returned": 0,
     "last_activity": "Active on field route (1h ago)",
-    "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-22",
@@ -547,7 +547,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 34,
     "reports_returned": 1,
     "last_activity": "Active on field route (3h ago)",
-    "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-23",
@@ -572,7 +572,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 37,
     "reports_returned": 2,
     "last_activity": "Active on field route (5h ago)",
-    "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-24",
@@ -597,7 +597,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 40,
     "reports_returned": 0,
     "last_activity": "Active on field route (7h ago)",
-    "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-25",
@@ -622,7 +622,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 18,
     "reports_returned": 1,
     "last_activity": "Active on field route (9h ago)",
-    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-26",
@@ -647,7 +647,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 21,
     "reports_returned": 2,
     "last_activity": "Active on field route (1h ago)",
-    "avatar": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-27",
@@ -672,7 +672,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 24,
     "reports_returned": 0,
     "last_activity": "Active on field route (3h ago)",
-    "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-28",
@@ -697,7 +697,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 27,
     "reports_returned": 1,
     "last_activity": "Active on field route (5h ago)",
-    "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-29",
@@ -722,7 +722,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 30,
     "reports_returned": 2,
     "last_activity": "Active on field route (7h ago)",
-    "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-30",
@@ -747,7 +747,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 33,
     "reports_returned": 0,
     "last_activity": "Active on field route (9h ago)",
-    "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-31",
@@ -772,7 +772,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 36,
     "reports_returned": 1,
     "last_activity": "Active on field route (1h ago)",
-    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-32",
@@ -797,7 +797,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 39,
     "reports_returned": 2,
     "last_activity": "Active on field route (3h ago)",
-    "avatar": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-33",
@@ -822,7 +822,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 42,
     "reports_returned": 0,
     "last_activity": "Active on field route (5h ago)",
-    "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-34",
@@ -847,7 +847,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 20,
     "reports_returned": 1,
     "last_activity": "Active on field route (7h ago)",
-    "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-35",
@@ -872,7 +872,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 23,
     "reports_returned": 2,
     "last_activity": "Active on field route (9h ago)",
-    "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-36",
@@ -897,7 +897,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 26,
     "reports_returned": 0,
     "last_activity": "Active on field route (1h ago)",
-    "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-37",
@@ -922,7 +922,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 29,
     "reports_returned": 1,
     "last_activity": "Active on field route (3h ago)",
-    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-38",
@@ -947,7 +947,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 32,
     "reports_returned": 2,
     "last_activity": "Active on field route (5h ago)",
-    "avatar": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-39",
@@ -972,7 +972,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 35,
     "reports_returned": 0,
     "last_activity": "Active on field route (7h ago)",
-    "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-40",
@@ -997,7 +997,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 38,
     "reports_returned": 1,
     "last_activity": "Active on field route (9h ago)",
-    "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-41",
@@ -1022,7 +1022,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 41,
     "reports_returned": 2,
     "last_activity": "Active on field route (1h ago)",
-    "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-42",
@@ -1047,7 +1047,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 19,
     "reports_returned": 0,
     "last_activity": "Active on field route (3h ago)",
-    "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-43",
@@ -1072,7 +1072,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 22,
     "reports_returned": 1,
     "last_activity": "Active on field route (5h ago)",
-    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-44",
@@ -1097,7 +1097,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 25,
     "reports_returned": 2,
     "last_activity": "Active on field route (7h ago)",
-    "avatar": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-45",
@@ -1122,7 +1122,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 28,
     "reports_returned": 0,
     "last_activity": "Active on field route (9h ago)",
-    "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-46",
@@ -1147,7 +1147,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 31,
     "reports_returned": 1,
     "last_activity": "Active on field route (1h ago)",
-    "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-47",
@@ -1172,7 +1172,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 34,
     "reports_returned": 2,
     "last_activity": "Active on field route (3h ago)",
-    "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-48",
@@ -1197,7 +1197,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 37,
     "reports_returned": 0,
     "last_activity": "Active on field route (5h ago)",
-    "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-49",
@@ -1222,7 +1222,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 40,
     "reports_returned": 1,
     "last_activity": "Active on field route (7h ago)",
-    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-50",
@@ -1247,7 +1247,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 18,
     "reports_returned": 2,
     "last_activity": "Active on field route (9h ago)",
-    "avatar": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-51",
@@ -1272,7 +1272,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 21,
     "reports_returned": 0,
     "last_activity": "Active on field route (1h ago)",
-    "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-52",
@@ -1297,7 +1297,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 24,
     "reports_returned": 1,
     "last_activity": "Active on field route (3h ago)",
-    "avatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-53",
@@ -1322,7 +1322,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 27,
     "reports_returned": 2,
     "last_activity": "Active on field route (5h ago)",
-    "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-54",
@@ -1347,7 +1347,7 @@ export const initialFieldWorkers = [
     "reports_submitted": 30,
     "reports_returned": 0,
     "last_activity": "Active on field route (7h ago)",
-    "avatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   },
   {
     "id": "fw-55",
@@ -1372,6 +1372,6 @@ export const initialFieldWorkers = [
     "reports_submitted": 33,
     "reports_returned": 1,
     "last_activity": "Active on field route (9h ago)",
-    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+    "avatar": ""
   }
 ];
