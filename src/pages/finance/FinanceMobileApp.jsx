@@ -51,6 +51,7 @@ import { FinanceExpenseModal } from './components/FinanceExpenseModal';
 import { FinanceVoucherModal } from './components/FinanceVoucherModal';
 import { AdraLogo } from '../../components/common/AdraLogo';
 import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
+import { NotificationBellButton } from '../../components/common/NotificationBellButton';
 
 export function FinanceMobileApp({
   currentUser,
@@ -332,8 +333,18 @@ export function FinanceMobileApp({
             </div>
           </div>
 
-          {/* Right Controls: Profile & Logout ONLY */}
+          {/* Right Controls: Notifications, Profile & Logout */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Notification Center Bell */}
+            <NotificationBellButton
+              currentUser={currentUser}
+              extraData={{
+                pendingDisbursements,
+                facilitationRequests
+              }}
+              onNavigate={(tab) => setActiveTab(tab)}
+            />
+
             <button
               type="button"
               onClick={() => {

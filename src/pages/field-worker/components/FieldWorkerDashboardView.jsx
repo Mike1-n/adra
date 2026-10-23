@@ -78,32 +78,6 @@ export function FieldWorkerDashboardView({
 
   return (
     <div className="space-y-4 pb-12 animate-in fade-in duration-200">
-      
-      {/* INCOMING BENEFICIARY MESSAGES NOTIFICATION BANNER */}
-      {pendingBeneficiaryMessagesCount > 0 && (
-        <div
-          onClick={() => onNavigateTab('feedback')}
-          className="bg-emerald-50 border border-emerald-300 rounded-2xl p-3 flex items-center justify-between shadow-2xs hover:shadow-xs transition cursor-pointer"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
-              <MessageSquare className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-black text-emerald-950 truncate">
-                {pendingBeneficiaryMessagesCount} Household Message{pendingBeneficiaryMessagesCount > 1 ? 's' : ''} Awaiting Reply
-              </p>
-              <p className="text-[10px] text-emerald-800">
-                A registered beneficiary has reached out. Tap to view and reply.
-              </p>
-            </div>
-          </div>
-          <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-lg flex items-center gap-1 shrink-0 ml-2">
-            Reply <ChevronRight className="w-3.5 h-3.5" />
-          </span>
-        </div>
-      )}
-
       {/* FOUR CORE KPI METRIC CARDS */}
       <div className="grid grid-cols-2 gap-2.5">
         {/* Pending Tasks */}

@@ -42,6 +42,17 @@ export function AuthProvider({ children }) {
           .single();
 
         if (profile) {
+          if (profile.role === 'Beneficiary') {
+            const benStatus = (profile.status || profile.verification_status || '').toLowerCase();
+            const isMaryDemo = profile.email?.toLowerCase() === 'mary.nyambura@adra.community';
+            const isVerified = (benStatus.includes('verified') || benStatus === 'active') && profile.is_active !== false;
+            if (!isVerified && !isMaryDemo) {
+              await supabase.auth.signOut();
+              setCurrentUser(null);
+              return;
+            }
+          }
+
           setCurrentUser({
             id: session.user.id,
             email: session.user.email,
@@ -162,6 +173,21 @@ export function AuthProvider({ children }) {
                 await supabase.auth.signOut();
                 throw new Error('This account has been deactivated. Please contact an ADRA Administrator.');
               }
+
+              // Beneficiary must be verified by admin before login
+              if (profile.role === 'Beneficiary') {
+                const benStatus = (profile.status || profile.verification_status || '').toLowerCase();
+                const isMaryDemo = profile.email?.toLowerCase() === 'mary.nyambura@adra.community';
+                if (benStatus.includes('reject')) {
+                  await supabase.auth.signOut();
+                  throw new Error('Your beneficiary registration was rejected by the administrator. Please contact your nearest ADRA field office.');
+                }
+                const isVerified = (benStatus.includes('verified') || benStatus === 'active') && (profile.is_active !== false);
+                if (!isVerified && !isMaryDemo) {
+                  await supabase.auth.signOut();
+                  throw new Error('Your beneficiary account is pending verification by the ADRA administrator. You cannot log in until an administrator verifies and approves your account.');
+                }
+              }
             }
 
             const userObj = {
@@ -231,7 +257,7 @@ export function AuthProvider({ children }) {
           }
         }
 
-        toast.success(`Account registered successfully for ${signupData.full_name}!`);
+        toast.info(`Account registered for ${signupData.full_name}! Pending administrator verification before login.`);
         return { ...userObj, beneficiary: res.beneficiary };
       } else {
         const newUser = await db.createUser({

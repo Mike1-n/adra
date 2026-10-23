@@ -646,6 +646,22 @@ export const db = {
     }
 
     // Update matching approvals in queue
+    if (isSupabaseConfigured) {
+      try {
+        if (target.id) {
+          await supabase.from('approvals').update({ status: 'Approved', review_notes: notes || 'Verified by Administrator', reviewed_at: new Date().toISOString() }).eq('beneficiary_id', target.id);
+        }
+        if (target.beneficiary_code) {
+          await supabase.from('approvals').update({ status: 'Approved', review_notes: notes || 'Verified by Administrator', reviewed_at: new Date().toISOString() }).eq('beneficiary_id', target.beneficiary_code);
+        }
+        if (target.email) {
+          await supabase.from('approvals').update({ status: 'Approved', review_notes: notes || 'Verified by Administrator', reviewed_at: new Date().toISOString() }).eq('requester_email', target.email);
+        }
+      } catch (err) {
+        console.warn('Supabase approval status sync error:', err?.message);
+      }
+    }
+
     const approvals = getLocalData(STORAGE_KEYS.APPROVALS, mock.initialApprovals);
     const updatedApprovals = approvals.map(a => {
       const matches = (a.beneficiary_id && (a.beneficiary_id === target.id || a.beneficiary_id === target.beneficiary_code)) ||
@@ -726,6 +742,19 @@ export const db = {
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBensList);
 
     // Deactivate linked user profile
+    const users = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
+    const updatedUsers = users.map(u => {
+      const matches = (target.email && u.email?.toLowerCase() === target.email.toLowerCase()) ||
+                      (target.phone_number && (u.phone === target.phone_number || (u.phone && target.phone_number && u.phone.replace(/\D/g, '') === target.phone_number.replace(/\D/g, '')))) ||
+                      (target.id && (u.beneficiary_id === target.id || u.id === target.id)) ||
+                      (target.beneficiary_code && (u.beneficiary_code === target.beneficiary_code || u.beneficiary_id === target.beneficiary_code));
+      if (matches) {
+        return { ...u, status: 'Rejected', is_active: false, verification_status: 'Rejected' };
+      }
+      return u;
+    });
+    saveLocalData(STORAGE_KEYS.USERS, updatedUsers);
+
     if (isSupabaseConfigured) {
       try {
         if (target.email) {
@@ -735,6 +764,17 @@ export const db = {
     }
 
     // Update approvals
+    if (isSupabaseConfigured) {
+      try {
+        if (target.id) {
+          await supabase.from('approvals').update({ status: 'Rejected', review_notes: reason, reviewed_at: new Date().toISOString() }).eq('beneficiary_id', target.id);
+        }
+        if (target.email) {
+          await supabase.from('approvals').update({ status: 'Rejected', review_notes: reason, reviewed_at: new Date().toISOString() }).eq('requester_email', target.email);
+        }
+      } catch (err) {}
+    }
+
     const approvals = getLocalData(STORAGE_KEYS.APPROVALS, mock.initialApprovals);
     const updatedApprovals = approvals.map(a => {
       const matches = (a.beneficiary_id && (a.beneficiary_id === target.id || a.beneficiary_id === target.beneficiary_code)) ||
@@ -4844,18 +4884,15 @@ export const db = {
 
     if (isSupabaseConfigured) {
       try {
-        const sessionRes = await supabase.auth.getSession().catch(() => null);
-        if (sessionRes?.data?.session) {
-          const payload = {
-            user_email: newLog.user_email,
-            action: newLog.action,
-            module: newLog.module,
-            record_id: newLog.record_id,
-            details: safeDetails,
-            created_at: newLog.created_at
-          };
-          await supabase.from('audit_logs').insert([payload]);
-        }
+        const payload = {
+          user_email: newLog.user_email,
+          action: newLog.action,
+          module: newLog.module,
+          record_id: newLog.record_id,
+          details: safeDetails,
+          created_at: newLog.created_at
+        };
+        await supabase.from('audit_logs').insert([payload]);
       } catch (err) {
         // Silently continue to local storage audit
       }
@@ -5028,6 +5065,37 @@ export const db = {
       if (matchedUser.status === 'Deactivated' || matchedUser.status === 'Suspended') {
         throw new Error('This account has been deactivated. Please contact an ADRA Administrator.');
       }
+
+      // Beneficiary Verification Check: Must be verified by an administrator before login
+      if (matchedUser.role === 'Beneficiary' || matchedUser.beneficiary_id || matchedUser.beneficiary_code) {
+        const benRecord = beneficiaries.find(b => 
+          (matchedUser.beneficiary_id && (b.id === matchedUser.beneficiary_id || b.beneficiary_code === matchedUser.beneficiary_id)) ||
+          (matchedUser.beneficiary_code && b.beneficiary_code === matchedUser.beneficiary_code) ||
+          (matchedUser.email && b.email && b.email.toLowerCase() === matchedUser.email.toLowerCase()) ||
+          (matchedUser.phone && b.phone_number && isPhoneMatch(b.phone_number))
+        );
+
+        const benStatus = (benRecord?.verification_status || benRecord?.status || matchedUser.verification_status || matchedUser.status || '').toLowerCase();
+        const userStatus = (matchedUser.status || '').toLowerCase();
+
+        if (benStatus.includes('reject') || userStatus.includes('reject')) {
+          throw new Error('Your beneficiary registration was rejected by the administrator. Please contact your nearest ADRA field office.');
+        }
+
+        const isVerified = (
+          (benStatus.includes('verified') || benStatus === 'active') &&
+          (userStatus === 'active' || matchedUser.is_active === true)
+        );
+
+        // Standard demo beneficiary Mary Nyambura is pre-verified for presentation
+        const isMaryDemo = matchedUser.email?.toLowerCase() === 'mary.nyambura@adra.community' || 
+                           matchedUser.beneficiary_code === 'ADRA-SS-000125' ||
+                           matchedUser.id === 'user-ben';
+
+        if (!isVerified && !isMaryDemo) {
+          throw new Error('Your beneficiary account is pending verification by the ADRA administrator. You cannot log in until an administrator verifies and approves your account.');
+        }
+      }
     }
 
     // Audit log
@@ -5168,10 +5236,33 @@ export const db = {
 
   // --- APPROVALS MANAGEMENT ---
   async getApprovals(categoryFilter) {
+    let supabaseApprovals = [];
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('approvals')
+          .select('*')
+          .order('date', { ascending: false });
+        if (!error && data) {
+          supabaseApprovals = data;
+        }
+      } catch (e) {
+        console.warn('Could not fetch approvals from Supabase:', e);
+      }
+    }
+
     const stored = getLocalData(STORAGE_KEYS.APPROVALS, []) || [];
     
-    // Normalize any legacy stored approval records
+    // Merge Supabase approvals and stored approvals
+    const combined = [...supabaseApprovals];
     stored.forEach(a => {
+      if (!combined.some(c => c.id === a.id)) {
+        combined.push(a);
+      }
+    });
+
+    // Normalize any legacy stored approval records
+    combined.forEach(a => {
       if (a.category === 'User Onboarding' && a.role_requested === 'Beneficiary') {
         a.category = 'Beneficiary Verification';
       }
@@ -5194,13 +5285,13 @@ export const db = {
       pendingUsers.forEach(u => {
         const isBen = u.role === 'Beneficiary';
         const cat = isBen ? 'Beneficiary Verification' : 'User Registration';
-        const exists = stored.some(a => 
+        const exists = combined.some(a => 
           (u.id && a.user_id === u.id) || 
           (u.email && a.requester_email?.toLowerCase() === u.email.toLowerCase()) ||
           (u.beneficiary_code && a.details?.includes(u.beneficiary_code))
         );
         if (!exists) {
-          stored.unshift({
+          combined.unshift({
             id: `app-usr-${(u.id || Date.now().toString()).slice(-8)}`,
             category: cat,
             requester_name: u.full_name || 'Self-Registered User',
@@ -5226,14 +5317,14 @@ export const db = {
       });
 
       pendingBens.forEach(b => {
-        const exists = stored.some(a => 
+        const exists = combined.some(a => 
           (b.id && a.beneficiary_id === b.id) ||
           (b.beneficiary_code && (a.beneficiary_id === b.beneficiary_code || a.details?.includes(b.beneficiary_code))) ||
           (b.email && a.requester_email?.toLowerCase() === b.email.toLowerCase()) ||
           (b.full_name && a.requester_name?.toLowerCase() === b.full_name.toLowerCase())
         );
         if (!exists) {
-          stored.unshift({
+          combined.unshift({
             id: `app-ben-${(b.id || b.beneficiary_code || Date.now().toString()).slice(-8)}`,
             category: 'Beneficiary Verification',
             requester_name: b.full_name,
@@ -5252,11 +5343,12 @@ export const db = {
       console.warn('Could not sync pending user/beneficiary approvals:', e);
     }
 
-    if (!categoryFilter || categoryFilter === 'ALL') return stored;
-    return stored.filter(a => 
+    saveLocalData(STORAGE_KEYS.APPROVALS, combined);
+    if (!categoryFilter || categoryFilter === 'ALL') return combined;
+    return combined.filter(a => 
       a.category === categoryFilter ||
       (categoryFilter === 'Beneficiary Verification' && (a.category === 'User Onboarding' || a.role_requested === 'Beneficiary')) ||
-      (categoryFilter === 'User Registration' && (a.category === 'User Onboarding' && a.role_requested !== 'Beneficiary'))
+      (categoryFilter === 'User Registration' && (a.category === 'User Onboarding' || a.role_requested !== 'Beneficiary'))
     );
   },
 
@@ -5265,6 +5357,19 @@ export const db = {
     const targetApp = current.find(a => a.id === id);
     const updated = current.map(a => a.id === id ? { ...a, status, review_notes: notes, reviewed_at: new Date().toISOString() } : a);
     saveLocalData(STORAGE_KEYS.APPROVALS, updated);
+
+    // Update in Supabase PostgreSQL
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('approvals').update({
+          status,
+          review_notes: notes,
+          reviewed_at: new Date().toISOString()
+        }).eq('id', id);
+      } catch (err) {
+        console.warn('Supabase update approval status error:', err?.message);
+      }
+    }
 
     // If User Onboarding or Beneficiary Verification approval is approved or rejected, synchronize user and beneficiary status
     if (targetApp && (targetApp.category === 'User Onboarding' || targetApp.category === 'Beneficiary Verification' || targetApp.category === 'User Registration' || targetApp.user_id || targetApp.beneficiary_id || targetApp.role_requested === 'Beneficiary')) {
@@ -5354,6 +5459,17 @@ export const db = {
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBens);
 
     // Update any matching pending approval
+    if (isSupabaseConfigured) {
+      try {
+        if (userId) {
+          await supabase.from('approvals').update({ status: 'Approved', reviewed_at: new Date().toISOString() }).eq('user_id', userId);
+        }
+        if (target?.email) {
+          await supabase.from('approvals').update({ status: 'Approved', reviewed_at: new Date().toISOString() }).eq('requester_email', target.email);
+        }
+      } catch (e) {}
+    }
+
     const currentApprovals = getLocalData(STORAGE_KEYS.APPROVALS, []);
     const updatedApprovals = currentApprovals.map(a => {
       if (a.user_id === userId || (target?.email && a.requester_email?.toLowerCase() === target.email.toLowerCase())) {
@@ -5374,6 +5490,28 @@ export const db = {
       status: 'Pending',
       date: new Date().toISOString()
     };
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('approvals').insert([{
+          id: newApproval.id,
+          category: newApproval.category,
+          requester_name: newApproval.requester_name,
+          requester_email: newApproval.requester_email,
+          role_requested: newApproval.role_requested,
+          department: newApproval.department,
+          details: newApproval.details,
+          priority: newApproval.priority || 'Normal',
+          status: 'Pending',
+          user_id: newApproval.user_id,
+          beneficiary_id: newApproval.beneficiary_id,
+          date: newApproval.date
+        }]);
+      } catch (err) {
+        console.warn('Supabase create approval error:', err?.message);
+      }
+    }
+
     const current = getLocalData(STORAGE_KEYS.APPROVALS, []);
     const updated = [newApproval, ...current];
     saveLocalData(STORAGE_KEYS.APPROVALS, updated);

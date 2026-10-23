@@ -47,6 +47,7 @@ import { CreateDispatchModal } from './components/CreateDispatchModal';
 import { CreatePOModal } from './components/CreatePOModal';
 import { WaybillDetailModal } from './components/WaybillDetailModal';
 import { UserProfileModal } from '../../components/common/UserProfileModal';
+import { NotificationBellButton } from '../../components/common/NotificationBellButton';
 
 export function InventoryManagerDashboard({
   currentUser,
@@ -597,8 +598,19 @@ export function InventoryManagerDashboard({
           </div>
         </div>
 
-        {/* Right Controls: Profile & Logout ONLY */}
+        {/* Right Controls: Notifications, Profile & Logout */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Notification Center Bell */}
+          <NotificationBellButton
+            currentUser={currentUser}
+            extraData={{
+              dispatches,
+              purchaseOrders,
+              inventory
+            }}
+            onNavigate={(tab) => handleNavClick(tab)}
+          />
+
           {/* User Profile Avatar Button */}
           <button
             type="button"

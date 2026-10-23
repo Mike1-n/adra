@@ -42,6 +42,7 @@ import { PODetailModal } from '../inventory/components/PODetailModal';
 import { AdraLogo } from '../../components/common/AdraLogo';
 import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
 import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
+import { NotificationBellButton } from '../../components/common/NotificationBellButton';
 
 export function SupplierPortalApp({
   currentUser,
@@ -590,8 +591,18 @@ export function SupplierPortalApp({
             </div>
           </div>
 
-          {/* Right: Profile & Logout ONLY */}
+          {/* Right: Notifications, Profile & Logout */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Notification Center Bell */}
+            <NotificationBellButton
+              currentUser={currentUser}
+              extraData={{
+                orders: purchaseOrders,
+                dispatches
+              }}
+              onNavigate={(tab) => setActiveTab(tab)}
+            />
+
             {/* Vendor Profile Button */}
             <button
               type="button"

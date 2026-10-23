@@ -46,6 +46,7 @@ import { FieldAssessmentFormModal } from './components/FieldAssessmentFormModal'
 import { FieldBeneficiaryRegisterModal } from './components/FieldBeneficiaryRegisterModal';
 import { FieldFundingRequestModal } from './components/FieldFundingRequestModal';
 import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
+import { NotificationBellButton } from '../../components/common/NotificationBellButton';
 
 export function FieldWorkerApp({
   currentUser,
@@ -896,8 +897,24 @@ export function FieldWorkerApp({
               </div>
             </div>
 
-            {/* Right: Profile & Logout Icons ONLY */}
+            {/* Right: Notifications, Profile & Logout Icons */}
             <div className="flex items-center gap-2 shrink-0">
+              {/* Notification Center Bell */}
+              <NotificationBellButton
+                currentUser={currentUser}
+                worker={worker}
+                extraData={{
+                  tasks,
+                  fundingRequests,
+                  complaints,
+                  pendingBeneficiaryMessagesCount
+                }}
+                onNavigate={(tab, filter) => {
+                  setActiveTab(tab);
+                  if (filter) setTaskStatusFilter(filter);
+                }}
+              />
+
               {/* Field Worker Profile Icon Button */}
               <button
                 type="button"

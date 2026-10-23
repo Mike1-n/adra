@@ -86,6 +86,8 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
   // Modals
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
+  const [pendingVerificationInfo, setPendingVerificationInfo] = useState(null);
+  const [loginPendingError, setLoginPendingError] = useState(null);
 
   // Submit Login
   const handleLoginSubmit = async (e) => {
@@ -98,9 +100,13 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
     }
 
     try {
+      setLoginPendingError(null);
       const user = await login(cleanIdent, cleanPass);
       if (onLoginSuccess) onLoginSuccess(user);
     } catch (err) {
+      if (err.message && (err.message.includes('pending verification') || err.message.includes('administrator verification') || err.message.includes('rejected'))) {
+        setLoginPendingError(err.message);
+      }
       // Error handled in AuthContext
     }
   };
@@ -156,7 +162,12 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
       });
       setIdentifier(signupForm.email.trim());
       setIsSignUp(false);
-      toast.success(`Account registered successfully for ${fullName}! You can now log in.`);
+      setPendingVerificationInfo({
+        fullName,
+        email: signupForm.email.trim()
+      });
+      setLoginPendingError(null);
+      toast.info(`Account registered for ${fullName}! Your profile requires administrator verification before you can log in.`, { duration: 6000 });
     } catch (err) {
       // Error handled in AuthContext
     }
@@ -216,6 +227,31 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                 {/* A. LOGIN FORM (100% Mockup Match) */}
                 {!isSignUp ? (
                   <form onSubmit={handleLoginSubmit} className="space-y-3.5 mt-4">
+                    {/* Verification Notice Banners */}
+                    {pendingVerificationInfo && !loginPendingError && (
+                      <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+                        <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <span className="font-bold text-amber-950 block">Account Verification Pending</span>
+                          <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                            Profile for <strong className="font-bold text-amber-950">{pendingVerificationInfo.fullName}</strong> is awaiting administrator verification before you can log in.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {loginPendingError && (
+                      <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+                        <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <span className="font-bold text-amber-950 block">Administrator Approval Required</span>
+                          <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                            {loginPendingError}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Email Address input */}
                     <div>
                       <div className="relative rounded-2xl bg-[#F4F5F7] border border-slate-200/70 focus-within:border-emerald-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/15 transition">
@@ -569,6 +605,12 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                       {showSignupConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                </div>
+
+                {/* Safeguarding & Verification Notice */}
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-[11px] flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#006B56] shrink-0" />
+                  <span className="leading-snug">Beneficiary registrations require ADRA administrator verification prior to login.</span>
                 </div>
 
                 {/* Submit Sign Up */}

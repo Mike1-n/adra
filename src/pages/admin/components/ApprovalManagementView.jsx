@@ -109,7 +109,7 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
     const matchesCat = categoryFilter === 'ALL' || 
       a.category === categoryFilter ||
       (categoryFilter === 'Beneficiary Verification' && (a.category === 'User Onboarding' || a.role_requested === 'Beneficiary')) ||
-      (categoryFilter === 'User Registration' && (a.category === 'User Onboarding' && a.role_requested !== 'Beneficiary'));
+      (categoryFilter === 'User Registration' && (a.category === 'User Onboarding' || a.category === 'Beneficiary Verification' || a.role_requested === 'Beneficiary'));
     const matchesStat = statusFilter === 'ALL' || a.status === statusFilter;
     return matchesSearch && matchesCat && matchesStat;
   });

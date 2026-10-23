@@ -19,6 +19,7 @@ import { isSupabaseConfigured } from '../../lib/supabase';
 import { isNative } from '../../lib/capacitor';
 import { UserProfileModal } from '../common/UserProfileModal';
 import { ModuleFeedbackModal } from '../common/ModuleFeedbackModal';
+import { NotificationBellButton } from '../common/NotificationBellButton';
 
 export function Header({
   currentTab = 'dashboard',
@@ -65,8 +66,14 @@ export function Header({
           </div>
         </div>
 
-        {/* Right: Profile Icon and Logout Buttons ONLY */}
+        {/* Right: Notifications, Profile Icon, and Logout Buttons */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {/* Notifications Center Bell */}
+          <NotificationBellButton
+            currentUser={currentUser}
+            onNavigate={(tab) => onSelectTab && onSelectTab(tab)}
+          />
+
           {/* Profile Icon Button */}
           <button
             type="button"

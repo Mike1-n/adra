@@ -43,6 +43,7 @@ import { SupervisorFacilitationsView } from './components/SupervisorFacilitation
 import { WaybillDetailModal } from '../inventory/components/WaybillDetailModal';
 import { HandoverModal } from './components/HandoverModal';
 import { AdraLogo } from '../../components/common/AdraLogo';
+import { NotificationBellButton } from '../../components/common/NotificationBellButton';
 
 export function SupervisorMobileApp({
   currentUser,
@@ -1476,8 +1477,26 @@ export function SupervisorMobileApp({
           )}
         </div>
 
-        {/* Right: Profile & Logout Icons ONLY */}
+        {/* Right: Notifications, Profile & Logout Icons */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Notification Center Bell */}
+          <NotificationBellButton
+            currentUser={currentUser}
+            extraData={{
+              assignments,
+              dispatches,
+              facilitations,
+              assessments
+            }}
+            onNavigate={(tab, filter) => {
+              setActiveSubview(null);
+              setActiveTab(tab);
+              if (filter && tab === 'dispatches') setDispatchesStatusTab(filter);
+              if (filter && tab === 'assignments') setAssignmentsStatusTab(filter);
+              if (filter && tab === 'facilitations') setFacilitationsStatusTab(filter);
+            }}
+          />
+
           {/* Supervisor Profile Icon Button */}
           <button
             type="button"

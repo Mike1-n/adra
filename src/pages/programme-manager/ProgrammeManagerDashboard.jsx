@@ -51,6 +51,7 @@ import { PMFacilitationsView } from './components/PMFacilitationsView';
 import { PMProfileView } from './components/PMProfileView';
 import { AdraLogo } from '../../components/common/AdraLogo';
 import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
+import { NotificationBellButton } from '../../components/common/NotificationBellButton';
 
 export function ProgrammeManagerDashboard({
   currentUser,
@@ -796,8 +797,19 @@ export function ProgrammeManagerDashboard({
             </div>
           </div>
 
-          {/* Right Controls: Profile & Logout ONLY */}
+          {/* Right Controls: Notifications, Profile & Logout */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Notification Center Bell */}
+            <NotificationBellButton
+              currentUser={currentUser}
+              extraData={{
+                requests,
+                facilitations,
+                resources
+              }}
+              onNavigate={(tab) => handleNavClick(tab)}
+            />
+
             {/* PM Profile Avatar Button */}
             <button
               type="button"

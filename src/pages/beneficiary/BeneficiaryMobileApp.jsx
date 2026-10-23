@@ -44,6 +44,7 @@ import { HelpSupportContactView } from './components/HelpSupportContactView';
 import { SecuritySettingsView } from './components/SecuritySettingsView';
 import { AboutUsView } from './components/AboutUsView';
 import { AdraLogo } from '../../components/common/AdraLogo';
+import { NotificationBellButton } from '../../components/common/NotificationBellButton';
 
 export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
   const { currentUser, logout, login } = useAuth();
@@ -483,8 +484,18 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
             </div>
           </div>
 
-          {/* Right Header: Logout Button ONLY */}
+          {/* Right Header: Notifications & Logout */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Beneficiary Notifications Bell */}
+            <NotificationBellButton
+              currentUser={currentUser}
+              extraData={{
+                beneficiary,
+                requests,
+                distributions
+              }}
+              onNavigate={(view) => setCurrentView(view)}
+            />
 
             {/* Beneficiary Header Logout Button */}
             <button

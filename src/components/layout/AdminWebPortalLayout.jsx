@@ -32,6 +32,7 @@ import { UserProfileModal } from '../common/UserProfileModal';
 import { ModuleFeedbackModal } from '../common/ModuleFeedbackModal';
 import { FloatingFeedbackButton } from '../common/FloatingFeedbackButton';
 import { AdraLogo } from '../common/AdraLogo';
+import { NotificationBellButton } from '../common/NotificationBellButton';
 
 export function AdminWebPortalLayout({
   activeSection,
@@ -258,8 +259,18 @@ export function AdminWebPortalLayout({
             </div>
           </div>
 
-          {/* Right: Profile Icon and Logout Buttons ONLY */}
+          {/* Right: Notifications, Profile Icon, and Logout Buttons */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* Notifications Center Bell */}
+            <NotificationBellButton
+              currentUser={currentUser}
+              extraData={{
+                pendingApprovals,
+                pendingBeneficiaries
+              }}
+              onNavigate={(sec) => onSelectSection && onSelectSection(sec)}
+            />
+
             {/* Admin Profile Icon Button */}
             <button
               type="button"

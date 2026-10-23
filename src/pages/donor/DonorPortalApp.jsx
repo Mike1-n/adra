@@ -54,6 +54,7 @@ import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { EmptyState } from '../../components/common/EmptyState';
 import { AdraLogo } from '../../components/common/AdraLogo';
 import { UserProfileModal } from '../../components/common/UserProfileModal';
+import { NotificationBellButton } from '../../components/common/NotificationBellButton';
 
 // Clean concise title helper for mobile deliverables table
 const getShortDeliverableTitle = (title, type) => {
@@ -764,8 +765,14 @@ export function DonorPortalApp({
               </div>
             </div>
 
-            {/* Right Controls: Profile & Logout ONLY (matching Program Manager page without unnecessary things) */}
+            {/* Right Controls: Notifications, Profile & Logout */}
             <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+              {/* Notification Center Bell */}
+              <NotificationBellButton
+                currentUser={currentUser}
+                onNavigate={(tab) => setActiveTab(tab)}
+              />
+
               {/* Profile Icon Button */}
               <button
                 type="button"
@@ -805,64 +812,64 @@ export function DonorPortalApp({
                     <h1 className="text-xl font-black text-slate-900 tracking-tight">Executive Summary</h1>
                   </div>
 
-                  {/* Top Metric Strip (Clean Unified ADRA Standard - No off-colors) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <Card className="p-4 bg-white border border-slate-200 shadow-2xs rounded-2xl">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Grant Committed</p>
-                          <h3 className="text-2xl font-black text-slate-900 mt-1">${totalCommitted.toLocaleString()}</h3>
-                          <p className="text-[11px] text-slate-500 font-medium mt-1">Multi-year bilateral framework</p>
+                  {/* Top Metric Strip (Clean Unified ADRA Standard - 2x2 in phone mode) */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                    <Card className="p-3 sm:p-4 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl flex flex-col justify-between">
+                      <div className="flex items-start justify-between gap-1.5">
+                        <div className="min-w-0">
+                          <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Total Grant Committed</p>
+                          <h3 className="text-lg sm:text-2xl font-black text-slate-900 mt-1 tracking-tight">${totalCommitted.toLocaleString()}</h3>
+                          <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 leading-tight sm:leading-normal">Multi-year bilateral framework</p>
                         </div>
-                        <span className="p-2.5 rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
-                          <Award className="w-5 h-5" />
+                        <span className="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
+                          <Award className="w-4 h-4 sm:w-5 sm:h-5" />
                         </span>
                       </div>
                     </Card>
 
-                    <Card className="p-4 bg-white border border-slate-200 shadow-2xs rounded-2xl">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Field Disbursements</p>
-                          <h3 className="text-2xl font-black text-slate-900 mt-1">${totalDisbursed.toLocaleString()}</h3>
-                          <p className="text-[11px] text-slate-500 font-medium mt-1">
+                    <Card className="p-3 sm:p-4 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl flex flex-col justify-between">
+                      <div className="flex items-start justify-between gap-1.5">
+                        <div className="min-w-0">
+                          <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Field Disbursements</p>
+                          <h3 className="text-lg sm:text-2xl font-black text-slate-900 mt-1 tracking-tight">${totalDisbursed.toLocaleString()}</h3>
+                          <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 leading-tight sm:leading-normal">
                             {totalCommitted > 0 ? ((totalDisbursed / totalCommitted) * 100).toFixed(0) : 75}% of committed released
                           </p>
                         </div>
-                        <span className="p-2.5 rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
-                          <DollarSign className="w-5 h-5" />
+                        <span className="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
+                          <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
                         </span>
                       </div>
                     </Card>
 
-                    <Card className="p-4 bg-white border border-slate-200 shadow-2xs rounded-2xl">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Verified Utilization</p>
-                          <h3 className="text-2xl font-black text-slate-900 mt-1">${totalExpended.toLocaleString()}</h3>
-                          <p className="text-[11px] text-slate-500 font-medium mt-1">
+                    <Card className="p-3 sm:p-4 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl flex flex-col justify-between">
+                      <div className="flex items-start justify-between gap-1.5">
+                        <div className="min-w-0">
+                          <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Verified Utilization</p>
+                          <h3 className="text-lg sm:text-2xl font-black text-slate-900 mt-1 tracking-tight">${totalExpended.toLocaleString()}</h3>
+                          <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 leading-tight sm:leading-normal">
                             Burn rate: <span className="text-[#006B56] font-bold">{burnRate}%</span> • <span className="text-emerald-700 font-semibold">On Track</span>
                           </p>
                         </div>
-                        <span className="p-2.5 rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
-                          <TrendingUp className="w-5 h-5" />
+                        <span className="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
+                          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
                         </span>
                       </div>
                     </Card>
 
-                    <Card className="p-4 bg-white border border-slate-200 shadow-2xs rounded-2xl">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Beneficiaries Reached</p>
-                          <h3 className="text-2xl font-black text-slate-900 mt-1">
+                    <Card className="p-3 sm:p-4 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl flex flex-col justify-between">
+                      <div className="flex items-start justify-between gap-1.5">
+                        <div className="min-w-0">
+                          <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Beneficiaries Reached</p>
+                          <h3 className="text-lg sm:text-2xl font-black text-slate-900 mt-1 tracking-tight">
                             {verifiedBeneficiariesCount.toLocaleString()}
                           </h3>
-                          <p className="text-[11px] text-slate-500 font-medium mt-1">
+                          <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 leading-tight sm:leading-normal">
                             Across {projects.length || 4} project jurisdictions
                           </p>
                         </div>
-                        <span className="p-2.5 rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
-                          <Users className="w-5 h-5" />
+                        <span className="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
+                          <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                         </span>
                       </div>
                     </Card>
