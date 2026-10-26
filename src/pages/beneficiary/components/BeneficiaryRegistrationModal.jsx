@@ -68,7 +68,7 @@ export function BeneficiaryRegistrationModal({ isOpen, onClose, onSuccess }) {
       });
 
       setRegisteredResult(result);
-      toast.success(`Registration successful! Beneficiary ID: ${result.beneficiary.beneficiary_code}`);
+      toast.success(`Registration recorded! Beneficiary ID: ${result.beneficiary.beneficiary_code}. Awaiting administrator verification.`);
     } catch (err) {
       console.error(err);
       toast.error(err.message || 'Registration failed.');
@@ -369,11 +369,14 @@ export function BeneficiaryRegistrationModal({ isOpen, onClose, onSuccess }) {
             <Button
               variant="primary"
               size="md"
-              onClick={handleEnterPortal}
+              onClick={() => {
+                if (onSuccess) onSuccess(registeredResult);
+                onClose();
+              }}
               className="px-6 py-2.5 text-xs font-bold gap-2 shadow-lg shadow-emerald-600/30"
             >
-              Enter Beneficiary Portal
-              <ArrowRight className="w-4 h-4" />
+              Done (Awaiting Administrator Approval)
+              <CheckCircle className="w-4 h-4 ml-1" />
             </Button>
           </div>
         </div>

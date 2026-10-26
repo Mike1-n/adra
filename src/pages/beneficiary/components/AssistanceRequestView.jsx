@@ -11,7 +11,8 @@ import {
   Calendar,
   Filter,
   FileText,
-  Sparkles
+  Sparkles,
+  PackageCheck
 } from 'lucide-react';
 import { Button } from '../../../components/common/Button';
 import { Modal } from '../../../components/common/Modal';
@@ -22,7 +23,8 @@ export function AssistanceRequestView({
   beneficiary,
   onRequestNew,
   statusFilter: propStatusFilter,
-  onStatusFilterChange
+  onStatusFilterChange,
+  onOpenReceiptConfirm
 }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +88,7 @@ export function AssistanceRequestView({
         beneficiary_id: beneficiary?.id,
         beneficiary_name: beneficiary?.full_name || 'Beneficiary',
         beneficiary_code: beneficiary?.beneficiary_code || 'ADRA-SS-PENDING',
+        location: beneficiary?.location || 'Juba Central, South Sudan',
         ...formData
       });
       toast.success('Assistance request submitted successfully!');
@@ -142,16 +145,34 @@ export function AssistanceRequestView({
 
 
   const getStageNum = (req) => {
-    if (req.status_stage) return req.status_stage;
+    if (req.beneficiary_confirmed || req.recipient_confirmed || (req.status || '').toLowerCase().includes('delivered & confirmed')) return 5;
+    if ((req.status || '').toLowerCase().includes('handed over') || req.distributed_at) return 4;
+    if (req.status_stage) return Math.min(req.status_stage, 5);
     const st = (req.status || '').toLowerCase();
-    if (st.includes('fulfill') || st.includes('disburs')) return 4;
+    if (st.includes('fulfill') || st.includes('disburs') || st.includes('distribut')) return 4;
     if (st.includes('approv')) return 3;
-    if (st.includes('review')) return 2;
+    if (st.includes('review') || st.includes('assess')) return 2;
     return 1;
   };
 
-  const getStatusBadge = (status) => {
-    const st = (status || '').toLowerCase();
+  const getStatusBadge = (req) => {
+    const status = typeof req === 'string' ? req : (req?.status || '');
+    const st = status.toLowerCase();
+
+    if (req?.beneficiary_confirmed || req?.recipient_confirmed || st.includes('delivered & confirmed')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs">
+          <CheckCircle className="w-3.5 h-3.5 stroke-[2.5]" /> Delivered & Confirmed
+        </span>
+      );
+    }
+    if (st.includes('handed over') || st.includes('awaiting beneficiary') || (req?.distributed_at && !req?.beneficiary_confirmed)) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs animate-pulse">
+          <Clock className="w-3.5 h-3.5 stroke-[2.5]" /> Awaiting Confirmation
+        </span>
+      );
+    }
     if (st.includes('approv')) {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-50 text-[#006B56] border border-emerald-200/80 shadow-2xs">
@@ -237,7 +258,11 @@ export function AssistanceRequestView({
         <div className="space-y-3.5">
           {filteredRequests.map(req => {
             const stageNum = getStageNum(req);
-            const stages = ['Submitted', 'Under Review', 'Approved', 'Disbursed'];
+            const stages = ['Submitted', 'Assessed', 'Approved', 'Handed Over', 'Confirmed'];
+            const isAwaitingConfirm = req.status === 'Handed Over' || 
+              req.status === 'Awaiting Beneficiary Confirmation' || 
+              req.dispatch_status === 'Handed Over' || 
+              (req.distributed_at && !req.beneficiary_confirmed && !req.recipient_confirmed);
 
             return (
               <div
@@ -282,24 +307,28 @@ export function AssistanceRequestView({
 
                   {/* Status Badge */}
                   <div className="shrink-0">
-                    {getStatusBadge(req.status)}
+                    {getStatusBadge(req)}
                   </div>
                 </div>
 
-                {/* Modern Slim 4-Stage Progress Track (Replaces clunky 4-box stepper) */}
+                {/* Modern Slim 5-Stage Progress Track */}
                 <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-3 space-y-2">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="font-medium text-slate-500">
                       Current Stage:{' '}
                       <strong className="text-slate-900 font-black">
-                        {req.status === 'Pending' ? 'Pending Review' : req.status}
+                        {req.beneficiary_confirmed || req.recipient_confirmed
+                          ? 'Delivered & Confirmed'
+                          : isAwaitingConfirm
+                          ? 'Handed Over (Awaiting Confirmation)'
+                          : req.status === 'Pending' ? 'Pending Review' : req.status}
                       </strong>
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Stage {stageNum} of 4
+                      Stage {stageNum} of 5
                     </span>
                   </div>
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-5 gap-1.5">
                     {stages.map((st, idx) => {
                       const isDone = stageNum >= idx + 1;
                       const isCurrent = stageNum === idx + 1;
@@ -311,7 +340,7 @@ export function AssistanceRequestView({
                             }`}
                           />
                           <span
-                            className={`block text-[10px] text-center truncate ${
+                            className={`block text-[9px] sm:text-[10px] text-center truncate ${
                               isCurrent
                                 ? 'font-black text-[#006B56]'
                                 : isDone
@@ -326,6 +355,51 @@ export function AssistanceRequestView({
                     })}
                   </div>
                 </div>
+
+                {/* Handover & Beneficiary Confirmation Callout */}
+                {isAwaitingConfirm && (
+                  <div className="p-3.5 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/15 border-2 border-amber-400 rounded-xl space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
+                          <PackageCheck className="w-4.5 h-4.5" />
+                        </div>
+                        <div>
+                          <h5 className="font-black text-xs text-amber-950">
+                            Relief Supplies Handed Over to Your Household
+                          </h5>
+                          <p className="text-[11px] text-amber-800 font-medium leading-tight">
+                            Delivered by {req.distributed_by || req.assigned_field_worker_name || 'ADRA Field Worker'}. Please confirm you physically received your aid supplies.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => onOpenReceiptConfirm && onOpenReceiptConfirm(req)}
+                      className="w-full py-2.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-black text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98 transition"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Confirm Physical Receipt of Aid</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Receipt Verified Banner */}
+                {(req.beneficiary_confirmed || req.recipient_confirmed) && (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-emerald-900 font-bold">
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Physical Receipt Verified & Confirmed by Household</span>
+                    </div>
+                    {req.beneficiary_confirmed_at && (
+                      <span className="text-[10px] text-emerald-700 font-medium">
+                        {new Date(req.beneficiary_confirmed_at).toLocaleDateString('en-GB')}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Justification / Depot Details */}
                 <div className="space-y-2 text-xs">

@@ -41,10 +41,11 @@ import { FieldWorkerBeneficiariesView } from './components/FieldWorkerBeneficiar
 import { FieldFundingListView } from './components/FieldFundingListView';
 import { AdraLogo } from '../../components/common/AdraLogo';
 
-// Field Worker Modals
 import { FieldAssessmentFormModal } from './components/FieldAssessmentFormModal';
 import { FieldBeneficiaryRegisterModal } from './components/FieldBeneficiaryRegisterModal';
 import { FieldFundingRequestModal } from './components/FieldFundingRequestModal';
+import { FieldDistributionScannerModal } from './components/FieldDistributionScannerModal';
+import { BeneficiaryReceiptConfirmModal } from '../beneficiary/components/BeneficiaryReceiptConfirmModal';
 import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
 import { NotificationBellButton } from '../../components/common/NotificationBellButton';
 
@@ -72,6 +73,10 @@ export function FieldWorkerApp({
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showFundingModal, setShowFundingModal] = useState(false);
   const [selectedTaskForFunding, setSelectedTaskForFunding] = useState(null);
+  const [showScannerModal, setShowScannerModal] = useState(false);
+  const [selectedTaskForDistribution, setSelectedTaskForDistribution] = useState(null);
+  const [showBeneficiaryConfirmModal, setShowBeneficiaryConfirmModal] = useState(false);
+  const [selectedTaskForBeneficiaryConfirm, setSelectedTaskForBeneficiaryConfirm] = useState(null);
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [showCoverageMenu, setShowCoverageMenu] = useState(false);
 
@@ -212,9 +217,17 @@ export function FieldWorkerApp({
   };
 
   const handleConfirmDistribution = async (distData) => {
-    const res = await db.confirmAidDistribution(distData);
-    await loadData(worker);
-    return res;
+    try {
+      const res = await db.confirmAidDistribution(distData);
+      toast.success(`Aid package successfully handed over to ${distData.recipientName || 'the beneficiary'}!`);
+      await loadData(worker);
+      setShowScannerModal(false);
+      setSelectedTaskForDistribution(null);
+      return res;
+    } catch (err) {
+      toast.error(err.message || 'Failed to record distribution.');
+      throw err;
+    }
   };
 
   const handleCollectGoods = async (task) => {
@@ -1018,6 +1031,10 @@ export function FieldWorkerApp({
                     setSelectedTaskForFunding(task);
                     setActiveTab('funding');
                   }}
+                  onBeneficiaryConfirm={(task) => {
+                    setSelectedTaskForBeneficiaryConfirm(task);
+                    setShowBeneficiaryConfirmModal(true);
+                  }}
                 />
               )}
 
@@ -1101,6 +1118,12 @@ export function FieldWorkerApp({
             assessments={assessments}
             worker={worker}
             onSubmitAssessment={handleSubmitAssessment}
+            onRequestFacilitation={(targetTask) => {
+              setShowAssessmentModal(false);
+              setSelectedTaskForAssessment(null);
+              setSelectedTaskForFunding(targetTask || selectedTaskForAssessment);
+              setActiveTab('funding');
+            }}
           />
         )}
 
@@ -1125,6 +1148,36 @@ export function FieldWorkerApp({
             tasks={tasks}
             initialTask={selectedTaskForFunding}
             onSubmitFundingRequest={handleSubmitFundingRequest}
+          />
+        )}
+
+        {showScannerModal && (
+          <FieldDistributionScannerModal
+            isOpen={showScannerModal}
+            onClose={() => {
+              setShowScannerModal(false);
+              setSelectedTaskForDistribution(null);
+            }}
+            worker={worker}
+            tasks={tasks}
+            selectedTask={selectedTaskForDistribution}
+            onConfirmDistribution={handleConfirmDistribution}
+          />
+        )}
+
+        {showBeneficiaryConfirmModal && (
+          <BeneficiaryReceiptConfirmModal
+            isOpen={showBeneficiaryConfirmModal}
+            onClose={() => {
+              setShowBeneficiaryConfirmModal(false);
+              setSelectedTaskForBeneficiaryConfirm(null);
+            }}
+            request={selectedTaskForBeneficiaryConfirm}
+            onConfirmed={() => {
+              loadData(worker);
+              setShowBeneficiaryConfirmModal(false);
+              setSelectedTaskForBeneficiaryConfirm(null);
+            }}
           />
         )}
 

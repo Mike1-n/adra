@@ -134,7 +134,7 @@ export function BeneficiarySignUpWizard({ onBackToLogin, onRegistrationComplete 
       if (result.dupCheck?.isDuplicate) {
         toast.warning('Possible duplicate detected: Flagged for field review.');
       } else {
-        toast.success(`Verification passed! Beneficiary ID: ${result.beneficiary.beneficiary_code}`);
+        toast.success(`Registration recorded! Beneficiary ID: ${result.beneficiary.beneficiary_code}. Awaiting administrator verification.`);
       }
 
       setStep(6); // Show generated Beneficiary ID

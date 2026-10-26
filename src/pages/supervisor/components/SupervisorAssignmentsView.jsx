@@ -230,40 +230,6 @@ export function SupervisorAssignmentsView({
         </div>
       </div>
 
-      {/* Tabs Filter Bar */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-        {[
-          { key: 'all', label: 'All Cases', count: tabCounts.total },
-          { key: 'pending', label: 'Pending', count: tabCounts.pending },
-          { key: 'assigned', label: 'Assigned', count: tabCounts.assigned },
-          { key: 'rejected', label: 'Rejected', count: tabCounts.rejected, isDanger: true },
-          { key: 'completed', label: 'Completed', count: tabCounts.completed }
-        ].map(tab => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => {
-              setActiveTab(tab.key);
-              if (onStatusTabChange) onStatusTabChange(tab.key);
-            }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-              activeTab === tab.key
-                ? (tab.isDanger ? 'bg-rose-600 text-white shadow-xs' : 'bg-[#006B56] text-white shadow-xs')
-                : (tab.isDanger && tab.count > 0 ? 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50')
-            }`}
-          >
-            <span>{tab.label}</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-              activeTab === tab.key
-                ? 'bg-white/20 text-white'
-                : (tab.isDanger && tab.count > 0 ? 'bg-rose-200 text-rose-900' : 'bg-slate-100 text-slate-600')
-            }`}>
-              {tab.count}
-            </span>
-          </button>
-        ))}
-      </div>
-
       {/* 2. COMPACT, SLIM 5-COLUMN TABLE */}
       {filteredAssignments.length === 0 ? (
         <div className="bg-white rounded-2xl p-6 text-center border border-slate-200/80 space-y-1.5 shadow-2xs">
@@ -294,15 +260,16 @@ export function SupervisorAssignmentsView({
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* 1. DESKTOP MODE TABLE (sm and up) */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-2 px-3 w-36">Code</th>
-                  <th className="py-2 px-3">Beneficiary</th>
-                  <th className="py-2 px-3">Category</th>
-                  <th className="py-2 px-3 w-28">Status</th>
-                  <th className="py-2 px-3 w-20 text-right">Action</th>
+                  <th className="py-2.5 px-3 w-36">Code</th>
+                  <th className="py-2.5 px-3">Beneficiary</th>
+                  <th className="py-2.5 px-3">Category</th>
+                  <th className="py-2.5 px-3 w-28">Status</th>
+                  <th className="py-2.5 px-3 w-20 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -339,7 +306,7 @@ export function SupervisorAssignmentsView({
 
                       {/* 4. Status */}
                       <td className="py-2 px-3 whitespace-nowrap">
-                        <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border ${
+                        <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                           item.status === 'Rejected' || item.status?.includes('Rejected') || item.status_label?.includes('Rejected') || item.returned_to_worker
                             ? 'bg-rose-50 text-rose-800 border-rose-300 font-extrabold'
                             : displayStatus === 'Assigned' || displayStatus === 'Completed' || displayStatus === 'Approved'
@@ -366,6 +333,66 @@ export function SupervisorAssignmentsView({
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* 2. PHONE MODE VIEW (< sm): Clean, single-row mobile cards where the View button fits 100% on screen */}
+          <div className="sm:hidden divide-y divide-slate-100">
+            {filteredAssignments.map((item) => {
+              const isUnassigned = !item.assigned_field_worker_name || 
+                                   item.assigned_field_worker_name.includes('Pending') || 
+                                   item.assigned_field_worker_name.includes('Unassigned');
+
+              const displayStatus = !isUnassigned && (item.status === 'Assigned to Supervisor' || item.status === 'Submitted')
+                ? 'Assigned'
+                : (item.status_label || item.status || 'Pending');
+
+              const categoryText = (item.assistance_type || item.category || 'Food Assistance').split(',')[0].trim();
+
+              return (
+                <div
+                  key={item.id || item.request_code}
+                  onClick={() => onSelectAssignment(item)}
+                  className="p-3 flex items-center justify-between gap-2.5 hover:bg-slate-50 active:bg-slate-100/70 transition cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                      <span className="font-mono text-[11px] font-bold text-[#006B56]">
+                        {item.request_code || item.id}
+                      </span>
+                      <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border leading-tight ${
+                        item.status === 'Rejected' || item.status?.includes('Rejected') || item.status_label?.includes('Rejected') || item.returned_to_worker
+                          ? 'bg-rose-50 text-rose-800 border-rose-300 font-extrabold'
+                          : displayStatus === 'Assigned' || displayStatus === 'Completed' || displayStatus === 'Approved'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}>
+                        {displayStatus}
+                      </span>
+                    </div>
+
+                    <p className="font-bold text-slate-900 text-xs truncate">
+                      {item.beneficiary_name || 'Beneficiary'}
+                    </p>
+
+                    <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                      {categoryText}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectAssignment(item);
+                    }}
+                    className="shrink-0 px-3 py-1.5 bg-[#006B56] hover:bg-[#005242] text-white text-xs font-bold rounded-xl transition active:scale-95 inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View</span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

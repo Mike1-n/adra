@@ -23,7 +23,8 @@ import {
   Truck,
   PackageCheck,
   Package,
-  MessageSquare
+  MessageSquare,
+  UserCheck
 } from 'lucide-react';
 
 export function FieldWorkerDashboardView({
@@ -251,6 +252,14 @@ export function FieldWorkerDashboardView({
                   </span>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={() => onDistribute ? onDistribute(task) : (onNavigateTab ? onNavigateTab('tasks', 'in_custody') : null)}
+                  className="w-full py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition active:scale-98 cursor-pointer"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>Handover Goods to {task.beneficiary_name?.split(' ')[0] || 'Beneficiary'}</span>
+                </button>
               </div>
             ))}
 

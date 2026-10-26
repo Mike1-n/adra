@@ -133,11 +133,13 @@ export function UserRoleManagementView() {
 
   const handleOpenEdit = (user) => {
     setSelectedUser(user);
+    const initialStatus = user.status || (user.is_active === false ? 'Deactivated' : 'Active');
     setEditFormData({
       full_name: user.full_name || '',
       email: user.email || '',
       department: user.department || '',
-      phone: user.phone || ''
+      phone: user.phone || '',
+      status: initialStatus
     });
     setIsEditOpen(true);
   };
@@ -146,7 +148,11 @@ export function UserRoleManagementView() {
     e.preventDefault();
     if (!selectedUser) return;
     try {
-      await db.updateUser(selectedUser.id, editFormData);
+      const isAct = editFormData.status === 'Active';
+      await db.updateUser(selectedUser.id, {
+        ...editFormData,
+        is_active: isAct
+      });
       toast.success(`Updated profile for ${editFormData.full_name}`);
       setIsEditOpen(false);
       loadData();
@@ -175,7 +181,8 @@ export function UserRoleManagementView() {
   };
 
   const handleToggleStatus = async (user) => {
-    const newStatus = user.status === 'Active' ? 'Deactivated' : 'Active';
+    const isDeactivated = user.status === 'Deactivated' || user.status === 'Suspended' || user.verification_status === 'Deactivated';
+    const newStatus = isDeactivated ? 'Active' : 'Deactivated';
     try {
       await db.toggleUserStatus(user.id, newStatus);
       toast.info(`Account status for ${user.full_name} changed to ${newStatus}`);
@@ -218,7 +225,9 @@ export function UserRoleManagementView() {
     const matchesStatus =
       statusFilter === 'ALL' ||
       (statusFilter === 'Pending Verification' || statusFilter === 'Pending'
-        ? (u.status === 'Pending Verification' || u.verification_status === 'Pending Verification' || u.status === 'Under Verification' || u.verification_status === 'Under Verification' || u.is_active === false)
+        ? (u.status !== 'Deactivated' && u.status !== 'Suspended' && u.verification_status !== 'Deactivated' && (u.status === 'Pending Verification' || u.verification_status === 'Pending Verification' || u.status === 'Under Verification' || u.verification_status === 'Under Verification'))
+        : statusFilter === 'Deactivated'
+        ? (u.status === 'Deactivated' || u.status === 'Suspended' || u.verification_status === 'Deactivated')
         : (u.status || 'Active') === statusFilter);
     const matchesState =
       stateFilter === 'ALL' ||
@@ -237,9 +246,9 @@ export function UserRoleManagementView() {
   const paginatedUsers = filteredUsers.slice(startIndex, startIndex + itemsPerPage);
 
   // Stats
-  const activeCount = users.filter(u => (u.status || 'Active') === 'Active' && u.is_active !== false).length;
-  const pendingCount = users.filter(u => u.status === 'Pending Verification' || u.is_active === false).length;
-  const deactivatedCount = users.filter(u => u.status === 'Deactivated' || u.status === 'Suspended').length;
+  const deactivatedCount = users.filter(u => u.status === 'Deactivated' || u.status === 'Suspended' || u.verification_status === 'Deactivated').length;
+  const pendingCount = users.filter(u => !['Deactivated', 'Suspended'].includes(u.status) && u.verification_status !== 'Deactivated' && (u.status === 'Pending Verification' || u.verification_status === 'Pending Verification')).length;
+  const activeCount = users.filter(u => !['Deactivated', 'Suspended'].includes(u.status) && u.verification_status !== 'Deactivated' && (u.status === 'Active' || (!u.status && u.is_active !== false))).length;
 
   const getRoleBadgeStyle = (role) => {
     switch (role) {
@@ -430,8 +439,9 @@ export function UserRoleManagementView() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedUsers.map((u) => {
-                  const isActive = (u.status || 'Active') === 'Active' && u.is_active !== false;
-                  const isPending = u.status === 'Pending Verification' || u.is_active === false;
+                  const isDeactivated = u.status === 'Deactivated' || u.status === 'Suspended' || u.verification_status === 'Deactivated';
+                  const isPending = !isDeactivated && (u.status === 'Pending Verification' || u.verification_status === 'Pending Verification' || u.status === 'Under Verification' || u.verification_status === 'Under Verification' || (u.is_active === false && u.status !== 'Active'));
+                  const isActive = !isDeactivated && !isPending && ((u.status || 'Active') === 'Active' && u.is_active !== false);
 
                   return (
                     <tr
@@ -478,7 +488,12 @@ export function UserRoleManagementView() {
 
                       {/* Account Status */}
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        {isPending ? (
+                        {isDeactivated ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-rose-50 text-rose-800 border-rose-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+                            Deactivated
+                          </span>
+                        ) : isPending ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
                             Pending Verification
@@ -490,7 +505,7 @@ export function UserRoleManagementView() {
                               : 'bg-rose-50 text-rose-800 border-rose-200'
                           }`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-600' : 'bg-rose-600'}`} />
-                            {u.status || (isActive ? 'Active' : 'Deactivated')}
+                            Active
                           </span>
                         )}
                       </td>
@@ -536,11 +551,11 @@ export function UserRoleManagementView() {
 
                           <button
                             onClick={() => handleToggleStatus(u)}
-                            title={isActive ? 'Deactivate Account' : 'Reactivate Account'}
+                            title={isDeactivated ? 'Reactivate Account' : 'Deactivate Account'}
                             className={`p-1 rounded-md text-white transition cursor-pointer shadow-2xs ${
-                              isActive
-                                ? 'bg-amber-600 hover:bg-amber-700 border border-amber-700'
-                                : 'bg-teal-600 hover:bg-teal-700 border border-teal-700'
+                              isDeactivated
+                                ? 'bg-teal-600 hover:bg-teal-700 border border-teal-700'
+                                : 'bg-amber-600 hover:bg-amber-700 border border-amber-700'
                             }`}
                           >
                             <Power className="w-3 h-3 text-white" />
@@ -730,6 +745,19 @@ export function UserRoleManagementView() {
                   className="adra-input text-xs sm:text-sm"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Account Status</label>
+              <select
+                value={editFormData.status || 'Active'}
+                onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                className="adra-select text-xs sm:text-sm font-medium"
+              >
+                <option value="Active">Active</option>
+                <option value="Pending Verification">Pending Verification</option>
+                <option value="Deactivated">Deactivated</option>
+              </select>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">

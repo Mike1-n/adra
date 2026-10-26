@@ -155,7 +155,7 @@ export function CreateDispatchModal({
         : '',
       project_name: initialReq?.project_name || initialReq?.programme_name || initialReq?.programme || 'Emergency Food Security & Livelihoods Resilience',
       linked_request_id: initialReq ? (initialReq.id || initialReq.request_code || initialReq.tracking_number) : '',
-      beneficiary_name: initialReq ? `${initialReq.beneficiary_name || initialReq.full_name || 'Beneficiary'} (${initialReq.location || initialReq.payam || initialReq.state || 'Field'})` : '',
+      beneficiary_name: initialReq ? (initialReq.beneficiary_name || initialReq.full_name || 'Beneficiary') : '',
       assigned_supervisor_id: initialReq?.assigned_supervisor_id || '',
       assigned_supervisor_name: initialReq?.assigned_supervisor_name || '',
       assigned_field_worker_id: initialReq?.assigned_field_worker_id || '',
@@ -208,7 +208,7 @@ export function CreateDispatchModal({
       setForm(prev => ({
         ...prev,
         linked_request_id: req.id || req.request_code || req.tracking_number,
-        beneficiary_name: `${req.beneficiary_name || req.full_name || 'Beneficiary'} (${req.location || req.payam || req.state || 'Field'})`,
+        beneficiary_name: req.beneficiary_name || req.full_name || 'Beneficiary',
         destination: `${req.location || [req.county, req.payam].filter(Boolean).join(', ') || req.state || 'Field Hub'} Relief Centre`,
         project_name: req.project_name || req.programme_name || req.programme || prev.project_name,
         assigned_supervisor_id: req.assigned_supervisor_id || prev.assigned_supervisor_id,

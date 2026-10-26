@@ -6,14 +6,18 @@ const ToastContext = createContext(null);
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
-  const addToast = useCallback((message, type = 'info', duration = 4000) => {
+  const addToast = useCallback((message, type = 'info', duration = 3000) => {
     const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, message, type }]);
 
-    if (duration > 0) {
+    const cleanDuration = typeof duration === 'object' && duration !== null
+      ? (Number(duration.duration) || 3000)
+      : (typeof duration === 'number' ? duration : 3000);
+
+    if (cleanDuration > 0) {
       setTimeout(() => {
         removeToast(id);
-      }, duration);
+      }, cleanDuration);
     }
   }, []);
 
@@ -22,11 +26,11 @@ export function ToastProvider({ children }) {
   }, []);
 
   const toast = {
-    success: (msg, dur) => addToast(msg, 'success', dur),
-    error: (msg, dur) => addToast(msg, 'error', dur),
-    info: (msg, dur) => addToast(msg, 'info', dur),
-    warning: (msg, dur) => addToast(msg, 'warning', dur),
-    showToast: (msg, type = 'info', dur) => addToast(msg, type, dur),
+    success: (msg, dur = 3000) => addToast(msg, 'success', dur),
+    error: (msg, dur = 4000) => addToast(msg, 'error', dur),
+    info: (msg, dur = 3000) => addToast(msg, 'info', dur),
+    warning: (msg, dur = 3500) => addToast(msg, 'warning', dur),
+    showToast: (msg, type = 'info', dur = 3000) => addToast(msg, type, dur),
   };
 
   const getToastIcon = (type) => {

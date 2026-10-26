@@ -20,7 +20,8 @@ import {
   HelpCircle,
   ChevronDown,
   ChevronUp,
-  Send
+  Send,
+  CheckCircle2
 } from 'lucide-react';
 import { Button } from '../../../components/common/Button';
 import { db } from '../../../lib/supabase';
@@ -28,8 +29,65 @@ import { useToast } from '../../../context/ToastContext';
 import {
   getStates,
   getCounties,
-  getPayams
+  getPayams,
+  SOUTH_SUDAN_LOCATIONS
 } from '../../../lib/locationData';
+
+// Helper to resolve and parse location entered during account registration
+function resolveLocationDetails(raw) {
+  const registeredLocation = (raw || '').trim();
+  if (!registeredLocation) {
+    return {
+      state: 'Central Equatoria',
+      county: 'Juba',
+      payam: 'Juba Na Bari',
+      location: 'Juba Central, South Sudan'
+    };
+  }
+
+  const lower = registeredLocation.toLowerCase();
+
+  // 1. Direct county match or word-level match from SOUTH_SUDAN_LOCATIONS
+  if (SOUTH_SUDAN_LOCATIONS) {
+    for (const [stateName, counties] of Object.entries(SOUTH_SUDAN_LOCATIONS)) {
+      for (const [countyName, payams] of Object.entries(counties)) {
+        const ctyLower = countyName.toLowerCase();
+        const firstWord = ctyLower.split(' ')[0];
+        if (lower.includes(ctyLower) || (firstWord.length >= 3 && lower.includes(firstWord))) {
+          const payamKeys = Object.keys(payams);
+          return {
+            state: stateName,
+            county: countyName,
+            payam: payamKeys[0] || 'Central',
+            location: registeredLocation
+          };
+        }
+      }
+    }
+
+    // 2. State match
+    for (const [stateName, counties] of Object.entries(SOUTH_SUDAN_LOCATIONS)) {
+      if (lower.includes(stateName.toLowerCase())) {
+        const countyKeys = Object.keys(counties);
+        const cty = countyKeys[0] || 'Juba';
+        const payams = Object.keys(counties[cty] || {});
+        return {
+          state: stateName,
+          county: cty,
+          payam: payams[0] || 'Central',
+          location: registeredLocation
+        };
+      }
+    }
+  }
+
+  return {
+    state: 'Central Equatoria',
+    county: 'Juba',
+    payam: 'Juba Na Bari',
+    location: registeredLocation
+  };
+}
 
 export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmitted }) {
   const toast = useToast();
@@ -38,6 +96,8 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
   const [submitting, setSubmitting] = useState(false);
   const [programmes, setProgrammes] = useState([]);
   const [submittedResult, setSubmittedResult] = useState(null);
+
+  const initialLoc = resolveLocationDetails(beneficiary?.location);
 
   // Form State matching all required fields (uncluttered, beneficiary-centric structure)
   const [formData, setFormData] = useState({
@@ -49,10 +109,11 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
     current_situations: ['Displaced'],
     current_situation: 'Displaced',
     other_situation: '',
-    // 3. Location (State, County, Payam dropdowns; Boma & Village typed)
-    state: 'Central Equatoria',
-    county: 'Juba',
-    payam: 'Juba Na Bari',
+    // 3. Location (Picked from registered beneficiary account)
+    location: beneficiary?.location || initialLoc.location,
+    state: initialLoc.state,
+    county: initialLoc.county,
+    payam: initialLoc.payam,
     boma: '',
     village_area: '',
     // 4. Additional information
@@ -61,8 +122,24 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
     project_id: 'pr1',
     project_name: 'Emergency Relief & Humanitarian Response',
     urgency: 'High',
-    preferred_depot: 'Central Humanitarian Depot'
+    preferred_depot: `${initialLoc.county || 'Central'} Distribution Depot`
   });
+
+  // Keep form location synced with beneficiary profile if loaded asynchronously
+  useEffect(() => {
+    if (beneficiary?.location) {
+      const resolved = resolveLocationDetails(beneficiary.location);
+      setFormData(prev => ({
+        ...prev,
+        location: beneficiary.location,
+        state: resolved.state,
+        county: resolved.county,
+        payam: resolved.payam,
+        household_members: beneficiary.household_size || prev.household_members,
+        preferred_depot: `${resolved.county || 'Central'} Distribution Depot`
+      }));
+    }
+  }, [beneficiary?.location, beneficiary?.household_size]);
 
   const [isSituationDropdownOpen, setIsSituationDropdownOpen] = useState(false);
   const situationDropdownRef = React.useRef(null);
@@ -195,7 +272,8 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
       ...prev,
       state: newState,
       county: newCounty,
-      payam: newPayam
+      payam: newPayam,
+      location: `${newCounty}, South Sudan`
     }));
   };
 
@@ -207,7 +285,8 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
     setFormData(prev => ({
       ...prev,
       county: newCounty,
-      payam: newPayam
+      payam: newPayam,
+      location: `${newCounty}, South Sudan`
     }));
   };
 
@@ -278,14 +357,10 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
   const handleSubmitRequest = async () => {
     try {
       setSubmitting(true);
-      // Location starts with State as requested
-      const locationFull = [
-        formData.state,
-        formData.county,
-        formData.payam,
-        formData.boma,
-        formData.village_area
-      ].filter(Boolean).join(', ') || 'South Sudan';
+      // Pick exact location from beneficiary registration (or edited in form)
+      const baseLocation = formData.location || beneficiary?.location || [formData.state, formData.county, formData.payam].filter(Boolean).join(', ');
+      const extraDetails = [formData.boma ? `Boma: ${formData.boma}` : '', formData.village_area ? `Area: ${formData.village_area}` : ''].filter(Boolean).join(', ');
+      const locationFull = extraDetails ? `${baseLocation} (${extraDetails})` : baseLocation || 'South Sudan';
 
       const situationsText = (formData.current_situations || [formData.current_situation])
         .map(s => s === 'Other' && formData.other_situation ? `Other (${formData.other_situation})` : s)
@@ -301,7 +376,12 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
         description: formData.reason || `Assistance request for ${situationsText} household`,
         additional_info: `Situation: ${situationsText}.`,
         location: locationFull,
-        preferred_depot: `${formData.county || 'Central'} Distribution Depot`,
+        state: formData.state,
+        county: formData.county,
+        payam: formData.payam,
+        boma: formData.boma,
+        village: formData.village_area,
+        preferred_depot: `${formData.county || (baseLocation ? baseLocation.split(',')[0].trim() : 'Central')} Distribution Depot`,
         project_id: formData.project_id || 'pr1',
         project_name: formData.project_name || 'Emergency Relief & Humanitarian Response'
       });
@@ -645,94 +725,126 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
                 )}
               </div>
 
-              {/* 3. Location (Arranged downwards: State -> County -> Payam -> Boma -> Village) */}
+              {/* 3. Location - Auto-picked from account creation */}
               <div className="pt-4 border-t border-slate-100 space-y-3">
-                <label className="block text-xs font-black text-slate-900 uppercase tracking-wider">
-                  Location
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-black text-slate-900 uppercase tracking-wider">
+                    Location
+                  </label>
+                  {(beneficiary?.location || formData.location) && (
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-[#006B56]" />
+                      Picked from Registered Account
+                    </span>
+                  )}
+                </div>
 
-                <div className="space-y-3">
-                  {/* State */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">State</label>
-                    <div className="relative">
-                      <select
-                        value={formData.state}
-                        onChange={handleStateChange}
-                        className="w-full appearance-none px-3.5 py-2.5 pr-8 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 text-slate-900 focus:outline-hidden focus:border-[#006B56] focus:bg-white focus:ring-2 focus:ring-[#006B56]/15 transition cursor-pointer"
-                      >
-                        {availableStates.map((st) => (
-                          <option key={st} value={st}>
-                            {st}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  {/* County */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">County</label>
-                    <div className="relative">
-                      <select
-                        value={formData.county}
-                        onChange={handleCountyChange}
-                        className="w-full appearance-none px-3.5 py-2.5 pr-8 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 text-slate-900 focus:outline-hidden focus:border-[#006B56] focus:bg-white focus:ring-2 focus:ring-[#006B56]/15 transition cursor-pointer"
-                      >
-                        {availableCounties.map((cty) => (
-                          <option key={cty} value={cty}>
-                            {cty}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  {/* Payam */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Payam</label>
-                    <div className="relative">
-                      <select
-                        value={formData.payam}
-                        onChange={handlePayamChange}
-                        className="w-full appearance-none px-3.5 py-2.5 pr-8 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 text-slate-900 focus:outline-hidden focus:border-[#006B56] focus:bg-white focus:ring-2 focus:ring-[#006B56]/15 transition cursor-pointer"
-                      >
-                        {availablePayams.map((pym) => (
-                          <option key={pym} value={pym}>
-                            {pym}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  {/* Boma */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Boma</label>
+                {/* Primary Location Field (Same exact location entered during account creation) */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Settlement Location / County <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative rounded-xl border border-slate-200 bg-slate-50/70 focus-within:border-[#006B56] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#006B56]/15 transition">
+                    <MapPin className="w-4 h-4 text-[#006B56] absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                      value={formData.boma}
-                      onChange={(e) => setFormData({ ...formData, boma: e.target.value })}
-                      placeholder="Type your boma..."
-                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-[#006B56] focus:bg-white focus:ring-2 focus:ring-[#006B56]/15 transition"
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="e.g. Malakal, South Sudan"
+                      className="w-full pl-10 pr-3.5 py-2.5 text-xs font-bold text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
                       required
                     />
                   </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Exact location automatically picked from your beneficiary account profile.
+                  </p>
+                </div>
 
-                  {/* Village / Area */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Village / Area</label>
-                    <input
-                      type="text"
-                      value={formData.village_area}
-                      onChange={(e) => setFormData({ ...formData, village_area: e.target.value })}
-                      placeholder="e.g. Hai Malakal South, Block 4, Compound 12..."
-                      className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-[#006B56] focus:bg-white focus:ring-2 focus:ring-[#006B56]/15 transition"
-                      required
-                    />
+                {/* Administrative Area (Auto-matched with cascading selectors) */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                  <p className="text-[11px] font-bold text-slate-700">Administrative Region</p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* State */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">State</label>
+                      <div className="relative">
+                        <select
+                          value={formData.state}
+                          onChange={handleStateChange}
+                          className="w-full appearance-none px-3 py-2 pr-7 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-[#006B56] cursor-pointer"
+                        >
+                          {availableStates.map((st) => (
+                            <option key={st} value={st}>
+                              {st}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* County */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">County</label>
+                      <div className="relative">
+                        <select
+                          value={formData.county}
+                          onChange={handleCountyChange}
+                          className="w-full appearance-none px-3 py-2 pr-7 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-[#006B56] cursor-pointer"
+                        >
+                          {availableCounties.map((cty) => (
+                            <option key={cty} value={cty}>
+                              {cty}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* Payam */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Payam</label>
+                      <div className="relative">
+                        <select
+                          value={formData.payam}
+                          onChange={handlePayamChange}
+                          className="w-full appearance-none px-3 py-2 pr-7 text-xs font-bold rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-[#006B56] cursor-pointer"
+                        >
+                          {availablePayams.map((pym) => (
+                            <option key={pym} value={pym}>
+                              {pym}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Boma & Village / Area (Optional) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Boma (Optional)</label>
+                      <input
+                        type="text"
+                        value={formData.boma}
+                        onChange={(e) => setFormData({ ...formData, boma: e.target.value })}
+                        placeholder="e.g. Central Boma"
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#006B56]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Village / Landmark (Optional)</label>
+                      <input
+                        type="text"
+                        value={formData.village_area}
+                        onChange={(e) => setFormData({ ...formData, village_area: e.target.value })}
+                        placeholder="e.g. Block 4, Compound 12"
+                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#006B56]"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -817,11 +929,16 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
                 </div>
               </div>
 
-              {/* Location (Starts with State) */}
+              {/* Location (Starts with exact account location) */}
               <div className="flex items-start justify-between pb-3 border-b border-slate-100">
                 <span className="text-slate-500 font-bold">Location:</span>
                 <span className="font-extrabold text-slate-900 text-right max-w-[220px]">
-                  {[formData.state, formData.county, formData.payam, formData.boma, formData.village_area].filter(Boolean).join(', ') || 'South Sudan'}
+                  {formData.location || [formData.state, formData.county, formData.payam].filter(Boolean).join(', ') || 'South Sudan'}
+                  {(formData.boma || formData.village_area) && (
+                    <span className="block text-[11px] font-medium text-slate-500">
+                      {[formData.boma, formData.village_area].filter(Boolean).join(' • ')}
+                    </span>
+                  )}
                 </span>
               </div>
 

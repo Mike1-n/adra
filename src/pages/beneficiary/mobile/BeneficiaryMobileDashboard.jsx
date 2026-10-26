@@ -14,7 +14,9 @@ import {
   Info,
   Clock,
   CheckCircle2,
-  MapPin
+  MapPin,
+  PackageCheck,
+  AlertCircle
 } from 'lucide-react';
 
 export function BeneficiaryMobileDashboard({
@@ -24,10 +26,32 @@ export function BeneficiaryMobileDashboard({
   notifications = [],
   unreadCount = 0,
   onRequestAssistance,
-  onNavigateTab
+  onNavigateTab,
+  onConfirmReceipt
 }) {
   const currentReq = requests[0] || null;
   const currentDist = distributions[0] || null;
+
+  const pendingConfirmReq = requests.find(r => 
+    r.status === 'Handed Over' || 
+    r.status === 'Awaiting Beneficiary Confirmation' || 
+    r.dispatch_status === 'Handed Over' ||
+    (r.distributed_at && !r.beneficiary_confirmed && !r.recipient_confirmed)
+  );
+
+  const pendingRequestsCount = requests.filter(r => 
+    r.status !== 'Rejected' && 
+    !r.beneficiary_confirmed && 
+    r.status !== 'Fulfilled' && 
+    r.status !== 'Distributed'
+  ).length;
+
+  const completedAidCount = requests.filter(r => 
+    r.beneficiary_confirmed || 
+    r.recipient_confirmed || 
+    r.status === 'Fulfilled' || 
+    r.status === 'Distributed'
+  ).length;
 
   const firstName = beneficiary?.full_name ? beneficiary.full_name.trim().split(' ')[0] : 'Beneficiary';
 
@@ -68,73 +92,133 @@ export function BeneficiaryMobileDashboard({
         </button>
       </div>
 
-      {/* 2. COMPACT 4-ICON QUICK SERVICE BAR (CLEAN & MINIMAL) */}
-      <div className="grid grid-cols-4 gap-2 py-1">
-        {/* Requests */}
-        <button
-          type="button"
+      {/* 1.5 URGENT ACTION: BENEFICIARY RECEIPT CONFIRMATION */}
+      {pendingConfirmReq && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white shadow-lg shadow-amber-600/20 border border-amber-400 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
+                <PackageCheck className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider bg-white/25 px-2 py-0.5 rounded-full inline-block mb-0.5">
+                  Action Required • Relief Handover
+                </span>
+                <h3 className="text-sm font-black leading-tight text-white">
+                  Have You Received Your Relief Supplies?
+                </h3>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono bg-black/25 text-white px-2 py-0.5 rounded-md font-bold shrink-0">
+              #{pendingConfirmReq.request_code}
+            </span>
+          </div>
+
+          <div className="bg-black/15 backdrop-blur-xs p-2.5 rounded-xl text-xs text-amber-50 leading-relaxed">
+            <p className="font-medium">
+              Field Worker <strong>{pendingConfirmReq.distributed_by || pendingConfirmReq.assigned_field_worker_name || 'ADRA Relief Officer'}</strong> reported physical handover of your <strong>{pendingConfirmReq.category || 'Relief Package'}</strong> supplies. Please confirm that you have physically received them.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 pt-0.5">
+            <button
+              type="button"
+              onClick={() => onConfirmReceipt && onConfirmReceipt(pendingConfirmReq)}
+              className="flex-1 py-2.5 px-3 rounded-xl bg-white text-amber-950 hover:bg-amber-50 font-black text-xs flex items-center justify-center gap-2 shadow-sm transition active:scale-98 cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Yes, I Received My Supplies</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('my_requests')}
+              className="py-2.5 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs transition cursor-pointer"
+            >
+              Details
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 2. FOUR VIBRANT FOCUSED KPI CARDS (MATCHING PROGRAM MANAGER OVERVIEW STYLE) */}
+      <div className="grid grid-cols-2 gap-2.5">
+        
+        {/* Card 1: Aid Requests (Emerald) */}
+        <div
           onClick={() => onNavigateTab('my_requests')}
-          className="p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-emerald-300 transition flex flex-col items-center justify-center text-center cursor-pointer shadow-2xs group"
+          className="bg-emerald-50/70 rounded-2xl p-3.5 border border-emerald-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
         >
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#006B56] flex items-center justify-center mb-1 relative group-hover:scale-105 transition">
-            <FileText className="w-5 h-5 stroke-[2]" />
-            {requests.length > 0 && (
-              <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-[9px] font-black bg-[#006B56] text-white">
-                {requests.length}
-              </span>
-            )}
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-emerald-950">Requests</span>
+            <div className="w-8 h-8 rounded-xl bg-[#006B56] text-white flex items-center justify-center shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+              <FileText className="w-4 h-4 stroke-[2.2]" />
+            </div>
           </div>
-          <span className="text-[11px] font-bold text-slate-800 truncate w-full">
-            Requests
-          </span>
-        </button>
+          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-2xl font-black text-emerald-950 tracking-tight">{requests.length}</span>
+            <span className="text-[10px] font-black text-emerald-900 bg-emerald-200/70 px-2 py-0.5 rounded-md">
+              {pendingRequestsCount > 0 ? `${pendingRequestsCount} Active` : (requests.length > 0 ? 'Submitted' : 'None')}
+            </span>
+          </div>
+        </div>
 
-        {/* Distributions */}
-        <button
-          type="button"
+        {/* Card 2: Schedules & Dispatches (Teal) */}
+        <div
           onClick={() => onNavigateTab('distributions')}
-          className="p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-teal-300 transition flex flex-col items-center justify-center text-center cursor-pointer shadow-2xs group"
+          className="bg-teal-50/70 rounded-2xl p-3.5 border border-teal-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
         >
-          <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center mb-1 relative group-hover:scale-105 transition">
-            <Truck className="w-5 h-5 stroke-[2]" />
-            {distributions.length > 0 && (
-              <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-[9px] font-black bg-teal-700 text-white">
-                {distributions.length}
-              </span>
-            )}
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-teal-950">Schedules</span>
+            <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+              <Truck className="w-4 h-4 stroke-[2.2]" />
+            </div>
           </div>
-          <span className="text-[11px] font-bold text-slate-800 truncate w-full">
-            Schedules
-          </span>
-        </button>
+          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-2xl font-black text-teal-950 tracking-tight">{distributions.length}</span>
+            <span className="text-[10px] font-black text-teal-900 bg-teal-200/70 px-2 py-0.5 rounded-md">
+              Active Hubs
+            </span>
+          </div>
+        </div>
 
-        {/* Digital ID */}
-        <button
-          type="button"
+        {/* Card 3: Digital ID (Blue) */}
+        <div
           onClick={() => onNavigateTab('id_card')}
-          className="p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-blue-300 transition flex flex-col items-center justify-center text-center cursor-pointer shadow-2xs group"
+          className="bg-blue-50/70 rounded-2xl p-3.5 border border-blue-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
         >
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center mb-1 group-hover:scale-105 transition">
-            <QrCode className="w-5 h-5 stroke-[2]" />
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-blue-950">Digital ID</span>
+            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+              <QrCode className="w-4 h-4 stroke-[2.2]" />
+            </div>
           </div>
-          <span className="text-[11px] font-bold text-slate-800 truncate w-full">
-            Digital ID
-          </span>
-        </button>
+          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-2xl font-black text-blue-950 tracking-tight">Active</span>
+            <span className="text-[10px] font-black text-blue-900 bg-blue-200/70 px-2 py-0.5 rounded-md">
+              QR Ready
+            </span>
+          </div>
+        </div>
 
-        {/* Aid History */}
-        <button
-          type="button"
+        {/* Card 4: Aid History (Amber) */}
+        <div
           onClick={() => onNavigateTab('history')}
-          className="p-2.5 rounded-xl bg-white border border-slate-200/80 hover:border-amber-300 transition flex flex-col items-center justify-center text-center cursor-pointer shadow-2xs group"
+          className="bg-amber-50/70 rounded-2xl p-3.5 border border-amber-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
         >
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center mb-1 group-hover:scale-105 transition">
-            <Gift className="w-5 h-5 stroke-[2]" />
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-amber-950">History</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+              <Gift className="w-4 h-4 stroke-[2.2]" />
+            </div>
           </div>
-          <span className="text-[11px] font-bold text-slate-800 truncate w-full">
-            History
-          </span>
-        </button>
+          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-2xl font-black text-amber-950 tracking-tight">{completedAidCount}</span>
+            <span className="text-[10px] font-black text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded-md">
+              Aid Vouchers
+            </span>
+          </div>
+        </div>
+
       </div>
 
       {/* 3. CONSOLIDATED ACTIVE STATUS CARD (ONE SINGLE COMPACT CARD INSTEAD OF MANY) */}
@@ -167,7 +251,11 @@ export function BeneficiaryMobileDashboard({
                   {currentReq.category ? `${currentReq.category} Assistance` : 'Assistance Case'}
                 </span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                  currentReq.status === 'Approved'
+                  currentReq.beneficiary_confirmed || currentReq.recipient_confirmed
+                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                    : currentReq.status === 'Handed Over' || (currentReq.distributed_at && !currentReq.beneficiary_confirmed)
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
+                    : currentReq.status === 'Approved'
                     ? 'bg-emerald-100 text-emerald-800'
                     : currentReq.status === 'Fulfilled'
                     ? 'bg-blue-100 text-blue-800'
@@ -175,7 +263,11 @@ export function BeneficiaryMobileDashboard({
                     ? 'bg-rose-100 text-rose-800'
                     : 'bg-amber-100 text-amber-800'
                 }`}>
-                  {currentReq.status_label || currentReq.status || 'Under Review'}
+                  {currentReq.beneficiary_confirmed || currentReq.recipient_confirmed
+                    ? '✓ Delivered & Confirmed'
+                    : currentReq.status === 'Handed Over' || (currentReq.distributed_at && !currentReq.beneficiary_confirmed)
+                    ? 'Awaiting Your Confirmation'
+                    : (currentReq.status_label || currentReq.status || 'Under Review')}
                 </span>
               </div>
 
@@ -184,8 +276,10 @@ export function BeneficiaryMobileDashboard({
                 <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500">
                   <span className="font-mono">{currentReq.request_code}</span>
                   <span className="text-[#006B56] font-bold">
-                    {currentReq.status === 'Fulfilled'
-                      ? '100% Completed'
+                    {currentReq.beneficiary_confirmed || currentReq.recipient_confirmed
+                      ? '100% Confirmed'
+                      : currentReq.status === 'Handed Over' || currentReq.distributed_at
+                      ? '90% Handed Over'
                       : currentReq.status === 'Approved'
                       ? '75% Approved'
                       : '35% Under Assessment'}
@@ -195,11 +289,34 @@ export function BeneficiaryMobileDashboard({
                   <div
                     className="h-full bg-[#006B56] rounded-full transition-all duration-300"
                     style={{
-                      width: currentReq.status === 'Fulfilled' ? '100%' : currentReq.status === 'Approved' ? '75%' : '35%'
+                      width: currentReq.beneficiary_confirmed || currentReq.recipient_confirmed 
+                        ? '100%' 
+                        : currentReq.status === 'Handed Over' || currentReq.distributed_at
+                        ? '90%'
+                        : currentReq.status === 'Approved' 
+                        ? '75%' 
+                        : '35%'
                     }}
                   />
                 </div>
               </div>
+
+              {/* Quick Confirm Button if awaiting confirmation */}
+              {(currentReq.status === 'Handed Over' || (currentReq.distributed_at && !currentReq.beneficiary_confirmed)) && (
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onConfirmReceipt) onConfirmReceipt(currentReq);
+                    }}
+                    className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-98 shadow-xs cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Confirm You Received This Aid</span>
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-center text-xs text-slate-500">

@@ -43,6 +43,7 @@ import { BeneficiaryProfileView } from './components/BeneficiaryProfileView';
 import { HelpSupportContactView } from './components/HelpSupportContactView';
 import { SecuritySettingsView } from './components/SecuritySettingsView';
 import { AboutUsView } from './components/AboutUsView';
+import { BeneficiaryReceiptConfirmModal } from './components/BeneficiaryReceiptConfirmModal';
 import { AdraLogo } from '../../components/common/AdraLogo';
 import { NotificationBellButton } from '../../components/common/NotificationBellButton';
 
@@ -61,7 +62,9 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [requestStatusFilter, setRequestStatusFilter] = useState('ALL');
-  const [isRequestsMenuOpen, setIsRequestsMenuOpen] = useState(true);
+  const [isRequestsMenuOpen, setIsRequestsMenuOpen] = useState(false);
+  const [selectedRequestForConfirm, setSelectedRequestForConfirm] = useState(null);
+  const [showReceiptConfirmModal, setShowReceiptConfirmModal] = useState(false);
 
   // Load beneficiary profile, requests, and schedules
   const loadData = async () => {
@@ -88,8 +91,12 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
         email: currentUser.email || '',
         phone_number: currentUser.phone_number || '',
         verification_status: currentUser.verification_status || 'Verified Active',
-        location: currentUser.location || 'South Sudan'
+        location: currentUser.location || (currentUser.department?.startsWith('Community (') ? currentUser.department.slice(11, -1) : '') || 'Juba Central, South Sudan'
       } : allBeneficiaries[0]);
+
+      if (found && !found.location && currentUser?.location) {
+        found.location = currentUser.location;
+      }
 
       setBeneficiary(found);
       setDistributions(allDistributions);
@@ -248,7 +255,6 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
 
   const handleNavClick = (tabId) => {
     if (tabId === 'my_requests') {
-      setIsRequestsMenuOpen(true);
       setRequestStatusFilter('ALL');
     }
     setCurrentView(tabId);
@@ -600,6 +606,10 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
                 unreadCount={unreadCount}
                 onRequestAssistance={() => setCurrentView('request_wizard')}
                 onNavigateTab={(tab) => setCurrentView(tab)}
+                onConfirmReceipt={(req) => {
+                  setSelectedRequestForConfirm(req);
+                  setShowReceiptConfirmModal(true);
+                }}
               />
             )}
 
@@ -610,6 +620,10 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
                 statusFilter={requestStatusFilter}
                 onStatusFilterChange={setRequestStatusFilter}
                 onRequestNew={() => setCurrentView('request_wizard')}
+                onOpenReceiptConfirm={(req) => {
+                  setSelectedRequestForConfirm(req);
+                  setShowReceiptConfirmModal(true);
+                }}
               />
             )}
 
@@ -678,6 +692,23 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
             )}
           </div>
         </main>
+
+        {/* BENEFICIARY RECEIPT CONFIRMATION MODAL */}
+        {showReceiptConfirmModal && (
+          <BeneficiaryReceiptConfirmModal
+            isOpen={showReceiptConfirmModal}
+            onClose={() => {
+              setShowReceiptConfirmModal(false);
+              setSelectedRequestForConfirm(null);
+            }}
+            request={selectedRequestForConfirm}
+            onConfirmed={() => {
+              loadData();
+              setShowReceiptConfirmModal(false);
+              setSelectedRequestForConfirm(null);
+            }}
+          />
+        )}
       </div>
     </div>
   );

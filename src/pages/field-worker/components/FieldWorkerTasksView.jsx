@@ -21,7 +21,8 @@ import {
   Truck,
   PackageCheck,
   QrCode,
-  Package
+  Package,
+  UserCheck
 } from 'lucide-react';
 
 export function FieldWorkerTasksView({
@@ -33,7 +34,8 @@ export function FieldWorkerTasksView({
   onCollectGoods,
   onDistribute,
   onOpenScanner,
-  onRequestFacilitation
+  onRequestFacilitation,
+  onBeneficiaryConfirm
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [internalStatusFilter, setInternalStatusFilter] = useState('all'); // 'all' | 'pending' | 'hub_ready' | 'submitted' | 'rejected' | 'completed'
@@ -51,18 +53,19 @@ export function FieldWorkerTasksView({
                             t.status === 'Correction Required' || 
                             Boolean(t.returned_to_worker);
 
-  const isDeliveredHelper = (t) => !isRejHelper(t) && (
-    t.status === 'Distributed' || 
-    t.status === 'Completed' ||
-    t.dispatch_status === 'Distributed' ||
-    t.dispatch_status === 'Delivered' ||
-    Boolean(t.distributed_at) ||
-    Boolean(t.distribution_date) ||
-    Boolean(t.distribution_confirmed) ||
-    Boolean(t.recipient_confirmed)
+  const isAwaitingBeneficiaryConfirm = (t) => !isRejHelper(t) && (
+    t.status === 'Handed Over' ||
+    t.status === 'Awaiting Beneficiary Confirmation' ||
+    t.status_label === 'Awaiting Beneficiary Confirmation' ||
+    (Boolean(t.distributed_at || t.handed_over_at) && !t.beneficiary_confirmed)
   );
 
-  const isCustodyHelper = (t) => !isRejHelper(t) && !isDeliveredHelper(t) && (
+  const isDeliveredHelper = (t) => !isRejHelper(t) && !isAwaitingBeneficiaryConfirm(t) && (
+    (t.status === 'Distributed' || t.status === 'Completed' || t.dispatch_status === 'Distributed') &&
+    (Boolean(t.beneficiary_confirmed) || Boolean(t.recipient_confirmed))
+  );
+
+  const isCustodyHelper = (t) => !isRejHelper(t) && !isDeliveredHelper(t) && !isAwaitingBeneficiaryConfirm(t) && (
     t.status === 'goods_collected_by_field_worker' || 
     t.dispatch_status === 'Collected by Field Worker' ||
     t.status === 'Collected' ||
@@ -71,7 +74,7 @@ export function FieldWorkerTasksView({
     t.dispatch_status?.toLowerCase().includes('collected')
   );
 
-  const isHubHelper = (t) => !isRejHelper(t) && !isDeliveredHelper(t) && !isCustodyHelper(t) && (
+  const isHubHelper = (t) => !isRejHelper(t) && !isDeliveredHelper(t) && !isCustodyHelper(t) && !isAwaitingBeneficiaryConfirm(t) && (
     t.status === 'goods_arrived_at_hub' || 
     t.status === 'warehouse_dispatched' || 
     t.status === 'Arrived' ||
@@ -194,8 +197,9 @@ export function FieldWorkerTasksView({
             const isRejected = isRejHelper(task);
             const isCollected = isCustodyHelper(task);
             const isArrivedAtHub = isHubHelper(task);
-            const isDispatched = !isRejected && !isCollected && !isArrivedAtHub && (task.status === 'warehouse_dispatched' || task.dispatch_status === 'In Transit' || task.status === 'In Transit');
-            const isPending = !isRejected && !isDispatched && !isArrivedAtHub && !isCollected && (task.status === 'Assigned to Field Worker' || task.status === 'Submitted' || task.status === 'Assessment In Progress');
+            const isAwaitingConfirm = isAwaitingBeneficiaryConfirm(task);
+            const isDispatched = !isRejected && !isCollected && !isArrivedAtHub && !isAwaitingConfirm && (task.status === 'warehouse_dispatched' || task.dispatch_status === 'In Transit' || task.status === 'In Transit');
+            const isPending = !isRejected && !isDispatched && !isArrivedAtHub && !isCollected && !isAwaitingConfirm && (task.status === 'Assigned to Field Worker' || task.status === 'Submitted' || task.status === 'Assessment In Progress');
             const isSubmitted = !isRejected && (task.status === 'Assessment Submitted' || task.status === 'Awaiting Program Manager Decision');
             const isCompleted = isDeliveredHelper(task);
             const isExpanded = expandedTaskId === taskId;
@@ -206,6 +210,7 @@ export function FieldWorkerTasksView({
                 className={`bg-white rounded-2xl border shadow-2xs overflow-hidden transition ${
                   isRejected ? 'border-rose-300 ring-1 ring-rose-200' : 
                   isCollected ? 'border-blue-300 ring-1 ring-blue-200' :
+                  isAwaitingConfirm ? 'border-amber-300 ring-1 ring-amber-200' :
                   isArrivedAtHub ? 'border-emerald-300 ring-1 ring-emerald-200' :
                   isDispatched ? 'border-amber-300' :
                   'border-slate-200'
@@ -217,6 +222,7 @@ export function FieldWorkerTasksView({
                   className={`p-3.5 space-y-2 cursor-pointer transition ${
                     isRejected ? 'bg-rose-50/40 hover:bg-rose-50/70' : 
                     isCollected ? 'bg-blue-50/40 hover:bg-blue-50/70' :
+                    isAwaitingConfirm ? 'bg-amber-50/40 hover:bg-amber-50/70' :
                     isArrivedAtHub ? 'bg-emerald-50/40 hover:bg-emerald-50/70' :
                     'hover:bg-slate-50/70'
                   }`}
@@ -243,11 +249,12 @@ export function FieldWorkerTasksView({
                       </p>
                     </div>
 
-                    {/* Status Badge & Chevron */}
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Status Badge */}
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                         isRejected ? 'bg-rose-100 text-rose-800 border-rose-300' :
                         isCollected ? 'bg-blue-100 text-blue-900 border-blue-300' :
+                        isAwaitingConfirm ? 'bg-amber-100 text-amber-900 border-amber-300' :
                         isArrivedAtHub ? 'bg-emerald-100 text-[#006B56] border-emerald-300' :
                         isDispatched ? 'bg-amber-100 text-amber-900 border-amber-300' :
                         isCompleted ? 'bg-emerald-100 text-[#006B56] border-emerald-200' :
@@ -255,9 +262,11 @@ export function FieldWorkerTasksView({
                         'bg-amber-100 text-amber-900 border-amber-200'
                       }`}>
                         {isRejected ? (task.status === 'Rejected by Supervisor' || task.status_label === 'Rejected by Supervisor' || task.review_notes?.includes('Supervisor') ? 'Rejected by Supervisor' : 'Rejected by PM') : 
-                         isCollected ? '✓ Collected (Ready to Distribute)' :
+                         isCollected ? '✓ In Custody' :
+                         isAwaitingConfirm ? '⏳ Awaiting Beneficiary Confirmation' :
                          isArrivedAtHub ? '📦 Arrived at Hub' :
                          isDispatched ? '🚚 In Transit' : 
+                         isCompleted ? '✓ Delivered & Confirmed' :
                          task.status}
                       </span>
                       <div className="text-slate-400 p-0.5">
@@ -333,6 +342,25 @@ export function FieldWorkerTasksView({
                       </div>
                     )}
 
+                    {/* Collected by Field Worker & Ready for Handover */}
+                    {isCollected && (
+                      <div className="p-2.5 bg-blue-50/80 border border-blue-200 rounded-xl flex items-center gap-2.5 text-xs">
+                        <PackageCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                        <p className="text-[11px] text-blue-900 leading-snug">
+                          Relief supplies received from Supervisor <strong>{task.goods_handed_over_by || task.assigned_supervisor_name || 'Supervisor'}</strong>{task.goods_collected_at ? ` on ${new Date(task.goods_collected_at).toLocaleDateString('en-GB')}` : ''}. Ready to hand over directly to <strong>{task.beneficiary_name}</strong>.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Awaiting Beneficiary Confirmation Notice */}
+                    {isAwaitingConfirm && (
+                      <div className="p-2.5 bg-amber-50/90 border border-amber-200 rounded-xl flex items-center gap-2.5 text-xs">
+                        <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                        <p className="text-[11px] text-amber-900 leading-snug">
+                          Relief package handed over to <strong>{task.beneficiary_name}</strong> by {task.distributed_by || 'you'}. Awaiting beneficiary physical receipt confirmation.
+                        </p>
+                      </div>
+                    )}
 
                     {/* Assistance Request Category & Notes */}
                     <div className="bg-white rounded-xl p-2.5 border border-slate-200 text-xs space-y-1">
@@ -373,7 +401,6 @@ export function FieldWorkerTasksView({
                           </button>
                         )}
 
-
                         {isPending && (
                           <button
                             type="button"
@@ -402,6 +429,35 @@ export function FieldWorkerTasksView({
                           </button>
                         )}
 
+                        {isCollected && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onDistribute) onDistribute(task);
+                              else if (onOpenScanner) onOpenScanner(task);
+                            }}
+                            className="px-3.5 py-1.5 bg-[#006B56] hover:bg-[#005544] text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                          >
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>Handover to Beneficiary</span>
+                          </button>
+                        )}
+
+                        {isAwaitingConfirm && onBeneficiaryConfirm && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onBeneficiaryConfirm(task);
+                            }}
+                            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Confirm as Beneficiary</span>
+                          </button>
+                        )}
+
                         {isCompleted && (
                           <span
                             className="px-3 py-1.5 bg-emerald-50 text-[#006B56] border border-emerald-300 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1.5"
@@ -409,6 +465,20 @@ export function FieldWorkerTasksView({
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                             <span>✓ Delivered & Confirmed</span>
                           </span>
+                        )}
+
+                        {onRequestFacilitation && (isPending || isRejected) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRequestFacilitation(task);
+                            }}
+                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1 transition active:scale-95 cursor-pointer"
+                          >
+                            <DollarSign className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Request Facilitation</span>
+                          </button>
                         )}
 
                         <button

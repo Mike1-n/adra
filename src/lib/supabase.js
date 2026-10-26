@@ -557,6 +557,7 @@ export const db = {
       last_name: createdBen.last_name,
       id_number: createdBen.id_number,
       national_id: createdBen.national_id,
+      location: createdBen.location,
       role: 'Beneficiary',
       department: `Community (${createdBen.location})`,
       password: createdBen.password,
@@ -1343,6 +1344,46 @@ export const db = {
       details: `Assistance request submitted by ${newReq.beneficiary_name}: ${newReq.category} (${newReq.urgency})`
     });
     return newReq;
+  },
+
+  async updateAssistanceRequest(id, updates = {}) {
+    const all = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, mock.initialAssistanceRequests);
+    const target = all.find(r => 
+      r.id === id || 
+      r.request_code === id ||
+      String(r.id) === String(id) ||
+      String(r.request_code) === String(id) ||
+      (r.request_code && String(id).includes(r.request_code)) ||
+      (r.id && String(id).includes(String(r.id)))
+    );
+    const now = new Date().toISOString();
+    const updated = all.map(r => {
+      if (r.id === id || r.request_code === id || (target && r.id === target.id)) {
+        return {
+          ...r,
+          ...updates,
+          updated_at: now
+        };
+      }
+      return r;
+    });
+    saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updated);
+    const finalTarget = updated.find(r => r.id === id || r.request_code === id || (target && r.id === target.id));
+
+    if (isSupabaseConfigured && finalTarget) {
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        if (isUUID(finalTarget.id)) {
+          await supabase.from('assistance_requests').update(updates).eq('id', finalTarget.id);
+        } else if (finalTarget.request_code) {
+          await supabase.from('assistance_requests').update(updates).eq('request_code', finalTarget.request_code);
+        }
+      } catch (err) {
+        console.warn('Supabase assistance request update error:', err?.message);
+      }
+    }
+
+    return finalTarget;
   },
 
   async updateAssistanceRequestStatus(id, status, reviewNotes = '') {
@@ -3197,24 +3238,26 @@ export const db = {
       (requestCode && d.request_code === requestCode)
     );
 
-    // Prevent duplicate distribution if already distributed
-    const isTargetAlreadyDistributed = (target && (
-      target.status === 'Distributed' || 
-      target.status === 'Completed' || 
-      target.dispatch_status === 'Distributed' || 
-      Boolean(target.distributed_at) ||
-      Boolean(target.distribution_confirmed)
+    // Prevent duplicate distribution if already completed or already handed over
+    const isTargetAlreadyCompleted = (target && (
+      (target.status === 'Distributed' || target.status === 'Completed') && Boolean(target.beneficiary_confirmed)
     )) || (targetDispatch && (
-      targetDispatch.status === 'Delivered' || 
-      targetDispatch.status === 'Distributed' ||
-      targetDispatch.dispatch_status === 'Distributed' ||
-      Boolean(targetDispatch.distributed_at)
+      (targetDispatch.status === 'Delivered' || targetDispatch.status === 'Distributed') && Boolean(targetDispatch.beneficiary_confirmed)
     ));
 
-    if (isTargetAlreadyDistributed) {
-      const distDate = target?.distributed_at || targetDispatch?.distributed_at || now;
+    if (isTargetAlreadyCompleted) {
+      const distDate = target?.beneficiary_confirmed_at || target?.distributed_at || now;
       const formattedDate = new Date(distDate).toLocaleDateString('en-GB');
-      throw new Error(`This relief package was already distributed and confirmed received by ${target?.beneficiary_name || targetDispatch?.beneficiary_name || 'the beneficiary'} on ${formattedDate}. Duplicate distribution is not permitted.`);
+      throw new Error(`This relief package was already distributed and confirmed received by ${target?.beneficiary_name || 'the beneficiary'} on ${formattedDate}.`);
+    }
+
+    const isTargetAlreadyHandedOver = (target && (
+      target.status === 'Handed Over' || 
+      (Boolean(target.distributed_at || target.handover_completed_at) && !target.beneficiary_confirmed)
+    ));
+
+    if (isTargetAlreadyHandedOver) {
+      throw new Error(`This relief package has already been handed over to ${target.beneficiary_name}. Awaiting beneficiary receipt confirmation.`);
     }
 
     if (!target && !targetDispatch) {
@@ -3225,30 +3268,33 @@ export const db = {
     const effectiveBeneficiaryCode = target?.beneficiary_code || targetDispatch?.beneficiary_code || `BEN-${Date.now().toString().slice(-4)}`;
     const effectiveCategory = target?.category || targetDispatch?.items?.[0]?.item_name || itemsDistributed || 'Relief Package';
 
-    // If target request exists, update it
+    // If target request exists, update it to Handed Over (Awaiting Beneficiary Confirmation)
     if (target) {
       const updatedRequests = allRequests.map(r => (r.id === target.id || r.request_code === target.request_code || (r.waybill_number && r.waybill_number === target.waybill_number)) ? {
         ...r,
-        status: 'Distributed',
-        dispatch_status: 'Distributed',
-        status_label: 'Delivered & Confirmed',
-        status_stage: 7,
+        status: 'Handed Over',
+        dispatch_status: 'Handed Over',
+        status_label: 'Awaiting Beneficiary Confirmation',
+        status_stage: 6,
+        handed_over_at: now,
         distributed_at: now,
         distribution_date: now.split('T')[0],
         distributed_by: workerName,
         distribution_confirmed: true,
-        recipient_confirmed: true,
+        beneficiary_confirmed: false,
+        recipient_confirmed: false,
         recipient_name: effectiveBeneficiaryName,
         recipient_phone: recipientPhone || target.phone || target.beneficiary_phone || '',
         recipient_relationship: recipientRelationship,
         recipient_signature: recipientSignature,
-        distribution_notes: notes || `Aid package physically disbursed and confirmed received by ${effectiveBeneficiaryName}.`,
-        review_notes: `Aid successfully received and confirmed by beneficiary ${effectiveBeneficiaryName} on ${new Date().toLocaleDateString('en-GB')}.`,
+        distribution_notes: notes || `Aid package physically handed over to ${effectiveBeneficiaryName} by ${workerName}. Pending beneficiary receipt confirmation.`,
+        review_notes: `Relief supplies handed over by Field Officer ${workerName} on ${new Date().toLocaleDateString('en-GB')}. Pending beneficiary physical receipt confirmation.`,
         updated_at: now
       } : r);
       saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedRequests);
+      target = updatedRequests.find(r => r.id === target.id || r.request_code === target.request_code);
     } else if (targetDispatch) {
-      // Create completed request entry
+      // Create request entry in Handed Over status
       const newReq = {
         id: `req-${targetDispatch.id || Date.now()}`,
         request_code: targetDispatch.request_code || `REQ-${targetDispatch.waybill_number?.replace('WAYBILL-SS-', '').replace('WAYBILL-', '') || Date.now()}`,
@@ -3266,21 +3312,23 @@ export const db = {
         location: targetDispatch.destination || 'Juba Central Hub',
         assigned_field_worker_name: workerName,
         assigned_field_worker_id: workerId,
-        status: 'Distributed',
-        dispatch_status: 'Distributed',
-        status_label: 'Delivered & Confirmed',
-        status_stage: 7,
+        status: 'Handed Over',
+        dispatch_status: 'Handed Over',
+        status_label: 'Awaiting Beneficiary Confirmation',
+        status_stage: 6,
+        handed_over_at: now,
         distributed_at: now,
         distribution_date: now.split('T')[0],
         distributed_by: workerName,
         distribution_confirmed: true,
-        recipient_confirmed: true,
+        beneficiary_confirmed: false,
+        recipient_confirmed: false,
         recipient_name: effectiveBeneficiaryName,
         recipient_phone: recipientPhone || '',
         recipient_relationship: recipientRelationship,
         recipient_signature: recipientSignature,
-        distribution_notes: notes || `Aid package physically disbursed and confirmed received by ${effectiveBeneficiaryName}.`,
-        review_notes: `Aid successfully received and confirmed by beneficiary ${effectiveBeneficiaryName} on ${new Date().toLocaleDateString('en-GB')}.`,
+        distribution_notes: notes || `Aid package physically handed over to ${effectiveBeneficiaryName} by ${workerName}. Pending beneficiary receipt confirmation.`,
+        review_notes: `Relief supplies handed over by Field Officer ${workerName} on ${new Date().toLocaleDateString('en-GB')}. Pending beneficiary receipt confirmation.`,
         created_at: targetDispatch.created_at || now,
         updated_at: now
       };
@@ -3296,12 +3344,13 @@ export const db = {
           return {
             ...d,
             status: 'Delivered',
-            dispatch_status: 'Distributed',
+            dispatch_status: 'Handed Over',
             distributed_at: now,
             distributed_by: workerName,
-            recipient_confirmed: true,
+            recipient_confirmed: false,
+            beneficiary_confirmed: false,
             recipient_name: effectiveBeneficiaryName,
-            notes: `${d.notes ? d.notes + ' | ' : ''}Confirmed received by beneficiary ${effectiveBeneficiaryName} on ${new Date().toLocaleDateString('en-GB')}`
+            notes: `${d.notes ? d.notes + ' | ' : ''}Handed over to ${effectiveBeneficiaryName} by ${workerName}. Awaiting beneficiary confirmation.`
           };
         }
         return d;
@@ -3312,8 +3361,96 @@ export const db = {
         try {
           await supabase.from('dispatches').update({
             status: 'Delivered',
-            notes: `Confirmed received by beneficiary ${effectiveBeneficiaryName}`
+            notes: `Handed over to ${effectiveBeneficiaryName}. Awaiting beneficiary confirmation.`
           }).or(`waybill_number.eq.${matchWaybill}`);
+        } catch (e) {}
+      }
+    }
+
+    // Create field activity log
+    await this.createFieldWorkerActivity({
+      worker_id: workerId,
+      worker_name: workerName,
+      activity_type: 'Aid Distribution',
+      title: `Handover Completed: ${effectiveBeneficiaryName}`,
+      details: `Handed over relief commodities (${effectiveCategory}) to ${effectiveBeneficiaryName}. Awaiting beneficiary receipt confirmation.`
+    });
+
+    await this.logAudit({
+      action: 'AID_HANDOVER_COMPLETED',
+      module: 'Field Distribution',
+      record_id: target?.request_code || target?.waybill_number,
+      details: `Field Worker ${workerName} completed on-site aid handover to ${effectiveBeneficiaryName} (${target?.request_code || target?.waybill_number}). Awaiting beneficiary confirmation.`
+    });
+
+    return { success: true, request: target };
+  },
+
+  async confirmBeneficiaryReceipt({
+    requestId,
+    requestCode,
+    feedback = 'Relief commodities received in full and verified.',
+    rating = 5,
+    condition = 'Complete & Undamaged',
+    confirmedBy = ''
+  }) {
+    const allRequests = await this.getAssistanceRequests();
+    const allDispatches = await this.getDispatches();
+    const now = new Date().toISOString();
+
+    let target = allRequests.find(r => 
+      (requestId && (r.id === requestId || String(r.id) === String(requestId))) || 
+      (requestCode && r.request_code === requestCode)
+    );
+
+    if (!target) {
+      throw new Error('Assistance request not found.');
+    }
+
+    const effectiveName = confirmedBy || target.beneficiary_name || 'Beneficiary';
+
+    const updatedRequests = allRequests.map(r => (r.id === target.id || r.request_code === target.request_code) ? {
+      ...r,
+      status: 'Distributed',
+      dispatch_status: 'Distributed',
+      status_label: 'Delivered & Confirmed',
+      status_stage: 7,
+      beneficiary_confirmed: true,
+      recipient_confirmed: true,
+      beneficiary_confirmed_at: now,
+      beneficiary_rating: rating,
+      beneficiary_feedback: feedback,
+      beneficiary_condition: condition,
+      distribution_confirmed: true,
+      review_notes: `Relief package confirmed received in full by beneficiary ${effectiveName} on ${new Date().toLocaleDateString('en-GB')}. Condition: ${condition}.`,
+      updated_at: now
+    } : r);
+
+    saveLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, updatedRequests);
+    target = updatedRequests.find(r => r.id === target.id || r.request_code === target.request_code);
+
+    if (target.waybill_number) {
+      const updatedDispatches = allDispatches.map(d => {
+        if (d.waybill_number === target.waybill_number || d.id === target.id) {
+          return {
+            ...d,
+            status: 'Delivered',
+            dispatch_status: 'Distributed',
+            recipient_confirmed: true,
+            beneficiary_confirmed: true,
+            notes: `${d.notes ? d.notes + ' | ' : ''}Confirmed received by beneficiary on ${new Date().toLocaleDateString('en-GB')}`
+          };
+        }
+        return d;
+      });
+      saveLocalData(STORAGE_KEYS.DISPATCHES, updatedDispatches);
+
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from('dispatches').update({
+            status: 'Delivered',
+            notes: `Confirmed received by beneficiary ${target.beneficiary_name}`
+          }).eq('waybill_number', target.waybill_number);
         } catch (e) {}
       }
     }
@@ -3325,37 +3462,47 @@ export const db = {
       intervention_code: `INT-SS-${Date.now().toString().slice(-4)}`,
       project_id: target?.program_id || 'prg1',
       project_name: target?.program_name || target?.programme_name || 'Emergency Food Security & Livelihoods Resilience',
-      beneficiary_id: target?.beneficiary_id || effectiveBeneficiaryCode,
-      beneficiary_name: effectiveBeneficiaryName,
-      beneficiary_code: effectiveBeneficiaryCode,
-      intervention_type: effectiveCategory,
+      beneficiary_id: target?.beneficiary_id || target?.beneficiary_code || `BEN-${Date.now().toString().slice(-4)}`,
+      beneficiary_name: effectiveName,
+      beneficiary_code: target?.beneficiary_code || 'ADRA-SS-BEN',
+      intervention_type: target?.category || 'Humanitarian Relief',
       date: now.split('T')[0],
       quantity: 1,
       unit: 'Package',
       status: 'Delivered',
       location: target?.location || `${target?.state || 'Central Equatoria'}, ${target?.county || 'Juba'}`,
-      disbursed_by: workerName,
-      recipient_name: effectiveBeneficiaryName,
+      disbursed_by: target?.distributed_by || 'Field Worker',
+      recipient_name: effectiveName,
       recipient_confirmed: true,
-      recipient_relationship: recipientRelationship,
-      details: notes || `Delivered ${itemsDistributed} to ${effectiveBeneficiaryName} (${effectiveBeneficiaryCode}) — Confirmed Received`
+      beneficiary_confirmed: true,
+      rating: rating,
+      condition: condition,
+      details: feedback || `Delivered and confirmed received by ${effectiveName}`
     };
     saveLocalData(STORAGE_KEYS.INTERVENTIONS, [newIntervention, ...allInterventions]);
 
-    // Create field activity log
-    await this.createFieldWorkerActivity({
-      worker_id: workerId,
-      worker_name: workerName,
-      activity_type: 'Aid Distribution',
-      title: `Disbursement Confirmed: ${effectiveBeneficiaryName}`,
-      details: `Physically disbursed aid (${effectiveCategory}) to ${effectiveBeneficiaryName} (${effectiveBeneficiaryCode}) — Received & Confirmed.`
-    });
+    if (isSupabaseConfigured) {
+      try {
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        const updates = {
+          status: 'Distributed',
+          status_label: 'Delivered & Confirmed',
+          recipient_confirmed: true,
+          updated_at: now
+        };
+        if (isUUID(target.id)) {
+          await supabase.from('assistance_requests').update(updates).eq('id', target.id);
+        } else if (target.request_code) {
+          await supabase.from('assistance_requests').update(updates).eq('request_code', target.request_code);
+        }
+      } catch (e) {}
+    }
 
-    await this.logAudit({
-      action: 'DISBURSE_AID_CONFIRMED',
-      module: 'Field Distribution',
-      record_id: target?.request_code || target?.waybill_number,
-      details: `Field Worker ${workerName} completed on-site aid distribution. Confirmed received by ${effectiveBeneficiaryName} (${target?.request_code || target?.waybill_number})`
+    db.logAudit({
+      action: 'BENEFICIARY_CONFIRMED_RECEIPT',
+      module: 'Beneficiary Distribution',
+      record_id: target.request_code,
+      details: `Beneficiary ${effectiveName} confirmed receipt of aid (${target.category}). Condition: ${condition}, Rating: ${rating}/5.`
     });
 
     return { success: true, request: target, intervention: newIntervention };
@@ -4212,18 +4359,25 @@ export const db = {
     });
     return updated.find(c => c.id === id);
   },
+  _hasComplaintsTable: true,
 
   async getComplaints(queryId = null, role = null) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && this._hasComplaintsTable) {
       try {
         let query = supabase.from('beneficiary_complaints').select('*').order('created_at', { ascending: false });
         if (queryId && queryId !== 'all') {
           query = query.or(`beneficiary_id.eq.${queryId},recipient_id.eq.${queryId},recipient_name.ilike.%${queryId}%,recipient_role.ilike.%${queryId}%`);
         }
         const { data, error } = await query;
-        if (!error && data) return data;
+        if (error) {
+          if (error.code === 'PGRST204' || error.code === '42P01' || error.status === 404 || error.message?.includes('not found')) {
+            this._hasComplaintsTable = false;
+          }
+        } else if (data) {
+          return data;
+        }
       } catch (e) {
-        // Fallback to local storage
+        this._hasComplaintsTable = false;
       }
     }
     const rawAll = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
@@ -4260,12 +4414,18 @@ export const db = {
   },
 
   async updateComplaint(id, updates) {
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && this._hasComplaintsTable) {
       try {
         const { data, error } = await supabase.from('beneficiary_complaints').update(updates).eq('id', id).select().single();
-        if (!error && data) return data;
+        if (error) {
+          if (error.code === 'PGRST204' || error.code === '42P01' || error.status === 404) {
+            this._hasComplaintsTable = false;
+          }
+        } else if (data) {
+          return data;
+        }
       } catch (err) {
-        // Fallback to local storage
+        this._hasComplaintsTable = false;
       }
     }
     const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
@@ -4287,12 +4447,18 @@ export const db = {
       resolved_at: complaintData.resolved_at || null,
       ...complaintData
     };
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && this._hasComplaintsTable) {
       try {
         const { data, error } = await supabase.from('beneficiary_complaints').insert([newComplaint]).select().single();
-        if (!error && data) return data;
+        if (error) {
+          if (error.code === 'PGRST204' || error.code === '42P01' || error.status === 404) {
+            this._hasComplaintsTable = false;
+          }
+        } else if (data) {
+          return data;
+        }
       } catch (err) {
-        // Fallback to local storage
+        this._hasComplaintsTable = false;
       }
     }
     const updated = [newComplaint, ...all];
@@ -5060,13 +5226,25 @@ export const db = {
       throw new Error('Invalid password. Please check your credentials.');
     }
 
-    // Verify account active / approval status (Administrator bypasses verification)
-    if (matchedUser.role !== 'Administrator') {
+    // Verify account active / approval status (Administrator bypasses verification, demo accounts remain active for presentation)
+    const isDemoAccount = (mock.demoAccounts && mock.demoAccounts.some(d => d.email?.toLowerCase() === matchedUser.email?.toLowerCase())) ||
+      matchedUser.email?.toLowerCase() === 'admin@adra.org' ||
+      matchedUser.email?.toLowerCase() === 'program.manager@adra.org' ||
+      matchedUser.email?.toLowerCase() === 'supervisor@adra.org' ||
+      matchedUser.email?.toLowerCase() === 'project.officer@adra.org' ||
+      matchedUser.email?.toLowerCase() === 'finance.officer@adra.org' ||
+      matchedUser.email?.toLowerCase() === 'field.worker@adra.org' ||
+      matchedUser.email?.toLowerCase() === 'inventory.manager@adra.org' ||
+      matchedUser.email?.toLowerCase() === 'mary.nyambura@adra.community' ||
+      matchedUser.id === 'user-ben' ||
+      matchedUser.beneficiary_code === 'ADRA-SS-000125';
+
+    if (matchedUser.role !== 'Administrator' && !isDemoAccount) {
       if (matchedUser.status === 'Deactivated' || matchedUser.status === 'Suspended') {
         throw new Error('This account has been deactivated. Please contact an ADRA Administrator.');
       }
 
-      // Beneficiary Verification Check: Must be verified by an administrator before login
+      // Beneficiary check: check if explicitly rejected by admin or pending admin approval
       if (matchedUser.role === 'Beneficiary' || matchedUser.beneficiary_id || matchedUser.beneficiary_code) {
         const benRecord = beneficiaries.find(b => 
           (matchedUser.beneficiary_id && (b.id === matchedUser.beneficiary_id || b.beneficiary_code === matchedUser.beneficiary_id)) ||
@@ -5075,6 +5253,13 @@ export const db = {
           (matchedUser.phone && b.phone_number && isPhoneMatch(b.phone_number))
         );
 
+        if (benRecord) {
+          matchedUser.location = benRecord.location || matchedUser.location;
+          matchedUser.beneficiary_id = benRecord.id || matchedUser.beneficiary_id;
+          matchedUser.beneficiary_code = benRecord.beneficiary_code || matchedUser.beneficiary_code;
+          matchedUser.household_size = benRecord.household_size || matchedUser.household_size;
+        }
+
         const benStatus = (benRecord?.verification_status || benRecord?.status || matchedUser.verification_status || matchedUser.status || '').toLowerCase();
         const userStatus = (matchedUser.status || '').toLowerCase();
 
@@ -5082,18 +5267,23 @@ export const db = {
           throw new Error('Your beneficiary registration was rejected by the administrator. Please contact your nearest ADRA field office.');
         }
 
-        const isVerified = (
+        const isApproved = (
           (benStatus.includes('verified') || benStatus === 'active') &&
-          (userStatus === 'active' || matchedUser.is_active === true)
+          (userStatus === 'active' || matchedUser.is_active === true) &&
+          !benStatus.includes('pending') &&
+          !userStatus.includes('pending')
         );
 
-        // Standard demo beneficiary Mary Nyambura is pre-verified for presentation
-        const isMaryDemo = matchedUser.email?.toLowerCase() === 'mary.nyambura@adra.community' || 
-                           matchedUser.beneficiary_code === 'ADRA-SS-000125' ||
-                           matchedUser.id === 'user-ben';
+        if (!isApproved) {
+          throw new Error('Your account is pending administrator approval. You will not have access until an administrator reviews and approves your account.');
+        }
+      } else {
+        // Staff and other roles
+        const userStatus = (matchedUser.status || '').toLowerCase();
+        const isApproved = (userStatus === 'active' || matchedUser.is_active === true) && !userStatus.includes('pending');
 
-        if (!isVerified && !isMaryDemo) {
-          throw new Error('Your beneficiary account is pending verification by the ADRA administrator. You cannot log in until an administrator verifies and approves your account.');
+        if (!isApproved) {
+          throw new Error('Your account is pending administrator approval. You will not have access until an administrator reviews and approves your account.');
         }
       }
     }
@@ -5128,6 +5318,9 @@ export const db = {
       last_name: userData.last_name || '',
       id_number: userData.id_number || userData.national_id || '',
       national_id: userData.id_number || userData.national_id || '',
+      location: userData.location || '',
+      beneficiary_id: userData.beneficiary_id || '',
+      beneficiary_code: userData.beneficiary_code || '',
       role: userData.role || 'Field Worker',
       phone: userData.phone || userData.phone_number || '+211-920-000000',
       department: userData.department || 'Field Operations',
@@ -5210,7 +5403,40 @@ export const db = {
   },
 
   async toggleUserStatus(id, newStatus) {
-    return this.updateUser(id, { status: newStatus });
+    if (newStatus === 'Active') {
+      return this.verifyUser(id);
+    }
+    const updated = await this.updateUser(id, { status: 'Deactivated', is_active: false });
+
+    // Synchronize linked beneficiary record if applicable
+    const users = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
+    const target = users.find(u => u.id === id);
+    if (target && (target.role === 'Beneficiary' || target.beneficiary_id || target.beneficiary_code)) {
+      const bens = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
+      const updatedBens = bens.map(b => {
+        const matches = (target.id && (b.id === target.id || b.beneficiary_code === target.id)) ||
+                        (target.beneficiary_id && (b.id === target.beneficiary_id || b.beneficiary_code === target.beneficiary_id)) ||
+                        (target.beneficiary_code && b.beneficiary_code === target.beneficiary_code) ||
+                        (target.email && b.email?.toLowerCase() === target.email.toLowerCase());
+        if (matches) {
+          return { ...b, status: 'Deactivated', verification_status: 'Deactivated', is_active: false };
+        }
+        return b;
+      });
+      saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBens);
+
+      if (isSupabaseConfigured) {
+        try {
+          if (target.beneficiary_id) {
+            await supabase.from('beneficiaries').update({ verification_status: 'Deactivated' }).eq('id', target.beneficiary_id);
+          } else if (target.email) {
+            await supabase.from('beneficiaries').update({ verification_status: 'Deactivated' }).eq('email', target.email);
+          }
+        } catch (e) {}
+      }
+    }
+
+    return updated;
   },
 
   async updateUserRole(id, role) {
@@ -5380,9 +5606,13 @@ export const db = {
       // Update users list in local storage
       const users = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
       const updatedUsers = users.map(u => {
-        if ((targetApp.user_id && u.id === targetApp.user_id) || 
+        const matches = (targetApp.user_id && u.id === targetApp.user_id) || 
             (targetApp.requester_email && u.email?.toLowerCase() === targetApp.requester_email.toLowerCase()) ||
-            (targetApp.beneficiary_id && (u.beneficiary_id === targetApp.beneficiary_id || u.beneficiary_code === targetApp.beneficiary_id))) {
+            (targetApp.requester_name && u.full_name?.toLowerCase() === targetApp.requester_name.toLowerCase()) ||
+            (targetApp.beneficiary_id && (u.beneficiary_id === targetApp.beneficiary_id || u.beneficiary_code === targetApp.beneficiary_id)) ||
+            (targetApp.details && u.beneficiary_code && targetApp.details.includes(u.beneficiary_code)) ||
+            (targetApp.details && u.email && targetApp.details.toLowerCase().includes(u.email.toLowerCase()));
+        if (matches) {
           return { ...u, status: userStatus, is_active: isApproved, verification_status: benStatus };
         }
         return u;
@@ -5392,10 +5622,12 @@ export const db = {
       // Update beneficiaries list in local storage
       const bens = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
       const updatedBens = bens.map(b => {
-        if ((targetApp.beneficiary_id && (b.id === targetApp.beneficiary_id || b.beneficiary_code === targetApp.beneficiary_id)) || 
+        const matches = (targetApp.beneficiary_id && (b.id === targetApp.beneficiary_id || b.beneficiary_code === targetApp.beneficiary_id)) || 
             (targetApp.requester_email && b.email?.toLowerCase() === targetApp.requester_email.toLowerCase()) ||
             (targetApp.requester_name && b.full_name?.toLowerCase() === targetApp.requester_name.toLowerCase()) ||
-            (targetApp.details && b.beneficiary_code && targetApp.details.includes(b.beneficiary_code))) {
+            (targetApp.details && b.beneficiary_code && targetApp.details.includes(b.beneficiary_code)) ||
+            (targetApp.details && b.email && targetApp.details.toLowerCase().includes(b.email.toLowerCase()));
+        if (matches) {
           return { ...b, verification_status: benStatus, status: benStatus };
         }
         return b;
@@ -7012,7 +7244,14 @@ export const db = {
     const now = new Date().toISOString();
     const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const supCleanName = supervisorName || 'Emmanuel Adeyemi (Supervisor)';
-    const workerCleanName = workerName || targetReq?.assigned_field_worker_name || targetDispatch?.assigned_field_worker_name || targetDispatch?.collected_by || 'Agnes Dawa';
+    const workerCleanName = workerName || targetReq?.assigned_field_worker_name || targetDispatch?.assigned_field_worker_name || targetDispatch?.collected_by || 'Field Worker';
+
+    const isBeneficiaryRecipient =
+      workerCleanName.toLowerCase().includes('beneficiary') ||
+      (targetReq?.beneficiary_name && workerCleanName.toLowerCase().includes(targetReq.beneficiary_name.toLowerCase().trim())) ||
+      (targetDispatch?.beneficiary_name && workerCleanName.toLowerCase().includes(targetDispatch.beneficiary_name.toLowerCase().trim()));
+
+    const statusTitle = isBeneficiaryRecipient ? 'Collected by Beneficiary' : 'Collected by Field Worker';
 
     // Update dispatch record
     if (targetDispatch) {
@@ -7020,11 +7259,13 @@ export const db = {
         if (d.id === targetDispatch.id || d.waybill_number === targetDispatch.waybill_number) {
           return {
             ...d,
-            status: 'Collected by Field Worker',
-            dispatch_status: 'Collected by Field Worker',
+            status: statusTitle,
+            dispatch_status: statusTitle,
             collected_by: workerCleanName,
             goods_collected_by: workerCleanName,
-            assigned_field_worker_name: workerCleanName,
+            assigned_field_worker_name: isBeneficiaryRecipient
+              ? (d.assigned_field_worker_name || targetReq?.assigned_field_worker_name || '')
+              : workerCleanName,
             collected_at: now,
             handed_over_by: supCleanName,
             goods_handed_over_by: supCleanName,
@@ -7038,7 +7279,7 @@ export const db = {
       if (isSupabaseConfigured) {
         try {
           await supabase.from('dispatches').update({
-            status: 'Collected by Field Worker',
+            status: statusTitle,
             notes: `Collected by ${workerCleanName}`
           }).or(`id.eq.${targetDispatch.id},waybill_number.eq.${targetDispatch.waybill_number}`);
         } catch (e) {
@@ -7049,11 +7290,13 @@ export const db = {
       // Dispatch was passed directly as object but not in initial memory
       const synthesizedDispatch = {
         ...requestIdOrWaybill,
-        status: 'Collected by Field Worker',
-        dispatch_status: 'Collected by Field Worker',
+        status: statusTitle,
+        dispatch_status: statusTitle,
         collected_by: workerCleanName,
         goods_collected_by: workerCleanName,
-        assigned_field_worker_name: workerCleanName,
+        assigned_field_worker_name: isBeneficiaryRecipient
+          ? (requestIdOrWaybill.assigned_field_worker_name || targetReq?.assigned_field_worker_name || '')
+          : workerCleanName,
         collected_at: now,
         handed_over_by: supCleanName,
         goods_handed_over_by: supCleanName,
@@ -7065,16 +7308,20 @@ export const db = {
     // Update assistance request
     if (targetReq) {
       const updatedReq = await this.updateAssistanceRequest(targetReq.id, {
-        status: 'goods_collected_by_field_worker',
-        dispatch_status: 'Collected by Field Worker',
-        status_label: 'Goods Collected - Out for Distribution',
+        status: isBeneficiaryRecipient ? 'goods_collected_by_beneficiary' : 'goods_collected_by_field_worker',
+        dispatch_status: statusTitle,
+        status_label: isBeneficiaryRecipient ? 'Goods Collected Directly by Beneficiary' : 'Goods Collected - Out for Distribution',
         goods_collected_at: now,
         goods_collected_by: workerCleanName,
         collected_by: workerCleanName,
-        assigned_field_worker_name: workerCleanName,
+        assigned_field_worker_name: isBeneficiaryRecipient
+          ? (targetReq.assigned_field_worker_name || '')
+          : workerCleanName,
         goods_handed_over_by: supCleanName,
         handed_over_by: supCleanName,
-        hub_collection_notes: collectionNotes || `Commodities issued and handed over to Field Worker ${workerCleanName} by ${supCleanName} at ${timeStr}.`
+        hub_collection_notes: collectionNotes || (isBeneficiaryRecipient
+          ? `Commodities collected directly by Beneficiary ${workerCleanName} at Hub store, verified by ${supCleanName} at ${timeStr}.`
+          : `Commodities issued and handed over to Field Worker ${workerCleanName} by ${supCleanName} at ${timeStr}.`)
       });
 
       // Send notification to field worker

@@ -35,12 +35,19 @@ export function SupervisorFacilitationsView({
     }
   }, [initialStatusTab]);
 
-  // Review action modal / state
-  const [reviewingReq, setReviewingReq] = useState(null);
-  const [reviewAction, setReviewAction] = useState(null); // 'approve' | 'reject'
-  const [reviewNotes, setReviewNotes] = useState('');
-  const [reviewError, setReviewError] = useState('');
+  // Single-card endorsement & rejection state
+  const [endorsementNotes, setEndorsementNotes] = useState('');
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  React.useEffect(() => {
+    if (selectedDetailReq) {
+      setEndorsementNotes(`Verified operational necessity for ${selectedDetailReq.linked_beneficiary_name || selectedDetailReq.field_worker_name || 'assessment route'}. Budget lines endorsed.`);
+      setShowRejectForm(false);
+      setRejectionReason('');
+    }
+  }, [selectedDetailReq]);
 
   // Filter requests
   const filteredRequests = useMemo(() => {
@@ -112,51 +119,49 @@ export function SupervisorFacilitationsView({
     };
   }, [requests]);
 
-  const handleOpenReview = (req, action) => {
-    setReviewingReq(req);
-    setReviewAction(action);
-    setReviewError('');
-    setReviewNotes(
-      action === 'approve'
-        ? `Verified in-field operational necessity for ${req.linked_beneficiary_name || req.field_worker_name} assessment route in ${req.payam || req.county || 'field'}. Budget lines endorsed.`
-        : ''
-    );
-  };
-
-  const handleExecuteReview = async () => {
-    if (!reviewingReq || !reviewAction) return;
-
-    if (reviewAction === 'reject') {
-      if (!reviewNotes.trim() || reviewNotes.trim().length < 5) {
-        setReviewError('Please write a specific reason explaining why this facilitation is being returned or rejected.');
-        toast.warning('Please write a reason for rejection before confirming.');
-        return;
-      }
-    }
-
+  const handleDirectEndorse = async () => {
+    if (!selectedDetailReq) return;
     try {
       setSubmitting(true);
-      setReviewError('');
-      if (reviewAction === 'approve') {
-        await db.approveFieldFundingBySupervisor(
-          reviewingReq.id,
-          supervisorName,
-          reviewNotes || 'Endorsed by Supervisor. Sent to Program Manager for authorization.'
-        );
-        toast.success(`Endorsed facilitation ${reviewingReq.request_code || reviewingReq.id}. Escalated to Program Manager for approval.`);
-      } else {
-        await db.rejectFieldFundingBySupervisor(reviewingReq.id, supervisorName, reviewNotes.trim());
-        toast.info(`Facilitation request ${reviewingReq.request_code || reviewingReq.id} has been returned/declined.`);
-      }
-
-      setReviewingReq(null);
-      setReviewAction(null);
-      setReviewNotes('');
-      setReviewError('');
+      const notes = endorsementNotes.trim() || `Verified in-field operational necessity for ${selectedDetailReq.linked_beneficiary_name || selectedDetailReq.field_worker_name || 'assessment route'}. Budget lines endorsed.`;
+      await db.approveFieldFundingBySupervisor(
+        selectedDetailReq.id,
+        supervisorName,
+        notes
+      );
+      toast.success(`Endorsed facilitation ${selectedDetailReq.request_code || selectedDetailReq.id}. Escalated to Program Manager for approval.`);
       setSelectedDetailReq(null);
+      setShowRejectForm(false);
+      setRejectionReason('');
       if (onRefresh) onRefresh();
     } catch (err) {
-      console.error('Supervisor facilitation review error:', err);
+      console.error('Supervisor facilitation endorsement error:', err);
+      toast.error('Action failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDirectReject = async () => {
+    if (!selectedDetailReq) return;
+    if (!rejectionReason.trim() || rejectionReason.trim().length < 5) {
+      toast.warning('Please write a reason explaining why this facilitation is being returned or rejected.');
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await db.rejectFieldFundingBySupervisor(
+        selectedDetailReq.id,
+        supervisorName,
+        rejectionReason.trim()
+      );
+      toast.info(`Facilitation request ${selectedDetailReq.request_code || selectedDetailReq.id} has been returned/declined.`);
+      setSelectedDetailReq(null);
+      setShowRejectForm(false);
+      setRejectionReason('');
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error('Supervisor facilitation rejection error:', err);
       toast.error('Action failed. Please try again.');
     } finally {
       setSubmitting(false);
@@ -276,38 +281,6 @@ export function SupervisorFacilitationsView({
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
-        {[
-          { id: 'pending', label: 'Pending Endorsement', count: counts.pending },
-          { id: 'in_progress', label: 'In Progress / PM', count: counts.in_progress },
-          { id: 'disbursed', label: 'Disbursed', count: counts.disbursed },
-          { id: 'rejected', label: 'Rejected', count: counts.rejected },
-          { id: 'all', label: 'All Facilitations', count: counts.all }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => {
-              setActiveTab(tab.id);
-              if (onStatusTabChange) onStatusTabChange(tab.id);
-            }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer flex items-center space-x-1.5 shrink-0 ${
-              activeTab === tab.id
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50'
-            }`}
-          >
-            <span>{tab.label}</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-              activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
-            }`}>
-              {tab.count}
-            </span>
-          </button>
-        ))}
-      </div>
-
       {/* 2. MINIMAL, SLIM 5-COLUMN TABLE */}
       {filteredRequests.length === 0 ? (
         <div className="bg-white rounded-2xl p-6 text-center border border-slate-200 space-y-1.5 shadow-2xs">
@@ -325,15 +298,16 @@ export function SupervisorFacilitationsView({
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* 1. DESKTOP MODE TABLE (sm and up) */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-2 px-3 w-36">Req Code</th>
-                  <th className="py-2 px-3">Field Worker</th>
-                  <th className="py-2 px-3">Amount</th>
-                  <th className="py-2 px-3 w-28">Status</th>
-                  <th className="py-2 px-3 w-20 text-right">Action</th>
+                  <th className="py-2.5 px-3 w-36">Req Code</th>
+                  <th className="py-2.5 px-3">Field Worker</th>
+                  <th className="py-2.5 px-3">Amount</th>
+                  <th className="py-2.5 px-3 w-28">Status</th>
+                  <th className="py-2.5 px-3 w-20 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -404,7 +378,7 @@ export function SupervisorFacilitationsView({
 
                       {/* 4. Status */}
                       <td className="py-2 px-3 whitespace-nowrap">
-                        <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border ${
+                        <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                           isRejected
                             ? 'bg-rose-50 text-rose-800 border-rose-200'
                             : isDisbursed
@@ -433,6 +407,93 @@ export function SupervisorFacilitationsView({
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* 2. PHONE MODE VIEW (< sm): Clean, single-row mobile cards where the View button fits 100% on screen */}
+          <div className="sm:hidden divide-y divide-slate-100">
+            {filteredRequests.map((req) => {
+              const isRejected = (
+                req.status?.includes('Rejected') ||
+                req.stage === -1 ||
+                req.returned_to_worker ||
+                req.supervisor_review?.status === 'Rejected'
+              );
+              const isDisbursed = !isRejected && (
+                req.status === 'Disbursed' ||
+                req.stage === 4 ||
+                req.status === 'Disbursed / Paid'
+              );
+              const isReadyFinance = !isRejected && (
+                req.status === 'Approved (Pending Finance Disbursement)' ||
+                req.stage === 3
+              );
+              const isEscalatedPM = !isRejected && (
+                req.status === 'Pending Program Manager Approval' ||
+                req.status === 'Endorsed by Supervisor' ||
+                req.stage === 2
+              );
+
+              const displayAmount = req.breakdown?.length > 0 
+                ? req.breakdown.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+                : Number(req.amount || 0);
+
+              const displayStatus = isRejected
+                ? 'Rejected'
+                : isDisbursed
+                ? 'Disbursed'
+                : isReadyFinance
+                ? 'Authorized'
+                : isEscalatedPM
+                ? 'Pending PM'
+                : 'Pending';
+
+              return (
+                <div
+                  key={req.id || req.request_code}
+                  onClick={() => setSelectedDetailReq(req)}
+                  className="p-3 flex items-center justify-between gap-2.5 hover:bg-slate-50 active:bg-slate-100/70 transition cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                      <span className="font-mono text-[11px] font-bold text-[#006B56]">
+                        {req.request_code || req.id}
+                      </span>
+                      <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border leading-tight ${
+                        isRejected
+                          ? 'bg-rose-50 text-rose-800 border-rose-200'
+                          : isDisbursed
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : isReadyFinance || isEscalatedPM
+                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}>
+                        {displayStatus}
+                      </span>
+                    </div>
+
+                    <p className="font-bold text-slate-900 text-xs truncate">
+                      {req.field_worker_name || 'Field Worker'}
+                    </p>
+
+                    <p className="text-[11px] font-bold text-[#006B56] mt-0.5">
+                      SSP {displayAmount.toLocaleString()}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedDetailReq(req);
+                    }}
+                    className="shrink-0 px-3 py-1.5 bg-[#006B56] hover:bg-[#005544] text-white text-xs font-bold rounded-xl transition active:scale-95 inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View</span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -523,136 +584,83 @@ export function SupervisorFacilitationsView({
               </div>
             )}
 
-            {/* Supervisor Endorsement / Rejection Action buttons (if Pending) */}
+            {/* Supervisor Direct Endorsement / Rejection Actions (Single Card) */}
             {(selectedDetailReq.status === 'Pending Supervisor Approval' || selectedDetailReq.stage === 1 || selectedDetailReq.status === 'Submitted' || selectedDetailReq.status === 'Pending') && (
-              <div className="pt-2 flex items-center gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => handleOpenReview(selectedDetailReq, 'reject')}
-                  className="flex-1 py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition active:scale-95 cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
-                >
-                  <XCircle className="w-3.5 h-3.5" />
-                  <span>Reject</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleOpenReview(selectedDetailReq, 'approve')}
-                  className="flex-2 py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black transition active:scale-95 cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Endorse Requisition</span>
-                </button>
+              <div className="pt-3 border-t border-slate-100 space-y-3">
+                {showRejectForm ? (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl space-y-2 animate-in fade-in">
+                    <label className="block text-[11px] font-black text-rose-800">
+                      Mandatory Rejection Reason *
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      placeholder="Explain clearly why this request cannot be endorsed..."
+                      className="w-full text-xs p-2.5 bg-white border border-rose-300 rounded-xl outline-none focus:ring-2 focus:ring-rose-400"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowRejectForm(false)}
+                        className="flex-1 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDirectReject}
+                        disabled={submitting}
+                        className="flex-1 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl cursor-pointer disabled:opacity-50"
+                      >
+                        {submitting ? 'Rejecting...' : 'Confirm Rejection'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        Supervisor Endorsement Remarks (for PM)
+                      </label>
+                      <input
+                        type="text"
+                        value={endorsementNotes}
+                        onChange={(e) => setEndorsementNotes(e.target.value)}
+                        placeholder="e.g., Verified field operational necessity. Budget lines endorsed."
+                        className="w-full text-xs font-medium p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-[#006B56] focus:ring-1 focus:ring-[#006B56] transition"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowRejectForm(true)}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold transition active:scale-95 cursor-pointer border border-slate-200 flex items-center justify-center gap-1.5"
+                      >
+                        <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Reject</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDirectEndorse}
+                        disabled={submitting}
+                        className="flex-2 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black transition active:scale-95 cursor-pointer shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        {submitting ? (
+                          <span>Endorsing...</span>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Endorse Requisition</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* 4. CONFIRMATION REVIEW MODAL (Notes / Rejection reason) */}
-      {reviewingReq && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-150 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-white ${
-                    reviewAction === 'approve' ? 'bg-amber-500' : 'bg-rose-600'
-                  }`}
-                >
-                  {reviewAction === 'approve' ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                </div>
-                <h3 className="font-black text-slate-900 text-sm">
-                  {reviewAction === 'approve' ? 'Endorse Facilitation to PM' : 'Reject Facilitation'}
-                </h3>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-500">Field Worker:</span>
-                <span className="font-bold text-slate-900">{reviewingReq.field_worker_name}</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-500">Amount:</span>
-                <span className="font-black text-amber-700 text-xs">
-                  SSP {Number(reviewingReq.amount).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-500">Linked Case:</span>
-                <span className="font-bold text-slate-800">{reviewingReq.linked_beneficiary_name}</span>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-bold text-slate-700">
-                  {reviewAction === 'approve' ? (
-                    'Supervisor Endorsement Remarks (for PM)'
-                  ) : (
-                    <span className="text-rose-700 flex items-center gap-1 font-black">
-                      Reason for Rejection <span className="text-rose-500 font-black">*</span>
-                    </span>
-                  )}
-                </label>
-              </div>
-              <textarea
-                rows={3}
-                value={reviewNotes}
-                onChange={(e) => {
-                  setReviewNotes(e.target.value);
-                  if (reviewError) setReviewError('');
-                }}
-                placeholder={
-                  reviewAction === 'approve'
-                    ? 'Enter operational verification remarks for Programme Manager...'
-                    : 'Explain clearly why this request cannot be approved...'
-                }
-                className={`w-full text-xs font-medium p-2.5 bg-slate-50 border rounded-xl outline-none resize-none transition ${
-                  reviewError
-                    ? 'border-rose-400 bg-rose-50/30 focus:ring-2 focus:ring-rose-200'
-                    : reviewAction === 'approve'
-                    ? 'border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500'
-                    : 'border-slate-200 focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
-                }`}
-              />
-              {reviewError && (
-                <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-rose-600 font-bold bg-rose-50 p-2 rounded-lg border border-rose-200">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span>{reviewError}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => {
-                  setReviewingReq(null);
-                  setReviewAction(null);
-                }}
-                className="px-3 py-2 text-slate-600 hover:text-slate-900 text-xs font-bold rounded-xl transition cursor-pointer"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleExecuteReview}
-                disabled={submitting}
-                className={`py-2 px-4 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5 ${
-                  reviewAction === 'approve'
-                    ? 'bg-amber-500 hover:bg-amber-600'
-                    : 'bg-rose-600 hover:bg-rose-700'
-                }`}
-              >
-                {submitting ? (
-                  <span>Saving...</span>
-                ) : (
-                  <span>{reviewAction === 'approve' ? 'Confirm Endorsement' : 'Confirm Rejection'}</span>
-                )}
-              </button>
-            </div>
           </div>
         </div>
       )}

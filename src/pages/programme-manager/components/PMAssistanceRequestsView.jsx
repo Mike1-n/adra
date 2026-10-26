@@ -931,25 +931,17 @@ export function PMAssistanceRequestsView({
         </div>
 
         {/* 1. BENEFICIARY PROFILE & ASSISTANCE NEED CARD */}
-        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs p-6 space-y-5">
-          
-          {/* Header with Name and Badge */}
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#006B56] to-teal-700 text-white font-black flex items-center justify-center text-base shadow-xs shrink-0">
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#006B56] to-teal-700 text-white font-black flex items-center justify-center text-sm shadow-2xs shrink-0">
                 {beneficiaryName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-black text-slate-900 tracking-tight">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base font-extrabold text-slate-900">
                     {beneficiaryName}
                   </h2>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    Verified Beneficiary
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
                   <span className="font-mono text-xs font-semibold text-slate-500">
                     {beneficiaryCode}
                   </span>
@@ -957,98 +949,73 @@ export function PMAssistanceRequestsView({
                     {categoryName}
                   </span>
                 </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Programme: <strong className="text-slate-700">{programmeName}</strong>
+                </p>
               </div>
-            </div>
-
-            <div className="text-right">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Programme</span>
-              <span className="text-xs font-bold text-slate-800 block mt-0.5 max-w-xs truncate" title={programmeName}>
-                {programmeName}
-              </span>
             </div>
           </div>
 
-          {/* 3 Core Vital Cards: Household, Location, Phone */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            <div className="p-3.5 bg-slate-50/90 border border-slate-200/80 rounded-2xl flex flex-col justify-between gap-1 shadow-2xs hover:bg-slate-50 transition">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-emerald-100/80 text-[#006B56] flex items-center justify-center shrink-0">
-                  <Users className="w-3.5 h-3.5" />
-                </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Household
-                </span>
-              </div>
-              <div className="text-sm font-black text-slate-900 mt-0.5">
-                {householdMembers} Members
+          {/* Quick Vital Strip */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#006B56] shrink-0" />
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Household</span>
+                <span className="font-bold text-slate-900">{householdMembers} Members</span>
               </div>
             </div>
 
-            <div className="p-3.5 bg-slate-50/90 border border-slate-200/80 rounded-2xl flex flex-col justify-between gap-1 shadow-2xs hover:bg-slate-50 transition min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-blue-100/80 text-blue-700 flex items-center justify-center shrink-0">
-                  <MapPin className="w-3.5 h-3.5" />
-                </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Location
-                </span>
-              </div>
-              <div className="text-sm font-black text-slate-900 mt-0.5 truncate" title={locationStr}>
-                {locationStr}
+            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-2 min-w-0">
+              <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Location</span>
+                <span className="font-bold text-slate-900 truncate block" title={locationStr}>{locationStr}</span>
               </div>
             </div>
 
-            <div className="p-3.5 bg-slate-50/90 border border-slate-200/80 rounded-2xl flex flex-col justify-between gap-1 shadow-2xs hover:bg-slate-50 transition min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-purple-100/80 text-purple-700 flex items-center justify-center shrink-0">
-                  <Phone className="w-3.5 h-3.5" />
-                </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Phone
-                </span>
-              </div>
-              <div className="text-sm font-black text-slate-900 mt-0.5 font-mono truncate">
-                {phoneStr}
+            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-2 min-w-0">
+              <Phone className="w-4 h-4 text-purple-600 shrink-0" />
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Phone</span>
+                <span className="font-bold text-slate-900 font-mono truncate block">{phoneStr}</span>
               </div>
             </div>
           </div>
 
           {/* Stated Need */}
-          <div className="space-y-1.5 pt-1">
-            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-[#006B56]" />
-              <span>Request Justification / Stated Need</span>
+          <div className="bg-emerald-50/40 p-3 rounded-xl border-l-3 border-l-[#006B56] border border-emerald-100/80 text-xs text-slate-800">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+              Beneficiary Stated Need
             </span>
-            <div className="p-3.5 bg-emerald-50/40 rounded-2xl border-l-4 border-l-[#006B56] border border-emerald-100/80 text-slate-800 text-xs font-medium leading-relaxed italic">
-              "{justificationText}"
-            </div>
+            <p className="italic font-medium">"{justificationText}"</p>
           </div>
         </div>
 
         {/* 2. ON-GROUND FIELD AUDIT & VERIFICATION EVIDENCE DOSSIER */}
         {isAssessed && (
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs p-6 space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-[#006B56]" />
                 <div>
                   <h3 className="text-sm font-black text-slate-900">
-                    On-Ground Field Audit &amp; Verification Dossier
+                    On-Ground Field Audit &amp; Verification
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    {activeModalRequest.assessment_code ? `Assessment Reference: ${activeModalRequest.assessment_code}` : 'Verified by Assigned Field Worker'}
+                  <p className="text-[11px] text-slate-500">
+                    Ref: <strong>{activeModalRequest.assessment_code || 'FA-VERIFIED'}</strong> &bull; Officer: <strong>{activeModalRequest.assigned_field_worker_name || 'Simon Kiden'}</strong> &bull; Sup: <strong>{assignedSupervisor?.name || activeModalRequest.assigned_supervisor_name || 'Mary Akech'}</strong>
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-black text-[#006B56] bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+              <span className="text-xs font-black text-[#006B56] bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
                 Score: {activeModalRequest.vulnerability_score || 85}/100 ({activeModalRequest.urgency || activeModalRequest.priority || 'Critical Need'})
               </span>
             </div>
 
-            {/* Field Worker Report / Ground Findings */}
-            <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200/70 space-y-1.5 text-xs">
-              <span className="font-black text-[#006B56] text-[11px] uppercase tracking-wider block">
-                Field Worker On-Ground Report &amp; Need Confirmation
+            {/* Field Worker Report */}
+            <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200/70 text-xs space-y-1">
+              <span className="font-bold text-[#006B56] text-[10px] uppercase tracking-wider block">
+                Field Officer Verification Finding:
               </span>
               <p className="text-slate-800 italic font-medium leading-relaxed">
                 "{activeModalRequest.field_justification || activeModalRequest.ground_situation_report || activeModalRequest.audit_findings || 'Household verified in-person with acute need of emergency humanitarian assistance.'}"
@@ -1057,38 +1024,35 @@ export function PMAssistanceRequestsView({
 
             {/* Supervisor Endorsement Notes */}
             {activeModalRequest.review_notes && (
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
-                <span className="font-bold text-slate-600 text-[11px] block">
-                  Supervisor Endorsement &amp; Verification Remarks:
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+                <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider block">
+                  Supervisor Endorsement Remarks:
                 </span>
-                <p className="text-slate-800 leading-relaxed">
-                  {activeModalRequest.review_notes}
+                <p className="text-slate-800 leading-relaxed font-medium italic">
+                  "{activeModalRequest.review_notes}"
                 </p>
               </div>
             )}
 
-            {/* Real Uploaded Photo Gallery */}
+            {/* Attached Field Photos */}
             {realPhotos.length > 0 && (
-              <div className="space-y-2 pt-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                    <ImageIcon className="w-4 h-4 text-[#006B56]" />
-                    <span>Attached Field Photos ({realPhotos.length})</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-semibold">Click to enlarge</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5 pt-1">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-[#006B56]" />
+                  <span>Attached Evidence Photos ({realPhotos.length})</span>
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {realPhotos.map((photo, idx) => (
                     <div
                       key={photo.id || `photo-${idx}`}
                       onClick={() => setSelectedPreviewPhoto(photo)}
-                      className="rounded-2xl overflow-hidden border border-slate-200 cursor-pointer hover:border-[#006B56] group bg-slate-100 shadow-2xs transition"
+                      className="rounded-xl overflow-hidden border border-slate-200 cursor-pointer hover:border-[#006B56] group bg-slate-100 shadow-2xs transition"
                     >
-                      <div className="h-28 w-full bg-slate-900 overflow-hidden relative">
+                      <div className="h-20 w-full bg-slate-900 overflow-hidden relative">
                         <img src={photo.url} alt={photo.name || photo.title || 'Evidence'} className="h-full w-full object-cover group-hover:scale-105 transition duration-200" />
                       </div>
-                      <div className="p-2 bg-white text-[11px] font-bold text-slate-800 truncate">
-                        {photo.name || photo.title || 'Field Evidence Photo'}
+                      <div className="p-1.5 bg-white text-[10px] font-bold text-slate-800 truncate">
+                        {photo.name || photo.title || 'Field Photo'}
                       </div>
                     </div>
                   ))}
@@ -1096,26 +1060,26 @@ export function PMAssistanceRequestsView({
               </div>
             )}
 
-            {/* Real Uploaded Verification Documents */}
+            {/* Attached Verification Documents */}
             {realDocs.length > 0 && (
-              <div className="space-y-2 pt-1">
-                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                  <FileCheck className="w-4 h-4 text-blue-600" />
+              <div className="space-y-1.5 pt-1">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <FileCheck className="w-3.5 h-3.5 text-blue-600" />
                   <span>Attached Verification Documents ({realDocs.length})</span>
                 </span>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {realDocs.map((doc, idx) => (
                     <div
                       key={doc.id || `doc-${idx}`}
-                      className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 text-xs"
+                      className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2 text-xs"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold font-mono text-[10px] flex items-center justify-center shrink-0">
-                          {doc.name?.split('.').pop()?.toUpperCase() || 'PDF'}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 font-bold font-mono text-[9px] flex items-center justify-center shrink-0">
+                          {doc.name?.split('.').pop()?.toUpperCase() || 'DOC'}
                         </div>
                         <div className="min-w-0">
                           <h4 className="font-bold text-slate-800 truncate text-xs">{doc.name}</h4>
-                          <p className="text-[10px] text-slate-500 truncate">{doc.category || 'Verification Document'} &bull; {doc.size || 'Attached'}</p>
+                          <p className="text-[10px] text-slate-400 truncate">{doc.category || 'Verification Document'} &bull; {doc.size || 'Attached'}</p>
                         </div>
                       </div>
 
@@ -1125,9 +1089,9 @@ export function PMAssistanceRequestsView({
                           download={doc.name}
                           target="_blank"
                           rel="noreferrer"
-                          className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-blue-700 font-bold rounded-xl text-xs flex items-center gap-1 transition cursor-pointer shadow-2xs shrink-0"
+                          className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-blue-700 font-bold rounded-lg text-[11px] flex items-center gap-1 transition cursor-pointer shadow-2xs shrink-0"
                         >
-                          <Eye className="w-3.5 h-3.5 text-blue-600" />
+                          <Eye className="w-3 h-3 text-blue-600" />
                           <span>View Doc</span>
                         </a>
                       )}
@@ -1139,117 +1103,22 @@ export function PMAssistanceRequestsView({
           </div>
         )}
 
-        {/* 3. ASSIGNED SUPERVISOR & FIELD OPERATIONS TEAM */}
-        {showAssignedCard && (
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <UserCheck className="w-5 h-5 text-[#006B56]" />
-                <div>
-                  <h3 className="text-sm font-black text-slate-900">
-                    Field Operations Team
-                  </h3>
-                  <p className="text-[11px] text-slate-500">Supervisory state lead and deployed field officer</p>
-                </div>
-              </div>
-              <span className="text-xs font-bold text-[#006B56] bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-[#006B56]" />
-                <span>Assigned</span>
-              </span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-[#006B56] text-white font-black flex items-center justify-center text-sm shadow-xs shrink-0">
-                  {(assignedSupervisor.name || 'Supervisor')
-                    .split(' ')
-                    .map(n => n[0])
-                    .join('')
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </div>
-                <div>
-                  <h4 className="text-sm font-black text-slate-900">
-                    {assignedSupervisor.name}
-                  </h4>
-                  <p className="text-xs font-bold text-[#006B56]">
-                    State Supervisor &bull; {assignedSupervisor.state || activeModalRequest.state || 'Eastern Equatoria'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 text-xs text-slate-600">
-                <div className="flex items-center gap-1.5 font-mono">
-                  <Phone className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{assignedSupervisor.phone || '+211-922-345002'}</span>
-                </div>
-                {!isAwaitingPMDecision && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsReassigning(true);
-                      setSelectedSupervisorId(assignedSupervisor.id || '');
-                      setSupervisorNotes(activeModalRequest.review_notes || '');
-                    }}
-                    className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-700 transition cursor-pointer shadow-2xs"
-                  >
-                    Change
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Field Worker status if assigned by supervisor */}
-            {activeModalRequest.assigned_field_worker_name && (
-              <div className="p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs text-slate-800 flex items-center justify-between">
-                <span className="font-bold flex items-center gap-1.5 text-slate-700">
-                  <User className="w-3.5 h-3.5 text-[#006B56]" />
-                  Field Officer: <strong>{activeModalRequest.assigned_field_worker_name}</strong>
-                </span>
-                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                  {isAssessed ? 'Audit Complete & Forwarded' : 'Conducting Field Audit'}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 4. PROGRAMME MANAGER DECISION & AUTHORIZATION CARD */}
+        {/* 3. PROGRAMME MANAGER DECISION & AUTHORIZATION CARD */}
         {isAwaitingPMDecision ? (
-          <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-white p-6 rounded-3xl border-2 border-[#006B56]/40 shadow-md space-y-4">
-            <div className="flex items-center justify-between border-b border-emerald-200/60 pb-3">
-              <div className="flex items-center gap-2.5">
-                <Sparkles className="w-5 h-5 text-[#006B56]" />
-                <div>
-                  <h3 className="text-sm font-black text-slate-900">
-                    Programme Manager Final Authorization &amp; Aid Allocation
-                  </h3>
-                  <p className="text-xs text-slate-600">
-                    Field audit verified on ground. Authorize assistance package and release for depot dispatch.
-                  </p>
-                </div>
-              </div>
-              <span className="text-xs font-black text-purple-900 bg-purple-100 border border-purple-200 px-3 py-1 rounded-full">
-                Final Sign-off
-              </span>
-            </div>
-
-            <div className="p-4 bg-white rounded-2xl border border-emerald-200/80 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500 font-bold">Recommended Aid Package:</span>
-                <span className="font-black text-slate-900 text-right">
-                  {activeModalRequest.recommended_aid || activeModalRequest.assistance_type || activeModalRequest.category || 'Emergency Food Security Package'}
+          <div className="bg-white p-5 rounded-2xl border-2 border-[#006B56] shadow-xs space-y-3.5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[#006B56]" />
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Recommended Aid Allocation:
                 </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500 font-bold">Beneficiary:</span>
-                <span className="font-bold text-slate-800">
-                  {beneficiaryName} ({beneficiaryCode})
+                <span className="text-xs font-black text-slate-900 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                  {activeModalRequest.recommended_aid || activeModalRequest.assistance_type || activeModalRequest.category || 'Emergency Relief Package'}
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={async () => {
@@ -1260,7 +1129,7 @@ export function PMAssistanceRequestsView({
                     setActiveModalRequest(null);
                   } catch (e) {}
                 }}
-                className="w-full sm:flex-1 py-3.5 bg-[#006B56] hover:bg-[#005544] text-white font-black rounded-2xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2 active:scale-98"
+                className="w-full sm:flex-1 py-3 bg-[#006B56] hover:bg-[#005544] text-white font-black rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-2 active:scale-98"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Approve &amp; Authorize Aid Dispatch</span>
@@ -1273,7 +1142,7 @@ export function PMAssistanceRequestsView({
                   setDecisionReason('');
                   setDecisionError('');
                 }}
-                className="w-full sm:w-auto px-4 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-2xl text-xs transition cursor-pointer"
+                className="w-full sm:w-auto px-3.5 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl text-xs transition cursor-pointer"
               >
                 Request More Info
               </button>
@@ -1285,7 +1154,7 @@ export function PMAssistanceRequestsView({
                   setDecisionReason('');
                   setDecisionError('');
                 }}
-                className="w-full sm:w-auto px-4 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-2xl text-xs transition cursor-pointer"
+                className="w-full sm:w-auto px-3.5 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs transition cursor-pointer"
               >
                 Reject
               </button>
@@ -1683,15 +1552,16 @@ export function PMAssistanceRequestsView({
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden max-w-5xl mx-auto">
-          <div className="overflow-x-auto">
+          {/* 1. DESKTOP MODE TABLE (sm and up) */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-2 px-3 w-36">Request Code</th>
-                  <th className="py-2 px-3">Beneficiary</th>
-                  <th className="py-2 px-3">Category</th>
-                  <th className="py-2 px-3 w-28">Status</th>
-                  <th className="py-2 px-3 w-20 text-right">Action</th>
+                  <th className="py-2.5 px-3 w-36">Request Code</th>
+                  <th className="py-2.5 px-3">Beneficiary</th>
+                  <th className="py-2.5 px-3">Category</th>
+                  <th className="py-2.5 px-3 w-28">Status</th>
+                  <th className="py-2.5 px-3 w-20 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1728,7 +1598,7 @@ export function PMAssistanceRequestsView({
 
                       {/* 4. Status */}
                       <td className="py-2 px-3 whitespace-nowrap">
-                        <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border ${
+                        <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                           isRejected ? 'bg-rose-50 text-rose-800 border-rose-200' :
                           r.status === 'Approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
                           r.status === 'In Progress' ? 'bg-blue-50 text-blue-800 border-blue-200' :
@@ -1760,6 +1630,66 @@ export function PMAssistanceRequestsView({
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* 2. PHONE MODE VIEW (< sm): Clean, single-row mobile cards where the View button fits 100% on screen */}
+          <div className="sm:hidden divide-y divide-slate-100">
+            {paginatedRequests.map((r) => {
+              const isRejected = r.status === 'Rejected' || r.status_label === 'Rejected by PM' || Boolean(r.returned_to_worker) || (typeof r.status === 'string' && r.status.toLowerCase().includes('reject'));
+              const categoryText = (r.assistance_type || r.category || 'Food Assistance').split(',')[0].trim();
+
+              return (
+                <div
+                  key={r.id || r.request_code}
+                  onClick={() => {
+                    setActiveModalRequest(r);
+                    setDecisionAction(null);
+                    setDecisionError('');
+                  }}
+                  className="p-3 flex items-center justify-between gap-2.5 hover:bg-slate-50 active:bg-slate-100/70 transition cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                      <span className="font-mono text-[11px] font-bold text-[#006B56]">
+                        {r.request_code || r.id}
+                      </span>
+                      <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border leading-tight ${
+                        isRejected ? 'bg-rose-50 text-rose-800 border-rose-200' :
+                        r.status === 'Approved' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                        r.status === 'In Progress' ? 'bg-blue-50 text-blue-800 border-blue-200' :
+                        r.status === 'Completed' ? 'bg-emerald-800 text-white border-emerald-900' :
+                        r.status === 'Info Requested' ? 'bg-orange-50 text-orange-800 border-orange-200' :
+                        'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}>
+                        {isRejected ? 'Rejected' : r.status}
+                      </span>
+                    </div>
+
+                    <p className="font-bold text-slate-900 text-xs truncate">
+                      {r.beneficiary_name}
+                    </p>
+
+                    <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                      {categoryText}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveModalRequest(r);
+                      setDecisionAction(null);
+                      setDecisionError('');
+                    }}
+                    className="shrink-0 px-3 py-1.5 bg-[#006B56] hover:bg-[#005544] text-white text-xs font-bold rounded-xl transition active:scale-95 inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View</span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

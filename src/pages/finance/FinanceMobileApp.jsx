@@ -340,7 +340,9 @@ export function FinanceMobileApp({
               currentUser={currentUser}
               extraData={{
                 pendingDisbursements,
-                facilitationRequests
+                facilitationRequests: fieldFundingRequests,
+                fundingRequests: fieldFundingRequests,
+                facilitations: fieldFundingRequests
               }}
               onNavigate={(tab) => setActiveTab(tab)}
             />

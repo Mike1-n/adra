@@ -43,6 +43,13 @@ export function InventoryDispatchesView({
   const statusFilter = externalStatusFilter !== undefined ? externalStatusFilter : internalStatusFilter;
   const setStatusFilter = onStatusFilterChange || setInternalStatusFilter;
 
+  // Helper to extract clean beneficiary name without nested long addresses
+  const getCleanBeneficiaryName = (rawName) => {
+    if (!rawName) return '';
+    const cleaned = String(rawName).replace(/\s*\([^)]*(?:Juba|Central|South Sudan|Boma|Area|Field|Payam|County|State)[^)]*\)/gi, '').trim();
+    return cleaned || String(rawName).trim();
+  };
+
   // Unify official dispatches and PM-approved requests into a single manifests list
   const allManifests = useMemo(() => {
     const pendingList = (approvedRequests || []).map(r => {
@@ -173,7 +180,7 @@ export function InventoryDispatchesView({
   }, [allManifests]);
 
   return (
-    <div className="space-y-4 sm:space-y-5">
+    <div className="space-y-4 sm:space-y-5 max-w-full overflow-x-hidden">
       
       {/* 1. METRICS SUMMARY ROW (CLICKABLE STAT CARDS WITH DISTINCT COLOURS) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
@@ -182,7 +189,7 @@ export function InventoryDispatchesView({
         <button
           type="button"
           onClick={() => setStatusFilter('ALL')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs min-w-0 overflow-hidden ${
             statusFilter === 'ALL'
               ? 'bg-blue-100/80 border-blue-400 ring-2 ring-blue-500/20'
               : 'bg-blue-50/50 border-blue-200/80 hover:bg-blue-50 hover:border-blue-300'
@@ -192,7 +199,7 @@ export function InventoryDispatchesView({
             <span className="text-[10px] sm:text-[11px] font-extrabold text-blue-700 uppercase tracking-wider block truncate">
               Total Waybills
             </span>
-            <div className="flex items-baseline gap-1.5">
+            <div className="flex items-baseline gap-1.5 flex-wrap">
               <span className="text-lg sm:text-xl font-black text-blue-950">{stats.totalWaybills}</span>
               <span className="text-xs font-bold text-blue-600">Manifests</span>
             </div>
@@ -207,7 +214,7 @@ export function InventoryDispatchesView({
         <button
           type="button"
           onClick={() => setStatusFilter('PENDING')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs min-w-0 overflow-hidden ${
             statusFilter === 'PENDING' || statusFilter === 'STAGED'
               ? 'bg-orange-100/90 border-orange-400 ring-2 ring-orange-500/20'
               : 'bg-orange-50/50 border-orange-200/80 hover:bg-orange-50 hover:border-orange-300'
@@ -217,7 +224,7 @@ export function InventoryDispatchesView({
             <span className="text-[10px] sm:text-[11px] font-extrabold text-orange-900 uppercase tracking-wider block truncate">
               Pending Aid Waybills
             </span>
-            <div className="flex items-baseline gap-1.5">
+            <div className="flex items-baseline gap-1.5 flex-wrap">
               <span className="text-lg sm:text-xl font-black text-orange-950">{stats.pendingCount}</span>
               <span className="text-xs font-bold text-orange-700">Awaiting Dispatch</span>
             </div>
@@ -234,7 +241,7 @@ export function InventoryDispatchesView({
         <button
           type="button"
           onClick={() => setStatusFilter('IN_TRANSIT')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs min-w-0 overflow-hidden ${
             statusFilter === 'IN_TRANSIT'
               ? 'bg-amber-100/80 border-amber-400 ring-2 ring-amber-500/20'
               : 'bg-amber-50/50 border-amber-200/80 hover:bg-amber-50 hover:border-amber-300'
@@ -244,7 +251,7 @@ export function InventoryDispatchesView({
             <span className="text-[10px] sm:text-[11px] font-extrabold text-amber-800 uppercase tracking-wider block truncate">
               In Transit
             </span>
-            <div className="flex items-baseline gap-1.5">
+            <div className="flex items-baseline gap-1.5 flex-wrap">
               <span className="text-lg sm:text-xl font-black text-amber-950">{stats.inTransitCount}</span>
               <span className="text-xs font-bold text-amber-700">En Route</span>
             </div>
@@ -259,7 +266,7 @@ export function InventoryDispatchesView({
         <button
           type="button"
           onClick={() => setStatusFilter('DELIVERED')}
-          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs ${
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition cursor-pointer flex items-center justify-between shadow-2xs min-w-0 overflow-hidden ${
             statusFilter === 'DELIVERED'
               ? 'bg-emerald-100/80 border-emerald-400 ring-2 ring-emerald-500/20'
               : 'bg-emerald-50/50 border-emerald-200/80 hover:bg-emerald-50 hover:border-emerald-300'
@@ -269,7 +276,7 @@ export function InventoryDispatchesView({
             <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-800 uppercase tracking-wider block truncate">
               Delivered
             </span>
-            <div className="flex items-baseline gap-1.5">
+            <div className="flex items-baseline gap-1.5 flex-wrap">
               <span className="text-lg sm:text-xl font-black text-emerald-950">{stats.deliveredCount}</span>
               <span className="text-xs font-bold text-emerald-700">Verified</span>
             </div>
@@ -282,9 +289,9 @@ export function InventoryDispatchesView({
       </div>
 
       {/* 2. SEARCH & ACTIVE FILTER BAR & VIEW TOGGLE */}
-      <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
         {/* Search Input */}
-        <div className="relative flex-1 min-w-[240px]">
+        <div className="relative flex-1 min-w-[180px] max-w-full">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -363,8 +370,8 @@ export function InventoryDispatchesView({
       ) : viewMode === 'table' ? (
         /* ULTRA-CLEAN COMPACT TABLE VIEW & MOBILE CARDS */
         <>
-          {/* MOBILE PHONE MODE (< sm): FULL-WIDTH WAYBILL CARDS */}
-          <div className="sm:hidden space-y-3">
+          {/* MOBILE PHONE MODE (< md): FULL-WIDTH WAYBILL CARDS THAT NEVER SCROLL HORIZONTALLY */}
+          <div className="md:hidden space-y-3">
             {filteredDispatches.map(d => {
               const isPending = Boolean(d.is_pending_waybill);
               const st = (d.status || '').toLowerCase().trim();
@@ -373,6 +380,7 @@ export function InventoryDispatchesView({
               const isInTransit = !isPending && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit');
               const totalQty = d.items?.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0) || 0;
               const unit = d.items?.[0]?.unit || 'Items';
+              const cleanBenName = getCleanBeneficiaryName(d.beneficiary_name || d.request_data?.beneficiary_name);
 
               return (
                 <div
@@ -384,54 +392,62 @@ export function InventoryDispatchesView({
                       onOpenWaybillDetail(d);
                     }
                   }}
-                  className={`bg-white rounded-xl border p-3.5 space-y-3 shadow-2xs transition active:scale-[0.99] cursor-pointer ${
+                  className={`bg-white rounded-xl border p-3.5 space-y-3 shadow-2xs transition active:scale-[0.99] cursor-pointer w-full max-w-full overflow-hidden ${
                     isPending ? 'border-orange-300 ring-1 ring-orange-400/30' : 'border-slate-200/90'
                   }`}
                 >
                   {/* Header */}
                   <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-mono font-black text-sm text-black tracking-tight">
+                        <span className="font-mono font-black text-sm text-black tracking-tight shrink-0">
                           {d.waybill_number}
                         </span>
-                        {isPending && d.request_code && (
-                          <span className="font-mono text-[10px] text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-bold">
-                            Req: {d.request_code}
+                        {(d.request_code || d.linked_request_id) && (
+                          <span className="font-mono text-[10px] text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-bold shrink-0">
+                            Req: {d.request_code || d.linked_request_id}
+                          </span>
+                        )}
+                        {cleanBenName && (
+                          <span className="text-xs font-bold text-[#006B56] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80 inline-flex items-center gap-1 max-w-[190px] sm:max-w-[260px] truncate shrink-0">
+                            <User className="w-3 h-3 text-[#006B56] shrink-0" />
+                            <span className="truncate">{cleanBenName}</span>
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
-                        <Calendar className="w-3 h-3 text-slate-400" />
+                      <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-1">
+                        <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
                         <span>{d.dispatch_date || 'Today'}</span>
                       </div>
                     </div>
 
-                    {isPending ? (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black inline-flex items-center gap-1 bg-orange-100 text-orange-950 border border-orange-300 shadow-2xs shrink-0">
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
-                        <span>Pending</span>
-                      </span>
-                    ) : (
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 shrink-0 ${
-                        isDelivered
-                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                          : isInTransit
-                          ? 'bg-amber-50 text-amber-900 border border-amber-200'
-                          : 'bg-blue-50 text-blue-900 border border-blue-200'
-                      }`}>
-                        {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />}
-                        {isDelivered && <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />}
-                        <span>{isDelivered ? 'Delivered' : isInTransit ? 'In Transit' : d.status || 'Active'}</span>
-                      </span>
-                    )}
+                    <div className="shrink-0">
+                      {isPending ? (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black inline-flex items-center gap-1 bg-orange-100 text-orange-950 border border-orange-300 shadow-2xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
+                          <span>Pending</span>
+                        </span>
+                      ) : (
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${
+                          isDelivered
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : isInTransit
+                            ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                            : 'bg-blue-50 text-blue-900 border border-blue-200'
+                        }`}>
+                          {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />}
+                          {isDelivered && <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />}
+                          <span>{isDelivered ? 'Delivered' : isInTransit ? 'In Transit' : d.status || 'Active'}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Body: Destination, Driver, Qty */}
                   <div className="space-y-2 text-xs">
-                    <div className="flex items-start gap-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
+                    <div className="flex items-start gap-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100 min-w-0">
                       <MapPin className="w-3.5 h-3.5 text-[#006B56] shrink-0 mt-0.5" />
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                           Destination Hub
                         </span>
@@ -442,23 +458,23 @@ export function InventoryDispatchesView({
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-emerald-50/60 p-2 rounded-lg border border-emerald-100">
+                      <div className="bg-emerald-50/60 p-2 rounded-lg border border-emerald-100 min-w-0">
                         <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider block flex items-center gap-1">
-                          <Package className="w-3 h-3 text-emerald-600" /> Quantity
+                          <Package className="w-3 h-3 text-emerald-600 shrink-0" /> Quantity
                         </span>
-                        <p className="font-black text-[#006B56] text-xs mt-0.5">
+                        <p className="font-black text-[#006B56] text-xs mt-0.5 truncate">
                           {totalQty > 0 ? `${totalQty.toLocaleString()} ${unit}` : '1 Bundle'}
                         </p>
                       </div>
 
-                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 min-w-0">
                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block flex items-center gap-1">
-                          <Truck className="w-3 h-3 text-slate-400" /> Transport
+                          <Truck className="w-3 h-3 text-slate-400 shrink-0" /> Transport
                         </span>
                         <p className="font-bold text-slate-800 text-xs truncate mt-0.5">
                           {d.driver_name || 'Assigned Driver'}
                         </p>
-                        <p className="font-mono text-[10px] text-slate-500 mt-0.5">
+                        <p className="font-mono text-[10px] text-slate-500 mt-0.5 truncate">
                           {d.vehicle_reg || 'SSD Logistics'}
                         </p>
                       </div>
@@ -466,9 +482,9 @@ export function InventoryDispatchesView({
 
                     {/* Collected by Worker Note */}
                     {((d.status || '').toLowerCase().includes('collect') || d.collected_by) && (
-                      <div className="bg-blue-50/80 p-2.5 rounded-lg border border-blue-200 flex items-center gap-2">
+                      <div className="bg-blue-50/80 p-2.5 rounded-lg border border-blue-200 flex items-center gap-2 min-w-0">
                         <UserCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        <div className="min-w-0 text-xs">
+                        <div className="min-w-0 flex-1 text-xs">
                           <span className="text-[10px] text-blue-700 font-bold uppercase block">Handed Over To Field Worker</span>
                           <span className="font-black text-blue-950 truncate block">
                             {d.collected_by || d.goods_collected_by || d.assigned_field_worker_name || 'Field Officer'}
@@ -484,7 +500,7 @@ export function InventoryDispatchesView({
                       <button
                         type="button"
                         onClick={() => onOpenCreateDispatchModal && onOpenCreateDispatchModal(d.request_data)}
-                        className="flex-1 py-2 rounded-lg bg-black hover:bg-slate-800 text-white font-black text-xs inline-flex items-center justify-center gap-1.5 transition active:scale-95 shadow-2xs cursor-pointer"
+                        className="w-full py-2.5 rounded-lg bg-black hover:bg-slate-800 text-white font-black text-xs inline-flex items-center justify-center gap-1.5 transition active:scale-95 shadow-2xs cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>Issue Waybill</span>
@@ -494,7 +510,7 @@ export function InventoryDispatchesView({
                         <button
                           type="button"
                           onClick={() => onOpenWaybillDetail(d)}
-                          className="flex-1 py-2 rounded-lg bg-[#006B56] hover:bg-[#005242] text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
+                          className="flex-1 py-2.5 rounded-lg bg-[#006B56] hover:bg-[#005242] text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
                         >
                           <FileText className="w-3.5 h-3.5" />
                           <span>View Details</span>
@@ -502,10 +518,11 @@ export function InventoryDispatchesView({
                         <button
                           type="button"
                           onClick={() => exportWaybillPDF(d)}
-                          className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer inline-flex items-center justify-center"
+                          className="px-3 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer inline-flex items-center justify-center gap-1 text-xs font-bold shrink-0"
                           title="Download PDF"
                         >
-                          <Download className="w-4 h-4 text-emerald-700" />
+                          <Download className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>PDF</span>
                         </button>
                       </>
                     )}
@@ -515,8 +532,8 @@ export function InventoryDispatchesView({
             })}
           </div>
 
-          {/* TABLET & DESKTOP (>= sm) */}
-          <div className="hidden sm:block bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          {/* TABLET & DESKTOP (>= md) */}
+          <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -541,6 +558,7 @@ export function InventoryDispatchesView({
 
                     const totalQty = d.items?.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0) || 0;
                     const unit = d.items?.[0]?.unit || 'Items';
+                    const cleanBenName = getCleanBeneficiaryName(d.beneficiary_name || d.request_data?.beneficiary_name);
 
                     return (
                       <tr
@@ -561,13 +579,13 @@ export function InventoryDispatchesView({
                               <span className="font-mono font-black text-xs sm:text-sm text-black tracking-tight">
                                 {d.waybill_number}
                               </span>
-                              {isPending && d.request_code && (
+                              {(d.request_code || d.linked_request_id) && (
                                 <span className="font-mono text-[10px] text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 font-bold">
-                                  Req: {d.request_code}
+                                  Req: {d.request_code || d.linked_request_id}
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 md:hidden font-medium">
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium">
                               <span>{d.dispatch_date || 'Today'}</span>
                             </div>
                           </div>
@@ -579,14 +597,14 @@ export function InventoryDispatchesView({
                         </td>
 
                         {/* Destination */}
-                        <td className="py-3 px-3 sm:px-4 max-w-[170px] sm:max-w-[220px]">
-                          <div className="text-slate-900 font-bold truncate text-xs">
+                        <td className="py-3 px-3 sm:px-4 max-w-[180px] lg:max-w-[240px]">
+                          <div className="text-slate-900 font-bold truncate text-xs" title={d.destination}>
                             {d.destination || 'Field Centre'}
                           </div>
-                          {d.beneficiary_name && (
-                            <div className="text-[10px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
-                              <User className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                              <span className="truncate">{d.beneficiary_name}</span>
+                          {cleanBenName && (
+                            <div className="text-[10px] text-[#006B56] font-semibold truncate flex items-center gap-1 mt-0.5" title={cleanBenName}>
+                              <User className="w-2.5 h-2.5 text-[#006B56]" />
+                              <span className="truncate">{cleanBenName}</span>
                             </div>
                           )}
                           <div className="text-[10px] text-slate-500 truncate lg:hidden mt-0.5">
@@ -712,6 +730,7 @@ export function InventoryDispatchesView({
             const dst = (d.dispatch_status || '').toLowerCase().trim();
             const isDelivered = !isPending && (st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
             const isInTransit = !isPending && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit');
+            const cleanBenName = getCleanBeneficiaryName(d.beneficiary_name || d.request_data?.beneficiary_name);
 
             return (
               <div
@@ -735,9 +754,15 @@ export function InventoryDispatchesView({
                           <span className="font-mono font-black text-sm sm:text-base tracking-tight text-black">
                             {d.waybill_number}
                           </span>
-                          {isPending && d.request_code && (
+                          {(d.request_code || d.linked_request_id) && (
                             <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-md">
-                              Request #{d.request_code}
+                              Request #{d.request_code || d.linked_request_id}
+                            </span>
+                          )}
+                          {cleanBenName && (
+                            <span className="text-xs font-bold text-[#006B56] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1 max-w-[200px] truncate">
+                              <User className="w-3 h-3 text-[#006B56] shrink-0" />
+                              <span className="truncate">{cleanBenName}</span>
                             </span>
                           )}
                           {d.dispatch_token && (

@@ -22,7 +22,8 @@ import {
   ArrowLeft,
   BadgeCheck,
   CheckSquare,
-  Square
+  Square,
+  DollarSign
 } from 'lucide-react';
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
@@ -36,7 +37,8 @@ export function FieldAssessmentFormModal({
   readOnly = false,
   project = null,
   worker = {},
-  onSubmitAssessment
+  onSubmitAssessment,
+  onRequestFacilitation
 }) {
   const toast = useToast();
   const fileInputRef = useRef(null);
@@ -576,13 +578,30 @@ export function FieldAssessmentFormModal({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition shrink-0 cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onRequestFacilitation && (
+              <button
+                type="button"
+                onClick={() => {
+                  const targetT = task || (tasks || []).find(t => (t.id && t.id.toString() === selectedTaskId?.toString()) || (t.request_code && t.request_code.toString() === selectedTaskId?.toString()));
+                  onRequestFacilitation(targetT || { request_code: formData.request_code, beneficiary_name: formData.beneficiary_name });
+                }}
+                className="px-2 py-1 bg-amber-400/25 hover:bg-amber-400/40 text-amber-100 border border-amber-300/40 text-[10px] font-bold rounded-lg flex items-center gap-1 transition cursor-pointer"
+                title="Request Field Facilitation"
+              >
+                <DollarSign className="w-3 h-3 text-amber-200" />
+                <span>Facilitation</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition shrink-0 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* MOBILE STEP SWITCHER TABS */}

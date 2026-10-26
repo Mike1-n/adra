@@ -33,18 +33,23 @@ export function PMFacilitationsView({
 }) {
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [expandedId, setExpandedId] = useState(null);
-
-  // Review Modal State
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewAction, setReviewAction] = useState('approve'); // 'approve' | 'reject'
-  const [reviewNotes, setReviewNotes] = useState('');
-  const [reviewError, setReviewError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Requisition Full Details Modal State
   const [selectedDetailReq, setSelectedDetailReq] = useState(null);
+
+  // Direct Authorization / Rejection State (Single-card)
+  const [authNotes, setAuthNotes] = useState('');
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  React.useEffect(() => {
+    if (selectedDetailReq) {
+      setAuthNotes(`Authorized by Program Manager ${pmName}. Scope verified against field workplan.`);
+      setShowRejectForm(false);
+      setRejectionReason('');
+    }
+  }, [selectedDetailReq, pmName]);
 
   // Field Truth Report Viewer Modal State
   const [viewingReport, setViewingReport] = useState(null);
@@ -110,57 +115,54 @@ export function PMFacilitationsView({
     }
   }, [activeFilter]);
 
-  // Handle open review modal
-  const handleOpenReview = (req, action) => {
-    setSelectedRequest(req);
-    setReviewAction(action);
-    setReviewError('');
-    setReviewNotes(
-      action === 'approve'
-        ? `Authorized by Program Manager ${pmName}. Scope verified against field workplan.`
-        : ''
-    );
-    setShowReviewModal(true);
-  };
-
-  // Submit review decision
-  const handleSubmitReview = async () => {
-    if (!selectedRequest) return;
-    if (reviewAction === 'reject') {
-      if (!reviewNotes.trim() || reviewNotes.trim().length < 5) {
-        setReviewError('Please enter a specific reason for rejection.');
-        toast.warning('Please enter a rejection reason.');
-        return;
-      }
-    }
-
+  // Direct single-card authorization handler
+  const handleDirectAuthorize = async () => {
+    if (!selectedDetailReq) return;
     setIsSubmitting(true);
-    setReviewError('');
     try {
-      if (reviewAction === 'approve') {
-        const res = await db.approveFieldFundingByPM(
-          selectedRequest.id,
-          reviewNotes || 'Approved by Programme Manager for finance disbursement.',
-          pmName
-        );
-        if (res?.error) throw res.error;
-        toast.success(`Facilitation ${selectedRequest.id} authorized!`);
-      } else {
-        const res = await db.rejectFieldFundingByPM(
-          selectedRequest.id,
-          reviewNotes,
-          pmName
-        );
-        if (res?.error) throw res.error;
-        toast.info(`Facilitation ${selectedRequest.id} rejected.`);
-      }
-
-      setShowReviewModal(false);
-      setSelectedRequest(null);
+      const notes = authNotes.trim() || `Authorized by Program Manager ${pmName}. Scope verified against field workplan.`;
+      const res = await db.approveFieldFundingByPM(
+        selectedDetailReq.id,
+        notes,
+        pmName
+      );
+      if (res?.error) throw res.error;
+      toast.success(`Facilitation ${selectedDetailReq.id || selectedDetailReq.request_code} authorized!`);
+      setSelectedDetailReq(null);
+      setShowRejectForm(false);
+      setRejectionReason('');
       if (onRefresh) await onRefresh();
     } catch (err) {
-      console.error('Error submitting PM review:', err);
-      toast.error('Failed to submit decision. Please try again.');
+      console.error('Error authorizing facilitation:', err);
+      toast.error('Failed to authorize facilitation.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Direct single-card rejection handler
+  const handleDirectReject = async () => {
+    if (!selectedDetailReq) return;
+    if (!rejectionReason.trim() || rejectionReason.trim().length < 5) {
+      toast.warning('Please enter a specific reason for rejection.');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await db.rejectFieldFundingByPM(
+        selectedDetailReq.id,
+        rejectionReason.trim(),
+        pmName
+      );
+      if (res?.error) throw res.error;
+      toast.info(`Facilitation ${selectedDetailReq.id || selectedDetailReq.request_code} rejected.`);
+      setSelectedDetailReq(null);
+      setShowRejectForm(false);
+      setRejectionReason('');
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      console.error('Error rejecting facilitation:', err);
+      toast.error('Failed to reject facilitation.');
     } finally {
       setIsSubmitting(false);
     }
@@ -322,15 +324,15 @@ export function PMFacilitationsView({
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden max-w-5xl mx-auto">
-          <div className="overflow-x-auto">
+          {/* 1. DESKTOP / TABLET VIEW (sm and up) - Reduced to 4 clean columns */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-2 px-3 w-36">Req Code</th>
-                  <th className="py-2 px-3">Field Worker</th>
-                  <th className="py-2 px-3">Amount</th>
-                  <th className="py-2 px-3 w-28">Status</th>
-                  <th className="py-2 px-3 w-20 text-right">Action</th>
+                  <th className="py-2.5 px-3">Field Worker / Req Code</th>
+                  <th className="py-2.5 px-3 w-36">Amount</th>
+                  <th className="py-2.5 px-3 w-28">Status</th>
+                  <th className="py-2.5 px-3 w-20 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -357,32 +359,32 @@ export function PMFacilitationsView({
                     req.status === 'Approved by Program Manager'
                   );
 
+                  const displayStatus = isRejected ? 'Rejected' : isPendingPM ? 'Pending Review' : isPendingFinance ? 'Authorized' : isDisbursed ? 'Disbursed' : (req.status || 'Pending');
+
                   return (
                     <tr
                       key={req.id}
                       onClick={() => setSelectedDetailReq(req)}
                       className="hover:bg-slate-50 cursor-pointer transition-colors"
                     >
-                      {/* 1. Req Code */}
-                      <td className="py-2 px-3 whitespace-nowrap">
-                        <span className="font-mono text-xs font-bold text-[#006B56]">
+                      {/* 1. Field Worker & Req Code */}
+                      <td className="py-2.5 px-3">
+                        <p className="font-bold text-slate-900 text-xs">
+                          {req.field_worker_name || 'Field Worker'}
+                        </p>
+                        <span className="font-mono text-[10px] text-slate-500 font-semibold block">
                           {req.id || req.request_code}
                         </span>
                       </td>
 
-                      {/* 2. Field Worker */}
-                      <td className="py-2 px-3 font-bold text-slate-900 text-xs whitespace-nowrap">
-                        {req.field_worker_name || 'Field Worker'}
-                      </td>
-
-                      {/* 3. Amount */}
-                      <td className="py-2 px-3 whitespace-nowrap font-bold text-xs text-[#006B56]">
+                      {/* 2. Amount */}
+                      <td className="py-2.5 px-3 whitespace-nowrap font-bold text-xs text-[#006B56]">
                         SSP {Number(req.amount || 0).toLocaleString()}
                       </td>
 
-                      {/* 4. Status */}
-                      <td className="py-2 px-3 whitespace-nowrap">
-                        <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border ${
+                      {/* 3. Status */}
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                           isRejected
                             ? 'bg-rose-50 text-rose-800 border-rose-200'
                             : isDisbursed
@@ -393,12 +395,12 @@ export function PMFacilitationsView({
                             ? 'bg-amber-50 text-amber-800 border-amber-200'
                             : 'bg-slate-50 text-slate-700 border-slate-200'
                         }`}>
-                          {isRejected ? 'Rejected' : isPendingPM ? 'Pending Review' : isPendingFinance ? 'Authorized' : isDisbursed ? 'Disbursed' : req.status}
+                          {displayStatus}
                         </span>
                       </td>
 
-                      {/* 5. Action */}
-                      <td className="py-2 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      {/* 4. Action */}
+                      <td className="py-2.5 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => setSelectedDetailReq(req)}
@@ -413,6 +415,84 @@ export function PMFacilitationsView({
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* 2. PHONE MODE VIEW (< sm): Clean, single-row mobile card with zero horizontal scrolling */}
+          <div className="sm:hidden divide-y divide-slate-100">
+            {filteredRequests.map(req => {
+              const isRejected = req.status === 'Rejected by Program Manager' ||
+                                 req.status === 'Rejected' ||
+                                 req.stage === -1 ||
+                                 Boolean(req.returned_to_worker) ||
+                                 (typeof req.status === 'string' && req.status.toLowerCase().includes('reject'));
+
+              const isPendingPM = !isRejected && (
+                req.status === 'Pending Program Manager Approval' ||
+                req.stage === 2 ||
+                req.status === 'Endorsed by Supervisor'
+              );
+              const isDisbursed = !isRejected && (
+                req.status === 'Disbursed' ||
+                req.stage === 4 ||
+                req.status === 'Disbursed / Paid'
+              );
+              const isPendingFinance = !isRejected && (
+                req.status === 'Approved (Pending Finance Disbursement)' ||
+                req.stage === 3 ||
+                req.status === 'Approved by Program Manager'
+              );
+
+              const displayStatus = isRejected ? 'Rejected' : isPendingPM ? 'Pending Review' : isPendingFinance ? 'Authorized' : isDisbursed ? 'Disbursed' : (req.status || 'Pending');
+
+              return (
+                <div
+                  key={req.id}
+                  onClick={() => setSelectedDetailReq(req)}
+                  className="p-3 flex items-center justify-between gap-2.5 hover:bg-slate-50 active:bg-slate-100/70 transition cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                      <span className="font-mono text-[11px] font-bold text-[#006B56]">
+                        {req.id || req.request_code}
+                      </span>
+                      <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border leading-tight ${
+                        isRejected
+                          ? 'bg-rose-50 text-rose-800 border-rose-200'
+                          : isDisbursed
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : isPendingFinance
+                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                          : isPendingPM
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-slate-50 text-slate-700 border-slate-200'
+                      }`}>
+                        {displayStatus}
+                      </span>
+                    </div>
+
+                    <p className="font-bold text-slate-900 text-xs truncate">
+                      {req.field_worker_name || 'Field Worker'}
+                    </p>
+
+                    <p className="text-[11px] font-bold text-[#006B56] mt-0.5">
+                      SSP {Number(req.amount || 0).toLocaleString()}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedDetailReq(req);
+                    }}
+                    className="shrink-0 px-3 py-1.5 bg-[#006B56] hover:bg-[#005544] text-white text-xs font-bold rounded-xl transition active:scale-95 inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View</span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -543,150 +623,104 @@ export function PMFacilitationsView({
               </button>
             )}
 
+            {/* If pending, direct single-card PM authorization or rejection */}
+            {selectedDetailReq.status !== 'Rejected by Program Manager' &&
+             selectedDetailReq.status !== 'Rejected' &&
+             selectedDetailReq.stage !== -1 &&
+             (selectedDetailReq.status === 'Pending Program Manager Approval' || selectedDetailReq.stage === 2 || selectedDetailReq.status === 'Endorsed by Supervisor') && (
+              <div className="pt-3 border-t border-slate-100 space-y-3">
+                {showRejectForm ? (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl space-y-2 animate-in fade-in">
+                    <label className="block text-[11px] font-black text-rose-800">
+                      Mandatory Rejection Reason *
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      placeholder="Explain clearly why this facilitation request is being rejected..."
+                      className="w-full text-xs p-2.5 bg-white border border-rose-300 rounded-xl outline-none focus:ring-2 focus:ring-rose-400"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowRejectForm(false)}
+                        className="flex-1 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDirectReject}
+                        disabled={isSubmitting}
+                        className="flex-1 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl cursor-pointer disabled:opacity-50"
+                      >
+                        {isSubmitting ? 'Rejecting...' : 'Confirm Rejection'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        Program Manager Authorization Remarks (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={authNotes}
+                        onChange={(e) => setAuthNotes(e.target.value)}
+                        placeholder="e.g., Authorized by Program Manager. Scope verified against field workplan."
+                        className="w-full text-xs font-medium p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-[#006B56] focus:ring-1 focus:ring-[#006B56] transition"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowRejectForm(true)}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold transition active:scale-95 cursor-pointer border border-slate-200 flex items-center justify-center gap-1.5"
+                      >
+                        <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Reject</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDirectAuthorize}
+                        disabled={isSubmitting}
+                        className="flex-2 py-2.5 px-3 rounded-xl bg-[#006B56] hover:bg-[#005544] text-white font-black transition active:scale-95 cursor-pointer shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        {isSubmitting ? (
+                          <span>Authorizing...</span>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Authorize Facilitation</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Modal Actions */}
             <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedDetailReq(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={() => exportVoucherPDF(selectedDetailReq)}
-                  className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#006B56] border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                  title="Download Official PDF Voucher"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>PDF Voucher</span>
-                </button>
-              </div>
-
-              {/* If pending, provide review buttons directly inside modal */}
-              {selectedDetailReq.status !== 'Rejected by Program Manager' &&
-               selectedDetailReq.status !== 'Rejected' &&
-               selectedDetailReq.stage !== -1 &&
-               (selectedDetailReq.status === 'Pending Program Manager Approval' || selectedDetailReq.stage === 2 || selectedDetailReq.status === 'Endorsed by Supervisor') && (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const req = selectedDetailReq;
-                      setSelectedDetailReq(null);
-                      handleOpenReview(req, 'reject');
-                    }}
-                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const req = selectedDetailReq;
-                      setSelectedDetailReq(null);
-                      handleOpenReview(req, 'approve');
-                    }}
-                    className="px-4 py-2 bg-[#006B56] hover:bg-[#005544] text-white text-xs font-bold rounded-xl shadow-2xs transition cursor-pointer flex items-center gap-1"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Authorize</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Clean Review Modal */}
-      {showReviewModal && selectedRequest && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-3.5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <div className="flex items-center gap-2">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-white ${
-                  reviewAction === 'approve' ? 'bg-[#006B56]' : 'bg-rose-600'
-                }`}>
-                  {reviewAction === 'approve' ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                </div>
-                <h3 className="text-sm font-black text-slate-900">
-                  {reviewAction === 'approve' ? 'Authorize Facilitation' : 'Reject Facilitation'}
-                </h3>
-              </div>
               <button
                 type="button"
-                onClick={() => setShowReviewModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                onClick={() => setSelectedDetailReq(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
               >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Summary */}
-            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Worker:</span>
-                <span className="font-bold text-slate-900">{selectedRequest.field_worker_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Amount:</span>
-                <span className="font-black text-[#006B56]">SSP {Number(selectedRequest.amount || 0).toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* Reason */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 block">
-                {reviewAction === 'approve' ? 'Note (Optional):' : 'Rejection Reason *'}
-              </label>
-              <textarea
-                value={reviewNotes}
-                onChange={(e) => {
-                  setReviewNotes(e.target.value);
-                  if (reviewError) setReviewError('');
-                }}
-                placeholder={
-                  reviewAction === 'approve'
-                    ? 'Optional approval remark...'
-                    : 'Provide reason for rejection...'
-                }
-                rows={2}
-                className="w-full p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#006B56] text-slate-900"
-              />
-              {reviewError && (
-                <p className="text-[11px] text-rose-600 font-bold">{reviewError}</p>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowReviewModal(false)}
-                className="py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
-              >
-                Cancel
+                Close
               </button>
               <button
                 type="button"
-                onClick={handleSubmitReview}
-                disabled={isSubmitting}
-                className={`py-2 text-white text-xs font-bold rounded-xl shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer ${
-                  reviewAction === 'approve'
-                    ? 'bg-[#006B56] hover:bg-[#005242]'
-                    : 'bg-rose-600 hover:bg-rose-700'
-                }`}
+                onClick={() => exportVoucherPDF(selectedDetailReq)}
+                className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#006B56] border border-emerald-200/80 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                title="Download Official PDF Voucher"
               >
-                {isSubmitting ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Send className="w-3.5 h-3.5" />
-                )}
-                <span>{reviewAction === 'approve' ? 'Authorize' : 'Reject'}</span>
+                <Download className="w-3.5 h-3.5" />
+                <span>PDF Voucher</span>
               </button>
             </div>
           </div>

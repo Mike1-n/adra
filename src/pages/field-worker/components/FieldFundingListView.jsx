@@ -958,6 +958,18 @@ export function FieldFundingListView({
                             </span>
                             <span className="text-[10px] font-bold text-slate-400 block">{req.currency || 'SSP'}</span>
                           </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedVoucher(req);
+                            }}
+                            className="px-2.5 py-1 bg-[#006B56] hover:bg-[#005a48] text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs transition active:scale-95 cursor-pointer shrink-0"
+                            title="View Official Payment Receipt"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                            <span>View Receipt</span>
+                          </button>
                           <div className="text-slate-400">
                             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </div>
@@ -977,84 +989,18 @@ export function FieldFundingListView({
                           </p>
                         </div>
 
-                        {/* POST-DISBURSEMENT MANDATORY FIELD ASSESSMENT & TRUTH REPORT CARD */}
-                        {(() => {
-                          const linkedTask = tasks.find(t => 
-                            (req.linked_task_id && (t.id === req.linked_task_id || t.request_code === req.linked_task_id)) ||
-                            (req.linked_request_code && (t.request_code === req.linked_request_code || t.id === req.linked_request_code)) ||
-                            (req.linked_beneficiary_name && t.beneficiary_name?.toLowerCase() === req.linked_beneficiary_name.toLowerCase())
-                          );
-
-                          const hasAssessment = assessments.some(a => 
-                            (req.linked_request_code && (a.request_code === req.linked_request_code || a.request_id === req.linked_request_code)) ||
-                            (req.linked_task_id && (a.request_id === req.linked_task_id || a.request_code === req.linked_task_id)) ||
-                            (req.linked_beneficiary_name && a.beneficiary_name?.toLowerCase() === req.linked_beneficiary_name.toLowerCase())
-                          ) || req.post_disbursement_assessment?.status === 'Completed & Verified True';
-
-                          return (
-                            <div className="rounded-xl border p-3 space-y-2.5 bg-gradient-to-br from-emerald-50 via-teal-50/40 to-white border-emerald-300 shadow-2xs">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  <ShieldCheck className="w-4 h-4 text-[#006B56]" />
-                                  <span className="text-xs font-black text-emerald-950 uppercase tracking-tight">
-                                    Post-Disbursement Field Verification Report
-                                  </span>
-                                </div>
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                                  hasAssessment
-                                    ? 'bg-emerald-100 text-[#006B56] border border-emerald-300'
-                                    : 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
-                                }`}>
-                                  {hasAssessment ? '✓ Verified True on Ground' : '⚡ Field Action Required'}
-                                </span>
-                              </div>
-
-                              <p className="text-[11px] text-slate-600 leading-relaxed">
-                                {hasAssessment
-                                  ? `On-ground physical assessment completed. Official report filed confirming the assignment concerning ${req.linked_beneficiary_name || 'this beneficiary'} is true, genuine, and verified.`
-                                  : `Facilitation funds are disbursed. You must now travel to the field in-person to assess ${req.linked_beneficiary_name || 'the beneficiary'} and give a formal verification report confirming the assignment is true.`}
-                              </p>
-
-                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-200/60">
-                                <span className="text-[10px] font-bold text-slate-500">
-                                  Case: <strong className="text-slate-800">{req.linked_request_code || 'Assigned Household'}</strong>
-                                </span>
-
-                                {onStartAssessment && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onStartAssessment(linkedTask || {
-                                      id: req.linked_task_id || req.id,
-                                      request_code: req.linked_request_code || req.request_code,
-                                      beneficiary_name: req.linked_beneficiary_name,
-                                      payam: req.payam || req.linked_location,
-                                      county: req.county,
-                                      state: req.state,
-                                      project_name: req.project_name
-                                    })}
-                                    className="px-3.5 py-1.5 bg-[#006B56] hover:bg-[#005a48] text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
-                                  >
-                                    <FileCheck className="w-3.5 h-3.5 text-emerald-200" />
-                                    <span>{hasAssessment ? 'View Field Audit' : 'Go to Field & Submit Truth Report'}</span>
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        <div className="flex items-center justify-between gap-2 pt-1">
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200">
                           <span className="text-[11px] text-slate-500 font-medium">
-                            Channel: <strong className="text-slate-800">{req.finance_disbursement?.payment_method || req.preferred_payout}</strong>
+                            Channel: <strong className="text-slate-800">{req.finance_disbursement?.payment_method || req.preferred_payout || 'm-Gurush'}</strong>
                           </span>
 
                           <button
                             type="button"
                             onClick={() => setSelectedVoucher(req)}
-                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                            className="px-3.5 py-1.5 bg-[#006B56] hover:bg-[#005a48] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
                           >
                             <Receipt className="w-3.5 h-3.5" />
-                            <span>View Payment Voucher</span>
+                            <span>View Receipt</span>
                           </button>
                         </div>
                       </div>
@@ -1253,7 +1199,7 @@ export function FieldFundingListView({
                 <Receipt className="w-5 h-5 text-emerald-300" />
                 <div>
                   <h3 className="text-sm font-black">ADRA South Sudan</h3>
-                  <p className="text-[10px] text-emerald-200">Official Field Payment Voucher</p>
+                  <p className="text-[10px] text-emerald-200">Official Field Payment Receipt</p>
                 </div>
               </div>
               <button
@@ -1361,7 +1307,7 @@ export function FieldFundingListView({
                 className="px-3.5 py-1.5 bg-[#006B56] hover:bg-[#005a48] text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Download Voucher (PDF)</span>
+                <span>Download Receipt (PDF)</span>
               </button>
             </div>
 

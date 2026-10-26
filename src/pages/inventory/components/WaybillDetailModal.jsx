@@ -184,38 +184,61 @@ export function WaybillDetailModal({
           )}
 
           {/* Chain of Custody & Handover Record if Collected */}
-          {isCollected && (
-            <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50/70 border border-blue-200 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 flex items-center gap-1.5">
-                  <UserCheck className="w-4 h-4 text-blue-600" />
-                  Chain of Custody Verification
-                </span>
-                <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-200">
-                  Collected for Distribution
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-blue-100">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Handed Over To (Field Worker):</span>
-                  <span className="font-black text-blue-950 text-sm block mt-0.5">
-                    {dispatch.collected_by || dispatch.goods_collected_by || dispatch.assigned_field_worker_name || 'Field Officer'}
+          {isCollected && (() => {
+            const collector = dispatch.collected_by || dispatch.goods_collected_by || dispatch.assigned_field_worker_name || 'Recipient';
+            const isBeneficiaryCollector =
+              collector.toLowerCase().includes('beneficiary') ||
+              (dispatch.beneficiary_name && collector.toLowerCase().includes(dispatch.beneficiary_name.toLowerCase().trim()));
+
+            return (
+              <div className={`p-3.5 rounded-xl border space-y-2 ${
+                isBeneficiaryCollector
+                  ? 'bg-gradient-to-r from-emerald-50 to-teal-50/70 border-emerald-200'
+                  : 'bg-gradient-to-r from-blue-50 to-indigo-50/70 border-blue-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                    isBeneficiaryCollector ? 'text-emerald-900' : 'text-blue-800'
+                  }`}>
+                    {isBeneficiaryCollector ? <User className="w-4 h-4 text-[#006B56]" /> : <UserCheck className="w-4 h-4 text-blue-600" />}
+                    Chain of Custody Verification
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    isBeneficiaryCollector
+                      ? 'text-emerald-800 bg-emerald-100/80 border-emerald-300'
+                      : 'text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-200'
+                  }`}>
+                    {isBeneficiaryCollector ? 'Direct Beneficiary Receipt' : 'Collected for Distribution'}
                   </span>
                 </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Authorized By (Supervisor):</span>
-                  <span className="font-bold text-slate-800 block mt-0.5">
-                    {dispatch.handed_over_by || dispatch.goods_handed_over_by || 'Supervisor (Hub Custodian)'}
-                  </span>
+                <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-200/60">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">
+                      {isBeneficiaryCollector ? 'Collected By (Beneficiary):' : 'Handed Over To (Field Worker):'}
+                    </span>
+                    <span className={`font-black text-sm block mt-0.5 ${
+                      isBeneficiaryCollector ? 'text-emerald-950' : 'text-blue-950'
+                    }`}>
+                      {collector}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Authorized By (Supervisor):</span>
+                    <span className="font-bold text-slate-800 block mt-0.5">
+                      {dispatch.handed_over_by || dispatch.goods_handed_over_by || 'Supervisor (Hub Custodian)'}
+                    </span>
+                  </div>
                 </div>
+                {dispatch.collected_at && (
+                  <div className={`text-[10px] font-medium ${
+                    isBeneficiaryCollector ? 'text-emerald-700' : 'text-blue-600'
+                  }`}>
+                    Recorded: {new Date(dispatch.collected_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </div>
+                )}
               </div>
-              {dispatch.collected_at && (
-                <div className="text-[10px] text-blue-600 font-medium">
-                  Recorded: {new Date(dispatch.collected_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
-                </div>
-              )}
-            </div>
-          )}
+            );
+          })()}
 
           {/* Items Manifest */}
           <div className="space-y-1.5">
@@ -286,16 +309,25 @@ export function WaybillDetailModal({
                 className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer active:scale-98"
               >
                 <UserCheck className="w-4 h-4" />
-                <span>Handover to Field Officer</span>
+                <span>Handover Cargo</span>
               </button>
             )}
 
-            {isCollected && (
-              <span className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 font-bold text-xs flex items-center gap-1.5">
-                <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                <span>Collected by {dispatch.collected_by || dispatch.goods_collected_by || 'Field Worker'}</span>
-              </span>
-            )}
+            {isCollected && (() => {
+              const collector = dispatch.collected_by || dispatch.goods_collected_by || 'Recipient';
+              const isBen =
+                collector.toLowerCase().includes('beneficiary') ||
+                (dispatch.beneficiary_name && collector.toLowerCase().includes(dispatch.beneficiary_name.toLowerCase().trim()));
+
+              return (
+                <span className={`px-3 py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 ${
+                  isBen ? 'bg-emerald-50 border-emerald-200 text-[#006B56]' : 'bg-blue-50 border-blue-200 text-blue-900'
+                }`}>
+                  {isBen ? <User className="w-3.5 h-3.5 text-[#006B56]" /> : <UserCheck className="w-3.5 h-3.5 text-blue-600" />}
+                  <span>Collected by {collector}</span>
+                </span>
+              );
+            })()}
           </div>
 
           <button

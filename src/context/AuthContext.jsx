@@ -42,23 +42,35 @@ export function AuthProvider({ children }) {
           .single();
 
         if (profile) {
-          if (profile.role === 'Beneficiary') {
+          const isDemoAccount = demoAccounts.some(d => d.email?.toLowerCase() === (profile.email || session.user.email)?.toLowerCase()) ||
+            (profile.email || session.user.email)?.toLowerCase() === 'admin@adra.org' ||
+            (profile.email || session.user.email)?.toLowerCase() === 'mary.nyambura@adra.community';
+
+          if (profile.role !== 'Administrator' && !isDemoAccount) {
             const benStatus = (profile.status || profile.verification_status || '').toLowerCase();
-            const isMaryDemo = profile.email?.toLowerCase() === 'mary.nyambura@adra.community';
-            const isVerified = (benStatus.includes('verified') || benStatus === 'active') && profile.is_active !== false;
-            if (!isVerified && !isMaryDemo) {
+            const userStatus = (profile.status || '').toLowerCase();
+            const isApproved = (
+              (userStatus === 'active' || profile.is_active === true) &&
+              !userStatus.includes('pending') &&
+              !benStatus.includes('pending') &&
+              !benStatus.includes('reject')
+            );
+
+            if (!isApproved) {
               await supabase.auth.signOut();
               setCurrentUser(null);
               return;
             }
           }
 
+          const loc = profile.location || (profile.department?.startsWith('Community (') ? profile.department.slice(11, -1) : undefined);
           setCurrentUser({
             id: session.user.id,
             email: session.user.email,
             full_name: profile.full_name || session.user.email,
             role: profile.role || 'Project Officer',
             department: profile.department || 'Operations',
+            location: loc,
             avatar: profile.avatar_url || demoAccounts[1].avatar
           });
         }
@@ -168,34 +180,45 @@ export function AuthProvider({ children }) {
             }
 
             // Verify account status
-            if (profile && profile.role !== 'Administrator') {
+            const isDemoAccount = demoAccounts.some(d => d.email?.toLowerCase() === (profile?.email || data.user.email)?.toLowerCase()) ||
+              (profile?.email || data.user.email)?.toLowerCase() === 'admin@adra.org' ||
+              (profile?.email || data.user.email)?.toLowerCase() === 'mary.nyambura@adra.community';
+
+            if (profile && profile.role !== 'Administrator' && !isDemoAccount) {
               if (profile.status === 'Deactivated' || profile.status === 'Suspended') {
                 await supabase.auth.signOut();
                 throw new Error('This account has been deactivated. Please contact an ADRA Administrator.');
               }
 
-              // Beneficiary must be verified by admin before login
-              if (profile.role === 'Beneficiary') {
-                const benStatus = (profile.status || profile.verification_status || '').toLowerCase();
-                const isMaryDemo = profile.email?.toLowerCase() === 'mary.nyambura@adra.community';
-                if (benStatus.includes('reject')) {
-                  await supabase.auth.signOut();
-                  throw new Error('Your beneficiary registration was rejected by the administrator. Please contact your nearest ADRA field office.');
-                }
-                const isVerified = (benStatus.includes('verified') || benStatus === 'active') && (profile.is_active !== false);
-                if (!isVerified && !isMaryDemo) {
-                  await supabase.auth.signOut();
-                  throw new Error('Your beneficiary account is pending verification by the ADRA administrator. You cannot log in until an administrator verifies and approves your account.');
-                }
+              // Beneficiary rejection check
+              const benStatus = (profile.status || profile.verification_status || '').toLowerCase();
+              if (benStatus.includes('reject')) {
+                await supabase.auth.signOut();
+                throw new Error('Your beneficiary registration was rejected by the administrator. Please contact your nearest ADRA field office.');
+              }
+
+              // Check if approved by administrator
+              const userStatus = (profile.status || '').toLowerCase();
+              const isApproved = (
+                (userStatus === 'active' || profile.is_active === true) &&
+                !userStatus.includes('pending') &&
+                !benStatus.includes('pending')
+              );
+
+              if (!isApproved) {
+                await supabase.auth.signOut();
+                throw new Error('Your account is pending administrator approval. You will not have access until an administrator reviews and approves your account.');
               }
             }
 
+            const loc = profile?.location || (profile?.department?.startsWith('Community (') ? profile.department.slice(11, -1) : undefined);
             const userObj = {
               id: data.user.id,
               email: data.user.email,
               full_name: profile?.full_name || data.user.email,
               role: profile?.role || 'Administrator',
               department: profile?.department || 'Operations',
+              location: loc,
               avatar: profile?.avatar_url || demoAccounts[0].avatar,
               phone: profile?.phone,
               status: profile?.status || 'Active',
@@ -212,7 +235,11 @@ export function AuthProvider({ children }) {
             return userObj;
           }
         } catch (supabaseErr) {
-          if (supabaseErr.message && supabaseErr.message.includes('deactivated')) {
+          if (supabaseErr.message && (
+            supabaseErr.message.includes('deactivated') ||
+            supabaseErr.message.includes('pending administrator approval') ||
+            supabaseErr.message.includes('rejected')
+          )) {
             throw supabaseErr;
           }
           // If Supabase auth error is about wrong credentials or other issues, fall through to db.authenticateUser
@@ -257,7 +284,7 @@ export function AuthProvider({ children }) {
           }
         }
 
-        toast.info(`Account registered for ${signupData.full_name}! Pending administrator verification before login.`);
+        toast.info(`Account registered for ${signupData.full_name}! Your account requires administrator approval before you can log in.`, 3000);
         return { ...userObj, beneficiary: res.beneficiary };
       } else {
         const newUser = await db.createUser({
@@ -271,7 +298,9 @@ export function AuthProvider({ children }) {
           national_id: signupData.id_number || signupData.national_id,
           phone: signupData.phone_number || signupData.phone,
           role: signupData.role || 'Project Officer',
-          department: signupData.department || 'Field Operations'
+          department: signupData.department || 'Field Operations',
+          status: 'Pending Verification',
+          is_active: false
         });
 
         // Optionally register with Supabase GoTrue
@@ -292,7 +321,7 @@ export function AuthProvider({ children }) {
           }
         }
 
-        toast.success(`Account registered successfully for ${newUser.full_name}!`);
+        toast.info(`Account registered for ${newUser.full_name}! Your account requires administrator approval before you can log in.`, 3000);
         return newUser;
       }
     } catch (err) {

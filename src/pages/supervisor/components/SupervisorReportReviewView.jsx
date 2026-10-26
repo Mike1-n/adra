@@ -307,15 +307,16 @@ export function SupervisorReportReviewView({
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden max-w-5xl mx-auto">
-              <div className="overflow-x-auto">
+              {/* 1. DESKTOP MODE TABLE (sm and up) */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                      <th className="py-2 px-3 w-36">Audit Code</th>
-                      <th className="py-2 px-3">Beneficiary</th>
-                      <th className="py-2 px-3">Field Worker</th>
-                      <th className="py-2 px-3 w-32">Finding</th>
-                      <th className="py-2 px-3 w-20 text-right">Action</th>
+                      <th className="py-2.5 px-3 w-36">Audit Code</th>
+                      <th className="py-2.5 px-3">Beneficiary</th>
+                      <th className="py-2.5 px-3">Field Worker</th>
+                      <th className="py-2.5 px-3 w-32">Finding</th>
+                      <th className="py-2.5 px-3 w-20 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -352,7 +353,7 @@ export function SupervisorReportReviewView({
 
                           {/* 4. Finding */}
                           <td className="py-2 px-3 whitespace-nowrap">
-                            <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border ${findingConfig.bg}`}>
+                            <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full border ${findingConfig.bg}`}>
                               {findingConfig.label}
                             </span>
                           </td>
@@ -373,6 +374,57 @@ export function SupervisorReportReviewView({
                     })}
                   </tbody>
                 </table>
+              </div>
+
+              {/* 2. PHONE MODE VIEW (< sm): Clean, single-row mobile cards where the View button fits 100% on screen */}
+              <div className="sm:hidden divide-y divide-slate-100">
+                {filteredAssessments.map(item => {
+                  const finding = item.verification_finding || 'VERIFIED_TRUE';
+                  const findingConfig = {
+                    'VERIFIED_TRUE': { label: 'Verified True', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+                    'DISCREPANCY': { label: 'Discrepancy', bg: 'bg-amber-50 text-amber-800 border-amber-200' },
+                    'NOT_ELIGIBLE': { label: 'Not Eligible', bg: 'bg-rose-50 text-rose-800 border-rose-200' }
+                  }[finding] || { label: 'Audited', bg: 'bg-emerald-50 text-emerald-800 border-emerald-200' };
+
+                  return (
+                    <div
+                      key={item.id || item.assessment_code}
+                      onClick={() => setSelectedAssessment(item)}
+                      className="p-3 flex items-center justify-between gap-2.5 hover:bg-slate-50 active:bg-slate-100/70 transition cursor-pointer"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                          <span className="font-mono text-[11px] font-bold text-[#006B56]">
+                            {item.assessment_code || item.id}
+                          </span>
+                          <span className={`inline-block text-[10px] font-bold px-2 py-0.2 rounded-full border leading-tight ${findingConfig.bg}`}>
+                            {findingConfig.label}
+                          </span>
+                        </div>
+
+                        <p className="font-bold text-slate-900 text-xs truncate">
+                          {item.beneficiary_name}
+                        </p>
+
+                        <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                          {item.field_worker_name || 'Field Officer'}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedAssessment(item);
+                        }}
+                        className="shrink-0 px-3 py-1.5 bg-[#006B56] hover:bg-[#005544] text-white text-xs font-bold rounded-xl transition active:scale-95 inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

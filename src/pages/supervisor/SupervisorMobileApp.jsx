@@ -63,7 +63,7 @@ export function SupervisorMobileApp({
   const [facilitationsStatusTab, setFacilitationsStatusTab] = useState('pending');
 
   // Accordion state: only one section can be open at a time ('assignments' | 'dispatches' | 'facilitations' | null)
-  const [expandedSection, setExpandedSection] = useState('assignments');
+  const [expandedSection, setExpandedSection] = useState(null);
 
   const toggleAccordion = (sectionId) => {
     setExpandedSection(prev => (prev === sectionId ? null : sectionId));
@@ -272,11 +272,33 @@ export function SupervisorMobileApp({
     }
   };
 
-  // Handler: Handover Cargo to Field Worker (Mark Collected)
+  // Handler: Handover Cargo to Field Worker or Direct to Beneficiary (Mark Collected)
   const handleHandoverToFieldWorker = async (item, workerName, notes = '') => {
     try {
       const supName = activeSupervisor?.name || currentUser?.full_name || 'Emmanuel Adeyemi (Supervisor)';
-      const targetWorker = (workerName || item.assigned_field_worker_name || 'Agnes Dawa').trim();
+      const matched = assignments.find(
+        a => (item.linked_request_id && a.id === item.linked_request_id) ||
+             (item.request_code && a.request_code === item.request_code) ||
+             (item.waybill_number && a.waybill_number === item.waybill_number) ||
+             (item.id && a.id === item.id)
+      );
+      const targetWorker = (
+        workerName ||
+        item.assigned_field_worker_name ||
+        matched?.assigned_field_worker_name ||
+        item.beneficiary_name ||
+        matched?.beneficiary_name ||
+        'Field Officer'
+      ).trim();
+
+      const isBeneficiaryRecipient =
+        targetWorker.toLowerCase().includes('beneficiary') ||
+        (matched?.beneficiary_name && targetWorker.toLowerCase().includes(matched.beneficiary_name.toLowerCase())) ||
+        (item.beneficiary_name && targetWorker.toLowerCase().includes(item.beneficiary_name.toLowerCase()));
+
+      const statusLabel = isBeneficiaryRecipient ? 'Goods Collected Directly by Beneficiary' : 'Goods Collected - Out for Distribution';
+      const dispatchStatus = isBeneficiaryRecipient ? 'Collected by Beneficiary' : 'Collected by Field Worker';
+
       await db.confirmGoodsCollection(
         item.waybill_number || item.id || item.request_code,
         targetWorker,
@@ -290,13 +312,15 @@ export function SupervisorMobileApp({
       if (selectedAssignment) {
         setSelectedAssignment(prev => prev ? {
           ...prev,
-          status: 'goods_collected_by_field_worker',
-          dispatch_status: 'Collected by Field Worker',
-          status_label: 'Goods Collected - Out for Distribution',
+          status: isBeneficiaryRecipient ? 'goods_collected_by_beneficiary' : 'goods_collected_by_field_worker',
+          dispatch_status: dispatchStatus,
+          status_label: statusLabel,
           goods_collected_at: new Date().toISOString(),
           goods_collected_by: targetWorker,
           collected_by: targetWorker,
-          assigned_field_worker_name: targetWorker,
+          assigned_field_worker_name: isBeneficiaryRecipient
+            ? (prev.assigned_field_worker_name || matched?.assigned_field_worker_name || 'Field Officer')
+            : targetWorker,
           goods_handed_over_by: supName,
           handed_over_by: supName
         } : null);
@@ -304,11 +328,13 @@ export function SupervisorMobileApp({
       if (selectedWaybillModal) {
         setSelectedWaybillModal(prev => prev ? {
           ...prev,
-          status: 'Collected by Field Worker',
-          dispatch_status: 'Collected by Field Worker',
+          status: dispatchStatus,
+          dispatch_status: dispatchStatus,
           collected_by: targetWorker,
           goods_collected_by: targetWorker,
-          assigned_field_worker_name: targetWorker,
+          assigned_field_worker_name: isBeneficiaryRecipient
+            ? (prev.assigned_field_worker_name || matched?.assigned_field_worker_name || 'Field Officer')
+            : targetWorker,
           handed_over_by: supName,
           goods_handed_over_by: supName,
           collected_at: new Date().toISOString()
@@ -435,6 +461,7 @@ export function SupervisorMobileApp({
           <SupervisorAssignmentDetailsView
             assignment={selectedAssignment}
             fieldWorkers={fieldWorkers}
+            assessments={assessments}
             onBack={() => setActiveSubview(null)}
             onAssignWorker={handleAssignFieldWorker}
             onReassignWorker={handleReassignWorker}
@@ -457,7 +484,7 @@ export function SupervisorMobileApp({
                   request_code: selectedAssignment.request_code,
                   beneficiary_name: selectedAssignment.beneficiary_name,
                   beneficiary_code: selectedAssignment.beneficiary_code,
-                  field_worker_name: selectedAssignment.assigned_field_worker_name || 'Agnes Dawa',
+                  field_worker_name: selectedAssignment.assigned_field_worker_name || 'Simon Kiden',
                   status: selectedAssignment.status || 'Under Supervisor Review',
                   vulnerability_score: selectedAssignment.vulnerability_score || 85,
                   family_size: selectedAssignment.household_members || 8,
@@ -469,6 +496,9 @@ export function SupervisorMobileApp({
               }
               setActiveSubview('report_review');
             }}
+            onForwardToPM={handleForwardToPM}
+            onRejectAssessment={handleRejectAssessment}
+            onRefresh={() => loadData(activeSupervisor, true)}
           />
         </div>
       );
@@ -1553,6 +1583,7 @@ export function SupervisorMobileApp({
           onClose={() => setHandoverTargetItem(null)}
           item={handoverTargetItem}
           fieldWorkers={fieldWorkers}
+          assignments={assignments}
           activeSupervisor={activeSupervisor}
           onConfirmHandover={async (item, workerName, notes) => {
             await handleHandoverToFieldWorker(item, workerName, notes);
