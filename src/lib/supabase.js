@@ -5443,6 +5443,45 @@ export const db = {
     return this.updateUser(id, { role });
   },
 
+  async resetUserPassword(id, newPassword) {
+    if (!newPassword || newPassword.trim().length < 6) {
+      throw new Error('Password must be at least 6 characters long.');
+    }
+    const cleanPass = newPassword.trim();
+    const updated = await this.updateUser(id, { password: cleanPass });
+
+    // Also update in mock.demoAccounts if applicable
+    if (mock.demoAccounts && Array.isArray(mock.demoAccounts)) {
+      const demoItem = mock.demoAccounts.find(d => d.id === id || (d.email && updated?.email && d.email.toLowerCase() === updated.email.toLowerCase()));
+      if (demoItem) {
+        demoItem.password = cleanPass;
+      }
+    }
+
+    // Also update in beneficiaries list if this user is linked to a beneficiary
+    const bens = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries || []);
+    let benMatched = false;
+    const updatedBens = bens.map(b => {
+      if (b.id === id || (b.email && updated?.email && b.email.toLowerCase() === updated.email.toLowerCase()) || (b.beneficiary_code && (b.beneficiary_code === id || b.beneficiary_code === updated?.beneficiary_code))) {
+        benMatched = true;
+        return { ...b, password: cleanPass };
+      }
+      return b;
+    });
+    if (benMatched) {
+      saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBens);
+    }
+
+    await this.logAudit({
+      action: 'UPDATE',
+      module: 'User Management',
+      record_id: id,
+      details: `Administrator changed password for account ${updated?.full_name || id} (${updated?.email || ''})`
+    });
+
+    return updated;
+  },
+
   async getRoles() {
     return mock.initialRoles;
   },

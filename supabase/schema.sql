@@ -605,4 +605,9 @@ CREATE POLICY "Allow authenticated read on suppliers" ON public.suppliers FOR SE
 DROP POLICY IF EXISTS "Allow authenticated write on suppliers" ON public.suppliers;
 CREATE POLICY "Allow authenticated write on suppliers" ON public.suppliers FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+-- ----------------------------------------------------------------------------
+-- 19. USER CREDENTIALS & SECURITY ENHANCEMENTS
+-- ----------------------------------------------------------------------------
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password TEXT DEFAULT 'Password123!';
+
 

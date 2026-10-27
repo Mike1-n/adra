@@ -19,7 +19,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Phone,
-  Calendar
+  Calendar,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { Card } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
@@ -59,7 +64,15 @@ export function UserRoleManagementView() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+
+  // Password reset state
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -76,7 +89,8 @@ export function UserRoleManagementView() {
     full_name: '',
     email: '',
     department: '',
-    phone: ''
+    phone: '',
+    password: ''
   });
 
   const [assignedRole, setAssignedRole] = useState('Field Worker');
@@ -139,6 +153,7 @@ export function UserRoleManagementView() {
       email: user.email || '',
       department: user.department || '',
       phone: user.phone || '',
+      password: '',
       status: initialStatus
     });
     setIsEditOpen(true);
@@ -149,15 +164,76 @@ export function UserRoleManagementView() {
     if (!selectedUser) return;
     try {
       const isAct = editFormData.status === 'Active';
-      await db.updateUser(selectedUser.id, {
-        ...editFormData,
+      const payload = {
+        full_name: editFormData.full_name,
+        email: editFormData.email,
+        department: editFormData.department,
+        phone: editFormData.phone,
+        status: editFormData.status,
         is_active: isAct
-      });
+      };
+      await db.updateUser(selectedUser.id, payload);
+      if (editFormData.password && editFormData.password.trim().length >= 6) {
+        await db.resetUserPassword(selectedUser.id, editFormData.password.trim());
+      }
       toast.success(`Updated profile for ${editFormData.full_name}`);
       setIsEditOpen(false);
       loadData();
     } catch (err) {
       toast.error('Failed to update user.');
+    }
+  };
+
+  const handleOpenPasswordModal = (user) => {
+    setSelectedUser(user);
+    setNewPassword('Password123!');
+    setConfirmPassword('Password123!');
+    setShowPassword(false);
+    setIsCopied(false);
+    setIsPasswordModalOpen(true);
+  };
+
+  const handleGeneratePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
+    let generated = 'Adra@2026';
+    for (let i = 0; i < 4; i++) {
+      generated += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(generated);
+    setConfirmPassword(generated);
+    setShowPassword(true);
+  };
+
+  const handleCopyPassword = () => {
+    if (!newPassword) return;
+    navigator.clipboard.writeText(newPassword);
+    setIsCopied(true);
+    toast.info('Password copied to clipboard!');
+    setTimeout(() => setIsCopied(false), 2500);
+  };
+
+  const handleSavePassword = async (e) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match.');
+      return;
+    }
+
+    try {
+      setIsResettingPassword(true);
+      await db.resetUserPassword(selectedUser.id, newPassword);
+      toast.success(`Password successfully changed for ${selectedUser.full_name}!`);
+      setIsPasswordModalOpen(false);
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to change password.');
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -542,6 +618,14 @@ export function UserRoleManagementView() {
                           )}
 
                           <button
+                            onClick={() => handleOpenPasswordModal(u)}
+                            title="Change User Password"
+                            className="p-1 rounded-md text-white bg-amber-600 hover:bg-amber-700 active:bg-amber-800 transition cursor-pointer shadow-2xs border border-amber-700"
+                          >
+                            <Key className="w-3 h-3 text-white" />
+                          </button>
+
+                          <button
                             onClick={() => handleOpenEdit(u)}
                             title="Edit User Profile"
                             className="p-1 rounded-md text-white bg-slate-700 hover:bg-slate-800 transition cursor-pointer shadow-2xs border border-slate-800"
@@ -555,7 +639,7 @@ export function UserRoleManagementView() {
                             className={`p-1 rounded-md text-white transition cursor-pointer shadow-2xs ${
                               isDeactivated
                                 ? 'bg-teal-600 hover:bg-teal-700 border border-teal-700'
-                                : 'bg-amber-600 hover:bg-amber-700 border border-amber-700'
+                                : 'bg-rose-600 hover:bg-rose-700 border border-rose-700'
                             }`}
                           >
                             <Power className="w-3 h-3 text-white" />
@@ -808,6 +892,101 @@ export function UserRoleManagementView() {
               </Button>
               <Button type="submit" variant="primary">
                 Assign Role
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Change Password Modal */}
+      {selectedUser && (
+        <Modal
+          isOpen={isPasswordModalOpen}
+          onClose={() => setIsPasswordModalOpen(false)}
+          title={`Change Password: ${selectedUser.full_name}`}
+          maxWidth="max-w-md"
+        >
+          <form onSubmit={handleSavePassword} className="space-y-4 text-xs">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900">{selectedUser.full_name}</span>
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                  {selectedUser.role}
+                </span>
+              </div>
+              <p className="text-slate-500 font-mono text-[11px]">{selectedUser.email}</p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-semibold text-slate-800">New Password *</label>
+                <button
+                  type="button"
+                  onClick={handleGeneratePassword}
+                  className="text-[10px] font-bold text-[#006B56] hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Generate Strong Password</span>
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min. 6 characters)"
+                  className="adra-input text-xs sm:text-sm font-mono pr-16"
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-slate-400">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="p-1 hover:text-slate-700 transition cursor-pointer"
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyPassword}
+                    className="p-1 hover:text-slate-700 transition cursor-pointer"
+                    title="Copy to clipboard"
+                  >
+                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">Confirm New Password *</label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter new password"
+                className="adra-input text-xs sm:text-sm font-mono"
+              />
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-[11px]">
+                <Key className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                <span>Admin Override Notice</span>
+              </div>
+              <p className="text-[10px] text-amber-800/90 leading-relaxed">
+                As Administrator, changing this password immediately overrides existing credentials. The user will be able to log in with this new password right away.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <Button type="button" variant="secondary" onClick={() => setIsPasswordModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" loading={isResettingPassword}>
+                Save New Password
               </Button>
             </div>
           </form>
