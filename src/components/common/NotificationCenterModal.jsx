@@ -155,6 +155,7 @@ export function NotificationCenterModal({
     const isFieldWorker = role.includes('field');
     const isSupervisor = role.includes('supervisor');
     const isPM = role.includes('program') || role.includes('programme');
+    const isSupplier = role.includes('supplier') || role.includes('vendor');
 
     const pendingBeneficiaryMsgs = complaints.filter(c => {
       const recipientRole = (c.recipient_role || '').toLowerCase();
@@ -167,7 +168,7 @@ export function NotificationCenterModal({
         isForUser = recipientRole.includes('supervisor') || (workerName && recipientName.includes(workerName.toLowerCase()));
       } else if (isPM) {
         isForUser = recipientRole.includes('program') || recipientRole.includes('pm') || recipientRole.includes('manager');
-      } else {
+      } else if (!isSupplier && !role.includes('donor')) {
         isForUser = c.status !== 'Resolved';
       }
 
@@ -180,7 +181,7 @@ export function NotificationCenterModal({
 
     // THE CORE REQUESTED NOTIFICATION:
     // "2 Household Messages Awaiting Reply / A registered beneficiary has reached out. Tap to view and reply. / Reply"
-    if (msgCount > 0 || isFieldWorker) {
+    if (!isSupplier && !role.includes('donor') && (msgCount > 0 || isFieldWorker)) {
       const displayCount = msgCount > 0 ? msgCount : 2; // Graceful mock fallback if 0 but field worker
       notifs.push({
         id: 'notif-household-messages',
@@ -461,8 +462,112 @@ export function NotificationCenterModal({
       });
     }
 
-    // 8. ADMINISTRATOR / DEFAULT ALERTS
-    if (role.includes('admin') || (!isFieldWorker && !isSupervisor && !isPM && !role.includes('finance') && !role.includes('inventory') && !role.includes('beneficiary'))) {
+    // 8. SUPPLIER & VENDOR ROLE SPECIFIC ALERTS
+    if (isSupplier) {
+      const orders = extraData.orders || [];
+      const pendingOrders = orders.filter(po => {
+        const stage = po.stage !== undefined ? Number(po.stage) : 1;
+        return stage === 1 || po.status === 'Issued' || po.status === 'Pending Dispatch';
+      });
+      if (pendingOrders.length > 0) {
+        notifs.push({
+          id: 'notif-supplier-pending-orders',
+          type: 'task',
+          category: 'Purchase Orders',
+          title: `${pendingOrders.length} New Purchase Order${pendingOrders.length > 1 ? 's' : ''} Ready for Dispatch`,
+          message: 'Official ADRA procurement orders have been awarded to your company. Submit waybill when goods are in transit.',
+          urgency: 'high',
+          time: '15 mins ago',
+          action_tab: 'orders',
+          action_label: 'Dispatch Now',
+          icon: ShoppingCart,
+          color: 'amber'
+        });
+      }
+
+      const inTransitOrders = orders.filter(po => {
+        const stage = Number(po.stage);
+        return stage === 2 || po.status === 'Dispatched & In Transit' || po.status === 'Supplied & In Transit' || po.waybill_number;
+      });
+      if (inTransitOrders.length > 0) {
+        notifs.push({
+          id: 'notif-supplier-intransit',
+          type: 'dispatch',
+          category: 'Logistics',
+          title: `${inTransitOrders.length} Consignment${inTransitOrders.length > 1 ? 's' : ''} Active in Transit`,
+          message: 'Warehouse receiving teams have been notified of your carrier dispatch and are preparing for receipt.',
+          urgency: 'normal',
+          time: '45 mins ago',
+          action_tab: 'intransit',
+          action_label: 'Track Transit',
+          icon: Truck,
+          color: 'blue'
+        });
+      }
+
+      const confirmedOrders = orders.filter(po => {
+        const stage = Number(po.stage);
+        return stage === 3 || po.status?.includes('Received') || po.grn_number;
+      });
+      if (confirmedOrders.length > 0) {
+        notifs.push({
+          id: 'notif-supplier-grn',
+          type: 'grn',
+          category: 'GRN Inspection',
+          title: `${confirmedOrders.length} Delivery${confirmedOrders.length > 1 ? 's' : ''} Confirmed with GRN`,
+          message: 'Goods Receipt Notes (GRN) issued by central warehouse. Invoices forwarded to Finance for payment.',
+          urgency: 'normal',
+          time: '2 hours ago',
+          action_tab: 'confirmed',
+          action_label: 'View GRNs',
+          icon: PackageCheck,
+          color: 'emerald'
+        });
+      }
+
+      const settledOrders = orders.filter(po => {
+        const stage = Number(po.stage);
+        return stage === 4 || po.status === 'Paid & Settled' || po.payment_status === 'Paid';
+      });
+      if (settledOrders.length > 0) {
+        notifs.push({
+          id: 'notif-supplier-paid',
+          type: 'payment',
+          category: 'Finance Payout',
+          title: `${settledOrders.length} Invoice Payment${settledOrders.length > 1 ? 's' : ''} Settled`,
+          message: 'Finance has verified and disbursed settlement funds to your company bank or mobile money account.',
+          urgency: 'low',
+          time: '1 day ago',
+          action_tab: 'payments',
+          action_label: 'View Statement',
+          icon: Banknote,
+          color: 'purple'
+        });
+      }
+
+      const returnedOrders = orders.filter(po => {
+        const stage = Number(po.stage);
+        return stage === -1 || po.status?.includes('Returned') || po.status?.includes('Rejected');
+      });
+      if (returnedOrders.length > 0) {
+        notifs.push({
+          id: 'notif-supplier-returned',
+          type: 'return',
+          category: 'Discrepancy',
+          title: `${returnedOrders.length} Shipment Item${returnedOrders.length > 1 ? 's' : ''} Returned`,
+          message: 'Warehouse quality inspection noted quantity or spec discrepancies. Resend or adjust items.',
+          urgency: 'high',
+          time: '3 hours ago',
+          action_tab: 'returned',
+          action_label: 'Review Return',
+          icon: AlertTriangle,
+          color: 'rose'
+        });
+      }
+    }
+
+    // 9. ADMINISTRATOR / DEFAULT ALERTS
+    if (role.includes('admin') || (!isFieldWorker && !isSupervisor && !isPM && !role.includes('finance') && !role.includes('inventory') && !role.includes('beneficiary') && !isSupplier && !role.includes('donor'))) {
       const pendingApprovalsCount = dbData.approvals.filter(a => a.status === 'Pending').length;
       if (pendingApprovalsCount > 0) {
         notifs.push({

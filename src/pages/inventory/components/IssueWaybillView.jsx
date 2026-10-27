@@ -6,11 +6,17 @@ import {
   ArrowLeft,
   Building2,
   MapPin,
-  Package
+  Package,
+  Users,
+  CheckCircle2,
+  AlertCircle,
+  FileText,
+  ShieldCheck,
+  Sparkles
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 
-// Helper: Smart Commodity Matcher based on Request Category
+// Helper: Smart Commodity Matcher based on Request Category & Household Size (Sphere Standards)
 function getRelevantCommodities(req, warehouseName, allInventory) {
   if (!allInventory || allInventory.length === 0) return [];
 
@@ -24,58 +30,196 @@ function getRelevantCommodities(req, warehouseName, allInventory) {
       item_id: i.id,
       item_name: i.item_name,
       quantity: 1,
-      unit: i.unit || 'Units'
+      unit: i.unit || 'Units',
+      warehouse: i.warehouse
     }));
   }
 
   const reqCat = (req.category || req.assistance_type || '').toLowerCase();
+  const householdMembers = Math.max(1, Number(req.household_members || req.people_in_household || req.household_size || 1));
 
-  const matchingItems = pool.filter(i => {
-    const itemCat = (i.category || '').toLowerCase();
-    const itemName = (i.item_name || '').toLowerCase();
+  // Determine requested humanitarian sectors
+  const hasFood = reqCat.includes('food') || reqCat.includes('nutrition') || reqCat.includes('cereal') || reqCat.includes('flour') || reqCat.includes('maize') || reqCat.includes('ration');
+  const hasWater = reqCat.includes('water') || reqCat.includes('wash') || reqCat.includes('hygiene') || reqCat.includes('sanitation') || reqCat.includes('jerrycan');
+  const hasShelter = reqCat.includes('shelter') || reqCat.includes('nfi') || reqCat.includes('tarpaulin') || reqCat.includes('blanket') || reqCat.includes('tent');
+  const hasAgri = reqCat.includes('agri') || reqCat.includes('seed') || reqCat.includes('livelihood') || reqCat.includes('crop') || reqCat.includes('tool');
+  const hasEdu = reqCat.includes('edu') || reqCat.includes('student') || reqCat.includes('school') || reqCat.includes('youth') || reqCat.includes('literacy');
 
-    if (reqCat.includes('food')) {
-      return itemCat.includes('food') || itemName.includes('maize') || itemName.includes('flour') || itemName.includes('basket') || itemName.includes('oil') || itemName.includes('cereal') || itemName.includes('pulse') || itemName.includes('rice') || itemName.includes('bp-5');
-    }
-    if (reqCat.includes('wash') || reqCat.includes('water') || reqCat.includes('hygiene')) {
-      return itemCat.includes('wash') || itemCat.includes('water') || itemName.includes('water') || itemName.includes('jerrycan') || itemName.includes('jerrican') || itemName.includes('aquatab') || itemName.includes('hygiene') || itemName.includes('soap');
-    }
-    if (reqCat.includes('shelter') || reqCat.includes('nfi')) {
-      return itemCat.includes('shelter') || itemCat.includes('nfi') || itemName.includes('tarpaulin') || itemName.includes('blanket') || itemName.includes('tent');
-    }
-    if (reqCat.includes('agri') || reqCat.includes('seed') || reqCat.includes('livelihood')) {
-      return itemCat.includes('agri') || itemCat.includes('seed') || itemName.includes('seed') || itemName.includes('tool');
-    }
-    if (reqCat.includes('edu') || reqCat.includes('youth') || reqCat.includes('literacy')) {
-      return itemCat.includes('edu') || itemName.includes('kit') || itemName.includes('student') || itemName.includes('book');
-    }
-    return itemCat.includes(reqCat);
-  });
+  // Sphere Standard Household Scaling Formula:
+  // Food: 1-4 members = 1 bag/basket (25kg); 5-8 members = 2 bags/baskets (50kg); 9+ members = 3 bags/baskets (75kg)
+  const foodScale = householdMembers <= 4 ? 1 : (householdMembers <= 8 ? 2 : 3);
+  // Water: 1-4 members = 1 jerrycan (20L); 5-8 members = 2 jerrycans (40L); 9+ members = 3 jerrycans
+  const waterScale = householdMembers <= 4 ? 1 : (householdMembers <= 8 ? 2 : 3);
+  // Shelter: 1-5 members = 1 tarpaulin (4x5m); 6+ members = 2 tarpaulins
+  const shelterScale = householdMembers <= 5 ? 1 : 2;
+  // Livelihood / Agri
+  const agriScale = householdMembers <= 5 ? 1 : 2;
+  // Education
+  const eduScale = householdMembers <= 4 ? 1 : 2;
 
-  if (matchingItems.length > 0) {
-    const foodBasket = matchingItems.find(i => (i.item_name || '').toLowerCase().includes('basket'));
-    if (foodBasket) {
-      return [{
-        item_id: foodBasket.id,
-        item_name: foodBasket.item_name,
-        quantity: 1,
-        unit: foodBasket.unit || 'Baskets'
-      }];
+  const allocatedItems = [];
+  const allocatedIds = new Set();
+
+  const findBestItem = (sectorMatcher, preferredKeywords = []) => {
+    let candidates = pool.filter(i => sectorMatcher(i) && !allocatedIds.has(i.id));
+    if (candidates.length === 0) {
+      candidates = allInventory.filter(i => sectorMatcher(i) && !allocatedIds.has(i.id));
     }
-    return matchingItems.slice(0, 2).map(i => ({
+    if (candidates.length === 0) return null;
+
+    for (const kw of preferredKeywords) {
+      const match = candidates.find(c => (c.item_name || '').toLowerCase().includes(kw));
+      if (match) return match;
+    }
+    return candidates[0];
+  };
+
+  // 1. Process Food Sector
+  if (hasFood || (!hasWater && !hasShelter && !hasAgri && !hasEdu)) {
+    const foodItem = findBestItem(
+      i => {
+        const cat = (i.category || '').toLowerCase();
+        const name = (i.item_name || '').toLowerCase();
+        return cat.includes('food') || name.includes('maize') || name.includes('flour') || name.includes('basket') || name.includes('oil') || name.includes('cereal') || name.includes('pulse') || name.includes('rice') || name.includes('bp-5');
+      },
+      ['basket', 'maize', 'flour', 'rice', 'oil']
+    );
+
+    if (foodItem) {
+      allocatedIds.add(foodItem.id);
+      allocatedItems.push({
+        item_id: foodItem.id,
+        item_name: foodItem.item_name,
+        quantity: foodScale,
+        unit: foodItem.unit || 'Bags',
+        warehouse: foodItem.warehouse
+      });
+
+      // If large household (5+ members) and depot has a complementary food staple, include 1 unit
+      if (householdMembers >= 5) {
+        const compFood = findBestItem(
+          i => {
+            const cat = (i.category || '').toLowerCase();
+            const name = (i.item_name || '').toLowerCase();
+            return (cat.includes('food') || name.includes('flour') || name.includes('oil') || name.includes('pulse')) && i.id !== foodItem.id;
+          },
+          ['oil', 'wheat', 'pulse', 'peas', 'rice']
+        );
+        if (compFood && pool.some(p => p.id === compFood.id)) {
+          allocatedIds.add(compFood.id);
+          allocatedItems.push({
+            item_id: compFood.id,
+            item_name: compFood.item_name,
+            quantity: 1,
+            unit: compFood.unit || 'Units',
+            warehouse: compFood.warehouse
+          });
+        }
+      }
+    }
+  }
+
+  // 2. Process Water / WASH Sector
+  if (hasWater) {
+    const waterItem = findBestItem(
+      i => {
+        const cat = (i.category || '').toLowerCase();
+        const name = (i.item_name || '').toLowerCase();
+        return cat.includes('wash') || cat.includes('water') || name.includes('water') || name.includes('jerrycan') || name.includes('jerrican') || name.includes('aquatab') || name.includes('hygiene') || name.includes('soap');
+      },
+      ['jerrycan', 'jerrican', 'aquatab', 'hygiene', 'water']
+    );
+
+    if (waterItem) {
+      allocatedIds.add(waterItem.id);
+      allocatedItems.push({
+        item_id: waterItem.id,
+        item_name: waterItem.item_name,
+        quantity: waterScale,
+        unit: waterItem.unit || 'Units',
+        warehouse: waterItem.warehouse
+      });
+    }
+  }
+
+  // 3. Process Shelter / NFI Sector
+  if (hasShelter) {
+    const shelterItem = findBestItem(
+      i => {
+        const cat = (i.category || '').toLowerCase();
+        const name = (i.item_name || '').toLowerCase();
+        return cat.includes('shelter') || cat.includes('nfi') || name.includes('tarpaulin') || name.includes('blanket') || name.includes('tent');
+      },
+      ['tarpaulin', 'blanket', 'tent']
+    );
+
+    if (shelterItem) {
+      allocatedIds.add(shelterItem.id);
+      allocatedItems.push({
+        item_id: shelterItem.id,
+        item_name: shelterItem.item_name,
+        quantity: shelterScale,
+        unit: shelterItem.unit || 'Units',
+        warehouse: shelterItem.warehouse
+      });
+    }
+  }
+
+  // 4. Process Agriculture Sector
+  if (hasAgri) {
+    const agriItem = findBestItem(
+      i => {
+        const cat = (i.category || '').toLowerCase();
+        const name = (i.item_name || '').toLowerCase();
+        return cat.includes('agri') || cat.includes('seed') || name.includes('seed') || name.includes('tool');
+      },
+      ['seed', 'tool']
+    );
+    if (agriItem) {
+      allocatedIds.add(agriItem.id);
+      allocatedItems.push({
+        item_id: agriItem.id,
+        item_name: agriItem.item_name,
+        quantity: agriScale,
+        unit: agriItem.unit || 'Bags',
+        warehouse: agriItem.warehouse
+      });
+    }
+  }
+
+  // 5. Process Education Sector
+  if (hasEdu) {
+    const eduItem = findBestItem(
+      i => {
+        const cat = (i.category || '').toLowerCase();
+        const name = (i.item_name || '').toLowerCase();
+        return cat.includes('edu') || name.includes('kit') || name.includes('student') || name.includes('book');
+      },
+      ['kit', 'student', 'book']
+    );
+    if (eduItem) {
+      allocatedIds.add(eduItem.id);
+      allocatedItems.push({
+        item_id: eduItem.id,
+        item_name: eduItem.item_name,
+        quantity: eduScale,
+        unit: eduItem.unit || 'Kits',
+        warehouse: eduItem.warehouse
+      });
+    }
+  }
+
+  if (allocatedItems.length === 0) {
+    return pool.slice(0, 1).map(i => ({
       item_id: i.id,
       item_name: i.item_name,
       quantity: 1,
-      unit: i.unit || 'Units'
+      unit: i.unit || 'Units',
+      warehouse: i.warehouse
     }));
   }
 
-  return pool.slice(0, 1).map(i => ({
-    item_id: i.id,
-    item_name: i.item_name,
-    quantity: 1,
-    unit: i.unit || 'Units'
-  }));
+  return allocatedItems;
 }
 
 export function IssueWaybillView({
@@ -114,6 +258,16 @@ export function IssueWaybillView({
     return filtered.length > 0 ? filtered : inventoryItems;
   }, [inventoryItems, form.origin_warehouse]);
 
+  // Active selected assistance request object
+  const activeRequest = useMemo(() => {
+    if (!form.linked_request_id) return null;
+    return approvedRequests.find(r => 
+      r.id === form.linked_request_id || 
+      r.request_code === form.linked_request_id || 
+      r.tracking_number === form.linked_request_id ||
+      String(r.id) === String(form.linked_request_id)
+    ) || null;
+  }, [approvedRequests, form.linked_request_id]);
 
   useEffect(() => {
     const initialReq = selectedRequest || (approvedRequests.length > 0 ? approvedRequests[0] : null);
@@ -352,6 +506,120 @@ export function IssueWaybillView({
           </select>
         </div>
 
+        {/* Beneficiary Household & Allocation Dossier Card */}
+        {activeRequest && (
+          <div className="rounded-xl border border-emerald-200/90 bg-linear-to-br from-emerald-50/70 via-teal-50/30 to-white p-4 space-y-3 shadow-xs">
+            {/* Header with Beneficiary name, Request Code, and Priority badges */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100/90 pb-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#006B56] text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                  {(activeRequest.beneficiary_name || activeRequest.full_name || 'B').charAt(0)}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 text-sm">
+                      {activeRequest.beneficiary_name || activeRequest.full_name || 'Beneficiary'}
+                    </span>
+                    <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">
+                      {activeRequest.request_code || activeRequest.tracking_number || activeRequest.id}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    {activeRequest.beneficiary_code ? `Reg ID: ${activeRequest.beneficiary_code} • ` : ''}
+                    Target Destination: {form.destination || 'Field Relief Hub'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>PM Approved</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                  {activeRequest.urgency || activeRequest.priority || 'High Priority'}
+                </span>
+                {activeRequest.vulnerability_score && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                    Vulnerability: {activeRequest.vulnerability_score}/100
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Metric Grid: Household Size, Vetted Sectors, Personnel */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="bg-white/90 rounded-lg p-2.5 border border-emerald-100/90 shadow-2xs">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block mb-0.5 flex items-center gap-1">
+                  <Users className="w-3 h-3 text-emerald-600" />
+                  <span>Household Size</span>
+                </span>
+                <div className="flex items-baseline gap-1">
+                  <span className="font-bold text-slate-900 text-sm">
+                    {activeRequest.household_members || activeRequest.people_in_household || 1} People
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-semibold">
+                    ({(activeRequest.household_members || activeRequest.people_in_household || 1) >= 5 ? 'Scale: 2x Rations' : 'Scale: 1x'})
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-white/90 rounded-lg p-2.5 border border-emerald-100/90 shadow-2xs">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block mb-0.5 flex items-center gap-1">
+                  <Package className="w-3 h-3 text-emerald-600" />
+                  <span>Approved Sectors</span>
+                </span>
+                <span className="font-bold text-slate-900 truncate block" title={activeRequest.category || activeRequest.assistance_type}>
+                  {activeRequest.category || activeRequest.assistance_type || 'General Relief'}
+                </span>
+              </div>
+
+              <div className="bg-white/90 rounded-lg p-2.5 border border-emerald-100/90 shadow-2xs">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block mb-0.5 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                  <span>Audited By</span>
+                </span>
+                <span className="font-bold text-slate-900 truncate block">
+                  {activeRequest.assigned_field_worker_name || activeRequest.field_worker_name || 'Field Worker'}
+                </span>
+              </div>
+
+              <div className="bg-white/90 rounded-lg p-2.5 border border-emerald-100/90 shadow-2xs">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block mb-0.5 flex items-center gap-1">
+                  <Building2 className="w-3 h-3 text-emerald-600" />
+                  <span>Supervisor</span>
+                </span>
+                <span className="font-bold text-slate-900 truncate block">
+                  {activeRequest.assigned_supervisor_name || 'State Coordinator'}
+                </span>
+              </div>
+            </div>
+
+            {/* Field Officer Physical Verification & Recommended Aid Notes */}
+            {(activeRequest.recommended_aid || activeRequest.field_worker_assessment?.recommended_aid || activeRequest.ground_situation_report || activeRequest.field_worker_assessment?.ground_situation_report) && (
+              <div className="bg-white/95 rounded-lg p-2.5 border border-emerald-200/80 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 text-emerald-950 font-semibold text-[11px]">
+                  <FileText className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Field Officer Physical Audit & Verified Needs:</span>
+                </div>
+                <p className="text-slate-700 text-[11px] leading-relaxed">
+                  {activeRequest.recommended_aid || activeRequest.field_worker_assessment?.recommended_aid || activeRequest.ground_situation_report || activeRequest.field_worker_assessment?.ground_situation_report}
+                </p>
+              </div>
+            )}
+
+            {/* Sphere Project Rationale Note */}
+            <div className="flex items-start gap-2 bg-emerald-100/60 rounded-lg p-2.5 text-[11px] text-emerald-950">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
+              <p className="leading-snug">
+                <strong className="font-semibold text-emerald-900">Sphere Ration Standard:</strong> Quantities auto-calculated for{' '}
+                <span className="underline font-bold">{activeRequest.household_members || activeRequest.people_in_household || 1} household members</span>{' '}
+                across all requested sectors (~12.5kg cereal flour/person, 20L water containers, shelter tarpaulin). Adjust quantities below if depot stocks require rationing.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 2. Route: Origin & Destination */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
@@ -417,11 +685,24 @@ export function IssueWaybillView({
                     className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white font-medium text-slate-900 focus:border-[#006B56] outline-none truncate"
                   >
                     <option value="">Select commodity...</option>
-                    {depotInventory.map(inv => (
-                      <option key={inv.id} value={inv.id}>
-                        {inv.item_name} (In stock: {inv.quantity} {inv.unit})
-                      </option>
-                    ))}
+                    <optgroup label={`── ${form.origin_warehouse || 'Depot'} Stock ──`}>
+                      {depotInventory.map(inv => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.item_name} (In stock: {inv.quantity} {inv.unit})
+                        </option>
+                      ))}
+                    </optgroup>
+                    {inventoryItems.filter(i => !depotInventory.some(d => d.id === i.id)).length > 0 && (
+                      <optgroup label="── Inter-Depot Stock Transfer (Other Warehouses) ──">
+                        {inventoryItems
+                          .filter(i => !depotInventory.some(d => d.id === i.id))
+                          .map(inv => (
+                            <option key={inv.id} value={inv.id}>
+                              {inv.item_name} ({inv.warehouse || 'Other Depot'} — {inv.quantity} {inv.unit})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 

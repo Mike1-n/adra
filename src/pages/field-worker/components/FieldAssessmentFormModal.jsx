@@ -43,6 +43,7 @@ export function FieldAssessmentFormModal({
   const toast = useToast();
   const fileInputRef = useRef(null);
   const docInputRef = useRef(null);
+  const loadedTaskIdRef = useRef(null);
 
   // Wizard Step State (1: Finding & Case, 2: Report & Justification, 3: Evidence & Oath)
   const [currentStep, setCurrentStep] = useState(1);
@@ -54,7 +55,7 @@ export function FieldAssessmentFormModal({
   const existingAssessment = useMemo(() => {
     const currentTask = task || (tasks || []).find(t => (t.id && t.id.toString() === selectedTaskId?.toString()) || (t.request_code && t.request_code.toString() === selectedTaskId?.toString()));
     
-    // Check in assessments array
+    // Check in assessments array for real submitted assessment
     if (Array.isArray(assessments) && assessments.length > 0) {
       const found = assessments.find(a => 
         (currentTask?.id && (a.request_id === currentTask.id || a.request_code === currentTask.id)) ||
@@ -66,15 +67,20 @@ export function FieldAssessmentFormModal({
       if (found) return found;
     }
 
-    // Check if currentTask status indicates already submitted
-    if (
+    // Check if currentTask status indicates genuinely already submitted (NOT in progress / assigned to worker)
+    const isSubmittedStatus = (
       currentTask?.status === 'Assessment Submitted' ||
       currentTask?.status === 'Awaiting Program Manager Decision' ||
+      currentTask?.status === 'Under Supervisor Review' ||
       currentTask?.status === 'Completed' ||
-      currentTask?.status === 'Approved' ||
       currentTask?.status === 'Distributed' ||
-      Boolean(currentTask?.assessment_code)
-    ) {
+      (Boolean(currentTask?.assessment_code) && 
+       currentTask?.status !== 'Assigned to Field Worker' && 
+       currentTask?.status !== 'Assessment In Progress' &&
+       currentTask?.status !== 'Approved')
+    );
+
+    if (isSubmittedStatus) {
       return {
         assessment_code: currentTask.assessment_code || 'FA-89500',
         beneficiary_name: currentTask.beneficiary_name,
@@ -104,7 +110,7 @@ export function FieldAssessmentFormModal({
     }
 
     return null;
-  }, [task, selectedTaskId, tasks, assessments, worker]);
+  }, [task?.id, task?.request_code, task?.status, selectedTaskId, assessments, worker?.name, worker?.payam, worker?.county, worker?.state]);
 
   const currentTaskObj = task || (tasks || []).find(t => (t.id && t.id.toString() === selectedTaskId?.toString()) || (t.request_code && t.request_code.toString() === selectedTaskId?.toString()));
   const isRejectedCase = Boolean(
@@ -120,7 +126,7 @@ export function FieldAssessmentFormModal({
     task?.returned_to_worker
   );
 
-  // If case was rejected/returned to fieldworker, do not lock into submitted read-only mode unless readOnly is explicitly true
+  // If case was rejected/returned to fieldworker or actively being audited, do not lock into submitted read-only mode unless readOnly is explicitly true
   const isSubmittedMode = Boolean((readOnly || existingAssessment) && !isRejectedCase);
 
   // Form Data State
@@ -167,9 +173,11 @@ export function FieldAssessmentFormModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Helper to autofill when a task is picked
-  const applyTaskToForm = (t) => {
+  const applyTaskToForm = (t, isExplicitSwitch = false) => {
     if (!t) return;
-    setSelectedTaskId(t.id || t.request_code || '');
+    const tId = t.id || t.request_code || '';
+    setSelectedTaskId(tId);
+    loadedTaskIdRef.current = tId;
     setFormData(prev => ({
       ...prev,
       beneficiary_name: t.beneficiary_name || prev.beneficiary_name,
@@ -185,12 +193,33 @@ export function FieldAssessmentFormModal({
       ground_situation_report: t.ground_situation_report || t.audit_findings || `On-ground physical field assessment conducted for ${t.beneficiary_name}. Household visited in-person in ${t.payam || 'the payam'}. Living in severely compromised makeshift conditions with acute food insecurity and zero reserves remaining.`,
       field_justification: t.field_justification || `I hereby verify to the Supervisor and Program Manager that ${t.beneficiary_name} (${t.request_code || 'Case'}) genuinely requires the requested assistance (${t.category || 'Humanitarian Relief'}). Immediate approval and dispatch is strongly recommended.`
     }));
-    setEvidencePhotos(t.evidence_photos || []);
-    setEvidenceDocs(t.evidence_documents || []);
+
+    if (isExplicitSwitch) {
+      setEvidencePhotos(Array.isArray(t.evidence_photos) ? t.evidence_photos : []);
+      setEvidenceDocs(Array.isArray(t.evidence_documents) ? t.evidence_documents : []);
+    } else {
+      // Preserve newly attached user evidence, only fallback if state is currently empty
+      setEvidencePhotos(prev => (prev && prev.length > 0 ? prev : (Array.isArray(t.evidence_photos) ? t.evidence_photos : [])));
+      setEvidenceDocs(prev => (prev && prev.length > 0 ? prev : (Array.isArray(t.evidence_documents) ? t.evidence_documents : [])));
+    }
   };
 
-  // Sync state if existingAssessment or task changes from props
+  // Sync state ONLY when modal opens or when target task changes, never on re-render wipes
   useEffect(() => {
+    if (!isOpen) {
+      loadedTaskIdRef.current = null;
+      return;
+    }
+
+    const currentTask = task || (tasks || []).find(t => (t.id && t.id.toString() === selectedTaskId?.toString()) || (t.request_code && t.request_code.toString() === selectedTaskId?.toString()));
+    const targetTaskId = currentTask?.id || currentTask?.request_code || task?.id || task?.request_code || selectedTaskId;
+
+    // Only run initial population if this task has not been initialized in this modal session yet
+    if (loadedTaskIdRef.current === targetTaskId && loadedTaskIdRef.current !== null) {
+      return;
+    }
+    loadedTaskIdRef.current = targetTaskId;
+
     if (existingAssessment) {
       setFormData(prev => ({
         ...prev,
@@ -210,21 +239,21 @@ export function FieldAssessmentFormModal({
       }));
       setVerificationFinding(existingAssessment.verification_finding || (existingAssessment.assignment_verified_true ? 'VERIFIED_TRUE' : 'DISCREPANCY_FOUND'));
       setDiscrepancyNotes(existingAssessment.discrepancy_notes || '');
-      setEvidencePhotos(existingAssessment.evidence_photos || []);
-      setEvidenceDocs(existingAssessment.evidence_documents || []);
+      setEvidencePhotos(Array.isArray(existingAssessment.evidence_photos) ? existingAssessment.evidence_photos : []);
+      setEvidenceDocs(Array.isArray(existingAssessment.evidence_documents) ? existingAssessment.evidence_documents : []);
       if (existingAssessment.verification_checklist) {
         setChecklist(existingAssessment.verification_checklist);
       }
       setTruthCertifiedAgreed(true);
-    } else if (task) {
-      applyTaskToForm(task);
+    } else if (currentTask) {
+      applyTaskToForm(currentTask, true);
     } else if (tasks && tasks.length > 0 && !selectedTaskId) {
       const firstPending = tasks.find(t => t.status === 'Assessment In Progress' || t.status?.includes('Pending') || t.status === 'Assigned to Field Worker') || tasks[0];
       if (firstPending) {
-        applyTaskToForm(firstPending);
+        applyTaskToForm(firstPending, true);
       }
     }
-  }, [existingAssessment, task, tasks]);
+  }, [isOpen, task?.id, task?.request_code]);
 
   if (!isOpen) return null;
 
@@ -317,6 +346,7 @@ export function FieldAssessmentFormModal({
         title: file.name,
         url: previewUrl,
         category: 'Field Evidence',
+        uploading: true,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
     });
@@ -325,7 +355,7 @@ export function FieldAssessmentFormModal({
     toast?.showToast?.(`${files.length} photo(s) added`, 'info');
 
     // 2. Process in background without blocking UI
-    Promise.all(newPendingPhotos.map(async (p) => {
+    newPendingPhotos.forEach(async (p) => {
       try {
         const file = p.file;
         const [compressedDataUrl, storageResult] = await Promise.all([
@@ -334,8 +364,8 @@ export function FieldAssessmentFormModal({
             bucket: 'field-evidence',
             folder: 'photos',
             fileName: file.name,
-            timeoutMs: 3500
-          }) : Promise.resolve(null)
+            timeoutMs: 4000
+          }).catch(() => null) : Promise.resolve(null)
         ]);
 
         const finalUrl = storageResult?.url || compressedDataUrl || p.url;
@@ -345,6 +375,7 @@ export function FieldAssessmentFormModal({
             return {
               ...item,
               url: finalUrl,
+              uploading: false,
               storage_path: storageResult?.path || null,
               storage_bucket: storageResult?.bucket || null
             };
@@ -353,8 +384,9 @@ export function FieldAssessmentFormModal({
         }));
       } catch (err) {
         console.warn('Background photo upload error:', err);
+        setEvidencePhotos(prev => prev.map(item => (item.id === p.id ? { ...item, uploading: false } : item)));
       }
-    }));
+    });
   };
 
   // Remove Photo
@@ -389,6 +421,7 @@ export function FieldAssessmentFormModal({
         type: file.type || 'Document',
         url: previewUrl,
         data_url: previewUrl,
+        uploading: true,
         date: new Date().toLocaleDateString()
       };
     });
@@ -397,23 +430,34 @@ export function FieldAssessmentFormModal({
     toast?.showToast?.(`${files.length} document(s) attached`, 'info');
 
     // 2. Process in background without blocking UI
-    Promise.all(newPendingDocs.map(async (d) => {
+    newPendingDocs.forEach(async (d) => {
       try {
         const file = d.file;
-        const [dataUrl, storageResult] = await Promise.all([
-          new Promise((resolve) => {
+        let dataUrl = '';
+        try {
+          dataUrl = await new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = (event) => resolve(event.target?.result || '');
             reader.onerror = () => resolve('');
             reader.readAsDataURL(file);
-          }),
-          db?.uploadStorageFile ? db.uploadStorageFile(file, {
-            bucket: 'field-evidence',
-            folder: 'documents',
-            fileName: file.name,
-            timeoutMs: 3500
-          }) : Promise.resolve(null)
-        ]);
+          });
+        } catch (rErr) {
+          dataUrl = '';
+        }
+
+        let storageResult = null;
+        if (db?.uploadStorageFile) {
+          try {
+            storageResult = await db.uploadStorageFile(file, {
+              bucket: 'field-evidence',
+              folder: 'documents',
+              fileName: file.name,
+              timeoutMs: 4000
+            });
+          } catch (stErr) {
+            console.warn('Document storage upload notice:', stErr);
+          }
+        }
 
         const finalUrl = storageResult?.url || dataUrl || d.url;
 
@@ -423,6 +467,7 @@ export function FieldAssessmentFormModal({
               ...item,
               url: finalUrl,
               data_url: finalUrl,
+              uploading: false,
               storage_path: storageResult?.path || null,
               storage_bucket: storageResult?.bucket || null
             };
@@ -431,8 +476,9 @@ export function FieldAssessmentFormModal({
         }));
       } catch (err) {
         console.warn('Background document upload error:', err);
+        setEvidenceDocs(prev => prev.map(item => (item.id === d.id ? { ...item, uploading: false } : item)));
       }
-    }));
+    });
   };
 
   // Remove Document
@@ -509,8 +555,27 @@ export function FieldAssessmentFormModal({
         ground_situation_report: formData.ground_situation_report,
         field_justification: formData.field_justification,
         audit_findings: formData.ground_situation_report,
-        evidence_photos: evidencePhotos,
-        evidence_documents: evidenceDocs,
+        evidence_photos: (evidencePhotos || []).map(p => ({
+          id: p.id,
+          name: p.name || p.title || 'Field Photo',
+          title: p.title || p.name || 'Field Photo',
+          url: p.url || '',
+          category: p.category || 'Field Evidence',
+          storage_path: p.storage_path || null,
+          storage_bucket: p.storage_bucket || null,
+          timestamp: p.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        })),
+        evidence_documents: (evidenceDocs || []).map(d => ({
+          id: d.id,
+          name: d.name || 'Document',
+          size: d.size || 'Attached',
+          type: d.type || 'Document',
+          url: d.url || d.data_url || '',
+          data_url: d.data_url || d.url || '',
+          storage_path: d.storage_path || null,
+          storage_bucket: d.storage_bucket || null,
+          date: d.date || new Date().toLocaleDateString()
+        })),
         assessed_by: worker?.name || 'John Deng',
         worker_id: worker?.id || 'fw-1',
         field_worker_name: worker?.name || 'John Deng',
@@ -1129,40 +1194,59 @@ export function FieldAssessmentFormModal({
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-1 max-h-[100px] overflow-y-auto">
-                    {evidenceDocs.map(doc => (
-                      <div key={doc.id} className="flex items-center justify-between p-1.5 rounded-lg bg-white border border-slate-200 text-[10px]">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          <div className="min-w-0">
-                            <span className="font-bold text-slate-800 truncate block max-w-[190px]">{doc.name}</span>
-                            <span className="text-[9px] text-slate-400">{doc.size || 'Document'} • {doc.date || 'Attached'}</span>
+                  <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-0.5">
+                    {evidenceDocs.map(doc => {
+                      const docUrl = doc.url || doc.data_url;
+                      return (
+                        <div key={doc.id} className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200 text-[10px] shadow-2xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 border border-blue-100">
+                              <FileText className="w-3.5 h-3.5 text-blue-600" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-800 truncate block max-w-[170px] sm:max-w-[210px]">{doc.name}</span>
+                                {doc.uploading && (
+                                  <span className="text-[8px] px-1 py-0.2 rounded font-bold bg-amber-100 text-amber-800 shrink-0">Saving...</span>
+                                )}
+                              </div>
+                              <span className="text-[9px] text-slate-400">{doc.size || 'Document'} • {doc.date || 'Attached'}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {docUrl && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  try {
+                                    window.open(docUrl, '_blank');
+                                  } catch (e) {
+                                    const a = document.createElement('a');
+                                    a.href = docUrl;
+                                    a.download = doc.name || 'document';
+                                    a.target = '_blank';
+                                    a.click();
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[9px] transition cursor-pointer flex items-center gap-1"
+                              >
+                                View
+                              </button>
+                            )}
+                            {!isSubmittedMode && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDoc(doc.id)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                                title="Remove document"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {doc.url && (
-                            <a
-                              href={doc.url}
-                              download={doc.name}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[9px] transition"
-                            >
-                              View
-                            </a>
-                          )}
-                          {!isSubmittedMode && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveDoc(doc.id)}
-                              className="p-0.5 text-slate-400 hover:text-rose-600 rounded transition cursor-pointer"
-                            >
-                              <Trash2 className="w-2.5 h-2.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

@@ -7911,15 +7911,17 @@ export const db = {
         return null;
       };
 
-      const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs));
+      const timeoutMsPerBucket = Math.min(2500, timeoutMs);
+      const candidateBuckets = [bucket, 'field-evidence', 'documents', 'evidence', 'public'].filter((b, idx, self) => b && self.indexOf(b) === idx);
 
-      // Try candidate bucket with strict timeout limit
-      const primaryRes = await Promise.race([attemptUpload(bucket), timeoutPromise]);
-      if (primaryRes) return primaryRes;
-
-      if (bucket !== 'public') {
-        const publicRes = await Promise.race([attemptUpload('public'), timeoutPromise]);
-        if (publicRes) return publicRes;
+      for (const targetBucket of candidateBuckets) {
+        try {
+          const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMsPerBucket));
+          const res = await Promise.race([attemptUpload(targetBucket), timeoutPromise]);
+          if (res) return res;
+        } catch (bErr) {
+          // Continue to next bucket candidate
+        }
       }
 
       return null;
