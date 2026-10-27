@@ -111,7 +111,7 @@ export function DonorPortalApp({
   });
 
   // Chat Desk state (matching Beneficiary Feedback & Complaints view)
-  const [activeChatDesk, setActiveChatDesk] = useState('all');
+  const [activeChatDesk, setActiveChatDesk] = useState('grace');
   const [isDeskDropdownOpen, setIsDeskDropdownOpen] = useState(false);
   const [chatMessageText, setChatMessageText] = useState('');
   const [isSendingChat, setIsSendingChat] = useState(false);
@@ -241,7 +241,7 @@ export function DonorPortalApp({
             date: '2025-03-22',
             status: 'Under Review',
             response: 'EIA hydrology permit issued by NEMA has been attached to the Project Documents repository.',
-            responded_by: 'Dr. Elizabeth Warren (Country Director)',
+            responded_by: 'Alex Morgan (Finance Officer)',
             responded_at: '2025-03-24'
           }
         ]);
@@ -406,26 +406,6 @@ export function DonorPortalApp({
     };
   }, [staffUsers]);
 
-  const adminUser = useMemo(() => {
-    const found = (staffUsers || []).find(u => 
-      u.role !== 'Beneficiary' && 
-      u.role !== 'Field Worker' && 
-      u.role !== 'Supervisor' && 
-      u.role !== 'Supplier' &&
-      (
-        u.email === 'admin@adra.org' ||
-        u.id === 'user-admin' ||
-        (u.role && (u.role.toLowerCase().includes('director') || u.role.toLowerCase() === 'administrator'))
-      )
-    );
-    return found || {
-      id: 'user-admin',
-      full_name: 'Dr. Elizabeth Warren',
-      role: 'Country Director',
-      email: 'admin@adra.org',
-      department: 'Executive Country Leadership'
-    };
-  }, [staffUsers]);
 
   const foUser = useMemo(() => {
     const found = (staffUsers || []).find(u => 
@@ -448,37 +428,8 @@ export function DonorPortalApp({
     };
   }, [staffUsers]);
 
-  // Direct Leadership Desks definition mapping to real verified system accounts
+  // Module Inquiry Desks mapped to real verified operational module officers
   const leadershipDesks = useMemo(() => [
-    {
-      id: 'all',
-      role: 'Senior Executive Directorate',
-      name: 'Direct Leadership Desk',
-      email: 'country.office@adra.org',
-      department: 'ADRA Senior Leadership Directorate',
-      title: 'Voucher, Field Audit & Milestone Clarifications',
-      status: 'Online',
-      badge: 'All Formal Inquiries',
-      avatarColor: 'bg-[#004D3F]',
-      icon: Mail,
-      isAccount: false,
-      welcomeNote: 'Welcome to the Direct Leadership Clarifications Desk. Submit formal queries regarding voucher documentation, field audits, or technical milestone verifications directly to ADRA Country Leadership.'
-    },
-    {
-      id: 'elizabeth',
-      userId: adminUser.id,
-      role: 'Country Director',
-      name: adminUser.full_name || 'Dr. Elizabeth Warren',
-      email: adminUser.email || 'admin@adra.org',
-      department: adminUser.department || 'Executive Country Leadership',
-      title: 'Country Director & Executive Governance',
-      status: 'Online',
-      badge: 'Environmental EIA & Governance',
-      avatarColor: 'bg-purple-700',
-      icon: ShieldCheck,
-      isAccount: true,
-      welcomeNote: `Direct channel with ${adminUser.full_name} (Country Director) for strategic compliance, NEMA hydrologic EIA clearance certification, and grant governance.`
-    },
     {
       id: 'grace',
       userId: pmUser.id,
@@ -509,7 +460,7 @@ export function DonorPortalApp({
       isAccount: true,
       welcomeNote: `Direct accountability channel with ${foUser.full_name} (${foUser.role || 'Finance Officer'}) for warehouse dispatch vouchers, field expenditure audits, and burn-rate telemetry.`
     }
-  ], [pmUser, adminUser, foUser]);
+  ], [pmUser, foUser]);
 
   const currentDesk = leadershipDesks.find(d => d.id === activeChatDesk || (activeChatDesk === 'david' && d.id === 'alex')) || leadershipDesks[0];
 
@@ -520,12 +471,6 @@ export function DonorPortalApp({
         (q.responded_by && q.responded_by.toLowerCase().includes('grace')) ||
         (q.subject && q.subject.toLowerCase().includes('seed')) ||
         (q.subject && q.subject.toLowerCase().includes('turkana'))
-      );
-    } else if (activeChatDesk === 'elizabeth') {
-      filtered = queries.filter(q => 
-        (q.responded_by && (q.responded_by.toLowerCase().includes('warren') || q.responded_by.toLowerCase().includes('elizabeth') || q.responded_by.toLowerCase().includes('director'))) ||
-        (q.subject && q.subject.toLowerCase().includes('environmental')) ||
-        (q.subject && q.subject.toLowerCase().includes('borehole'))
       );
     } else if (activeChatDesk === 'alex' || activeChatDesk === 'david') {
       filtered = queries.filter(q => 
@@ -544,19 +489,11 @@ export function DonorPortalApp({
   }, [queries, activeChatDesk]);
 
   const getDeskMessageCount = (deskId) => {
-    if (deskId === 'all') return queries.length;
     if (deskId === 'grace') {
       return queries.filter(q => 
         (q.responded_by && q.responded_by.toLowerCase().includes('grace')) ||
         (q.subject && q.subject.toLowerCase().includes('seed')) ||
         (q.subject && q.subject.toLowerCase().includes('turkana'))
-      ).length;
-    }
-    if (deskId === 'elizabeth') {
-      return queries.filter(q => 
-        (q.responded_by && (q.responded_by.toLowerCase().includes('warren') || q.responded_by.toLowerCase().includes('elizabeth') || q.responded_by.toLowerCase().includes('director'))) ||
-        (q.subject && q.subject.toLowerCase().includes('environmental')) ||
-        (q.subject && q.subject.toLowerCase().includes('borehole'))
       ).length;
     }
     if (deskId === 'alex' || deskId === 'david') {
@@ -1174,14 +1111,14 @@ export function DonorPortalApp({
 
               {/* TAB 3: FINANCIAL ACCOUNTABILITY */}
               {activeTab === 'finances' && (
-                <div className="space-y-6">
+                <div className="space-y-5 sm:space-y-6">
                   {/* Tranche Release Timeline */}
-                  <Card className="p-5 bg-white border border-slate-200 shadow-2xs rounded-xl">
-                    <div className="flex items-center justify-between mb-4">
+                  <Card className="p-4 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                       <div>
                         <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                          <DollarSign className="w-4 h-4 text-[#006B56]" />
-                          Grant Tranche Release & Liquidation Schedule
+                          <DollarSign className="w-4 h-4 text-[#006B56] shrink-0" />
+                          <span>Grant Tranche Release & Liquidation Schedule</span>
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5">
                           Tranche disbursements mapped to milestone certifications and field bank accounts.
@@ -1192,15 +1129,145 @@ export function DonorPortalApp({
                         size="sm"
                         onClick={handleExportCSV}
                         icon={Download}
-                        className="text-xs"
+                        className="text-xs self-start sm:self-auto shrink-0"
                       >
                         Export Ledger
                       </Button>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    {/* PHONE / MOBILE VIEW (Card-based Layout for Small Screens) */}
+                    <div className="block sm:hidden space-y-3">
+                      {[
+                        {
+                          tranche: 'Tranche 1 (Advance)',
+                          grant: 'GRT-USAID-2025-01',
+                          date: '2025-01-15',
+                          eft: 'EFT-USAID-0091',
+                          amount: 600000,
+                          status: 'Fully Liquidated',
+                          statusType: 'liquidated',
+                          utilizationPct: 100
+                        },
+                        {
+                          tranche: 'Tranche 2 (Mid-Term)',
+                          grant: 'GRT-USAID-2025-01',
+                          date: '2025-07-01',
+                          eft: 'EFT-USAID-0144',
+                          amount: 500000,
+                          status: 'Active Utilization (55%)',
+                          statusType: 'active',
+                          utilizationPct: 55
+                        },
+                        {
+                          tranche: 'Tranche 1 (Inception)',
+                          grant: 'GRT-USAID-2026-02',
+                          date: '2025-06-15',
+                          eft: 'EFT-USAID-0210',
+                          amount: 350000,
+                          status: 'Active Utilization (34%)',
+                          statusType: 'active',
+                          utilizationPct: 34
+                        },
+                        {
+                          tranche: 'Tranche 3 (Milestone MTR)',
+                          grant: 'GRT-USAID-2025-01',
+                          date: 'Scheduled: Mar 2026',
+                          eft: 'PENDING-AUDIT',
+                          amount: 350000,
+                          status: 'Awaiting Milestone',
+                          statusType: 'pending',
+                          utilizationPct: 0
+                        }
+                      ].map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200 rounded-xl space-y-2.5 transition"
+                        >
+                          {/* Header: Tranche Name + Amount */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-900 text-xs block leading-tight">
+                                {item.tranche}
+                              </span>
+                              <span className="font-mono text-[11px] font-bold text-[#006B56] mt-0.5 inline-block">
+                                {item.grant}
+                              </span>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-sm font-black text-slate-900 block">
+                                ${item.amount.toLocaleString()}
+                              </span>
+                              <span className="text-[10px] text-slate-400 block font-medium">USD Value</span>
+                            </div>
+                          </div>
+
+                          {/* Progress Bar for Utilization */}
+                          {item.statusType === 'liquidated' ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="text-slate-500 font-medium">Liquidation Absorption</span>
+                                <span className="text-emerald-700 font-bold">100% Liquidated</span>
+                              </div>
+                              <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                                <div className="h-full bg-emerald-600 rounded-full w-full" />
+                              </div>
+                            </div>
+                          ) : item.statusType === 'active' ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="text-slate-500 font-medium">Field Absorption</span>
+                                <span className="text-[#006B56] font-bold">{item.utilizationPct}% Active Spend</span>
+                              </div>
+                              <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                                <div
+                                  className="h-full bg-[#006B56] rounded-full transition-all duration-300"
+                                  style={{ width: `${item.utilizationPct}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="text-slate-400 font-medium">Milestone Gate</span>
+                                <span className="text-amber-700 font-semibold text-[10px]">Pending Audit Trigger</span>
+                              </div>
+                              <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                                <div className="h-full bg-amber-400 rounded-full w-0" />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Metadata Details Row */}
+                          <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between text-[11px]">
+                            <div className="flex items-center gap-1.5 text-slate-500 text-[10px]">
+                              <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{item.date}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-[10px] text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                {item.eft}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  item.statusType === 'liquidated'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : item.statusType === 'active'
+                                    ? 'bg-teal-50 text-[#006B56] border-teal-200'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}
+                              >
+                                {item.status}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* TABLE VIEW FOR TABLET & DESKTOP (Hidden on Mobile) */}
+                    <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200">
                       <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-y border-slate-200">
+                        <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
                           <tr>
                             <th className="py-2.5 px-3">Tranche #</th>
                             <th className="py-2.5 px-3">Grant Agreement</th>
@@ -1211,7 +1278,7 @@ export function DonorPortalApp({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-700">
-                          <tr>
+                          <tr className="hover:bg-slate-50/60 transition">
                             <td className="py-3 px-3 font-bold text-slate-900">Tranche 1 (Advance)</td>
                             <td className="py-3 px-3 font-mono font-bold text-[#006B56]">GRT-USAID-2025-01</td>
                             <td className="py-3 px-3">2025-01-15</td>
@@ -1223,7 +1290,7 @@ export function DonorPortalApp({
                               </span>
                             </td>
                           </tr>
-                          <tr>
+                          <tr className="hover:bg-slate-50/60 transition">
                             <td className="py-3 px-3 font-bold text-slate-900">Tranche 2 (Mid-Term)</td>
                             <td className="py-3 px-3 font-mono font-bold text-[#006B56]">GRT-USAID-2025-01</td>
                             <td className="py-3 px-3">2025-07-01</td>
@@ -1235,7 +1302,7 @@ export function DonorPortalApp({
                               </span>
                             </td>
                           </tr>
-                          <tr>
+                          <tr className="hover:bg-slate-50/60 transition">
                             <td className="py-3 px-3 font-bold text-slate-900">Tranche 1 (Inception)</td>
                             <td className="py-3 px-3 font-mono font-bold text-[#006B56]">GRT-USAID-2026-02</td>
                             <td className="py-3 px-3">2025-06-15</td>
@@ -1247,7 +1314,7 @@ export function DonorPortalApp({
                               </span>
                             </td>
                           </tr>
-                          <tr className="bg-slate-50/50">
+                          <tr className="bg-slate-50/50 hover:bg-slate-50 transition">
                             <td className="py-3 px-3 font-bold text-slate-600">Tranche 3 (Milestone MTR)</td>
                             <td className="py-3 px-3 font-mono text-slate-500">GRT-USAID-2025-01</td>
                             <td className="py-3 px-3 text-slate-400">Scheduled: Mar 2026</td>
@@ -1265,95 +1332,207 @@ export function DonorPortalApp({
                   </Card>
 
                   {/* Standard Cost Category Breakdown */}
-                  <Card className="p-5 bg-white border border-slate-200 shadow-2xs rounded-xl">
-                    <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
-                      <PieChart className="w-4 h-4 text-[#006B56]" />
-                      Standard Budget Line Expenditure Breakdown
-                    </h3>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                        <span className="text-slate-500 text-[11px]">Direct Aid & Distribution</span>
-                        <h4 className="text-base font-bold text-slate-900">$780,400</h4>
-                        <p className="text-[10px] text-[#006B56] font-semibold">56% of total grant spend</p>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                        <span className="text-slate-500 text-[11px]">Logistics, Fleet & Storage</span>
-                        <h4 className="text-base font-bold text-slate-900">$245,600</h4>
-                        <p className="text-[10px] text-slate-600 font-medium">18% of total grant spend</p>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                        <span className="text-slate-500 text-[11px]">Field Personnel & Agronomists</span>
-                        <h4 className="text-base font-bold text-slate-900">$215,000</h4>
-                        <p className="text-[10px] text-slate-600 font-medium">15% of total grant spend</p>
-                      </div>
-
-                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                        <span className="text-slate-500 text-[11px]">NICRA / Operational Overhead</span>
-                        <h4 className="text-base font-bold text-slate-900">$154,600</h4>
-                        <p className="text-[10px] text-slate-500 font-semibold">11% (within negotiated cap)</p>
-                      </div>
+                  <Card className="p-4 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl">
+                    <div className="flex items-center justify-between mb-3.5">
+                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <PieChart className="w-4 h-4 text-[#006B56] shrink-0" />
+                        <span>Standard Budget Line Expenditure Breakdown</span>
+                      </h3>
                     </div>
-                  </Card>
-                </div>
-              )}
 
-              {/* TAB 4: FIELD IMPACT & BENEFICIARIES */}
-              {activeTab === 'impact' && (
-                <div className="space-y-5">
-                  {/* Demographics Card */}
-                  <Card className="p-3.5 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-2xl">
-                    <h3 className="text-sm font-bold text-slate-900 mb-1 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-[#006B56]" />
-                      <span>Verified Beneficiary Demographic Breakdown</span>
-                    </h3>
-                    <p className="text-xs text-slate-500 mb-3.5">
-                      Disaggregated data verified through biometric sign-offs and local community council vouchers.
-                    </p>
-
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-xs">
                       {[
-                        { label: 'Female-Headed', count: '3,420', pct: 41 },
-                        { label: 'IDP Returnees', count: '2,180', pct: 26 },
-                        { label: 'Elderly Household', count: '1,250', pct: 15 },
-                        { label: 'Youth at Risk', count: '940', pct: 11 },
-                        { label: 'Persons w/ Disability', count: '630', pct: 7 },
-                      ].map((item) => (
+                        {
+                          name: 'Direct Aid & Distribution',
+                          amount: 780400,
+                          pct: 56,
+                          desc: '56% of total grant spend',
+                          barColor: 'bg-[#006B56]',
+                          badge: 'bg-emerald-50 text-[#006B56] border-emerald-200'
+                        },
+                        {
+                          name: 'Logistics, Fleet & Storage',
+                          amount: 245600,
+                          pct: 18,
+                          desc: '18% of total grant spend',
+                          barColor: 'bg-sky-600',
+                          badge: 'bg-sky-50 text-sky-800 border-sky-200'
+                        },
+                        {
+                          name: 'Field Personnel & Agronomists',
+                          amount: 215000,
+                          pct: 15,
+                          desc: '15% of total grant spend',
+                          barColor: 'bg-indigo-600',
+                          badge: 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                        },
+                        {
+                          name: 'NICRA / Operational Overhead',
+                          amount: 154600,
+                          pct: 11,
+                          desc: '11% (within negotiated cap)',
+                          barColor: 'bg-amber-600',
+                          badge: 'bg-amber-50 text-amber-800 border-amber-200'
+                        }
+                      ].map((item, idx) => (
                         <div
-                          key={item.label}
-                          className="p-2.5 sm:p-3 rounded-xl bg-slate-50/80 border border-slate-200 hover:border-emerald-200 transition"
+                          key={idx}
+                          className="p-3.5 sm:p-4 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 space-y-2 transition flex flex-col justify-between"
                         >
-                          <div className="flex items-center justify-between text-xs mb-1.5">
-                            <span className="font-semibold text-slate-700">{item.label}</span>
-                            <div className="flex items-baseline gap-1">
-                              <span className="font-black text-slate-900">{item.count}</span>
-                              <span className="text-[10px] text-[#006B56] font-bold">({item.pct}%)</span>
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="text-slate-600 font-semibold text-xs leading-snug">
+                                {item.name}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${item.badge}`}>
+                                {item.pct}%
+                              </span>
                             </div>
+                            <h4 className="text-xl sm:text-lg font-black text-slate-900 tracking-tight pt-0.5">
+                              ${item.amount.toLocaleString()}
+                            </h4>
                           </div>
-                          <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-[#006B56] rounded-full transition-all duration-300"
-                              style={{ width: `${item.pct}%` }}
-                            />
+
+                          <div className="space-y-1 pt-1">
+                            <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${item.barColor} transition-all duration-500`}
+                                style={{ width: `${item.pct}%` }}
+                              />
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                              {item.desc}
+                            </p>
                           </div>
                         </div>
                       ))}
                     </div>
                   </Card>
+                </div>
+              )}
 
-                  {/* Field Deliveries Log */}
-                  <Card className="p-3.5 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-2xl">
-                    <h3 className="text-sm font-bold text-slate-900 mb-1 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-[#006B56]" />
-                      <span>Recent Field Deliveries Under Grant</span>
-                    </h3>
-                    <p className="text-xs text-slate-500 mb-3.5">
-                      Direct distribution milestone verifications and field sign-off vouchers.
-                    </p>
+              {/* TAB 4: FIELD IMPACT & BENEFICIARIES (Streamlined & Decluttered) */}
+              {activeTab === 'impact' && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                  {/* Left Column: Demographics Breakdown (5 cols on desktop) */}
+                  <Card className="lg:col-span-5 p-4 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl flex flex-col justify-between">
+                    <div>
+                      {/* Clean Header */}
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <Users className="w-4 h-4 text-[#006B56] shrink-0" />
+                            <span>Beneficiary Demographics</span>
+                          </h3>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            8,420 individuals verified via biometrics & council vouchers
+                          </p>
+                        </div>
+                        <span className="text-xs font-black text-[#006B56] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                          100% Audited
+                        </span>
+                      </div>
 
-                    <div className="space-y-2.5">
+                      {/* Unified Segmented Distribution Bar */}
+                      <div className="space-y-1.5 my-3.5">
+                        <div className="w-full h-2 rounded-full overflow-hidden flex bg-slate-100">
+                          <div style={{ width: '41%' }} className="h-full bg-[#006B56]" title="Female-Headed (41%)" />
+                          <div style={{ width: '26%' }} className="h-full bg-sky-600" title="IDP Returnees (26%)" />
+                          <div style={{ width: '15%' }} className="h-full bg-amber-500" title="Elderly Household (15%)" />
+                          <div style={{ width: '11%' }} className="h-full bg-indigo-500" title="Youth at Risk (11%)" />
+                          <div style={{ width: '7%' }} className="h-full bg-teal-500" title="Persons w/ Disability (7%)" />
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                          <span>Highest: Female-Headed (41%)</span>
+                          <span>Target: Inclusive Vulnerability Reach</span>
+                        </div>
+                      </div>
+
+                      {/* Clean Demographic Rows (No bulky nested boxes) */}
+                      <div className="divide-y divide-slate-100 text-xs">
+                        {[
+                          {
+                            label: 'Female-Headed Households',
+                            count: '3,420',
+                            pct: 41,
+                            dotColor: 'bg-[#006B56]',
+                            badgeColor: 'bg-emerald-50 text-[#006B56]'
+                          },
+                          {
+                            label: 'IDP Returnees',
+                            count: '2,180',
+                            pct: 26,
+                            dotColor: 'bg-sky-600',
+                            badgeColor: 'bg-sky-50 text-sky-700'
+                          },
+                          {
+                            label: 'Elderly Households',
+                            count: '1,250',
+                            pct: 15,
+                            dotColor: 'bg-amber-500',
+                            badgeColor: 'bg-amber-50 text-amber-700'
+                          },
+                          {
+                            label: 'Youth at Risk',
+                            count: '940',
+                            pct: 11,
+                            dotColor: 'bg-indigo-500',
+                            badgeColor: 'bg-indigo-50 text-indigo-700'
+                          },
+                          {
+                            label: 'Persons w/ Disability',
+                            count: '630',
+                            pct: 7,
+                            dotColor: 'bg-teal-500',
+                            badgeColor: 'bg-teal-50 text-teal-700'
+                          }
+                        ].map((item) => (
+                          <div
+                            key={item.label}
+                            className="flex items-center justify-between py-2 sm:py-2.5 first:pt-1 last:pb-1"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${item.dotColor}`} />
+                              <span className="font-medium text-slate-700 text-xs truncate">
+                                {item.label}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline gap-2 shrink-0">
+                              <span className="font-bold text-slate-900 text-xs">{item.count}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${item.badgeColor}`}>
+                                {item.pct}%
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Total Vulnerable Sample</span>
+                      <span className="font-bold text-slate-800">8,420 Enrolled</span>
+                    </div>
+                  </Card>
+
+                  {/* Right Column: Recent Field Deliveries (7 cols on desktop) */}
+                  <Card className="lg:col-span-7 p-4 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-[#006B56] shrink-0" />
+                          <span>Recent Field Deliveries Under Grant</span>
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Direct distribution milestone verifications & field vouchers
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider hidden sm:inline">
+                        Verified Vouchers
+                      </span>
+                    </div>
+
+                    {/* Clean Activity Feed / Timeline (No bulky container cards) */}
+                    <div className="relative pl-5 sm:pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200/80">
                       {[
                         {
                           title: 'Drought-Tolerant Sorghum & Micro-Drip Irrigation Kits',
@@ -1373,29 +1552,35 @@ export function DonorPortalApp({
                           reached: '850 Mothers & Infants',
                           date: 'Apr 05, 2025'
                         }
-                      ].map((deliv) => (
-                        <div
-                          key={deliv.title}
-                          className="p-3 sm:p-4 rounded-xl bg-slate-50/80 border border-slate-200 hover:border-emerald-200 transition space-y-2"
-                        >
-                          <div>
-                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
-                              {deliv.title}
-                            </h4>
-                            <p className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="truncate">{deliv.location}</span>
-                            </p>
+                      ].map((deliv, idx) => (
+                        <div key={idx} className="relative group">
+                          {/* Timeline node */}
+                          <div className="absolute -left-5 sm:-left-6 top-1 w-3.5 h-3.5 rounded-full bg-white border-2 border-[#006B56] flex items-center justify-center">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#006B56]" />
                           </div>
 
-                          <div className="flex items-center justify-between pt-2 border-t border-slate-200/70 text-xs">
-                            <span className="inline-flex items-center gap-1 font-bold text-[#006B56] bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md text-[11px]">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-[#006B56]" />
-                              {deliv.reached}
-                            </span>
-                            <span className="text-[11px] text-slate-500 font-medium">
-                              {deliv.date}
-                            </span>
+                          <div className="p-3 rounded-xl bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 transition space-y-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                                {deliv.title}
+                              </h4>
+                              <span className="text-[11px] text-slate-400 font-medium shrink-0 whitespace-nowrap">
+                                {deliv.date}
+                              </span>
+                            </div>
+
+                            <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{deliv.location}</span>
+                            </p>
+
+                            <div className="pt-1 flex items-center justify-between">
+                              <span className="inline-flex items-center gap-1 font-bold text-[#006B56] bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-md text-[10px]">
+                                <CheckCircle2 className="w-3 h-3 text-[#006B56]" />
+                                {deliv.reached}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium">GPS Tagged</span>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1407,12 +1592,12 @@ export function DonorPortalApp({
               {/* TAB 5: DELIVERABLES & COMPLIANCE VAULT */}
               {activeTab === 'compliance' && (
                 <div className="space-y-5">
-                  <Card className="p-5 bg-white border border-slate-200 shadow-2xs rounded-xl">
+                  <Card className="p-4 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
                       <div>
                         <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-[#006B56]" />
-                          Contractual Reporting & Audit Deliverables
+                          <FileText className="w-4 h-4 text-[#006B56] shrink-0" />
+                          <span>Contractual Reporting & Audit Deliverables</span>
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5">
                           Mandatory quarterly progress narratives, financial monitoring statements, and external audit files.
@@ -1424,96 +1609,175 @@ export function DonorPortalApp({
                         size="sm"
                         onClick={handleExportPDF}
                         icon={Download}
-                        className="text-xs"
+                        className="text-xs self-start sm:self-auto shrink-0"
                       >
                         Export Compliance Dossier
                       </Button>
                     </div>
-                    {/* Minimal & Clean Responsive Deliverables Table */}
+
                     {deliverables.length === 0 ? (
                       <div className="p-8 text-center text-slate-400 text-xs rounded-xl border border-dashed border-slate-200">
                         No contractual deliverables recorded for this grant.
                       </div>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                        <table className="w-full text-left border-collapse text-xs">
-                          <thead>
-                            <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                              <th className="py-2 px-2.5 sm:px-4">Deliverable</th>
-                              <th className="py-2 px-2 sm:px-3 whitespace-nowrap">Status</th>
-                              <th className="py-2 px-2 sm:px-3 whitespace-nowrap">Due Date</th>
-                              <th className="py-2 px-2 sm:px-3 text-right whitespace-nowrap w-12">File</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 bg-white">
-                            {deliverables.map((del) => {
-                              const isApproved = del.status === 'Approved';
-                              const isUnderReview = del.status === 'Under Review';
-                              return (
-                                <tr
-                                  key={del.id}
-                                  className="hover:bg-slate-50/80 transition-colors"
-                                >
-                                  {/* Deliverable Info: Short & Single-Line */}
-                                  <td className="py-2 px-2.5 sm:px-4">
-                                    <span
-                                      className="font-semibold text-slate-900 text-xs truncate block max-w-[150px] sm:max-w-none"
-                                      title={del.title}
-                                    >
-                                      {getShortDeliverableTitle(del.title, del.type)}
-                                    </span>
-                                  </td>
+                      <>
+                        {/* PHONE / MOBILE VIEW (No Horizontal Scrolling - Vertical Cards) */}
+                        <div className="block sm:hidden space-y-2.5">
+                          {deliverables.map((del) => {
+                            const isApproved = del.status === 'Approved';
+                            const isUnderReview = del.status === 'Under Review';
+                            const shortTitle = getShortDeliverableTitle(del.title, del.type);
 
-                                  {/* Status */}
-                                  <td className="py-2 px-2 sm:px-3 whitespace-nowrap align-middle">
+                            return (
+                              <div
+                                key={del.id}
+                                className="p-3 bg-slate-50/80 hover:bg-slate-50 border border-slate-200 rounded-xl space-y-2 transition"
+                              >
+                                {/* Top: Title + PDF Action Button */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="font-bold text-slate-900 text-xs leading-snug">
+                                      {shortTitle}
+                                    </h4>
+                                    {del.type && (
+                                      <span className="text-[10px] text-slate-500 font-medium block mt-0.5">
+                                        {del.type}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      toast.success(`Downloading: ${del.file_name || shortTitle}`);
+                                      handleExportPDF();
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-emerald-50 hover:text-[#006B56] hover:border-emerald-300 text-slate-700 text-xs font-semibold shadow-2xs transition shrink-0 active:scale-95 cursor-pointer"
+                                  >
+                                    <Download className="w-3.5 h-3.5 text-slate-600" />
+                                    <span>PDF</span>
+                                  </button>
+                                </div>
+
+                                {/* Bottom: Status Pill + Due Date */}
+                                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/70 text-xs">
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                      isApproved
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : isUnderReview
+                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                                    }`}
+                                  >
                                     <span
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                      className={`w-1.5 h-1.5 rounded-full ${
                                         isApproved
-                                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                          ? 'bg-emerald-500'
                                           : isUnderReview
-                                          ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                          : 'bg-slate-100 text-slate-700 border-slate-200'
+                                          ? 'bg-amber-500'
+                                          : 'bg-slate-400'
                                       }`}
-                                    >
+                                    />
+                                    {del.status}
+                                  </span>
+
+                                  <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
+                                    <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                                    <span>Due: {formatDate(del.due_date)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* TABLET & DESKTOP VIEW (Standard 4-Column Table) */}
+                        <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                          <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                              <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                                <th className="py-2.5 px-3 sm:px-4">Deliverable</th>
+                                <th className="py-2.5 px-3 whitespace-nowrap">Status</th>
+                                <th className="py-2.5 px-3 whitespace-nowrap">Due Date</th>
+                                <th className="py-2.5 px-3 text-right whitespace-nowrap w-16">File</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 bg-white">
+                              {deliverables.map((del) => {
+                                const isApproved = del.status === 'Approved';
+                                const isUnderReview = del.status === 'Under Review';
+                                return (
+                                  <tr
+                                    key={del.id}
+                                    className="hover:bg-slate-50/80 transition-colors"
+                                  >
+                                    {/* Deliverable Info */}
+                                    <td className="py-2.5 px-3 sm:px-4">
                                       <span
-                                        className={`w-1.5 h-1.5 rounded-full ${
+                                        className="font-semibold text-slate-900 text-xs block"
+                                        title={del.title}
+                                      >
+                                        {getShortDeliverableTitle(del.title, del.type)}
+                                      </span>
+                                      {del.title && del.title !== getShortDeliverableTitle(del.title, del.type) && (
+                                        <span className="text-[10px] text-slate-400 truncate block mt-0.5">
+                                          {del.title}
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    {/* Status */}
+                                    <td className="py-2.5 px-3 whitespace-nowrap align-middle">
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                                           isApproved
-                                            ? 'bg-emerald-500'
+                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                             : isUnderReview
-                                            ? 'bg-amber-500'
-                                            : 'bg-slate-400'
+                                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                            : 'bg-slate-100 text-slate-700 border-slate-200'
                                         }`}
-                                      />
-                                      {del.status}
-                                    </span>
-                                  </td>
+                                      >
+                                        <span
+                                          className={`w-1.5 h-1.5 rounded-full ${
+                                            isApproved
+                                              ? 'bg-emerald-500'
+                                              : isUnderReview
+                                              ? 'bg-amber-500'
+                                              : 'bg-slate-400'
+                                          }`}
+                                        />
+                                        {del.status}
+                                      </span>
+                                    </td>
 
-                                  {/* Due Date */}
-                                  <td className="py-2 px-2 sm:px-3 whitespace-nowrap align-middle text-xs text-slate-700 font-medium">
-                                    {formatDate(del.due_date)}
-                                  </td>
+                                    {/* Due Date */}
+                                    <td className="py-2.5 px-3 whitespace-nowrap align-middle text-xs text-slate-700 font-medium">
+                                      {formatDate(del.due_date)}
+                                    </td>
 
-                                  {/* PDF Download Action */}
-                                  <td className="py-2 px-2 sm:px-3 text-right whitespace-nowrap align-middle">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        toast.success(`Downloading: ${del.file_name}`);
-                                        handleExportPDF();
-                                      }}
-                                      title={`Download ${del.file_name || 'Deliverable PDF'}`}
-                                      className="inline-flex items-center gap-1 p-1 sm:px-2 sm:py-0.5 rounded-lg border border-slate-200 bg-white hover:bg-emerald-50 hover:text-[#006B56] hover:border-emerald-300 text-slate-700 text-xs font-semibold shadow-2xs transition active:scale-95 cursor-pointer"
-                                    >
-                                      <Download className="w-3.5 h-3.5 text-slate-600" />
-                                      <span className="hidden sm:inline">PDF</span>
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                                    {/* PDF Download Action */}
+                                    <td className="py-2.5 px-3 text-right whitespace-nowrap align-middle">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          toast.success(`Downloading: ${del.file_name}`);
+                                          handleExportPDF();
+                                        }}
+                                        title={`Download ${del.file_name || 'Deliverable PDF'}`}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-emerald-50 hover:text-[#006B56] hover:border-emerald-300 text-slate-700 text-xs font-semibold shadow-2xs transition active:scale-95 cursor-pointer"
+                                      >
+                                        <Download className="w-3.5 h-3.5 text-slate-600" />
+                                        <span>PDF</span>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
                     )}
                   </Card>
                 </div>
@@ -1568,7 +1832,7 @@ export function DonorPortalApp({
                         <div className="absolute top-full left-0 mt-2 w-96 max-w-[92vw] bg-white text-slate-900 rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 animate-in fade-in-50 duration-150">
                           <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                              Select Leadership Desk
+                              Select Module Officer
                             </span>
                             <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
                               Verified System Accounts
