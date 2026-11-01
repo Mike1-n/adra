@@ -610,4 +610,44 @@ CREATE POLICY "Allow authenticated write on suppliers" ON public.suppliers FOR A
 -- ----------------------------------------------------------------------------
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password TEXT DEFAULT 'Password123!';
 
+-- Add evidence and field verification columns to assistance_requests
+ALTER TABLE public.assistance_requests ADD COLUMN IF NOT EXISTS evidence_documents JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.assistance_requests ADD COLUMN IF NOT EXISTS evidence_photos JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.assistance_requests ADD COLUMN IF NOT EXISTS vulnerability_score INT DEFAULT 85;
+ALTER TABLE public.assistance_requests ADD COLUMN IF NOT EXISTS assessment_code TEXT;
+ALTER TABLE public.assistance_requests ADD COLUMN IF NOT EXISTS ground_situation_report TEXT;
+ALTER TABLE public.assistance_requests ADD COLUMN IF NOT EXISTS field_justification TEXT;
+ALTER TABLE public.assistance_requests ADD COLUMN IF NOT EXISTS audit_findings TEXT;
+ALTER TABLE public.assistance_requests ADD COLUMN IF NOT EXISTS recommended_aid TEXT;
+
+-- ----------------------------------------------------------------------------
+-- 20. SUPABASE STORAGE BUCKETS FOR FIELD EVIDENCE & VERIFICATION DOCUMENTS
+-- ----------------------------------------------------------------------------
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('field-evidence', 'field-evidence', true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('documents', 'documents', true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('public', 'public', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage object policies
+DO $$
+BEGIN
+    DROP POLICY IF EXISTS "Public Read field-evidence" ON storage.objects;
+    CREATE POLICY "Public Read field-evidence" ON storage.objects FOR SELECT USING (bucket_id IN ('field-evidence', 'documents', 'public'));
+
+    DROP POLICY IF EXISTS "Public Insert field-evidence" ON storage.objects;
+    CREATE POLICY "Public Insert field-evidence" ON storage.objects FOR INSERT WITH CHECK (bucket_id IN ('field-evidence', 'documents', 'public'));
+
+    DROP POLICY IF EXISTS "Public Update field-evidence" ON storage.objects;
+    CREATE POLICY "Public Update field-evidence" ON storage.objects FOR UPDATE USING (bucket_id IN ('field-evidence', 'documents', 'public'));
+EXCEPTION
+    WHEN OTHERS THEN NULL;
+END $$;
+
 

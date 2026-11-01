@@ -343,13 +343,9 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
     setStep(2);
   };
 
-  // Step 2: Validate details before review
+  // Step 2: Proceed to review (Additional Information is optional)
   const handleProceedToReview = (e) => {
     e.preventDefault();
-    if (!formData.reason.trim()) {
-      toast.warning('Please tell us about your situation or reason for requesting assistance.');
-      return;
-    }
     setStep(3);
   };
 
@@ -373,8 +369,8 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
         category: formData.categories?.join(', ') || formData.category || 'Food Assistance',
         urgency: formData.urgency || 'High',
         household_members: formData.household_members || 1,
-        description: formData.reason || `Assistance request for ${situationsText} household`,
-        additional_info: `Situation: ${situationsText}.`,
+        description: formData.reason?.trim() || `Assistance request for ${situationsText} household`,
+        additional_info: formData.reason?.trim() ? `Situation: ${situationsText}. Notes: ${formData.reason.trim()}` : `Situation: ${situationsText}.`,
         location: locationFull,
         state: formData.state,
         county: formData.county,
@@ -849,18 +845,17 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
                 </div>
               </div>
 
-              {/* 4. Additional Information */}
+              {/* 4. Additional Information (Optional) */}
               <div className="pt-4 border-t border-slate-100 space-y-2">
                 <label className="block text-xs font-black text-slate-900 uppercase tracking-wider">
-                  Additional Information
+                  Additional Information <span className="text-[10px] font-bold text-slate-400 normal-case">(Optional)</span>
                 </label>
                 <textarea
                   rows={3}
                   value={formData.reason}
                   onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                  placeholder="e.g. Food insecurity due to disrupted supply; lack of clean water access..."
+                  placeholder="e.g. Food insecurity due to disrupted supply; lack of clean water access (optional)..."
                   className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-[#006B56] focus:bg-white focus:ring-2 focus:ring-[#006B56]/15 transition"
-                  required
                 />
               </div>
 
@@ -942,11 +937,11 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
                 </span>
               </div>
 
-              {/* Reason */}
+              {/* Additional Information */}
               <div className="pt-1">
-                <span className="text-slate-500 font-bold block mb-1">Reason:</span>
+                <span className="text-slate-500 font-bold block mb-1">Additional Information:</span>
                 <p className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-medium text-xs leading-relaxed">
-                  {formData.reason || 'No additional reason specified.'}
+                  {formData.reason?.trim() || 'No additional information provided (optional).'}
                 </p>
               </div>
             </div>

@@ -115,6 +115,21 @@ export function PMAssistanceRequestsView({
     }
   }, [selectedRequestToReview]);
 
+  // Keep activeModalRequest synced if requests update in background
+  React.useEffect(() => {
+    if (activeModalRequest) {
+      const latest = requests.find(r => r.id === activeModalRequest.id || r.request_code === activeModalRequest.request_code);
+      if (latest && (
+        latest.status !== activeModalRequest.status ||
+        latest.assigned_supervisor_name !== activeModalRequest.assigned_supervisor_name ||
+        latest.assigned_supervisor_id !== activeModalRequest.assigned_supervisor_id ||
+        latest.assigned_field_worker_name !== activeModalRequest.assigned_field_worker_name
+      )) {
+        setActiveModalRequest(latest);
+      }
+    }
+  }, [requests]);
+
   // Derive unique location filter options from requests
   const filterOptions = useMemo(() => {
     const states = new Set();
@@ -465,27 +480,34 @@ export function PMAssistanceRequestsView({
     if (!selectedSupervisorId || !activeModalRequest) return;
     const sup = supervisors.find(s => s.id === selectedSupervisorId);
     try {
-      // 1. Record official Program Manager Approval
-      if (activeModalRequest.status !== 'Approved') {
-        await onApproveRequest(activeModalRequest.id, {
-          notes: supervisorNotes || 'Approved by Programme Manager. Dispatched to state supervisor.',
-          managerName: currentUser?.name || 'Grace Ochieng'
-        });
-      }
-      // 2. Assign and dispatch to the chosen State Supervisor
-      await onAssignSupervisor(
+      // 1. Assign and dispatch to the chosen State Supervisor
+      const updatedRecord = await onAssignSupervisor(
         activeModalRequest.id,
         selectedSupervisorId,
         sup?.name || 'Supervisor',
         supervisorNotes || 'Dispatched for field worker allocation and assessment.'
       );
+
+      // 2. Keep the view open and update activeModalRequest immediately so user sees the assigned supervisor
+      const updatedReq = updatedRecord || {
+        ...activeModalRequest,
+        status: 'Assigned to Supervisor',
+        status_label: 'Assigned to Supervisor',
+        status_stage: 3,
+        assigned_supervisor_id: selectedSupervisorId,
+        assigned_supervisor_name: sup?.name || 'Supervisor',
+        assigned_field_worker_name: activeModalRequest.assigned_field_worker_name || 'Pending Supervisor Assignment',
+        review_notes: supervisorNotes || `Assigned to ${sup?.name || 'Supervisor'}`
+      };
+
+      setActiveModalRequest(updatedReq);
       setShowSupervisorModal(false);
       setSelectedSupervisorId('');
       setSupervisorNotes('');
-      setActiveModalRequest(null);
-      if (onClearSelectedRequest) onClearSelectedRequest();
+      setIsReassigning(false);
     } catch (err) {
       console.error('Assignment failed:', err);
+      setDecisionError('Failed to assign supervisor. Please try again.');
     }
   };
 
@@ -866,7 +888,17 @@ export function PMAssistanceRequestsView({
       'Disbursed'
     ].includes(activeModalRequest.status);
 
-    const showAssignedCard = Boolean(assignedSupervisor) && isAssignedOrApproved && !isReassigning;
+    const hasAssignedSupervisor = Boolean(
+      (activeModalRequest.assigned_supervisor_id && activeModalRequest.assigned_supervisor_id !== 'unassigned') ||
+      (activeModalRequest.assigned_supervisor_name &&
+       activeModalRequest.assigned_supervisor_name !== 'Unassigned' &&
+       !String(activeModalRequest.assigned_supervisor_name).toLowerCase().includes('pending') &&
+       activeModalRequest.assigned_supervisor_name !== 'Pending Supervisor Assignment' &&
+       activeModalRequest.assigned_supervisor_name !== 'Pending Supervisor') ||
+      Boolean(assignedSupervisor && activeModalRequest.status !== 'Submitted')
+    );
+
+    const showAssignedCard = hasAssignedSupervisor && !isReassigning;
     const currentAction = decisionAction || 'assign';
 
     const beneficiaryName = activeModalRequest.beneficiary_name || b?.full_name || 'Michael Ngatia';
@@ -957,7 +989,7 @@ export function PMAssistanceRequestsView({
           </div>
 
           {/* Quick Vital Strip */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 text-xs">
             <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-2">
               <Users className="w-4 h-4 text-[#006B56] shrink-0" />
               <div>
@@ -979,6 +1011,16 @@ export function PMAssistanceRequestsView({
               <div className="min-w-0">
                 <span className="text-[10px] text-slate-400 font-bold uppercase block">Phone</span>
                 <span className="font-bold text-slate-900 font-mono truncate block">{phoneStr}</span>
+              </div>
+            </div>
+
+            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-2 min-w-0">
+              <UserCheck className={`w-4 h-4 shrink-0 ${hasAssignedSupervisor ? 'text-emerald-600' : 'text-amber-500'}`} />
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Supervisor</span>
+                <span className="font-bold text-slate-900 truncate block" title={assignedSupervisor?.name || activeModalRequest.assigned_supervisor_name || 'Unassigned'}>
+                  {assignedSupervisor?.name || activeModalRequest.assigned_supervisor_name || 'Unassigned'}
+                </span>
               </div>
             </div>
           </div>
@@ -1202,7 +1244,106 @@ export function PMAssistanceRequestsView({
               )}
             </div>
           </div>
-        ) : !isAssignedOrApproved || isReassigning ? (
+        ) : null}
+
+        {/* 3. ASSIGNED STATE SUPERVISOR CARD OR SUPERVISOR ASSIGNMENT FORM */}
+        {hasAssignedSupervisor && !isReassigning ? (
+          /* ASSIGNED STATE SUPERVISOR CARD */
+          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 text-[#006B56] flex items-center justify-center font-black">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-black text-slate-900">
+                      Assigned State Supervisor
+                    </h3>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      Deployment Active
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Designated supervisor overseeing field officer deployment and household audit verification in {activeModalRequest.state || b?.state || 'Eastern Equatoria'}.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsReassigning(true);
+                  setSelectedSupervisorId(assignedSupervisor?.id || activeModalRequest.assigned_supervisor_id || '');
+                  setSupervisorNotes(activeModalRequest.review_notes || '');
+                }}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-[#006B56]" />
+                <span>Change / Reassign</span>
+              </button>
+            </div>
+
+            {/* Supervisor Profile Summary Strip */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block mb-0.5">Supervisor Name</span>
+                <span className="font-extrabold text-slate-900 text-sm block">
+                  {assignedSupervisor?.name || activeModalRequest.assigned_supervisor_name}
+                </span>
+                <span className="text-[11px] text-emerald-700 font-semibold block mt-0.5">
+                  {assignedSupervisor?.role || 'State Supervisor'}
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block mb-0.5">Jurisdiction / State</span>
+                <span className="font-bold text-slate-900 block truncate">
+                  {assignedSupervisor?.state || activeModalRequest.state || 'Eastern Equatoria'}
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium block truncate mt-0.5">
+                  {assignedSupervisor?.assigned_area || `${activeModalRequest.state || 'Regional'} Zonal Office`}
+                </span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block mb-0.5">Direct Contact</span>
+                <span className="font-mono font-bold text-slate-900 block truncate">
+                  {assignedSupervisor?.phone || '+211 922 345 002'}
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium block truncate mt-0.5">
+                  {assignedSupervisor?.email || `${(assignedSupervisor?.name || 'supervisor').toLowerCase().replace(/\s+/g, '.')}@adra.org`}
+                </span>
+              </div>
+            </div>
+
+            {/* Instructions / Remarks */}
+            {(activeModalRequest.review_notes || activeModalRequest.supervisor_notes) && (
+              <div className="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-100 text-xs space-y-1">
+                <span className="text-[10px] uppercase font-bold text-[#006B56] tracking-wider block">
+                  Instructions for Supervisor
+                </span>
+                <p className="text-slate-800 font-medium italic leading-relaxed">
+                  "{activeModalRequest.review_notes || activeModalRequest.supervisor_notes}"
+                </p>
+              </div>
+            )}
+
+            {/* Field Worker Allocation Status */}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-slate-600 font-semibold">Field Worker Deployment:</span>
+                <strong className="text-slate-900">
+                  {activeModalRequest.assigned_field_worker_name || 'Pending Supervisor Allocation'}
+                </strong>
+              </div>
+              <span className="text-[11px] font-bold text-slate-500">
+                Status: <strong className="text-[#006B56]">{activeModalRequest.status}</strong>
+              </span>
+            </div>
+          </div>
+        ) : (!hasAssignedSupervisor || isReassigning) && !isModalRejected && activeModalRequest.status !== 'Approved' && activeModalRequest.status !== 'Completed' ? (
           /* ASSIGN SUPERVISOR FORM (When not yet assigned) */
           <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -1211,7 +1352,7 @@ export function PMAssistanceRequestsView({
                   {isReassigning ? 'Reassign State Supervisor' : 'Assign State Supervisor'}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Designate a supervisor for {activeModalRequest.state || b?.state || 'Central Equatoria'} to deploy a field worker to conduct the household audit.
+                  Designate a supervisor for {activeModalRequest.state || b?.state || 'Eastern Equatoria'} to deploy a field worker to conduct the household audit.
                 </p>
               </div>
               {(activeModalRequest.state || b?.state) && (
@@ -1263,7 +1404,7 @@ export function PMAssistanceRequestsView({
                   rows={2}
                   value={supervisorNotes}
                   onChange={(e) => setSupervisorNotes(e.target.value)}
-                  placeholder={`e.g., Deploy field worker for household vulnerability audit in ${activeModalRequest.county || activeModalRequest.payam || 'Juba Central'}...`}
+                  placeholder={`e.g., Deploy field worker for household vulnerability audit in ${activeModalRequest.county || activeModalRequest.payam || 'Kapoeta South'}...`}
                   className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs outline-none focus:ring-2 focus:ring-[#006B56]"
                 />
               </div>
@@ -1586,9 +1727,14 @@ export function PMAssistanceRequestsView({
                         </span>
                       </td>
 
-                      {/* 2. Beneficiary */}
-                      <td className="py-2 px-3 font-bold text-slate-900 text-xs whitespace-nowrap">
-                        {r.beneficiary_name}
+                      {/* 2. Beneficiary & Assigned Supervisor */}
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <div className="font-bold text-slate-900 text-xs">{r.beneficiary_name}</div>
+                        <div className="text-[10px] text-slate-500 font-medium">
+                          {r.assigned_supervisor_name && r.assigned_supervisor_name !== 'Unassigned' && !r.assigned_supervisor_name.toLowerCase().includes('pending')
+                            ? `Sup: ${r.assigned_supervisor_name}`
+                            : 'No Supervisor'}
+                        </div>
                       </td>
 
                       {/* 3. Category */}
@@ -1670,7 +1816,7 @@ export function PMAssistanceRequestsView({
                     </p>
 
                     <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
-                      {categoryText}
+                      {categoryText} &bull; {r.assigned_supervisor_name && r.assigned_supervisor_name !== 'Unassigned' && !r.assigned_supervisor_name.toLowerCase().includes('pending') ? r.assigned_supervisor_name : 'No Supervisor'}
                     </p>
                   </div>
 

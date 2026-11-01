@@ -61,6 +61,7 @@ export function SupplierPortalApp({
 
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [dispatches, setDispatches] = useState([]);
 
   // Modals
   const [selectedPOForDispatch, setSelectedPOForDispatch] = useState(null);
@@ -85,12 +86,14 @@ export function SupplierPortalApp({
   const loadData = async () => {
     try {
       setLoading(true);
-      const [poList, supList] = await Promise.all([
+      const [poList, supList, dispList] = await Promise.all([
         db.getPurchaseOrders(),
-        db.getSuppliers()
+        db.getSuppliers(),
+        db.getDispatches ? db.getDispatches() : Promise.resolve([])
       ]);
       setPurchaseOrders(poList || []);
       setSuppliers(supList || []);
+      setDispatches(dispList || []);
     } catch (err) {
       console.error('Error loading supplier portal:', err);
       toast.error('Failed to load supplier portal data.');
@@ -597,7 +600,7 @@ export function SupplierPortalApp({
             <NotificationBellButton
               currentUser={currentUser}
               extraData={{
-                orders: purchaseOrders,
+                orders: displayedPOs,
                 dispatches
               }}
               onNavigate={(tab) => setActiveTab(tab)}
