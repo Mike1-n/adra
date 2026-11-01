@@ -42,6 +42,7 @@ export function AdminFeedbackComplaintsOversightView() {
   const [loading, setLoading] = useState(true);
 
   // Filters
+  const [sourceFilter, setSourceFilter] = useState('ALL');
   const [senderFilter, setSenderFilter] = useState('ALL');
   const [recipientFilter, setRecipientFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -57,8 +58,104 @@ export function AdminFeedbackComplaintsOversightView() {
   const loadComplaints = async () => {
     try {
       setLoading(true);
-      const data = await db.getComplaints(null);
-      setComplaints(data || []);
+      const [compData, donorData, userFbData] = await Promise.all([
+        db.getComplaints(null),
+        db.getDonorQueries ? db.getDonorQueries() : [],
+        db.getUserFeedbacks ? db.getUserFeedbacks() : []
+      ]);
+
+      const mappedComplaints = (compData || []).map(c => ({
+        ...c,
+        source_type: 'Community Grievance',
+        sender_name: c.sender_name || c.beneficiary_name || 'Anonymous Community Member',
+        sender_role: c.sender_role || 'Beneficiary',
+        sender_location: c.sender_location || 'Field Zone',
+        recipient_name: c.recipient_name || c.recipient_role || 'Assigned Officer',
+        recipient_role: c.recipient_role || 'Field Desk',
+        recipient_department: c.recipient_department || `${c.recipient_role || 'Operations'} Team`
+      }));
+
+      const mappedDonorQueries = (donorData || []).map(q => ({
+        id: q.id,
+        ticket_code: q.ticket_code || `DNR-${String(q.id).replace('qry-', '').slice(-4)}`,
+        source_type: 'Donor Inquiry',
+        sender_name: q.sender_name || (q.sender ? q.sender.split('(')[0].trim() : 'Sarah Jenkins'),
+        sender_role: q.sender_role || 'Donor (USAID BHA)',
+        sender_location: 'Institutional Donor Mission',
+        recipient_name: q.recipient_name || (q.responded_by ? q.responded_by.split('(')[0].trim() : 'Grace Ochieng'),
+        recipient_role: q.recipient_role || (q.responded_by && q.responded_by.includes('Finance') ? 'Finance Officer' : 'Program Manager'),
+        recipient_department: q.recipient_dept || (q.recipient_role === 'Finance Officer' ? 'Financial Control & Grants' : 'Emergency Response & Programs'),
+        category: 'Grant Accountability',
+        severity: 'High',
+        priority: 'High',
+        is_anonymous: false,
+        subject: q.subject,
+        description: q.message,
+        status: q.status === 'Clarified' ? 'Resolved' : (q.status || 'Under Review'),
+        created_at: q.date ? `${q.date}T10:00:00Z` : new Date().toISOString(),
+        resolution_notes: q.response || null,
+        resolved_by: q.responded_by || null,
+        resolved_at: q.responded_at ? `${q.responded_at}T14:00:00Z` : null,
+        responses: [
+          {
+            sender: q.sender_name || 'Sarah Jenkins (Donor)',
+            role: 'Institutional Donor',
+            message: q.message,
+            timestamp: q.date ? `${q.date}T10:00:00Z` : new Date().toISOString()
+          },
+          ...(q.response ? [{
+            sender: q.responded_by || q.recipient_name || 'ADRA Officer',
+            role: q.recipient_role || 'Program Manager',
+            message: q.response,
+            timestamp: q.responded_at ? `${q.responded_at}T14:00:00Z` : new Date().toISOString()
+          }] : [])
+        ]
+      }));
+
+      const mappedUserFeedbacks = (userFbData || []).map(fb => ({
+        id: fb.id,
+        ticket_code: fb.ticket_code || `FB-${String(fb.id).replace('fb-', '').slice(-4)}`,
+        source_type: 'Module Review',
+        sender_name: fb.user_name || 'Staff Member',
+        sender_role: fb.user_role || 'Internal User',
+        sender_location: fb.module || 'System Module',
+        recipient_name: fb.responded_by || 'Dr. Elizabeth Warren (Administrator)',
+        recipient_role: 'Administrator',
+        recipient_department: 'System Architecture & HQ Governance',
+        category: `${fb.module} • ${fb.category}`,
+        severity: fb.priority === 'Urgent' ? 'Urgent' : 'Medium',
+        priority: fb.priority || 'Normal',
+        is_anonymous: false,
+        subject: fb.subject,
+        description: fb.message,
+        status: fb.status || 'Under Review',
+        created_at: fb.created_at || new Date().toISOString(),
+        resolution_notes: fb.admin_response || null,
+        resolved_by: fb.responded_by || null,
+        resolved_at: fb.responded_at || null,
+        responses: [
+          {
+            sender: fb.user_name || 'Staff User',
+            role: fb.user_role || 'User',
+            message: fb.message,
+            timestamp: fb.created_at
+          },
+          ...(fb.admin_response ? [{
+            sender: fb.responded_by || 'Administrator',
+            role: 'Administrator',
+            message: fb.admin_response,
+            timestamp: fb.responded_at
+          }] : [])
+        ]
+      }));
+
+      const combined = [...mappedComplaints, ...mappedDonorQueries, ...mappedUserFeedbacks].sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      setComplaints(combined);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load complaints and feedback registry.');
@@ -74,13 +171,21 @@ export function AdminFeedbackComplaintsOversightView() {
   // Filtered dataset
   const filtered = useMemo(() => {
     return complaints.filter((c) => {
+      // Source filter
+      if (sourceFilter !== 'ALL') {
+        if (c.source_type !== sourceFilter) return false;
+      }
+
       // Sender filter
       if (senderFilter !== 'ALL') {
         const sRole = (c.sender_role || '').toLowerCase();
         if (senderFilter === 'Beneficiary' && !sRole.includes('beneficiary')) return false;
+        if (senderFilter === 'Donor' && !sRole.includes('donor')) return false;
         if (senderFilter === 'Field Worker' && !sRole.includes('field')) return false;
         if (senderFilter === 'Supervisor' && !sRole.includes('supervisor')) return false;
         if (senderFilter === 'Supplier' && !sRole.includes('supplier')) return false;
+        if (senderFilter === 'Program Manager' && !sRole.includes('program')) return false;
+        if (senderFilter === 'Finance' && !sRole.includes('finance')) return false;
         if (senderFilter === 'Community' && !sRole.includes('community') && !c.is_anonymous) return false;
       }
 
@@ -92,6 +197,7 @@ export function AdminFeedbackComplaintsOversightView() {
         if (recipientFilter === 'Program Manager' && !rRole.includes('program')) return false;
         if (recipientFilter === 'Compliance Officer' && !rRole.includes('compliance') && !rRole.includes('safeguard')) return false;
         if (recipientFilter === 'Finance' && !rRole.includes('finance') && !rRole.includes('procurement')) return false;
+        if (recipientFilter === 'Administrator' && !rRole.includes('admin') && !rRole.includes('director')) return false;
       }
 
       // Status filter
@@ -108,7 +214,7 @@ export function AdminFeedbackComplaintsOversightView() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesCode = c.ticket_code?.toLowerCase().includes(q);
-        const matchesSender = (c.sender_name || c.beneficiary_name)?.toLowerCase().includes(q);
+        const matchesSender = (c.sender_name || c.beneficiary_name)?.toLowerCase().includes(q) || (c.sender_role)?.toLowerCase().includes(q);
         const matchesRecipient = c.recipient_name?.toLowerCase().includes(q) || c.recipient_role?.toLowerCase().includes(q);
         const matchesSubject = c.subject?.toLowerCase().includes(q);
         const matchesDesc = c.description?.toLowerCase().includes(q);
@@ -120,7 +226,7 @@ export function AdminFeedbackComplaintsOversightView() {
 
       return true;
     });
-  }, [complaints, senderFilter, recipientFilter, statusFilter, categoryFilter, searchQuery]);
+  }, [complaints, sourceFilter, senderFilter, recipientFilter, statusFilter, categoryFilter, searchQuery]);
 
   // Telemetry KPIs
   const totalCount = complaints.length;
@@ -148,8 +254,30 @@ export function AdminFeedbackComplaintsOversightView() {
         resolved_at: newStatus === 'Resolved' ? new Date().toISOString() : activeComplaint.resolved_at
       };
 
-      if (db.updateComplaintStatus) {
-        await db.updateComplaintStatus(activeComplaint.id || activeComplaint.ticket_code, updates);
+      if (activeComplaint.source_type === 'Donor Inquiry') {
+        if (db.updateDonorQuery) {
+          await db.updateDonorQuery(activeComplaint.id, {
+            status: newStatus,
+            response: updates.resolution_notes,
+            responded_by: updates.resolved_by,
+            responded_at: updates.resolved_at ? updates.resolved_at.split('T')[0] : new Date().toISOString().split('T')[0]
+          });
+        }
+      } else if (activeComplaint.source_type === 'Module Review') {
+        if (db.updateUserFeedbackStatus) {
+          await db.updateUserFeedbackStatus(activeComplaint.id, {
+            status: newStatus,
+            admin_response: updates.resolution_notes,
+            responded_by: updates.resolved_by,
+            responded_at: updates.resolved_at
+          });
+        }
+      } else {
+        if (db.updateComplaintStatus) {
+          await db.updateComplaintStatus(activeComplaint.id || activeComplaint.ticket_code, updates);
+        } else if (db.updateComplaint) {
+          await db.updateComplaint(activeComplaint.id || activeComplaint.ticket_code, updates);
+        }
       }
       toast.success(`Ticket ${activeComplaint.ticket_code} updated to "${newStatus}"`);
       setActiveComplaint(null);
@@ -213,12 +341,16 @@ export function AdminFeedbackComplaintsOversightView() {
   // Helper for sender role icon
   const getRoleIcon = (role = '') => {
     const r = role.toLowerCase();
+    if (r.includes('donor')) return <Building className="w-3.5 h-3.5 text-blue-600" />;
     if (r.includes('beneficiary')) return <Users className="w-3.5 h-3.5 text-emerald-600" />;
-    if (r.includes('field')) return <HardHat className="w-3.5 h-3.5 text-blue-600" />;
+    if (r.includes('field')) return <HardHat className="w-3.5 h-3.5 text-indigo-600" />;
     if (r.includes('supervisor')) return <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />;
     if (r.includes('supplier')) return <Truck className="w-3.5 h-3.5 text-amber-600" />;
     if (r.includes('compliance') || r.includes('safeguard')) return <Scale className="w-3.5 h-3.5 text-rose-600" />;
-    return <UserCheck className="w-3.5 h-3.5 text-purple-600" />;
+    if (r.includes('program')) return <ClipboardList className="w-3.5 h-3.5 text-purple-600" />;
+    if (r.includes('finance')) return <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />;
+    if (r.includes('admin') || r.includes('director')) return <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />;
+    return <UserCheck className="w-3.5 h-3.5 text-slate-600" />;
   };
 
   return (
@@ -236,7 +368,7 @@ export function AdminFeedbackComplaintsOversightView() {
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Centralized administrative monitoring of all grievances, service quality reviews, and inquiries exchanged between beneficiaries, field staff, supervisors, and programme management.
+            Centralized administrative monitoring of all grievances, service quality reviews, and inquiries exchanged between beneficiaries, field staff, supervisors, donors, and programme management.
           </p>
         </div>
 
@@ -260,7 +392,7 @@ export function AdminFeedbackComplaintsOversightView() {
           <button
             onClick={loadComplaints}
             title="Refresh Feed"
-            className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition border border-slate-200"
+            className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition border border-slate-200 cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
@@ -270,7 +402,7 @@ export function AdminFeedbackComplaintsOversightView() {
       {/* KPI Telemetry Tiles */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card className="p-4 bg-white border border-slate-200 shadow-2xs">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Inter-Party Grievances</p>
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Feedbacks & Grievances</p>
           <div className="flex items-center justify-between mt-1.5">
             <span className="text-2xl font-black text-slate-900">{totalCount}</span>
             <span className="p-2 rounded-xl bg-slate-100 text-slate-700">
@@ -316,7 +448,7 @@ export function AdminFeedbackComplaintsOversightView() {
 
       {/* Multi-Party Filtering Strip */}
       <Card className="p-3.5 bg-slate-50/70 border border-slate-200 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           {/* Search */}
           <div className="relative lg:col-span-1">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -324,9 +456,23 @@ export function AdminFeedbackComplaintsOversightView() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search ticket, sender, subject..."
+              placeholder="Search sender, recipient, ticket..."
               className="adra-input pl-9 text-xs"
             />
+          </div>
+
+          {/* Feedback Source Channel Filter */}
+          <div>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className="adra-select text-xs font-medium"
+            >
+              <option value="ALL">All Feedback Channels</option>
+              <option value="Community Grievance">Community & Beneficiary Grievances</option>
+              <option value="Donor Inquiry">Donor Accountability Inquiries</option>
+              <option value="Module Review">Platform Module Feedback</option>
+            </select>
           </div>
 
           {/* Sender Party Filter */}
@@ -336,11 +482,14 @@ export function AdminFeedbackComplaintsOversightView() {
               onChange={(e) => setSenderFilter(e.target.value)}
               className="adra-select text-xs font-medium"
             >
-              <option value="ALL">All Senders (Any Party)</option>
+              <option value="ALL">All Senders (From)</option>
               <option value="Beneficiary">Beneficiaries & Households</option>
+              <option value="Donor">Institutional Donors (USAID, etc.)</option>
               <option value="Field Worker">Field Staff & Enumerators</option>
               <option value="Supervisor">Zonal Supervisors</option>
               <option value="Supplier">Vendors & Suppliers</option>
+              <option value="Program Manager">Program Management</option>
+              <option value="Finance">Finance Team</option>
               <option value="Community">Community (Anonymous)</option>
             </select>
           </div>
@@ -352,12 +501,13 @@ export function AdminFeedbackComplaintsOversightView() {
               onChange={(e) => setRecipientFilter(e.target.value)}
               className="adra-select text-xs font-medium"
             >
-              <option value="ALL">All Recipients (Target Desk)</option>
-              <option value="Field Worker">To: Field Worker Desk</option>
-              <option value="Supervisor">To: Zonal Supervisor</option>
-              <option value="Program Manager">To: Programme Manager</option>
-              <option value="Compliance Officer">To: Safeguarding / Compliance</option>
-              <option value="Finance">To: Finance & Procurement</option>
+              <option value="ALL">All Recipients (To)</option>
+              <option value="Program Manager">To: Programme Manager (Grace Ochieng)</option>
+              <option value="Finance">To: Finance Officer (Alex Morgan)</option>
+              <option value="Compliance Officer">To: Safeguarding / Compliance (David Ochieng)</option>
+              <option value="Supervisor">To: Zonal Supervisor (Mary Akech)</option>
+              <option value="Field Worker">To: Field Worker Desk (Rose Poni)</option>
+              <option value="Administrator">To: Country Director / Admin Desk</option>
             </select>
           </div>
 
@@ -387,6 +537,7 @@ export function AdminFeedbackComplaintsOversightView() {
               <option value="Distribution Logistics">Distribution Logistics</option>
               <option value="Token & QR Verification">Token & QR Verification</option>
               <option value="Relief Item Quality">Relief Item Quality</option>
+              <option value="Grant Accountability">Grant Accountability</option>
               <option value="Field Resource Depletion">Field Resource Depletion</option>
               <option value="Safeguarding / Protection (PSEA)">Safeguarding / PSEA</option>
               <option value="Procurement & Invoicing">Procurement & Invoicing</option>
@@ -406,10 +557,10 @@ export function AdminFeedbackComplaintsOversightView() {
               <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="py-3 px-3.5">Ticket ID</th>
-                  <th className="py-3 px-3.5">Sender Party</th>
-                  <th className="py-3 px-3.5">Recipient Party (Sent To)</th>
-                  <th className="py-3 px-3.5">Category / Channel</th>
-                  <th className="py-3 px-3.5">Subject & Communication Excerpt</th>
+                  <th className="py-3 px-3.5">Channel</th>
+                  <th className="py-3 px-3.5">Sender Party (From)</th>
+                  <th className="py-3 px-3.5">Recipient Party (To)</th>
+                  <th className="py-3 px-3.5">Subject & Feedback Excerpt</th>
                   <th className="py-3 px-3.5">Priority</th>
                   <th className="py-3 px-3.5">Status</th>
                   <th className="py-3 px-3.5">Date Sent</th>
@@ -421,7 +572,7 @@ export function AdminFeedbackComplaintsOversightView() {
                   <tr>
                     <td colSpan={9} className="py-12 text-center text-slate-500">
                       <MessageSquare className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                      <p className="font-semibold text-xs">No inter-party complaints match the selected filter criteria</p>
+                      <p className="font-semibold text-xs">No feedback or complaints match the selected filter criteria</p>
                       <p className="text-[11px] text-slate-400 mt-0.5">Try resetting the sender, recipient, or category filters.</p>
                     </td>
                   </tr>
@@ -441,45 +592,66 @@ export function AdminFeedbackComplaintsOversightView() {
                           </span>
                         </td>
 
-                        {/* Sender Party */}
+                        {/* Channel Badge */}
                         <td className="py-3.5 px-3.5">
-                          <div className="flex items-center gap-1.5">
-                            {getRoleIcon(item.sender_role)}
-                            <div>
-                              <span className="font-bold text-slate-900 block truncate max-w-[130px]" title={senderDisplay}>
-                                {senderDisplay}
-                              </span>
-                              <span className="text-[10px] text-slate-500 block">
-                                {item.sender_role || 'Beneficiary'}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Recipient Party */}
-                        <td className="py-3.5 px-3.5">
-                          <div className="flex items-center gap-1.5">
-                            <CornerDownRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <div>
-                              <span className="font-semibold text-slate-900 block truncate max-w-[140px]" title={item.recipient_name}>
-                                {item.recipient_name || item.recipient_role}
-                              </span>
-                              <span className="text-[10px] text-slate-500 block truncate max-w-[140px]">
-                                {item.recipient_role}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Category */}
-                        <td className="py-3.5 px-3.5">
-                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-800 border border-slate-200">
-                            {item.category}
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${
+                            item.source_type === 'Donor Inquiry'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200'
+                              : item.source_type === 'Module Review'
+                              ? 'bg-purple-50 text-purple-800 border-purple-200'
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          }`}>
+                            {item.source_type || 'Grievance'}
                           </span>
                         </td>
 
+                        {/* SENDER PARTY (FROM) */}
+                        <td className="py-3.5 px-3.5">
+                          <div className="flex items-start gap-2">
+                            <div className="mt-0.5 p-1 rounded-md bg-slate-100">
+                              {getRoleIcon(item.sender_role)}
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-900 block truncate max-w-[140px]" title={senderDisplay}>
+                                {senderDisplay}
+                              </span>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-semibold">
+                                  {item.sender_role || 'Beneficiary'}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-slate-500 block truncate max-w-[140px] mt-0.5" title={item.sender_location}>
+                                {item.sender_location || 'Field Zone'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* RECIPIENT PARTY (TO) */}
+                        <td className="py-3.5 px-3.5">
+                          <div className="flex items-start gap-2">
+                            <CornerDownRight className="w-3.5 h-3.5 text-emerald-600 mt-1 shrink-0" />
+                            <div>
+                              <span className="font-bold text-slate-900 block truncate max-w-[140px]" title={item.recipient_name}>
+                                {item.recipient_name || item.recipient_role}
+                              </span>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                                  {item.recipient_role}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-slate-500 block truncate max-w-[140px] mt-0.5">
+                                {item.recipient_department || `${item.recipient_role} Desk`}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
                         {/* Subject & Excerpt */}
-                        <td className="py-3.5 px-3.5 max-w-[240px]">
+                        <td className="py-3.5 px-3.5 max-w-[220px]">
+                          <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 mb-0.5">
+                            {item.category}
+                          </span>
                           <span className="font-bold text-slate-900 block truncate text-xs" title={item.subject}>
                             {item.subject}
                           </span>
@@ -536,7 +708,7 @@ export function AdminFeedbackComplaintsOversightView() {
                           <button
                             type="button"
                             onClick={() => handleOpenInspect(item)}
-                            title="Inspect Inter-Party Exchange"
+                            title="Inspect Feedback & Direct Parties"
                             className="p-1.5 rounded-lg text-slate-600 hover:text-emerald-700 hover:bg-slate-100 transition border border-slate-200 inline-flex items-center gap-1 text-[11px] font-semibold cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5 text-slate-500" />
@@ -559,29 +731,57 @@ export function AdminFeedbackComplaintsOversightView() {
           isOpen={Boolean(activeComplaint)}
           onClose={() => setActiveComplaint(null)}
           size="lg"
-          title={`Inter-Party Grievance Audit: ${activeComplaint.ticket_code}`}
+          title={`Feedback & Grievance Dossier: ${activeComplaint.ticket_code}`}
         >
           <div className="space-y-4 text-xs">
             {/* Top Overview Banner */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <p className="text-[11px] text-slate-500 uppercase tracking-wider font-bold mb-1">
-                Communication Audit Thread
-              </p>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-900">{activeComplaint.sender_name || activeComplaint.beneficiary_name}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold">
-                    {activeComplaint.sender_role || 'Beneficiary'}
-                  </span>
-                  <CornerDownRight className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="font-bold text-slate-900">{activeComplaint.recipient_name}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">
-                    {activeComplaint.recipient_role}
-                  </span>
-                </div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  {activeComplaint.source_type}
+                </span>
                 <span className="text-[11px] text-slate-500">
                   Logged: {activeComplaint.created_at ? formatDate(activeComplaint.created_at) : '—'}
                 </span>
+              </div>
+
+              {/* Crystal Clear Sender -> Receiver Route */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                {/* SENDER BOX */}
+                <div className="p-3 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    <Users className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Sender (From)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-sm text-slate-900">{activeComplaint.sender_name}</span>
+                    <span className="text-[10px] px-2 py-0.2 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                      {activeComplaint.sender_role}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    <span className="text-slate-400">Origin / Entity:</span>{' '}
+                    <span className="font-semibold text-slate-700">{activeComplaint.sender_location || 'Field Zone'}</span>
+                  </p>
+                </div>
+
+                {/* RECEIVER BOX */}
+                <div className="p-3 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    <CornerDownRight className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Receiver (Sent To)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-sm text-slate-900">{activeComplaint.recipient_name}</span>
+                    <span className="text-[10px] px-2 py-0.2 rounded bg-blue-50 text-blue-800 font-bold border border-blue-200">
+                      {activeComplaint.recipient_role}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    <span className="text-slate-400">Assigned Desk:</span>{' '}
+                    <span className="font-semibold text-slate-700">{activeComplaint.recipient_department || `${activeComplaint.recipient_role} Desk`}</span>
+                  </p>
+                </div>
               </div>
             </div>
 

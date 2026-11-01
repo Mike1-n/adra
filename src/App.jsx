@@ -51,6 +51,7 @@ import { DonorPortalApp } from './pages/donor/DonorPortalApp';
 
 // Universal Feedback & Complaints Desk
 import { FeedbackComplaintsView } from './components/common/FeedbackComplaintsView';
+import { AdminFeedbackComplaintsOversightView } from './pages/admin/components/AdminFeedbackComplaintsOversightView';
 
 // URL Path Routing Helper
 function getPathInfo() {
@@ -493,6 +494,9 @@ export function App() {
   const renderContent = () => {
     switch (currentTab) {
       case 'feedback':
+        if (currentUser?.role === 'Administrator') {
+          return <AdminFeedbackComplaintsOversightView />;
+        }
         return (
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs h-[calc(100vh-140px)] min-h-[500px]">
             <FeedbackComplaintsView currentUser={currentUser} />

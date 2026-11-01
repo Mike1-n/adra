@@ -4949,6 +4949,7 @@ export const db = {
   async sendDonorQuery(query) {
     const newQ = {
       id: `qry_${Date.now()}`,
+      ticket_code: query.ticket_code || `DNR-${Date.now().toString().slice(-4)}`,
       date: new Date().toISOString().split('T')[0],
       status: 'Under Review',
       ...query
@@ -4957,6 +4958,13 @@ export const db = {
     const updated = [newQ, ...current];
     saveLocalData(STORAGE_KEYS.DONOR_QUERIES, updated);
     return newQ;
+  },
+
+  async updateDonorQuery(id, updates) {
+    const current = getLocalData(STORAGE_KEYS.DONOR_QUERIES, mock.initialDonorQueries || []);
+    const updated = current.map(q => (q.id === id || q.ticket_code === id) ? { ...q, ...updates, updated_at: new Date().toISOString() } : q);
+    saveLocalData(STORAGE_KEYS.DONOR_QUERIES, updated);
+    return updated.find(q => q.id === id || q.ticket_code === id);
   },
 
   async getPartners() {

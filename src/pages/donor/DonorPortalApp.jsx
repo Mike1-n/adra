@@ -367,9 +367,14 @@ export function DonorPortalApp({
     try {
       const newQuery = await db.sendDonorQuery({
         donor_id: currentDonor?.id || 'd1',
+        ticket_code: `DNR-${Date.now().toString().slice(-4)}`,
         subject: inquiryForm.subject,
         message: inquiryForm.message,
         sender: `${currentUser?.full_name || 'Sarah Jenkins'} (${currentDonor?.donor_name || 'Donor'})`,
+        sender_name: currentUser?.full_name || 'Sarah Jenkins',
+        sender_role: 'Institutional Donor',
+        recipient_name: 'Grace Ochieng',
+        recipient_role: 'Program Manager',
         status: 'Under Review',
         response: null
       });
@@ -520,9 +525,14 @@ export function DonorPortalApp({
 
       const newQry = await db.sendDonorQuery({
         donor_id: currentDonor?.id || 'd1',
+        ticket_code: `DNR-${Date.now().toString().slice(-4)}`,
         subject: subject,
         message: text,
         sender: `${currentUser?.full_name || 'Sarah Jenkins'} (${currentDonor?.donor_code || 'USAID BHA'})`,
+        sender_name: currentUser?.full_name || 'Sarah Jenkins',
+        sender_role: 'Institutional Donor',
+        recipient_name: currentDesk.name,
+        recipient_role: currentDesk.role,
         status: 'Under Review',
         response: null,
         responded_by: targetResponder,
