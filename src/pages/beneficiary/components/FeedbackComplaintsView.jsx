@@ -18,6 +18,7 @@ import {
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
 import { useAuth } from '../../../context/AuthContext';
+import { AdminFeedbackComplaintsOversightView } from '../../admin/components/AdminFeedbackComplaintsOversightView';
 
 export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, userType }) {
   const { currentUser: authUser } = useAuth();
@@ -27,6 +28,8 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
   const isSupplier = userType === 'supplier' || role.includes('supplier');
   const isFieldWorker = !isSupplier && role.includes('field');
   const isBeneficiary = !isSupplier && (!effectiveUser?.role || role.includes('beneficiary'));
+  const isAdmin = role.includes('admin') || role.includes('director');
+  const [showAdminOversight, setShowAdminOversight] = useState(isAdmin);
 
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -430,6 +433,33 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     }
   };
 
+  if (isAdmin && showAdminOversight) {
+    return (
+      <div className="w-full h-full flex flex-col space-y-3 p-4 bg-slate-50 overflow-y-auto">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs">
+              <ShieldCheck className="w-4 h-4" />
+              Administrator Central Ledger
+            </span>
+            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+              Full visibility into all inter-party feedbacks with sender & receiver routing
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAdminOversight(false)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-slate-700 hover:text-emerald-700 hover:bg-slate-100 border border-slate-300 shadow-2xs transition cursor-pointer"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Switch to Direct Chat Mode</span>
+          </button>
+        </div>
+        <AdminFeedbackComplaintsOversightView />
+      </div>
+    );
+  }
+
   return (
     <div className="w-full flex-1 flex flex-col h-full min-h-[calc(100vh-120px)] bg-white border-0 shadow-none rounded-none overflow-hidden font-sans">
       
@@ -551,6 +581,18 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
             </div>
           )}
         </div>
+
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setShowAdminOversight(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs transition cursor-pointer"
+            title="Inspect All Senders & Receivers"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Admin Oversight (All Senders & Receivers)</span>
+          </button>
+        )}
       </div>
 
       {/* CHAT MESSAGES BODY (WhatsApp Wallpaper & Clean Bubbles) */}

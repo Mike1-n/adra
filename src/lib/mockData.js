@@ -215,10 +215,15 @@ export const initialDonorDeliverables = [
 export const initialDonorQueries = [
   {
     id: 'qry-1',
+    ticket_code: 'DNR-2025-001',
     donor_id: 'd1',
     subject: 'Verification of Turkana Seed Distribution Sign-off Records',
     message: 'Could ADRA please provide confirmation on the warehouse dispatch vouchers for the certified sorghum seeds in Lodwar?',
     sender: 'Sarah Jenkins (USAID BHA)',
+    sender_name: 'Sarah Jenkins',
+    sender_role: 'Donor (USAID BHA)',
+    recipient_name: 'Grace Ochieng',
+    recipient_role: 'Program Manager',
     date: '2025-02-18',
     status: 'Clarified',
     response: 'Verified distribution sheets and GPS-tagged beneficiary lists were uploaded under Activity ACT-2025-101. Total 520 farmers signed.',
@@ -227,14 +232,19 @@ export const initialDonorQueries = [
   },
   {
     id: 'qry-2',
+    ticket_code: 'DNR-2025-002',
     donor_id: 'd1',
     subject: 'Environmental Compliance for Solar Borehole Installation',
     message: 'Requesting the hydrologic EIA clearance certification for Marsabit District borehole drilling sites.',
     sender: 'Sarah Jenkins (USAID BHA)',
+    sender_name: 'Sarah Jenkins',
+    sender_role: 'Donor (USAID BHA)',
+    recipient_name: 'Alex Morgan',
+    recipient_role: 'Finance Officer',
     date: '2025-03-22',
     status: 'Under Review',
     response: 'EIA hydrology permit issued by NEMA has been attached to the Project Documents repository.',
-    responded_by: 'Dr. Elizabeth Warren (Country Director)',
+    responded_by: 'Alex Morgan (Finance Officer)',
     responded_at: '2025-03-24'
   }
 ];

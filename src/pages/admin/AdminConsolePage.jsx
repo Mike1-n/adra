@@ -25,7 +25,8 @@ import {
   Layers,
   ChevronRight,
   ShieldAlert,
-  FileText
+  FileText,
+  MessageSquare
 } from 'lucide-react';
 import { db, isSupabaseConfigured } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
@@ -43,6 +44,7 @@ import { SecurityAuditView } from './components/SecurityAuditView';
 import { NotificationsBroadcastView } from './components/NotificationsBroadcastView';
 import { DataSettingsSupportView } from './components/DataSettingsSupportView';
 import { GlobalSearchView } from './components/GlobalSearchView';
+import { AdminFeedbackComplaintsOversightView } from './components/AdminFeedbackComplaintsOversightView';
 import { ReportsPage } from '../ReportsPage';
 
 export function AdminConsolePage() {
@@ -232,6 +234,7 @@ export function AdminConsolePage() {
       functions: [
         { id: 'audit', name: 'Immutable Audit Trail', icon: History, num: 'F11' },
         { id: 'notifications', name: 'System Announcements & Alerts', icon: Radio, num: 'F13' },
+        { id: 'feedback-oversight', name: 'Feedback & Grievances Oversight', icon: MessageSquare, num: 'F14' },
       ]
     },
     {
@@ -417,6 +420,9 @@ export function AdminConsolePage() {
         )}
         {activeHub === 'security' && activeFunction === 'notifications' && (
           <NotificationsBroadcastView />
+        )}
+        {activeHub === 'security' && activeFunction === 'feedback-oversight' && (
+          <AdminFeedbackComplaintsOversightView />
         )}
 
         {/* Hub 6: Reports */}
