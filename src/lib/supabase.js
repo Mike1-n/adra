@@ -59,6 +59,7 @@ const STORAGE_KEYS = {
   DISPATCHES: 'adra_dispatches',
   STOCK_TRANSACTIONS: 'adra_stock_transactions',
   WAREHOUSES: 'adra_warehouses',
+  FLEET_VEHICLES: 'adra_fleet_vehicles',
   USER_FEEDBACK: 'adra_user_feedback',
   DONOR_GRANTS: 'adra_donor_grants',
   DONOR_DELIVERABLES: 'adra_donor_deliverables',
@@ -5825,24 +5826,129 @@ export const db = {
 
   // --- SUPPLIERS & VENDORS ---
   async getSuppliers() {
-    const SEEDED_SUP_IDS = ['sup-1', 'sup-2', 'sup-3', 'sup-4', 'sup-5'];
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('suppliers').select('*').order('created_at', { ascending: false });
-        if (!error && data) {
-          const userOnly = data.filter(s => !SEEDED_SUP_IDS.includes(s.id));
-          return userOnly;
+        if (!error && data && data.length > 0) {
+          saveLocalData(STORAGE_KEYS.SUPPLIERS, data);
+          return data;
         }
       } catch (err) {
         console.warn('Error fetching suppliers from Supabase:', err);
       }
     }
-    const current = getLocalData(STORAGE_KEYS.SUPPLIERS, []);
-    const cleanList = (current || []).filter(s => !SEEDED_SUP_IDS.includes(s.id) && s.company_name !== 'Equatorial Relief Logistics Ltd');
-    if (cleanList.length !== (current || []).length) {
-      saveLocalData(STORAGE_KEYS.SUPPLIERS, cleanList);
+    const current = getLocalData(STORAGE_KEYS.SUPPLIERS, null);
+    if (current && current.length > 0) {
+      return current;
     }
-    return cleanList;
+    const defaultSuppliers = [
+      {
+        id: 'sup-1',
+        company_name: 'Equatorial Relief Logistics Ltd',
+        category: 'Transport & Fleet Logistics',
+        contact_person: 'David Lado',
+        phone: '+211-921-112233',
+        email: 'dlado@equatorial-logistics.ss',
+        city: 'Juba',
+        country: 'South Sudan',
+        address: 'Plot 44, Airport Road, Juba',
+        status: 'Active',
+        rating: 4.9
+      },
+      {
+        id: 'sup-2',
+        company_name: 'Simlaw Certified Seeds South Sudan',
+        category: 'Agricultural Inputs & Seeds',
+        contact_person: 'Agnes Wani',
+        phone: '+211-922-334455',
+        email: 'contact@simlawseeds-ss.org',
+        city: 'Torit',
+        country: 'South Sudan',
+        address: 'Agri-Trade Zone, Torit Central',
+        status: 'Active',
+        rating: 4.8
+      },
+      {
+        id: 'sup-3',
+        company_name: 'Davis & Shirtliff Water Technologies SS',
+        category: 'WASH Equipment & Solar Pumping',
+        contact_person: 'Eng. Peter Jok',
+        phone: '+211-923-556677',
+        email: 'peter.jok@davis-shirtliff.com',
+        city: 'Juba',
+        country: 'South Sudan',
+        address: 'Munuki Commercial Hub, Block B, Juba',
+        status: 'Active',
+        rating: 5.0
+      },
+      {
+        id: 'sup-4',
+        company_name: 'Juba Medical & Pharmaceuticals Supply',
+        category: 'Health & Medical Commodities',
+        contact_person: 'Dr. Stephen Taban',
+        phone: '+211-924-778899',
+        email: 'supply@jubamedpharma.ss',
+        city: 'Juba',
+        country: 'South Sudan',
+        address: 'Hospital Road, Central Juba',
+        status: 'Active',
+        rating: 4.7
+      },
+      {
+        id: 'sup-5',
+        company_name: 'Nile River Barges & Heavy Logistics',
+        category: 'Riverine Bulk Transport',
+        contact_person: 'Capt. Maker Deng',
+        phone: '+211-925-990011',
+        email: 'riverine@nilebarges.com',
+        city: 'Bor',
+        country: 'South Sudan',
+        address: 'Bor River Port Jetty Station',
+        status: 'Active',
+        rating: 4.6
+      },
+      {
+        id: 'sup-6',
+        company_name: 'Pan-Africa Nutrition & Emergency Feeds',
+        category: 'Emergency Nutrition & RUTF',
+        contact_person: 'Grace Mwangi',
+        phone: '+254-722-114477',
+        email: 'info@panafricanutrition.org',
+        city: 'Juba',
+        country: 'South Sudan',
+        address: 'Humanitarian Staging Base, Juba',
+        status: 'Active',
+        rating: 4.9
+      },
+      {
+        id: 'sup-7',
+        company_name: 'Nutriset Humanitarian Nutrition',
+        category: 'Food Assistance & PlumpyNut',
+        contact_person: 'Claire Dubois',
+        phone: '+33-2-35-12-34-56',
+        email: 'orders@nutriset.fr',
+        city: 'Juba',
+        country: 'South Sudan',
+        address: 'Relief Supply Staging, Juba',
+        status: 'Active',
+        rating: 5.0
+      },
+      {
+        id: 'sup-8',
+        company_name: 'East Africa Solar & Borehole Solutions',
+        category: 'WASH (Water & Sanitation)',
+        contact_person: 'Eng. Joseph Lagu',
+        phone: '+211-926-443322',
+        email: 'solutions@easolar-water.ss',
+        city: 'Wau',
+        country: 'South Sudan',
+        address: 'Industrial Area, Wau Town',
+        status: 'Active',
+        rating: 4.9
+      }
+    ];
+    saveLocalData(STORAGE_KEYS.SUPPLIERS, defaultSuppliers);
+    return defaultSuppliers;
   },
 
   async createSupplier(data) {
@@ -6420,37 +6526,61 @@ export const db = {
       try {
         const { data, error } = await supabase.from('purchase_orders').select('*').order('created_at', { ascending: false });
         if (!error && Array.isArray(data)) {
+          // Pre-fetch suppliers for ID / contact mapping if missing on legacy records
+          let existingSuppliers = [];
+          try {
+            existingSuppliers = await this.getSuppliers();
+          } catch (e) {
+            existingSuppliers = [];
+          }
+
           const merged = data.filter(po => !isOldSeed(po)).map(dbPo => {
             const localMatch = (localList || []).find(l => l.id === dbPo.id || l.po_number === dbPo.po_number) || {};
             
-            let stage = localMatch.stage || dbPo.stage;
-            if (stage === undefined || stage === null) {
-              if (dbPo.status === 'Returned & Rejected' || dbPo.status?.includes('Return') || dbPo.status?.includes('Reject')) stage = -1;
-              else if (dbPo.status === 'Paid & Settled' || dbPo.status === 'Paid') stage = 4;
-              else if (dbPo.grn_number || dbPo.status === 'Goods Received & Confirmed' || dbPo.status === 'Fully Received') stage = 3;
-              else if (dbPo.status === 'Supplied & In Transit' || dbPo.status === 'In Transit') stage = 2;
-              else stage = 1;
+            // Match supplier if missing
+            const matchedSup = (existingSuppliers || []).find(
+              s => s.id === dbPo.supplier_id || 
+                   s.company_name?.toLowerCase().trim() === dbPo.supplier_name?.toLowerCase().trim()
+            );
+
+            // Determine canonical lifecycle stage
+            let stage = dbPo.stage ?? localMatch.stage;
+            if (dbPo.status === 'Returned & Rejected' || dbPo.status?.includes('Return') || dbPo.status?.includes('Reject')) {
+              stage = -1;
+            } else if (dbPo.status === 'Paid & Settled' || dbPo.payment_status === 'Paid' || dbPo.status === 'Paid' || Number(stage) === 4) {
+              stage = 4;
+            } else if (dbPo.grn_number || dbPo.status === 'Goods Received & Confirmed' || dbPo.status === 'Fully Received' || Number(stage) === 3) {
+              stage = 3;
+            } else if (dbPo.waybill_number || dbPo.supplier_invoice_number || dbPo.status === 'Supplied & In Transit' || dbPo.status === 'In Transit' || Number(stage) === 2) {
+              stage = 2;
+            } else {
+              stage = 1;
             }
+
+            const destination = dbPo.warehouse_destination || dbPo.destination_warehouse || localMatch.warehouse_destination || 'Central Equatoria State Depot';
 
             return {
               ...localMatch,
               ...dbPo,
               id: dbPo.id || localMatch.id,
               po_number: dbPo.po_number || localMatch.po_number,
-              supplier_name: dbPo.supplier_name || localMatch.supplier_name || 'Vendor',
+              supplier_id: dbPo.supplier_id || localMatch.supplier_id || matchedSup?.id || null,
+              supplier_name: dbPo.supplier_name || localMatch.supplier_name || matchedSup?.company_name || 'Vendor',
+              supplier_email: dbPo.supplier_email || localMatch.supplier_email || matchedSup?.email || null,
+              supplier_phone: dbPo.supplier_phone || localMatch.supplier_phone || matchedSup?.phone || null,
               item_name: dbPo.item_name || localMatch.item_name || 'Humanitarian Supplies',
-              quantity: dbPo.quantity ?? localMatch.quantity ?? 1,
+              quantity: Number(dbPo.quantity ?? localMatch.quantity ?? 1),
               unit: dbPo.unit || localMatch.unit || 'Units',
               category: dbPo.category || localMatch.category || 'General Supplies',
               total_amount: Number(dbPo.total_amount ?? localMatch.total_amount ?? 0),
-              warehouse_destination: dbPo.destination_warehouse || dbPo.warehouse_destination || localMatch.warehouse_destination || 'Central Equatoria State Depot',
-              destination_warehouse: dbPo.destination_warehouse || dbPo.warehouse_destination || localMatch.destination_warehouse || 'Central Equatoria State Depot',
+              warehouse_destination: destination,
+              destination_warehouse: destination,
               order_date: dbPo.order_date || localMatch.order_date,
-              expected_delivery: dbPo.expected_delivery || localMatch.expected_delivery,
+              expected_delivery: dbPo.expected_delivery || dbPo.expected_delivery_date || localMatch.expected_delivery,
               status: dbPo.status || localMatch.status || 'Pending Supplier Supply',
               stage,
-              requested_by: dbPo.issued_by || localMatch.requested_by || 'Gabriel Majok (Inventory Manager)',
-              items_summary: dbPo.item_name ? `${dbPo.quantity || ''} ${dbPo.unit || ''} ${dbPo.item_name}`.trim() : (localMatch.items_summary || 'Humanitarian Supplies')
+              requested_by: dbPo.issued_by || dbPo.created_by || localMatch.requested_by || 'Gabriel Majok (Inventory Manager)',
+              items_summary: dbPo.items_summary || (dbPo.item_name ? `${dbPo.quantity || ''} ${dbPo.unit || ''} ${dbPo.item_name}`.trim() : (localMatch.items_summary || 'Humanitarian Supplies'))
             };
           });
 
@@ -6522,32 +6652,76 @@ export const db = {
       ...poData
     };
 
+    // Auto-onboard custom supplier into suppliers registry if not already present
+    if (newPO.supplier_name && !newPO.supplier_id) {
+      try {
+        const existingSuppliers = await this.getSuppliers();
+        const found = existingSuppliers.find(
+          s => s.company_name?.toLowerCase().trim() === newPO.supplier_name?.toLowerCase().trim()
+        );
+        if (found) {
+          newPO.supplier_id = found.id;
+          if (!newPO.supplier_email) newPO.supplier_email = found.email || null;
+          if (!newPO.supplier_phone) newPO.supplier_phone = found.phone || null;
+        } else {
+          const autoSupplier = await this.createSupplier({
+            company_name: newPO.supplier_name,
+            category: newPO.category || 'General Humanitarian Supplies',
+            contact_person: poData.contact_person || 'Sales / Logistics Representative',
+            email: newPO.supplier_email || '',
+            phone: newPO.supplier_phone || '',
+            address: 'South Sudan / Regional Vendor',
+            status: 'Active',
+            rating: 5.0
+          });
+          newPO.supplier_id = autoSupplier.id;
+        }
+      } catch (suppErr) {
+        console.warn('Auto-registering supplier notice:', suppErr);
+      }
+    }
+
     if (isSupabaseConfigured) {
       try {
+        const destination = newPO.warehouse_destination || newPO.destination_warehouse || 'Central Equatoria State Depot';
         const supabasePayload = {
           id: newPO.id,
           po_number: newPO.po_number,
           supplier_name: newPO.supplier_name,
+          supplier_id: newPO.supplier_id || null,
+          supplier_email: newPO.supplier_email || null,
+          supplier_phone: newPO.supplier_phone || null,
           item_name: newPO.item_name,
           category: newPO.category,
           quantity: Number(newPO.quantity) || 1,
           unit: newPO.unit || 'Units',
           unit_cost: Number(newPO.unit_cost) || 0,
           total_amount: Number(newPO.total_amount) || 0,
-          destination_warehouse: newPO.warehouse_destination || 'Central Equatoria State Depot',
+          warehouse_destination: destination,
+          destination_warehouse: destination,
           order_date: newPO.order_date,
-          status: newPO.status,
+          status: newPO.status || 'Pending Supplier Supply',
+          stage: 1,
+          items_summary: newPO.items_summary,
           issued_by: newPO.requested_by,
+          created_by: newPO.requested_by,
           notes: newPO.notes || null
         };
 
         if (newPO.expected_delivery) {
+          supabasePayload.expected_delivery_date = newPO.expected_delivery;
           supabasePayload.expected_delivery = newPO.expected_delivery;
         }
 
         const { data, error } = await supabase.from('purchase_orders').insert([supabasePayload]).select().single();
         if (!error && data) {
-          newPO = { ...newPO, ...data, stage: 1, warehouse_destination: data.destination_warehouse || newPO.warehouse_destination };
+          newPO = {
+            ...newPO,
+            ...data,
+            stage: 1,
+            warehouse_destination: data.warehouse_destination || data.destination_warehouse || destination,
+            destination_warehouse: data.destination_warehouse || data.warehouse_destination || destination
+          };
         } else if (error) {
           console.warn('Supabase purchase_orders insert notice (falling back to local):', error.message);
         }
@@ -6601,6 +6775,13 @@ export const db = {
           .from('purchase_orders')
           .update({
             status: 'Supplied & In Transit',
+            stage: 2,
+            waybill_number,
+            supplier_invoice_number,
+            carrier_name,
+            driver_name,
+            driver_phone,
+            dispatched_at,
             unit_cost: Number(unit_cost) || 0,
             total_amount: Number(total_amount) || 0,
             notes: (supplier_notes ? `${supplier_notes} | ` : '') + `Waybill: ${waybill_number}, Carrier: ${carrier_name}, Invoice: ${supplier_invoice_number}`
@@ -6678,9 +6859,12 @@ export const db = {
           .from('purchase_orders')
           .update({
             status: 'Goods Received & Confirmed',
+            stage: 3,
             grn_number: grnNumber,
+            inspected_by: inspectedBy,
             inspected_date: inspectedDate,
             destination_warehouse: destinationWh,
+            warehouse_destination: destinationWh,
             notes: (targetPO?.notes ? `${targetPO.notes} | ` : '') + `GRN: ${grnNumber}, Inspected by: ${inspectedBy}`
           })
           .or(`id.eq.${id},po_number.eq.${id}`);
@@ -6736,6 +6920,11 @@ export const db = {
           .from('purchase_orders')
           .update({
             status: 'Paid & Settled',
+            stage: 4,
+            payment_status: 'Paid',
+            payment_reference: paymentRef,
+            paid_by: paidBy,
+            paid_date: paidDate,
             total_amount: paymentAmount,
             notes: (targetPO?.notes ? `${targetPO.notes} | ` : '') + `Voucher: ${voucherNo}, Ref: ${paymentRef}, Method: ${paymentMethod}`
           })
@@ -6837,6 +7026,7 @@ export const db = {
           .from('purchase_orders')
           .update({
             status: 'Returned & Rejected',
+            stage: -1,
             notes: (targetPO?.notes ? `${targetPO.notes} | ` : '') + `RETURNED: ${returnNumber} (${returnReason}). ${returnNotes}`
           })
           .or(`id.eq.${id},po_number.eq.${id}`);
@@ -7498,6 +7688,216 @@ export const db = {
       saveLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, clean);
     }
     return clean;
+  },
+
+  // --- FLEET VEHICLES & DRIVERS (DATABASE BACKED TRANSPORT) ---
+  async getFleetVehicles() {
+    const defaultFleet = [
+      {
+        id: 'flt-01',
+        vehicle_plate: 'SSD-481-LOG',
+        plate: 'SSD-481-LOG',
+        driver_name: 'Deng Bol',
+        driver: 'Deng Bol',
+        driver_phone: '+211-921-889911',
+        phone: '+211-921-889911',
+        vehicle_type: '10-Ton Logistics Freight Truck',
+        type: '10-Ton Logistics Freight Truck',
+        assigned_depot: 'Eastern Equatoria State Depot',
+        depot: 'Eastern Equatoria State Depot',
+        status: 'Active',
+        capacity_tonnage: 10.0
+      },
+      {
+        id: 'flt-02',
+        vehicle_plate: 'SSD-729-LOG',
+        plate: 'SSD-729-LOG',
+        driver_name: 'Peter Taban',
+        driver: 'Peter Taban',
+        driver_phone: '+211-923-441122',
+        phone: '+211-923-441122',
+        vehicle_type: '7-Ton Relief Cargo Truck',
+        type: '7-Ton Relief Cargo Truck',
+        assigned_depot: 'Central Equatoria State Depot',
+        depot: 'Central Equatoria State Depot',
+        status: 'Active',
+        capacity_tonnage: 7.0
+      },
+      {
+        id: 'flt-03',
+        vehicle_plate: 'SSD-310-LOG',
+        plate: 'SSD-310-LOG',
+        driver_name: 'James Lado',
+        driver: 'James Lado',
+        driver_phone: '+211-925-773344',
+        phone: '+211-925-773344',
+        vehicle_type: '5-Ton Medium Logistics Truck',
+        type: '5-Ton Medium Logistics Truck',
+        assigned_depot: 'Upper Nile State Depot',
+        depot: 'Upper Nile State Depot',
+        status: 'Active',
+        capacity_tonnage: 5.0
+      },
+      {
+        id: 'flt-04',
+        vehicle_plate: 'SSD-592-LOG',
+        plate: 'SSD-592-LOG',
+        driver_name: 'Mary Kiden',
+        driver: 'Mary Kiden',
+        driver_phone: '+211-927-115566',
+        phone: '+211-927-115566',
+        vehicle_type: '4x4 Hardtop Cruiser (Field Access)',
+        type: '4x4 Hardtop Cruiser (Field Access)',
+        assigned_depot: 'Jonglei State Depot',
+        depot: 'Jonglei State Depot',
+        status: 'Active',
+        capacity_tonnage: 2.5
+      },
+      {
+        id: 'flt-05',
+        vehicle_plate: 'SSD-184-LOG',
+        plate: 'SSD-184-LOG',
+        driver_name: 'Santino Akot',
+        driver: 'Santino Akot',
+        driver_phone: '+211-928-337788',
+        phone: '+211-928-337788',
+        vehicle_type: 'Heavy 15-Ton Convoy Hauler',
+        type: 'Heavy 15-Ton Convoy Hauler',
+        assigned_depot: 'Western Bahr el Ghazal State Depot',
+        depot: 'Western Bahr el Ghazal State Depot',
+        status: 'Active',
+        capacity_tonnage: 15.0
+      },
+      {
+        id: 'flt-06',
+        vehicle_plate: 'SSD-640-LOG',
+        plate: 'SSD-640-LOG',
+        driver_name: 'Emmanuel Garang',
+        driver: 'Emmanuel Garang',
+        driver_phone: '+211-922-334455',
+        phone: '+211-922-334455',
+        vehicle_type: 'Emergency Rapid Response Truck',
+        type: 'Emergency Rapid Response Truck',
+        assigned_depot: 'Upper Nile State Depot',
+        depot: 'Upper Nile State Depot',
+        status: 'Active',
+        capacity_tonnage: 6.0
+      }
+    ];
+
+    const normalize = (f) => ({
+      ...f,
+      plate: f.vehicle_plate || f.plate,
+      vehicle_plate: f.vehicle_plate || f.plate,
+      driver: f.driver_name || f.driver,
+      driver_name: f.driver_name || f.driver,
+      phone: f.driver_phone || f.phone,
+      driver_phone: f.driver_phone || f.phone,
+      type: f.vehicle_type || f.type,
+      vehicle_type: f.vehicle_type || f.type,
+      depot: f.assigned_depot || f.depot,
+      assigned_depot: f.assigned_depot || f.depot
+    });
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('fleet_vehicles').select('*').order('vehicle_plate');
+        if (!error && data && data.length > 0) {
+          const normalized = data.map(normalize);
+          saveLocalData(STORAGE_KEYS.FLEET_VEHICLES, normalized);
+          return normalized;
+        }
+        if (!error && (!data || data.length === 0)) {
+          // Auto-seed Supabase database table if empty
+          try {
+            const seedPayload = defaultFleet.map(f => ({
+              id: f.id,
+              vehicle_plate: f.vehicle_plate,
+              driver_name: f.driver_name,
+              driver_phone: f.driver_phone,
+              vehicle_type: f.vehicle_type,
+              assigned_depot: f.assigned_depot,
+              status: f.status || 'Active',
+              capacity_tonnage: f.capacity_tonnage || 10.0
+            }));
+            await supabase.from('fleet_vehicles').upsert(seedPayload, { onConflict: 'id' });
+          } catch (seedErr) {
+            console.warn('Auto-seed fleet_vehicles in Supabase error:', seedErr);
+          }
+        }
+      } catch (err) {
+        console.warn('Error fetching fleet vehicles from Supabase:', err);
+      }
+    }
+
+    const current = getLocalData(STORAGE_KEYS.FLEET_VEHICLES, null);
+    if (!current || !Array.isArray(current) || current.length === 0) {
+      saveLocalData(STORAGE_KEYS.FLEET_VEHICLES, defaultFleet);
+      return defaultFleet;
+    }
+    return current.map(normalize);
+  },
+
+  async createFleetVehicle(vehicleData) {
+    const id = vehicleData.id || `flt-${Date.now().toString().slice(-4)}`;
+    const newVehicle = {
+      id,
+      vehicle_plate: (vehicleData.vehicle_plate || vehicleData.plate || '').trim().toUpperCase(),
+      driver_name: vehicleData.driver_name || vehicleData.driver || '',
+      driver_phone: vehicleData.driver_phone || vehicleData.phone || '',
+      vehicle_type: vehicleData.vehicle_type || vehicleData.type || 'Logistics Freight Truck',
+      assigned_depot: vehicleData.assigned_depot || vehicleData.depot || 'Central Equatoria State Depot',
+      status: vehicleData.status || 'Active',
+      capacity_tonnage: Number(vehicleData.capacity_tonnage) || 10.0,
+      created_at: new Date().toISOString()
+    };
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('fleet_vehicles').insert([newVehicle]);
+      } catch (err) {
+        console.warn('Error creating fleet vehicle in Supabase:', err);
+      }
+    }
+
+    const current = await this.getFleetVehicles();
+    const updated = [newVehicle, ...current.filter(v => v.id !== id && v.vehicle_plate !== newVehicle.vehicle_plate)];
+    saveLocalData(STORAGE_KEYS.FLEET_VEHICLES, updated);
+    await this.logAudit({
+      action: 'REGISTER_FLEET_VEHICLE',
+      module: 'Fleet Logistics Management',
+      record_id: newVehicle.vehicle_plate,
+      details: `Registered vehicle ${newVehicle.vehicle_plate} assigned to driver ${newVehicle.driver_name}`
+    });
+    return newVehicle;
+  },
+
+  async updateFleetVehicle(id, updates) {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('fleet_vehicles').update(updates).eq('id', id);
+      } catch (err) {
+        console.warn('Error updating fleet vehicle in Supabase:', err);
+      }
+    }
+    const current = await this.getFleetVehicles();
+    const updated = current.map(v => v.id === id || v.vehicle_plate === id ? { ...v, ...updates } : v);
+    saveLocalData(STORAGE_KEYS.FLEET_VEHICLES, updated);
+    return updated.find(v => v.id === id || v.vehicle_plate === id);
+  },
+
+  async deleteFleetVehicle(id) {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('fleet_vehicles').delete().or(`id.eq.${id},vehicle_plate.eq.${id}`);
+      } catch (err) {
+        console.warn('Error deleting fleet vehicle from Supabase:', err);
+      }
+    }
+    const current = await this.getFleetVehicles();
+    const updated = current.filter(v => v.id !== id && v.vehicle_plate !== id);
+    saveLocalData(STORAGE_KEYS.FLEET_VEHICLES, updated);
+    return true;
   },
 
   // --- SECURITY SETTINGS ---

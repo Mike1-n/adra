@@ -650,4 +650,59 @@ EXCEPTION
     WHEN OTHERS THEN NULL;
 END $$;
 
+-- ----------------------------------------------------------------------------
+-- 21. FLEET VEHICLES & DRIVERS TABLE (LOGISTICS & WAYBILL DISPATCH)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.fleet_vehicles (
+    id TEXT PRIMARY KEY,
+    vehicle_plate TEXT NOT NULL UNIQUE,
+    driver_name TEXT NOT NULL,
+    driver_phone TEXT,
+    vehicle_type TEXT,
+    assigned_depot TEXT,
+    status TEXT DEFAULT 'Active',
+    capacity_tonnage NUMERIC(5,2) DEFAULT 10.0,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_fleet_vehicles_plate ON public.fleet_vehicles(vehicle_plate);
+CREATE INDEX IF NOT EXISTS idx_fleet_vehicles_depot ON public.fleet_vehicles(assigned_depot);
+
+ALTER TABLE public.fleet_vehicles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow authenticated read on fleet_vehicles" ON public.fleet_vehicles;
+CREATE POLICY "Allow authenticated read on fleet_vehicles" ON public.fleet_vehicles FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated write on fleet_vehicles" ON public.fleet_vehicles;
+CREATE POLICY "Allow authenticated write on fleet_vehicles" ON public.fleet_vehicles FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read on fleet_vehicles" ON public.fleet_vehicles;
+CREATE POLICY "Allow public read on fleet_vehicles" ON public.fleet_vehicles FOR SELECT TO anon USING (true);
+
+-- ----------------------------------------------------------------------------
+-- 22. IMMUTABLE SYSTEM AUDIT LOGS
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    id TEXT PRIMARY KEY DEFAULT ('log_' || floor(extract(epoch from now())) || '_' || substr(md5(random()::text), 1, 6)),
+    user_email TEXT,
+    user_role TEXT DEFAULT 'Administrator',
+    action TEXT NOT NULL,
+    module TEXT DEFAULT 'General',
+    record_id TEXT,
+    details JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON public.audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON public.audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_module ON public.audit_logs(module);
+
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow authenticated read on audit_logs" ON public.audit_logs;
+CREATE POLICY "Allow authenticated read on audit_logs" ON public.audit_logs FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated write on audit_logs" ON public.audit_logs;
+CREATE POLICY "Allow authenticated write on audit_logs" ON public.audit_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read on audit_logs" ON public.audit_logs;
+CREATE POLICY "Allow public read on audit_logs" ON public.audit_logs FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS "Allow public insert on audit_logs" ON public.audit_logs;
+CREATE POLICY "Allow public insert on audit_logs" ON public.audit_logs FOR INSERT TO anon WITH CHECK (true);
+
 

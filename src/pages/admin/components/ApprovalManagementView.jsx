@@ -13,7 +13,10 @@ import {
   Filter,
   Search,
   Plus,
-  Users
+  Users,
+  Printer,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Card, CardHeader } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
@@ -22,6 +25,7 @@ import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
 import { db } from '../../../lib/supabase';
 import { formatDate } from '../../../lib/utils';
 import { useToast } from '../../../context/ToastContext';
+import { exportToPDF, exportToCSV } from '../../../lib/reportGenerator';
 
 export function ApprovalManagementView({ initialCategory = 'ALL' }) {
   const [approvals, setApprovals] = useState([]);
@@ -132,10 +136,102 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
     }
   };
 
+  // --- Print & Export Handlers ---
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      const columns = [
+        { header: 'Request ID', key: 'id' },
+        { header: 'Category', key: 'category' },
+        { header: 'Requester', key: 'requester_name' },
+        { header: 'Email Address', key: 'requester_email' },
+        { header: 'Department', key: 'department' },
+        { header: 'Details / Justification', key: 'details' },
+        { header: 'Status', key: 'status' },
+        { header: 'Submission Date', key: 'date_formatted' }
+      ];
+
+      const dataToExport = filteredApprovals.map(a => ({
+        ...a,
+        requester_email: a.requester_email || 'N/A',
+        department: a.department || 'N/A',
+        details: a.details || 'N/A',
+        date_formatted: formatDate(a.date)
+      }));
+
+      const pendingCount = approvals.filter(a => a.status === 'Pending').length;
+      const approvedCount = approvals.filter(a => a.status === 'Approved').length;
+      const rejectedCount = approvals.filter(a => a.status === 'Rejected').length;
+
+      await exportToPDF({
+        title: 'ADRA SOUTH SUDAN • ADMINISTRATIVE APPROVALS AUDIT',
+        subtitle: `Official Approval & Compliance Audit Log • Scope: ${filteredApprovals.length} Requests (${categoryFilter === 'ALL' ? 'All Categories' : categoryFilter}) • Generated: ${new Date().toLocaleDateString()}`,
+        columns,
+        data: dataToExport,
+        fileName: `ADRA_Approval_Audit_${new Date().toISOString().split('T')[0]}.pdf`,
+        summary: [
+          { label: 'Total Requests', value: String(approvals.length) },
+          { label: 'Pending Review', value: String(pendingCount) },
+          { label: 'Approved', value: String(approvedCount) },
+          { label: 'Rejected', value: String(rejectedCount) }
+        ]
+      });
+
+      toast.success('Approval audit PDF report exported successfully.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export PDF.');
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      const dataToExport = filteredApprovals.map(a => ({
+        'Request ID': a.id,
+        'Category': a.category,
+        'Requester Name': a.requester_name,
+        'Requester Email': a.requester_email || '',
+        'Department': a.department || '',
+        'Priority': a.priority || 'Normal',
+        'Details': a.details || '',
+        'Status': a.status,
+        'Review Remarks': a.review_notes || '',
+        'Submitted Date': formatDate(a.date)
+      }));
+
+      exportToCSV(dataToExport, `ADRA_Approvals_Roster_${new Date().toISOString().split('T')[0]}.csv`);
+      toast.success(`Exported ${filteredApprovals.length} approval records to CSV.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export CSV.');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Official Print Header */}
+      <div className="hidden print:block pb-4 mb-4 border-b border-slate-300">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">ADRA SOUTH SUDAN • HUMANITARIAN MANAGEMENT SYSTEM</h1>
+            <h2 className="text-sm font-semibold text-emerald-800 mt-0.5">
+              Administrative Approvals & Stakeholder Onboarding Journal
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Official Governance Audit Log • Printed: {new Date().toLocaleDateString()}
+            </p>
+          </div>
+          <div className="text-right text-xs text-slate-600 font-mono">
+            <span>Scope: {filteredApprovals.length} Requests ({categoryFilter === 'ALL' ? 'All Categories' : categoryFilter})</span>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 no-print">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <FileCheck className="w-6 h-6 text-emerald-600" />
@@ -146,17 +242,51 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
           </p>
         </div>
 
-        <Button
-          variant="secondary"
-          onClick={() => setIsSubmitOpen(true)}
-          icon={Plus}
-        >
-          Submit Request
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            icon={FileSpreadsheet}
+            className="text-xs"
+            title="Download CSV spreadsheet"
+          >
+            Export CSV
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleExportPDF}
+            icon={Download}
+            className="text-xs font-semibold"
+            title="Download official PDF report"
+          >
+            Download PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrint}
+            icon={Printer}
+            className="text-xs"
+            title="Print approvals roll"
+          >
+            Print
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsSubmitOpen(true)}
+            icon={Plus}
+            className="text-xs font-semibold"
+          >
+            Submit Request
+          </Button>
+        </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 no-print">
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -211,7 +341,7 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
                   <th className="py-3.5 px-4">Requester & Details</th>
                   <th className="py-3.5 px-4 hidden md:table-cell">Submitted</th>
                   <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-4 text-right no-print">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800">
@@ -276,7 +406,7 @@ export function ApprovalManagementView({ initialCategory = 'ALL' }) {
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                      <td className="py-3.5 px-4 align-top text-right whitespace-nowrap no-print">
                         <button
                           onClick={() => handleOpenReview(app)}
                           className="px-3 py-1.5 text-xs rounded-lg font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition inline-flex items-center gap-1.5 shadow-xs border border-emerald-700 cursor-pointer"

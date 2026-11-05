@@ -35,6 +35,7 @@ import { NotificationsView } from './components/NotificationsView';
 import { FeedbackComplaintsView } from './components/FeedbackComplaintsView';
 import { BeneficiaryProfileView } from './components/BeneficiaryProfileView';
 import { HelpSupportContactView } from './components/HelpSupportContactView';
+import { BeneficiaryHelpView } from './components/BeneficiaryHelpView';
 import { SecuritySettingsView } from './components/SecuritySettingsView';
 import { AboutUsView } from './components/AboutUsView';
 import { BeneficiaryMobileDashboard } from './mobile/BeneficiaryMobileDashboard';
@@ -94,6 +95,7 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
     { id: 'distributions', label: 'Distribution Schedules', icon: Truck, count: distributions.length || 2 },
     { id: 'notifications', label: 'Notifications', icon: Bell, count: 2 },
     { id: 'feedback', label: 'Feedback & Complaints', icon: MessageSquareQuote, count: null },
+    { id: 'help', label: 'Help & FAQs', icon: HelpCircle, count: null },
     { id: 'about', label: 'About Us', icon: Info, count: null },
     { id: 'support', label: 'Contact Us', icon: Headphones, count: null },
   ];
@@ -303,6 +305,10 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
 
             {activeTab === 'support' && (
               <HelpSupportContactView beneficiary={beneficiary} />
+            )}
+
+            {activeTab === 'help' && (
+              <BeneficiaryHelpView onNavigateTab={(tab) => setActiveTab(tab)} />
             )}
 
             {activeTab === 'security' && (

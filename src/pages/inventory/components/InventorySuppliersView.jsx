@@ -51,11 +51,11 @@ export function InventorySuppliersView({
   // Helper to determine numerical stage
   const getPOStage = (po) => {
     if (po.stage === -1 || Number(po.stage) === -1 || po.status === 'Returned & Rejected' || po.status?.includes('Returned') || po.status?.includes('Rejected')) return -1;
-    if (po.stage) return Number(po.stage);
-    if (po.status === 'Paid & Settled' || po.payment_status === 'Paid') return 4;
-    if (po.status?.includes('Received') || po.status?.includes('Confirmed') || po.grn_number) return 3;
-    if (po.status?.includes('Transit') || po.status?.includes('Supplied') || po.waybill_number) return 2;
-    return 1;
+    if (po.status === 'Paid & Settled' || po.payment_status === 'Paid' || po.status === 'Paid' || Number(po.stage) === 4) return 4;
+    if (po.grn_number || po.status?.includes('Received') || po.status?.includes('Confirmed') || Number(po.stage) === 3) return 3;
+    if (po.waybill_number || po.supplier_invoice_number || po.status?.includes('Transit') || po.status?.includes('Supplied') || Number(po.stage) === 2) return 2;
+    if (po.status === 'Pending Supplier Supply' || po.status === 'Pending Delivery' || Number(po.stage) === 1) return 1;
+    return Number(po.stage) || 1;
   };
 
   const filteredPOs = useMemo(() => {

@@ -1069,6 +1069,9 @@ export const initialInventory = [
   }
 ];
 
+// Note: Fleet vehicles are stored in the database ('fleet_vehicles' table) and queried via db.getFleetVehicles()
+export const ADRA_FLEET_VEHICLES = [];
+
 export const initialDispatches = [];
 
 export const initialStockTransactions = [];

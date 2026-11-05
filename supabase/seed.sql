@@ -111,13 +111,23 @@ INSERT INTO public.warehouses (id, code, name, location, manager_name, contact_p
 ON CONFLICT (id) DO NOTHING;
 
 -- 12. Insert Suppliers
-INSERT INTO public.suppliers (id, company_name, category, contact_person, phone, email, status, rating) VALUES
-('sup-1', 'Davis & Shirtliff Water Technologies', 'WASH (Water & Sanitation)', 'Eng. Paul Kilonzo', '+254-733-678901', 'humanitarian@dayliff.com', 'Active', 5.0),
-('sup-2', 'MedAid Kenya Pharmaceuticals', 'WASH (Water & Sanitation)', 'Dr. James Kariuki', '+254-700-112233', 'supplies@medaid.ke', 'Active', 4.9),
-('sup-3', 'Nutriset Humanitarian Supplies', 'Food Assistance', 'Claire Dubois', '+33-2-35-12-34-56', 'relief-orders@nutriset.fr', 'Active', 5.0),
-('sup-4', 'Simlaw Certified Seeds', 'Agriculture & Livelihoods', 'Faith Waweru', '+254-722-456789', 'orders@simlaw.co.ke', 'Active', 4.8),
-('sup-5', 'Equatorial Relief Logistics', 'Shelter & Non-Food Items', 'Hassan Gedi', '+254-711-234567', 'procurement@africasupplies.com', 'Active', 4.8)
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.suppliers (id, company_name, category, contact_person, phone, email, city, country, address, rating, status) VALUES
+('sup-1', 'Equatorial Relief Logistics Ltd', 'Transport & Fleet Logistics', 'David Lado', '+211-921-112233', 'dlado@equatorial-logistics.ss', 'Juba', 'South Sudan', 'Plot 44, Airport Road, Juba', 4.9, 'Active'),
+('sup-2', 'Simlaw Certified Seeds South Sudan', 'Agricultural Inputs & Seeds', 'Agnes Wani', '+211-922-334455', 'contact@simlawseeds-ss.org', 'Torit', 'South Sudan', 'Agri-Trade Zone, Torit Central', 4.8, 'Active'),
+('sup-3', 'Davis & Shirtliff Water Technologies SS', 'WASH Equipment & Solar Pumping', 'Eng. Peter Jok', '+211-923-556677', 'peter.jok@davis-shirtliff.com', 'Juba', 'South Sudan', 'Munuki Commercial Hub, Block B, Juba', 5.0, 'Active'),
+('sup-4', 'Juba Medical & Pharmaceuticals Supply', 'Health & Medical Commodities', 'Dr. Stephen Taban', '+211-924-778899', 'supply@jubamedpharma.ss', 'Juba', 'South Sudan', 'Hospital Road, Central Juba', 4.7, 'Active'),
+('sup-5', 'Nile River Barges & Heavy Logistics', 'Riverine Bulk Transport', 'Capt. Maker Deng', '+211-925-990011', 'riverine@nilebarges.com', 'Bor', 'South Sudan', 'Bor River Port Jetty Station', 4.6, 'Active'),
+('sup-6', 'Pan-Africa Nutrition & Emergency Feeds', 'Emergency Nutrition & RUTF', 'Grace Mwangi', '+254-722-114477', 'info@panafricanutrition.org', 'Juba', 'South Sudan', 'Humanitarian Staging Base, Juba', 4.9, 'Active'),
+('sup-7', 'Nutriset Humanitarian Nutrition', 'Food Assistance & PlumpyNut', 'Claire Dubois', '+33-2-35-12-34-56', 'orders@nutriset.fr', 'Juba', 'South Sudan', 'Relief Supply Staging, Juba', 5.0, 'Active'),
+('sup-8', 'East Africa Solar & Borehole Solutions', 'WASH (Water & Sanitation)', 'Eng. Joseph Lagu', '+211-926-443322', 'solutions@easolar-water.ss', 'Wau', 'South Sudan', 'Industrial Area, Wau Town', 4.9, 'Active')
+ON CONFLICT (id) DO UPDATE SET
+  company_name = EXCLUDED.company_name,
+  category = EXCLUDED.category,
+  contact_person = EXCLUDED.contact_person,
+  phone = EXCLUDED.phone,
+  email = EXCLUDED.email,
+  status = EXCLUDED.status,
+  rating = EXCLUDED.rating;
 
 -- 13. Insert Inventory Items
 INSERT INTO public.inventory (id, sku, item_name, category, quantity, unit, warehouse, min_threshold, unit_cost, total_value, batch_number, expiry_date, supplier_name, status) VALUES
@@ -137,3 +147,20 @@ ON CONFLICT (id) DO UPDATE SET
   quantity = EXCLUDED.quantity,
   total_value = EXCLUDED.total_value,
   status = EXCLUDED.status;
+
+-- 14. Insert Fleet Vehicles & Drivers (ADRA Logistics Transport)
+INSERT INTO public.fleet_vehicles (id, vehicle_plate, driver_name, driver_phone, vehicle_type, assigned_depot, status, capacity_tonnage) VALUES
+('flt-01', 'SSD-481-LOG', 'Deng Bol', '+211-921-889911', '10-Ton Logistics Freight Truck', 'Eastern Equatoria State Depot', 'Active', 10.0),
+('flt-02', 'SSD-729-LOG', 'Peter Taban', '+211-923-441122', '7-Ton Relief Cargo Truck', 'Central Equatoria State Depot', 'Active', 7.0),
+('flt-03', 'SSD-310-LOG', 'James Lado', '+211-925-773344', '5-Ton Medium Logistics Truck', 'Upper Nile State Depot', 'Active', 5.0),
+('flt-04', 'SSD-592-LOG', 'Mary Kiden', '+211-927-115566', '4x4 Hardtop Cruiser (Field Access)', 'Jonglei State Depot', 'Active', 2.5),
+('flt-05', 'SSD-184-LOG', 'Santino Akot', '+211-928-337788', 'Heavy 15-Ton Convoy Hauler', 'Western Bahr el Ghazal State Depot', 'Active', 15.0),
+('flt-06', 'SSD-640-LOG', 'Emmanuel Garang', '+211-922-334455', 'Emergency Rapid Response Truck', 'Upper Nile State Depot', 'Active', 6.0)
+ON CONFLICT (id) DO UPDATE SET
+  vehicle_plate = EXCLUDED.vehicle_plate,
+  driver_name = EXCLUDED.driver_name,
+  driver_phone = EXCLUDED.driver_phone,
+  vehicle_type = EXCLUDED.vehicle_type,
+  assigned_depot = EXCLUDED.assigned_depot,
+  status = EXCLUDED.status,
+  capacity_tonnage = EXCLUDED.capacity_tonnage;

@@ -16,7 +16,8 @@ import {
   CheckCircle2,
   MapPin,
   PackageCheck,
-  AlertCircle
+  AlertCircle,
+  HelpCircle
 } from 'lucide-react';
 
 export function BeneficiaryMobileDashboard({
@@ -402,7 +403,16 @@ export function BeneficiaryMobileDashboard({
           <span className="text-slate-300">•</span>
           <button
             type="button"
-            onClick={() => onNavigateTab('about')}
+            onClick={() => onNavigateTab && onNavigateTab('help')}
+            className="text-[#006B56] hover:underline cursor-pointer flex items-center gap-1 font-bold"
+          >
+            <HelpCircle className="w-3 h-3 text-[#006B56]" />
+            <span>Help & FAQs</span>
+          </button>
+          <span className="text-slate-300">•</span>
+          <button
+            type="button"
+            onClick={() => onNavigateTab && onNavigateTab('about')}
             className="text-slate-600 hover:text-slate-900 cursor-pointer"
           >
             About ADRA

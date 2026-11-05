@@ -77,73 +77,99 @@ export function InventoryOverviewView({
   return (
     <div className="space-y-3 sm:space-y-4">
       
-      {/* 1. Unified KPI Metric Strip */}
-      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
-        <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
-          
-          {/* Total Units */}
-          <button
-            type="button"
-            onClick={() => onNavigateTab && onNavigateTab('stock')}
-            className="p-3 sm:p-4 text-left hover:bg-slate-50/80 transition cursor-pointer"
-          >
-            <span className="text-[11px] font-semibold text-slate-500 block">Total Units</span>
-            <span className="text-xl sm:text-2xl font-black text-slate-900 leading-tight block mt-0.5">
+      {/* 1. Four Independent Vibrant KPI Metric Cards (Matching PM Overview Style) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+        
+        {/* Card 1: Total Units (Emerald) */}
+        <div
+          onClick={() => onNavigateTab && onNavigateTab('stock')}
+          className="bg-emerald-50/70 rounded-2xl p-3.5 border border-emerald-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-emerald-950">Total Units</span>
+            <div className="w-8 h-8 rounded-xl bg-[#006B56] text-white flex items-center justify-center shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+              <Package className="w-4 h-4 stroke-[2.2]" />
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-2xl font-black text-emerald-950 tracking-tight">
               {totalUnits.toLocaleString()}
             </span>
-            <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
+            <span className="text-[10px] font-black text-emerald-900 bg-emerald-200/70 px-2 py-0.5 rounded-md">
               {totalCommodities} Commodities
             </span>
-          </button>
+          </div>
+        </div>
 
-          {/* Low Stock Alerts */}
-          <button
-            type="button"
-            onClick={() => onNavigateTab && onNavigateTab('stock')}
-            className="p-3 sm:p-4 text-left hover:bg-slate-50/80 transition cursor-pointer"
-          >
-            <span className="text-[11px] font-semibold text-slate-500 block">Low Stock</span>
-            <span className={`text-xl sm:text-2xl font-black leading-tight block mt-0.5 ${
-              lowStockItems.length > 0 ? 'text-amber-600' : 'text-slate-900'
+        {/* Card 2: Low Stock (Amber) */}
+        <div
+          onClick={() => onNavigateTab && onNavigateTab('stock')}
+          className="bg-amber-50/70 rounded-2xl p-3.5 border border-amber-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-amber-950">Low Stock</span>
+            <div className={`w-8 h-8 rounded-xl text-white flex items-center justify-center shadow-2xs shrink-0 group-hover:scale-105 transition-transform ${
+              lowStockItems.length > 0 ? 'bg-amber-500 animate-pulse' : 'bg-slate-400'
             }`}>
+              <AlertTriangle className="w-4 h-4 stroke-[2.2]" />
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-2xl font-black text-amber-950 tracking-tight">
               {lowStockItems.length}
             </span>
-            <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
+            <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+              lowStockItems.length > 0
+                ? 'text-amber-900 bg-amber-200/80 border border-amber-300'
+                : 'text-slate-600 bg-slate-200/70'
+            }`}>
               {lowStockItems.length > 0 ? 'Requires action' : 'All normal'}
             </span>
-          </button>
+          </div>
+        </div>
 
-          {/* Active Convoys */}
-          <button
-            type="button"
-            onClick={() => onNavigateTab && onNavigateTab('dispatches')}
-            className="p-3 sm:p-4 text-left hover:bg-slate-50/80 transition cursor-pointer"
-          >
-            <span className="text-[11px] font-semibold text-slate-500 block">Active Convoys</span>
-            <span className="text-xl sm:text-2xl font-black text-blue-700 leading-tight block mt-0.5">
+        {/* Card 3: Active Convoys (Blue) */}
+        <div
+          onClick={() => onNavigateTab && onNavigateTab('dispatches')}
+          className="bg-blue-50/70 rounded-2xl p-3.5 border border-blue-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-blue-950">Active Convoys</span>
+            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+              <Truck className="w-4 h-4 stroke-[2.2]" />
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-2xl font-black text-blue-950 tracking-tight">
               {inTransitDispatches.length}
             </span>
-            <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
+            <span className="text-[10px] font-black text-blue-900 bg-blue-200/70 px-2 py-0.5 rounded-md">
               In transit
             </span>
-          </button>
+          </div>
+        </div>
 
-          {/* State Depots */}
-          <button
-            type="button"
-            onClick={() => onNavigateTab && onNavigateTab('warehouses')}
-            className="p-3 sm:p-4 text-left hover:bg-slate-50/80 transition cursor-pointer"
-          >
-            <span className="text-[11px] font-semibold text-slate-500 block">State Depots</span>
-            <span className="text-xl sm:text-2xl font-black text-[#006B56] leading-tight block mt-0.5">
+        {/* Card 4: State Depots (Teal) */}
+        <div
+          onClick={() => onNavigateTab && onNavigateTab('warehouses')}
+          className="bg-teal-50/70 rounded-2xl p-3.5 border border-teal-300 shadow-2xs hover:shadow-xs transition cursor-pointer group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-teal-950">State Depots</span>
+            <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-2xs shrink-0 group-hover:scale-105 transition-transform">
+              <Building2 className="w-4 h-4 stroke-[2.2]" />
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-2xl font-black text-teal-950 tracking-tight">
               {warehouses.length || 10}
             </span>
-            <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
+            <span className="text-[10px] font-black text-teal-900 bg-teal-200/70 px-2 py-0.5 rounded-md">
               Regional hubs
             </span>
-          </button>
-
+          </div>
         </div>
+
       </div>
 
       {/* 2. Compact Quick Actions Bar */}
@@ -163,11 +189,12 @@ export function InventoryOverviewView({
 
           <button
             type="button"
-            onClick={() => onOpenCreateDispatchModal && onOpenCreateDispatchModal()}
+            onClick={() => onNavigateTab ? onNavigateTab('dispatches') : (onOpenCreateDispatchModal && onOpenCreateDispatchModal())}
             className="flex items-center gap-2 p-2.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-xs transition cursor-pointer active:scale-98"
+            title="Aid Dispatches & Waybills"
           >
             <Truck className="w-4 h-4 shrink-0" />
-            <span className="truncate">Issue Waybill</span>
+            <span className="truncate">Dispatches & Waybills</span>
           </button>
 
           <button

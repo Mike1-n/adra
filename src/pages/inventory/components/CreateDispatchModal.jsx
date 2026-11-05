@@ -4,17 +4,13 @@ import {
   Truck,
   Plus,
   Trash2,
-  CheckCircle2,
   Package,
   Building2,
   MapPin,
-  Users,
-  AlertCircle,
-  FileText,
-  ShieldCheck,
-  Sparkles
+  Users
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
+import { db } from '../../../lib/supabase';
 
 // Helper: Smart Commodity Matcher based on Request Category & Household Size (Sphere Standards)
 function getRelevantCommodities(req, warehouseName, allInventory) {
@@ -38,11 +34,13 @@ function getRelevantCommodities(req, warehouseName, allInventory) {
   const reqCat = (req.category || req.assistance_type || '').toLowerCase();
   const householdMembers = Math.max(1, Number(req.household_members || req.people_in_household || req.household_size || 1));
 
-  // Determine requested humanitarian sectors
+  // Determine requested humanitarian physical sectors (exclude non-freight transfers like direct cash/vouchers)
   const hasFood = reqCat.includes('food') || reqCat.includes('nutrition') || reqCat.includes('cereal') || reqCat.includes('flour') || reqCat.includes('maize') || reqCat.includes('ration');
   const hasWater = reqCat.includes('water') || reqCat.includes('wash') || reqCat.includes('hygiene') || reqCat.includes('sanitation') || reqCat.includes('jerrycan');
   const hasShelter = reqCat.includes('shelter') || reqCat.includes('nfi') || reqCat.includes('tarpaulin') || reqCat.includes('blanket') || reqCat.includes('tent');
-  const hasAgri = reqCat.includes('agri') || reqCat.includes('seed') || reqCat.includes('livelihood') || reqCat.includes('crop') || reqCat.includes('tool');
+  // Agriculture only when explicit farming/seed inputs are requested (Cash/livelihood support is handled via financial transfers, not farm freight)
+  const hasAgri = (reqCat.includes('agri') || reqCat.includes('farming') || reqCat.includes('crop') || (reqCat.includes('seed') && !reqCat.includes('cash')));
+  // Education should match schooling/literacy, NOT medical/maternity kits
   const hasEdu = reqCat.includes('edu') || reqCat.includes('student') || reqCat.includes('school') || reqCat.includes('youth') || reqCat.includes('literacy');
 
   // Sphere Standard Household Scaling Formula:
@@ -165,15 +163,17 @@ function getRelevantCommodities(req, warehouseName, allInventory) {
     }
   }
 
-  // 4. Process Agriculture Sector
+  // 4. Process Agriculture Sector (only if physical farming/seed inputs requested)
   if (hasAgri) {
     const agriItem = findBestItem(
       i => {
         const cat = (i.category || '').toLowerCase();
         const name = (i.item_name || '').toLowerCase();
-        return cat.includes('agri') || cat.includes('seed') || name.includes('seed') || name.includes('tool');
+        // Exclude large infrastructure / non-household items (e.g. 500m irrigation lines)
+        if (name.includes('500m') || name.includes('irrigation') || name.includes('pump bundle')) return false;
+        return cat.includes('agri') || cat.includes('seed') || name.includes('seed') || name.includes('hoe') || name.includes('tool');
       },
-      ['seed', 'tool']
+      ['seed', 'sorghum', 'maize', 'tool']
     );
     if (agriItem) {
       allocatedIds.add(agriItem.id);
@@ -193,9 +193,11 @@ function getRelevantCommodities(req, warehouseName, allInventory) {
       i => {
         const cat = (i.category || '').toLowerCase();
         const name = (i.item_name || '').toLowerCase();
-        return cat.includes('edu') || name.includes('kit') || name.includes('student') || name.includes('book');
+        // Exclude medical, clinical, midwifery, or hygiene kits
+        if (name.includes('midwifery') || name.includes('medical') || name.includes('delivery') || name.includes('surgical') || name.includes('hygiene')) return false;
+        return cat.includes('edu') || name.includes('student') || name.includes('school') || name.includes('literacy') || name.includes('book') || name.includes('stationery');
       },
-      ['kit', 'student', 'book']
+      ['student', 'school', 'literacy', 'book', 'stationery']
     );
     if (eduItem) {
       allocatedIds.add(eduItem.id);
@@ -227,12 +229,24 @@ export function CreateDispatchModal({
   onClose,
   warehouses = [],
   inventoryItems = [],
+  fleetVehicles = [],
   approvedRequests = [],
   preselectedRequest = null,
   onDispatchSuccess
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+  const [fleetList, setFleetList] = useState(fleetVehicles);
+
+  useEffect(() => {
+    if (fleetVehicles && fleetVehicles.length > 0) {
+      setFleetList(fleetVehicles);
+    } else if (isOpen && db.getFleetVehicles) {
+      db.getFleetVehicles().then(data => {
+        if (data && data.length > 0) setFleetList(data);
+      }).catch(err => console.warn('Error loading fleet vehicles:', err));
+    }
+  }, [fleetVehicles, isOpen]);
 
   const [form, setForm] = useState({
     origin_warehouse: '',
@@ -241,9 +255,9 @@ export function CreateDispatchModal({
     linked_request_id: '',
     beneficiary_name: '',
     transport_mode: 'ADRA Logistics Fleet Truck',
-    vehicle_reg: 'SSD-481-LOG',
-    driver_name: 'Deng Bol',
-    driver_phone: '+211-921-889911',
+    vehicle_reg: '',
+    driver_name: '',
+    driver_phone: '',
     notes: '',
     items: []
   });
@@ -265,6 +279,38 @@ export function CreateDispatchModal({
       String(r.id) === String(form.linked_request_id)
     ) || null;
   }, [approvedRequests, form.linked_request_id]);
+
+  // Synchronized selected fleet vehicle & driver
+  const selectedFleetId = useMemo(() => {
+    if (!form.vehicle_reg) return '';
+    const reg = form.vehicle_reg.trim().toLowerCase();
+    const match = fleetList.find(
+      f => (f.vehicle_plate || f.plate || '').toLowerCase() === reg
+    );
+    return match ? (match.id || match.vehicle_plate || match.plate) : 'custom';
+  }, [form.vehicle_reg, fleetList]);
+
+  const handleFleetChange = (e) => {
+    const val = e.target.value;
+    if (!val || val === 'custom') {
+      setForm(prev => ({
+        ...prev,
+        vehicle_reg: '',
+        driver_name: '',
+        driver_phone: ''
+      }));
+      return;
+    }
+    const match = fleetList.find(f => f.id === val || (f.vehicle_plate || f.plate) === val);
+    if (match) {
+      setForm(prev => ({
+        ...prev,
+        vehicle_reg: match.vehicle_plate || match.plate || '',
+        driver_name: match.driver_name || match.driver || '',
+        driver_phone: match.driver_phone || match.phone || ''
+      }));
+    }
+  };
 
   // Sync on open or preselectedRequest change
   useEffect(() => {
@@ -296,10 +342,10 @@ export function CreateDispatchModal({
       assigned_field_worker_id: initialReq?.assigned_field_worker_id || '',
       assigned_field_worker_name: initialReq?.assigned_field_worker_name || '',
       transport_mode: 'ADRA Logistics Fleet Truck',
-      vehicle_reg: 'SSD-481-LOG',
-      driver_name: 'Deng Bol',
-      driver_phone: '+211-921-889911',
-      notes: initialReq ? `Waybill for request ${initialReq.request_code || initialReq.id}.` : '',
+      vehicle_reg: '',
+      driver_name: '',
+      driver_phone: '',
+      notes: '',
       items: autoItems
     });
   }, [isOpen, preselectedRequest, warehouses, inventoryItems, approvedRequests]);
@@ -503,83 +549,26 @@ export function CreateDispatchModal({
             </div>
           )}
 
-          {/* Beneficiary Household & Allocation Dossier Card */}
+          {/* Beneficiary Household Summary */}
           {activeRequest && (
-            <div className="rounded-xl border border-emerald-200/90 bg-linear-to-br from-emerald-50/70 via-teal-50/30 to-white p-3.5 space-y-2.5 shadow-xs">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100/90 pb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-[#006B56] text-white flex items-center justify-center font-bold text-xs">
-                    {(activeRequest.beneficiary_name || activeRequest.full_name || 'B').charAt(0)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-slate-900 text-xs">
-                        {activeRequest.beneficiary_name || activeRequest.full_name || 'Beneficiary'}
-                      </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-600">
-                        {activeRequest.request_code || activeRequest.tracking_number || activeRequest.id}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    PM Approved
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-900">
+                  {activeRequest.beneficiary_name || activeRequest.full_name || 'Beneficiary'}
+                </span>
+                {activeRequest.beneficiary_code && (
+                  <span className="text-[11px] font-mono text-slate-500">
+                    (Reg ID: {activeRequest.beneficiary_code})
                   </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                    {activeRequest.urgency || activeRequest.priority || 'High'}
-                  </span>
-                </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                <div className="bg-white/90 rounded-lg p-2 border border-emerald-100/90">
-                  <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block">
-                    Household Size
-                  </span>
-                  <div className="flex items-baseline gap-1 mt-0.5">
-                    <span className="font-bold text-slate-900 text-xs">
-                      {activeRequest.household_members || activeRequest.people_in_household || 1} People
-                    </span>
-                    <span className="text-[10px] text-emerald-700 font-semibold">
-                      ({(activeRequest.household_members || activeRequest.people_in_household || 1) >= 5 ? 'Scale: 2x' : '1x'})
-                    </span>
-                  </div>
-                </div>
-
-                <div className="bg-white/90 rounded-lg p-2 border border-emerald-100/90">
-                  <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block">
-                    Vetted Sectors
-                  </span>
-                  <span className="font-bold text-slate-900 truncate block mt-0.5" title={activeRequest.category || activeRequest.assistance_type}>
-                    {activeRequest.category || activeRequest.assistance_type || 'Relief'}
-                  </span>
-                </div>
-
-                <div className="bg-white/90 rounded-lg p-2 border border-emerald-100/90 col-span-2 sm:col-span-1">
-                  <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block">
-                    Audit Officer
-                  </span>
-                  <span className="font-bold text-slate-900 truncate block mt-0.5">
-                    {activeRequest.assigned_field_worker_name || activeRequest.field_worker_name || 'Field Officer'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Verified Notes */}
-              {(activeRequest.recommended_aid || activeRequest.field_worker_assessment?.recommended_aid || activeRequest.ground_situation_report || activeRequest.field_worker_assessment?.ground_situation_report) && (
-                <div className="bg-white/95 rounded-lg p-2 border border-emerald-200/80 text-[11px] text-slate-700">
-                  <strong className="text-emerald-900 font-semibold">Field Verified Need: </strong>
-                  {activeRequest.recommended_aid || activeRequest.field_worker_assessment?.recommended_aid || activeRequest.ground_situation_report || activeRequest.field_worker_assessment?.ground_situation_report}
-                </div>
-              )}
-
-              {/* Sphere Standard Banner */}
-              <div className="flex items-start gap-1.5 bg-emerald-100/60 rounded-lg p-2 text-[10px] text-emerald-950">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
-                <span>
-                  Sphere Standards applied for <strong>{activeRequest.household_members || activeRequest.people_in_household || 1} household members</strong> across requested sectors (~12.5kg flour/person, 20L water jerrican, shelter tarpaulin).
+              <div className="flex items-center gap-1.5 text-emerald-800 font-medium text-[11px]">
+                <Users className="w-3.5 h-3.5 text-emerald-700" />
+                <span>HH Size: <strong>{activeRequest.household_members || activeRequest.people_in_household || 1} People</strong></span>
+                <span className="text-slate-300">•</span>
+                <span className="text-emerald-700 font-semibold">
+                  ({(activeRequest.household_members || activeRequest.people_in_household || 1) >= 5 ? 'Scale: 2x Rations' : 'Scale: 1x Ration'})
                 </span>
               </div>
             </div>
@@ -701,29 +690,83 @@ export function CreateDispatchModal({
             </div>
           </div>
 
-          {/* 4. Compact Transport (Single Row) */}
-          <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-100 text-xs">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                Vehicle Plate
+          {/* 4. Transport & Driver */}
+          <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                <Truck className="w-3.5 h-3.5 text-slate-400" />
+                <span>Transport & Driver</span>
               </label>
-              <input
-                type="text"
-                value={form.vehicle_reg}
-                onChange={(e) => setForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white font-mono text-slate-800"
-              />
+              <span className="text-[11px] text-slate-400">Select fleet or enter manually</span>
             </div>
+
+            {/* Vehicle & Driver Dropdown */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                Driver Name
-              </label>
-              <input
-                type="text"
-                value={form.driver_name}
-                onChange={(e) => setForm(prev => ({ ...prev, driver_name: e.target.value }))}
-                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800"
-              />
+              <select
+                value={selectedFleetId}
+                onChange={handleFleetChange}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-900 focus:border-[#006B56] outline-none cursor-pointer"
+              >
+                <option value="">-- Select Registered Fleet Vehicle & Driver --</option>
+                {fleetList.length > 0 && (
+                  <optgroup label="── ADRA Dedicated Fleet (Database Registered) ──">
+                    {fleetList.map(f => {
+                      const plate = f.vehicle_plate || f.plate;
+                      const driver = f.driver_name || f.driver;
+                      const phone = f.driver_phone || f.phone;
+                      const type = f.vehicle_type || f.type;
+                      const val = f.id || plate;
+                      return (
+                        <option key={val} value={val}>
+                          {plate} — {driver} ({phone}) • {type}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                )}
+                <option value="custom">── Custom / Other Contracted Carrier (Manual Entry) ──</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-0.5">
+                  Vehicle Plate *
+                </label>
+                <input
+                  type="text"
+                  value={form.vehicle_reg}
+                  onChange={(e) => setForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
+                  placeholder="e.g. SSD-481-LOG"
+                  required
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white font-mono text-slate-800 focus:border-[#006B56] outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-0.5">
+                  Driver Full Name *
+                </label>
+                <input
+                  type="text"
+                  value={form.driver_name}
+                  onChange={(e) => setForm(prev => ({ ...prev, driver_name: e.target.value }))}
+                  placeholder="Driver Full Name"
+                  required
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:border-[#006B56] outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-0.5">
+                  Driver Phone
+                </label>
+                <input
+                  type="text"
+                  value={form.driver_phone}
+                  onChange={(e) => setForm(prev => ({ ...prev, driver_phone: e.target.value }))}
+                  placeholder="e.g. +211-921-889911"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:border-[#006B56] outline-none"
+                />
+              </div>
             </div>
           </div>
 
@@ -741,7 +784,7 @@ export function CreateDispatchModal({
               disabled={loading}
               className="px-5 py-2 rounded-xl bg-[#006B56] hover:bg-[#005443] text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer disabled:opacity-50"
             >
-              <CheckCircle2 className="w-4 h-4" />
+              <Truck className="w-4 h-4" />
               <span>{loading ? 'Issuing...' : 'Issue Waybill'}</span>
             </button>
           </div>

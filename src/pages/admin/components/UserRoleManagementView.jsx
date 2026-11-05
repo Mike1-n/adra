@@ -24,7 +24,10 @@ import {
   EyeOff,
   Copy,
   Check,
-  Sparkles
+  Sparkles,
+  Printer,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Card } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
@@ -32,6 +35,7 @@ import { Modal } from '../../../components/common/Modal';
 import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
+import { exportToPDF, exportToCSV } from '../../../lib/reportGenerator';
 
 export function UserRoleManagementView() {
   const [users, setUsers] = useState([]);
@@ -43,7 +47,19 @@ export function UserRoleManagementView() {
   const [stateFilter, setStateFilter] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [isPrinting, setIsPrinting] = useState(false);
   const toast = useToast();
+
+  useEffect(() => {
+    const handleBeforePrint = () => setIsPrinting(true);
+    const handleAfterPrint = () => setIsPrinting(false);
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, []);
 
   const southSudanStates = [
     'Central Equatoria',
@@ -351,10 +367,113 @@ export function UserRoleManagementView() {
     }
   };
 
+  // --- Print & Export Handlers ---
+  const handlePrint = () => {
+    setIsPrinting(true);
+    setTimeout(() => {
+      window.print();
+      setIsPrinting(false);
+    }, 150);
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      const columns = [
+        { header: 'Full Legal Name', key: 'full_name' },
+        { header: 'Email Address', key: 'email' },
+        { header: 'System Role', key: 'role' },
+        { header: 'Department', key: 'department' },
+        { header: 'State / Location', key: 'location' },
+        { header: 'Phone Number', key: 'phone' },
+        { header: 'Account Status', key: 'status_label' },
+        { header: 'Joined Date', key: 'created_date' }
+      ];
+
+      const dataToExport = filteredUsers.map(u => {
+        const isDeactivated = u.status === 'Deactivated' || u.status === 'Suspended' || u.verification_status === 'Deactivated';
+        const isPending = !isDeactivated && (u.status === 'Pending Verification' || u.verification_status === 'Pending Verification' || u.status === 'Under Verification' || u.verification_status === 'Under Verification');
+        const statusLabel = isDeactivated ? 'Deactivated' : isPending ? 'Pending Verification' : 'Active';
+
+        return {
+          ...u,
+          status_label: statusLabel,
+          phone: u.phone || 'N/A',
+          department: u.department || 'Operations',
+          location: u.state || u.location || 'Central Equatoria',
+          created_date: u.created_at ? new Date(u.created_at).toLocaleDateString('en-GB') : 'Default'
+        };
+      });
+
+      await exportToPDF({
+        title: 'ADRA SOUTH SUDAN • PERSONNEL & ROLE ACCESS ROSTER',
+        subtitle: `Official Human Resources & System Stakeholders Directory • Scope: ${filteredUsers.length} Users (${roleFilter === 'ALL' ? 'All Roles' : roleFilter}) • Generated: ${new Date().toLocaleDateString()}`,
+        columns,
+        data: dataToExport,
+        fileName: `ADRA_Personnel_Roster_${new Date().toISOString().split('T')[0]}.pdf`,
+        summary: [
+          { label: 'Total Enrolled Users', value: String(users.length) },
+          { label: 'Active Personnel', value: String(activeCount) },
+          { label: 'Pending Verification', value: String(pendingCount) },
+          { label: 'Deactivated Accounts', value: String(deactivatedCount) }
+        ]
+      });
+
+      toast.success('Personnel & roles PDF report exported successfully.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export PDF.');
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      const dataToExport = filteredUsers.map(u => {
+        const isDeactivated = u.status === 'Deactivated' || u.status === 'Suspended' || u.verification_status === 'Deactivated';
+        const isPending = !isDeactivated && (u.status === 'Pending Verification' || u.verification_status === 'Pending Verification' || u.status === 'Under Verification' || u.verification_status === 'Under Verification');
+        const statusLabel = isDeactivated ? 'Deactivated' : isPending ? 'Pending Verification' : 'Active';
+
+        return {
+          'Full Legal Name': u.full_name || '',
+          'Email Address': u.email || '',
+          'System Role': u.role || 'Field Worker',
+          'Department': u.department || 'Operations',
+          'Location / State': u.state || u.location || '',
+          'Phone Number': u.phone || '',
+          'Account Status': statusLabel,
+          'Joined Date': u.created_at ? new Date(u.created_at).toLocaleDateString('en-GB') : ''
+        };
+      });
+
+      exportToCSV(dataToExport, `ADRA_Personnel_Roster_${new Date().toISOString().split('T')[0]}.csv`);
+      toast.success(`Exported ${filteredUsers.length} user records to CSV.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export CSV.');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Official Print Header */}
+      <div className="hidden print:block pb-4 mb-4 border-b border-slate-300">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">ADRA SOUTH SUDAN • HUMANITARIAN MANAGEMENT SYSTEM</h1>
+            <h2 className="text-sm font-semibold text-emerald-800 mt-0.5">
+              Personnel Census, Role Allocation & Identity Governance Roll
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Official Certified Human Resources Directory • Printed: {new Date().toLocaleDateString()}
+            </p>
+          </div>
+          <div className="text-right text-xs text-slate-600 font-mono">
+            <span>Scope: {filteredUsers.length} Users ({roleFilter === 'ALL' ? 'All Roles' : roleFilter})</span>
+          </div>
+        </div>
+      </div>
+
       {/* Header & Primary Action */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 no-print">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <UserCheck className="w-6 h-6 text-emerald-600" />
@@ -365,13 +484,47 @@ export function UserRoleManagementView() {
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={handleOpenCreate}
-          icon={UserPlus}
-        >
-          Create User Account
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            icon={FileSpreadsheet}
+            className="text-xs"
+            title="Download CSV spreadsheet"
+          >
+            Export CSV
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleExportPDF}
+            icon={Download}
+            className="text-xs font-semibold"
+            title="Download official PDF report"
+          >
+            Download PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrint}
+            icon={Printer}
+            className="text-xs"
+            title="Print personnel roster"
+          >
+            Print
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleOpenCreate}
+            icon={UserPlus}
+            className="text-xs font-semibold"
+          >
+            Create User Account
+          </Button>
+        </div>
       </div>
 
       {/* KPI Overview Cards */}
@@ -418,7 +571,7 @@ export function UserRoleManagementView() {
       </div>
 
       {/* Filter & Search Toolbar */}
-      <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs space-y-3">
+      <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs space-y-3 no-print">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
           {/* Search Query */}
           <div className="sm:col-span-2 lg:col-span-4 relative">
@@ -510,11 +663,11 @@ export function UserRoleManagementView() {
                   <th className="py-3.5 px-3">Department / Location</th>
                   <th className="py-3.5 px-3">Account Status</th>
                   <th className="py-3.5 px-3">Joined / Created</th>
-                  <th className="py-3.5 px-3 text-right w-44 whitespace-nowrap">Actions</th>
+                  <th className="py-3.5 px-3 text-right w-44 whitespace-nowrap no-print">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedUsers.map((u) => {
+                {(isPrinting ? filteredUsers : paginatedUsers).map((u) => {
                   const isDeactivated = u.status === 'Deactivated' || u.status === 'Suspended' || u.verification_status === 'Deactivated';
                   const isPending = !isDeactivated && (u.status === 'Pending Verification' || u.verification_status === 'Pending Verification' || u.status === 'Under Verification' || u.verification_status === 'Under Verification' || (u.is_active === false && u.status !== 'Active'));
                   const isActive = !isDeactivated && !isPending && ((u.status || 'Active') === 'Active' && u.is_active !== false);
@@ -595,7 +748,7 @@ export function UserRoleManagementView() {
                       </td>
 
                       {/* Actions (Compact & High Contrast) */}
-                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right whitespace-nowrap no-print">
                         <div className="flex items-center justify-end gap-1">
                           {isPending ? (
                             <button
@@ -654,7 +807,7 @@ export function UserRoleManagementView() {
           </div>
 
           {/* Table Footer with Pagination */}
-          <div className="py-3 px-4 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+          <div className="py-3 px-4 bg-slate-50/80 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 no-print">
             <p>
               Showing <span className="font-semibold text-slate-900">{startIndex + 1}</span> to{' '}
               <span className="font-semibold text-slate-900">

@@ -77,6 +77,7 @@ export function InventoryManagerDashboard({
   const [transactions, setTransactions] = useState([]);
   const [resources, setResources] = useState([]);
   const [assistanceRequests, setAssistanceRequests] = useState([]);
+  const [fleetVehicles, setFleetVehicles] = useState([]);
 
   // Modal States
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
@@ -99,7 +100,8 @@ export function InventoryManagerDashboard({
         dispData,
         txData,
         resData,
-        reqData
+        reqData,
+        fleetData
       ] = await Promise.all([
         db.getInventory ? db.getInventory() : [],
         db.getWarehouses ? db.getWarehouses() : [],
@@ -108,12 +110,14 @@ export function InventoryManagerDashboard({
         db.getDispatches ? db.getDispatches() : [],
         db.getStockTransactions ? db.getStockTransactions() : [],
         db.getProgramResources ? db.getProgramResources() : [],
-        db.getAssistanceRequests ? db.getAssistanceRequests() : []
+        db.getAssistanceRequests ? db.getAssistanceRequests() : [],
+        db.getFleetVehicles ? db.getFleetVehicles() : []
       ]);
 
       setInventory(invData || []);
       setWarehouses(whData || []);
       setSuppliers(supData || []);
+      setFleetVehicles(fleetData || []);
       const seenWbs = new Set();
       const uniqueDispatches = (dispData || []).filter(d => {
         const k = (d.waybill_number || d.id || '').trim().toLowerCase();
@@ -250,6 +254,8 @@ export function InventoryManagerDashboard({
     const updated = await db.getPurchaseOrders();
     setPurchaseOrders([...updated]);
     await loadData();
+    setActiveTab('suppliers');
+    setSupplierSubTab('stage1');
     return res;
   };
 
@@ -715,6 +721,7 @@ export function InventoryManagerDashboard({
               <IssueWaybillView
                 warehouses={warehouses}
                 inventoryItems={inventory}
+                fleetVehicles={fleetVehicles}
                 approvedRequests={approvedRequestsForDispatch}
                 selectedRequest={selectedDispatchReq}
                 onDispatchSuccess={async (dispData) => {
@@ -839,6 +846,7 @@ export function InventoryManagerDashboard({
         }}
         warehouses={warehouses}
         inventoryItems={inventory}
+        fleetVehicles={fleetVehicles}
         approvedRequests={approvedRequestsForDispatch}
         preselectedRequest={selectedDispatchReq}
         onDispatchSuccess={handleCreateDispatch}
@@ -850,6 +858,7 @@ export function InventoryManagerDashboard({
         onClose={() => setPoModalOpen(false)}
         suppliers={suppliers}
         warehouses={warehouses}
+        inventoryItems={inventory}
         onPOSuccess={handleCreatePO}
       />
 

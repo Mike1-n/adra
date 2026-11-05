@@ -7,14 +7,10 @@ import {
   Building2,
   MapPin,
   Package,
-  Users,
-  CheckCircle2,
-  AlertCircle,
-  FileText,
-  ShieldCheck,
-  Sparkles
+  Users
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
+import { db } from '../../../lib/supabase';
 
 // Helper: Smart Commodity Matcher based on Request Category & Household Size (Sphere Standards)
 function getRelevantCommodities(req, warehouseName, allInventory) {
@@ -38,11 +34,13 @@ function getRelevantCommodities(req, warehouseName, allInventory) {
   const reqCat = (req.category || req.assistance_type || '').toLowerCase();
   const householdMembers = Math.max(1, Number(req.household_members || req.people_in_household || req.household_size || 1));
 
-  // Determine requested humanitarian sectors
+  // Determine requested humanitarian physical sectors (exclude non-freight transfers like direct cash/vouchers)
   const hasFood = reqCat.includes('food') || reqCat.includes('nutrition') || reqCat.includes('cereal') || reqCat.includes('flour') || reqCat.includes('maize') || reqCat.includes('ration');
   const hasWater = reqCat.includes('water') || reqCat.includes('wash') || reqCat.includes('hygiene') || reqCat.includes('sanitation') || reqCat.includes('jerrycan');
   const hasShelter = reqCat.includes('shelter') || reqCat.includes('nfi') || reqCat.includes('tarpaulin') || reqCat.includes('blanket') || reqCat.includes('tent');
-  const hasAgri = reqCat.includes('agri') || reqCat.includes('seed') || reqCat.includes('livelihood') || reqCat.includes('crop') || reqCat.includes('tool');
+  // Agriculture only when explicit farming/seed inputs are requested (Cash/livelihood support is handled via financial transfers, not farm freight)
+  const hasAgri = (reqCat.includes('agri') || reqCat.includes('farming') || reqCat.includes('crop') || (reqCat.includes('seed') && !reqCat.includes('cash')));
+  // Education should match schooling/literacy, NOT medical/maternity kits
   const hasEdu = reqCat.includes('edu') || reqCat.includes('student') || reqCat.includes('school') || reqCat.includes('youth') || reqCat.includes('literacy');
 
   // Sphere Standard Household Scaling Formula:
@@ -165,15 +163,17 @@ function getRelevantCommodities(req, warehouseName, allInventory) {
     }
   }
 
-  // 4. Process Agriculture Sector
+  // 4. Process Agriculture Sector (only if physical farming/seed inputs requested)
   if (hasAgri) {
     const agriItem = findBestItem(
       i => {
         const cat = (i.category || '').toLowerCase();
         const name = (i.item_name || '').toLowerCase();
-        return cat.includes('agri') || cat.includes('seed') || name.includes('seed') || name.includes('tool');
+        // Exclude large infrastructure / non-household items (e.g. 500m irrigation lines)
+        if (name.includes('500m') || name.includes('irrigation') || name.includes('pump bundle')) return false;
+        return cat.includes('agri') || cat.includes('seed') || name.includes('seed') || name.includes('hoe') || name.includes('tool');
       },
-      ['seed', 'tool']
+      ['seed', 'sorghum', 'maize', 'tool']
     );
     if (agriItem) {
       allocatedIds.add(agriItem.id);
@@ -193,9 +193,11 @@ function getRelevantCommodities(req, warehouseName, allInventory) {
       i => {
         const cat = (i.category || '').toLowerCase();
         const name = (i.item_name || '').toLowerCase();
-        return cat.includes('edu') || name.includes('kit') || name.includes('student') || name.includes('book');
+        // Exclude medical, clinical, midwifery, or hygiene kits
+        if (name.includes('midwifery') || name.includes('medical') || name.includes('delivery') || name.includes('surgical') || name.includes('hygiene')) return false;
+        return cat.includes('edu') || name.includes('student') || name.includes('school') || name.includes('literacy') || name.includes('book') || name.includes('stationery');
       },
-      ['kit', 'student', 'book']
+      ['student', 'school', 'literacy', 'book', 'stationery']
     );
     if (eduItem) {
       allocatedIds.add(eduItem.id);
@@ -225,6 +227,7 @@ function getRelevantCommodities(req, warehouseName, allInventory) {
 export function IssueWaybillView({
   warehouses = [],
   inventoryItems = [],
+  fleetVehicles = [],
   approvedRequests = [],
   selectedRequest = null,
   onDispatchSuccess,
@@ -232,6 +235,17 @@ export function IssueWaybillView({
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
+  const [fleetList, setFleetList] = useState(fleetVehicles);
+
+  useEffect(() => {
+    if (fleetVehicles && fleetVehicles.length > 0) {
+      setFleetList(fleetVehicles);
+    } else if (db.getFleetVehicles) {
+      db.getFleetVehicles().then(data => {
+        if (data && data.length > 0) setFleetList(data);
+      }).catch(err => console.warn('Error loading fleet vehicles:', err));
+    }
+  }, [fleetVehicles]);
 
   const [form, setForm] = useState({
     origin_warehouse: '',
@@ -244,9 +258,9 @@ export function IssueWaybillView({
     assigned_field_worker_id: '',
     assigned_field_worker_name: '',
     transport_mode: 'ADRA Logistics Fleet Truck',
-    vehicle_reg: 'SSD-481-LOG',
-    driver_name: 'Deng Bol',
-    driver_phone: '+211-921-889911',
+    vehicle_reg: '',
+    driver_name: '',
+    driver_phone: '',
     notes: '',
     items: []
   });
@@ -268,6 +282,38 @@ export function IssueWaybillView({
       String(r.id) === String(form.linked_request_id)
     ) || null;
   }, [approvedRequests, form.linked_request_id]);
+
+  // Synchronized selected fleet vehicle & driver
+  const selectedFleetId = useMemo(() => {
+    if (!form.vehicle_reg) return '';
+    const reg = form.vehicle_reg.trim().toLowerCase();
+    const match = fleetList.find(
+      f => (f.vehicle_plate || f.plate || '').toLowerCase() === reg
+    );
+    return match ? (match.id || match.vehicle_plate || match.plate) : 'custom';
+  }, [form.vehicle_reg, fleetList]);
+
+  const handleFleetChange = (e) => {
+    const val = e.target.value;
+    if (!val || val === 'custom') {
+      setForm(prev => ({
+        ...prev,
+        vehicle_reg: '',
+        driver_name: '',
+        driver_phone: ''
+      }));
+      return;
+    }
+    const match = fleetList.find(f => f.id === val || (f.vehicle_plate || f.plate) === val);
+    if (match) {
+      setForm(prev => ({
+        ...prev,
+        vehicle_reg: match.vehicle_plate || match.plate || '',
+        driver_name: match.driver_name || match.driver || '',
+        driver_phone: match.driver_phone || match.phone || ''
+      }));
+    }
+  };
 
   useEffect(() => {
     const initialReq = selectedRequest || (approvedRequests.length > 0 ? approvedRequests[0] : null);
@@ -296,10 +342,10 @@ export function IssueWaybillView({
       assigned_field_worker_id: initialReq?.assigned_field_worker_id || '',
       assigned_field_worker_name: initialReq?.assigned_field_worker_name || '',
       transport_mode: 'ADRA Logistics Fleet Truck',
-      vehicle_reg: 'SSD-481-LOG',
-      driver_name: 'Deng Bol',
-      driver_phone: '+211-921-889911',
-      notes: initialReq ? `Waybill for request ${initialReq.request_code || initialReq.id}.` : '',
+      vehicle_reg: '',
+      driver_name: '',
+      driver_phone: '',
+      notes: '',
       items: autoItems
     });
   }, [warehouses, inventoryItems, approvedRequests, selectedRequest]);
@@ -349,7 +395,6 @@ export function IssueWaybillView({
         assigned_field_worker_id: req.assigned_field_worker_id || prev.assigned_field_worker_id,
         assigned_field_worker_name: req.assigned_field_worker_name || prev.assigned_field_worker_name,
         origin_warehouse: matchingWh,
-        notes: `Waybill for request ${req.request_code || req.tracking_number || req.id}.`,
         items: autoItems
       }));
     }
@@ -506,116 +551,28 @@ export function IssueWaybillView({
           </select>
         </div>
 
-        {/* Beneficiary Household & Allocation Dossier Card */}
+        {/* Beneficiary Household Summary */}
         {activeRequest && (
-          <div className="rounded-xl border border-emerald-200/90 bg-linear-to-br from-emerald-50/70 via-teal-50/30 to-white p-4 space-y-3 shadow-xs">
-            {/* Header with Beneficiary name, Request Code, and Priority badges */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-100/90 pb-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#006B56] text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                  {(activeRequest.beneficiary_name || activeRequest.full_name || 'B').charAt(0)}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-900 text-sm">
-                      {activeRequest.beneficiary_name || activeRequest.full_name || 'Beneficiary'}
-                    </span>
-                    <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">
-                      {activeRequest.request_code || activeRequest.tracking_number || activeRequest.id}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500">
-                    {activeRequest.beneficiary_code ? `Reg ID: ${activeRequest.beneficiary_code} • ` : ''}
-                    Target Destination: {form.destination || 'Field Relief Hub'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span>PM Approved</span>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-900">
+                {activeRequest.beneficiary_name || activeRequest.full_name || 'Beneficiary'}
+              </span>
+              {activeRequest.beneficiary_code && (
+                <span className="text-[11px] font-mono text-slate-500">
+                  (Reg ID: {activeRequest.beneficiary_code})
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                  {activeRequest.urgency || activeRequest.priority || 'High Priority'}
-                </span>
-                {activeRequest.vulnerability_score && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
-                    Vulnerability: {activeRequest.vulnerability_score}/100
-                  </span>
-                )}
-              </div>
+              )}
             </div>
 
-            {/* Metric Grid: Household Size, Vetted Sectors, Personnel */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div className="bg-white/90 rounded-lg p-2.5 border border-emerald-100/90 shadow-2xs">
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block mb-0.5 flex items-center gap-1">
-                  <Users className="w-3 h-3 text-emerald-600" />
-                  <span>Household Size</span>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-900 bg-white px-2.5 py-1 rounded-md border border-emerald-200 text-xs">
+                <Users className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Household Size: <strong>{activeRequest.household_members || activeRequest.people_in_household || 1} People</strong></span>
+                <span className="text-emerald-600 font-bold">
+                  ({(activeRequest.household_members || activeRequest.people_in_household || 1) >= 5 ? 'Scale: 2x Rations' : 'Scale: 1x Ration'})
                 </span>
-                <div className="flex items-baseline gap-1">
-                  <span className="font-bold text-slate-900 text-sm">
-                    {activeRequest.household_members || activeRequest.people_in_household || 1} People
-                  </span>
-                  <span className="text-[10px] text-emerald-700 font-semibold">
-                    ({(activeRequest.household_members || activeRequest.people_in_household || 1) >= 5 ? 'Scale: 2x Rations' : 'Scale: 1x'})
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-white/90 rounded-lg p-2.5 border border-emerald-100/90 shadow-2xs">
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block mb-0.5 flex items-center gap-1">
-                  <Package className="w-3 h-3 text-emerald-600" />
-                  <span>Approved Sectors</span>
-                </span>
-                <span className="font-bold text-slate-900 truncate block" title={activeRequest.category || activeRequest.assistance_type}>
-                  {activeRequest.category || activeRequest.assistance_type || 'General Relief'}
-                </span>
-              </div>
-
-              <div className="bg-white/90 rounded-lg p-2.5 border border-emerald-100/90 shadow-2xs">
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block mb-0.5 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                  <span>Audited By</span>
-                </span>
-                <span className="font-bold text-slate-900 truncate block">
-                  {activeRequest.assigned_field_worker_name || activeRequest.field_worker_name || 'Field Worker'}
-                </span>
-              </div>
-
-              <div className="bg-white/90 rounded-lg p-2.5 border border-emerald-100/90 shadow-2xs">
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block mb-0.5 flex items-center gap-1">
-                  <Building2 className="w-3 h-3 text-emerald-600" />
-                  <span>Supervisor</span>
-                </span>
-                <span className="font-bold text-slate-900 truncate block">
-                  {activeRequest.assigned_supervisor_name || 'State Coordinator'}
-                </span>
-              </div>
-            </div>
-
-            {/* Field Officer Physical Verification & Recommended Aid Notes */}
-            {(activeRequest.recommended_aid || activeRequest.field_worker_assessment?.recommended_aid || activeRequest.ground_situation_report || activeRequest.field_worker_assessment?.ground_situation_report) && (
-              <div className="bg-white/95 rounded-lg p-2.5 border border-emerald-200/80 text-xs space-y-1">
-                <div className="flex items-center gap-1.5 text-emerald-950 font-semibold text-[11px]">
-                  <FileText className="w-3.5 h-3.5 text-emerald-700" />
-                  <span>Field Officer Physical Audit & Verified Needs:</span>
-                </div>
-                <p className="text-slate-700 text-[11px] leading-relaxed">
-                  {activeRequest.recommended_aid || activeRequest.field_worker_assessment?.recommended_aid || activeRequest.ground_situation_report || activeRequest.field_worker_assessment?.ground_situation_report}
-                </p>
-              </div>
-            )}
-
-            {/* Sphere Project Rationale Note */}
-            <div className="flex items-start gap-2 bg-emerald-100/60 rounded-lg p-2.5 text-[11px] text-emerald-950">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
-              <p className="leading-snug">
-                <strong className="font-semibold text-emerald-900">Sphere Ration Standard:</strong> Quantities auto-calculated for{' '}
-                <span className="underline font-bold">{activeRequest.household_members || activeRequest.people_in_household || 1} household members</span>{' '}
-                across all requested sectors (~12.5kg cereal flour/person, 20L water containers, shelter tarpaulin). Adjust quantities below if depot stocks require rationing.
-              </p>
+              </span>
             </div>
           </div>
         )}
@@ -740,40 +697,80 @@ export function IssueWaybillView({
 
         {/* 4. Transport & Driver */}
         <div className="space-y-2.5 pt-2 border-t border-slate-100">
-          <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
-            <Truck className="w-3.5 h-3.5 text-slate-400" />
-            <span>Transport & Driver</span>
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+              <Truck className="w-3.5 h-3.5 text-slate-400" />
+              <span>Transport & Driver</span>
+            </label>
+            <span className="text-[11px] text-slate-400">Select fleet or enter manually</span>
+          </div>
+
+          {/* Vehicle & Driver Dropdown */}
+          <div>
+            <select
+              value={selectedFleetId}
+              onChange={handleFleetChange}
+              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white font-medium text-slate-900 focus:border-[#006B56] outline-none cursor-pointer"
+            >
+              <option value="">-- Select Registered Fleet Vehicle & Driver --</option>
+              {fleetList.length > 0 && (
+                <optgroup label="── ADRA Dedicated Fleet (Database Registered) ──">
+                  {fleetList.map(f => {
+                    const plate = f.vehicle_plate || f.plate;
+                    const driver = f.driver_name || f.driver;
+                    const phone = f.driver_phone || f.phone;
+                    const type = f.vehicle_type || f.type;
+                    const val = f.id || plate;
+                    return (
+                      <option key={val} value={val}>
+                        {plate} — {driver} ({phone}) • {type}
+                      </option>
+                    );
+                  })}
+                </optgroup>
+              )}
+              <option value="custom">── Custom / Other Contracted Carrier (Manual Entry) ──</option>
+            </select>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
+              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-0.5">
+                Vehicle Plate *
+              </label>
               <input
                 type="text"
                 value={form.vehicle_reg}
                 onChange={(e) => setForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
-                placeholder="Vehicle Plate (SSD-481-LOG)"
+                placeholder="e.g. SSD-481-LOG"
                 required
                 className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white font-medium text-slate-900 focus:border-[#006B56] outline-none"
               />
             </div>
 
             <div>
+              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-0.5">
+                Driver Full Name *
+              </label>
               <input
                 type="text"
                 value={form.driver_name}
                 onChange={(e) => setForm(prev => ({ ...prev, driver_name: e.target.value }))}
-                placeholder="Driver Name"
+                placeholder="Driver Full Name"
                 required
                 className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white font-medium text-slate-900 focus:border-[#006B56] outline-none"
               />
             </div>
 
             <div>
+              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-0.5">
+                Driver Phone
+              </label>
               <input
                 type="text"
                 value={form.driver_phone}
                 onChange={(e) => setForm(prev => ({ ...prev, driver_phone: e.target.value }))}
-                placeholder="Driver Phone"
+                placeholder="e.g. +211-921-889911"
                 className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white font-medium text-slate-900 focus:border-[#006B56] outline-none"
               />
             </div>

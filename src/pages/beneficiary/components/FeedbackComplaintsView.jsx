@@ -12,31 +12,33 @@ import {
   Users,
   MessageSquare,
   Reply,
-  X
+  X,
+  Package
 } from 'lucide-react';
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
 import { useAuth } from '../../../context/AuthContext';
 
-export function FeedbackComplaintsView({ beneficiary, currentUser: propUser }) {
+export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, userType }) {
   const { currentUser: authUser } = useAuth();
   const effectiveUser = beneficiary || propUser || authUser;
 
   const role = (effectiveUser?.role || '').toLowerCase();
-  const isFieldWorker = role.includes('field');
-  const isBeneficiary = !effectiveUser?.role || role.includes('beneficiary');
+  const isSupplier = userType === 'supplier' || role.includes('supplier');
+  const isFieldWorker = !isSupplier && role.includes('field');
+  const isBeneficiary = !isSupplier && (!effectiveUser?.role || role.includes('beneficiary'));
 
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Default active tab based on user role
   const getInitialTab = () => {
+    if (isSupplier) return 'inventoryManager';
     if (isFieldWorker) return 'beneficiaries';
     if (role.includes('program')) return 'supervisor';
     if (role.includes('supervisor')) return 'programManager';
     if (role.includes('finance')) return 'programManager';
     if (role.includes('inventory') || role.includes('logistics')) return 'programManager';
-    if (role.includes('supplier')) return 'programManager';
     return 'fieldWorker';
   };
 
@@ -191,8 +193,20 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser }) {
     }, 60);
   };
 
-  // Contacts definition: tailored if Field Worker vs Beneficiary
-  const contacts = isFieldWorker ? [
+  // Contacts definition: tailored for Supplier vs Field Worker vs Beneficiary
+  const contacts = isSupplier ? [
+    {
+      id: 'inventoryManager',
+      role: 'Inventory Manager',
+      name: 'Gabriel Majok',
+      title: 'ADRA Inventory & Warehouse Manager',
+      status: 'Online',
+      badge: 'Procurement & Logistics Desk',
+      avatarColor: 'bg-[#006B56]',
+      icon: Package,
+      welcomeNote: 'Hello! I am Gabriel Majok, your ADRA Inventory & Procurement Manager. Reach out directly for supply requests, delivery confirmations, purchase orders, or depot logistics.'
+    }
+  ] : isFieldWorker ? [
     {
       id: 'beneficiaries',
       role: 'Household Inquiries',
@@ -289,6 +303,14 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser }) {
   // Filter and sort complaints for the currently selected contact (first sent at top, newest at bottom)
   const activeChatMessages = complaints
     .filter(c => {
+      if (isSupplier) {
+        const isInventoryMsg = (c.recipient_role || '').toLowerCase().includes('inventory') ||
+                               (c.recipient_name || '').toLowerCase().includes('gabriel') ||
+                               c.category === 'Supplier Logistics Feedback' ||
+                               c.category === 'Feedback & Accountability';
+        return isInventoryMsg;
+      }
+
       if (isFieldWorker && activeTab === 'beneficiaries') {
         const isFieldWorkerMsg = (c.recipient_role || '').toLowerCase().includes('field') ||
                                 (c.recipient_name || '').toLowerCase().includes(personnel.fieldWorker.toLowerCase()) ||
@@ -313,6 +335,13 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser }) {
 
   // Count messages per contact
   const getContactMessageCount = (contactId) => {
+    if (isSupplier) {
+      return complaints.filter(c =>
+        (c.recipient_role || '').toLowerCase().includes('inventory') ||
+        (c.recipient_name || '').toLowerCase().includes('gabriel') ||
+        c.category === 'Supplier Logistics Feedback'
+      ).length;
+    }
     if (isFieldWorker && contactId === 'beneficiaries') {
       return complaints.filter(c => 
         (c.recipient_role || '').toLowerCase().includes('field') ||
@@ -373,15 +402,15 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser }) {
         toast.success(`Reply sent to ${targetComplaint?.beneficiary_name || 'beneficiary'}`);
         setReplyingTo(null);
       } else {
-        const senderName = effectiveUser?.full_name || effectiveUser?.name || 'Authorized Member';
-        const senderId = effectiveUser?.id || (isBeneficiary ? 'b7' : `staff_${Date.now()}`);
+        const senderName = effectiveUser?.company_name || effectiveUser?.full_name || effectiveUser?.name || 'Authorized Member';
+        const senderId = effectiveUser?.id || (isSupplier ? `supplier_${Date.now()}` : isBeneficiary ? 'b7' : `staff_${Date.now()}`);
 
         await db.createComplaint({
           beneficiary_id: senderId,
           beneficiary_name: senderName,
           recipient_role: currentContact.role,
           recipient_name: currentContact.name,
-          category: 'Feedback & Accountability',
+          category: isSupplier ? 'Supplier Logistics Feedback' : 'Feedback & Accountability',
           severity: 'Medium',
           is_anonymous: false,
           subject: messageText.trim().length > 50 ? `${messageText.trim().substring(0, 47)}...` : messageText.trim(),
@@ -407,36 +436,62 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser }) {
       {/* CLEAN LIGHT WHATSAPP HEADER BAR */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 text-slate-900 shrink-0 flex items-center justify-between shadow-xs relative z-30" ref={dropdownRef}>
         
-        {/* Left: Officer Role & Switch Button */}
+        {/* Left: Officer Role & Switch Button (or static info if single contact like Supplier) */}
         <div className="relative">
-          <button
-            type="button"
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center gap-3 p-1 rounded-xl hover:bg-slate-100 transition cursor-pointer text-left group"
-          >
-            {/* Avatar with Online Dot */}
-            <div className="relative shrink-0">
-              <div className={`w-10 h-10 rounded-full ${currentContact.avatarColor} text-white flex items-center justify-center font-bold shadow-xs`}>
-                {React.createElement(currentContact.icon, { className: 'w-5 h-5' })}
+          {contacts.length > 1 ? (
+            <button
+              type="button"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="flex items-center gap-3 p-1 rounded-xl hover:bg-slate-100 transition cursor-pointer text-left group"
+            >
+              {/* Avatar with Online Dot */}
+              <div className="relative shrink-0">
+                <div className={`w-10 h-10 rounded-full ${currentContact.avatarColor} text-white flex items-center justify-center font-bold shadow-xs`}>
+                  {React.createElement(currentContact.icon, { className: 'w-5 h-5' })}
+                </div>
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
               </div>
-              <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
-            </div>
 
-            {/* Officer Role & Status */}
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold text-slate-900 tracking-tight">
-                  {currentContact.role}
-                </span>
-                <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-700 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              {/* Officer Role & Status */}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-bold text-slate-900 tracking-tight">
+                    {currentContact.role}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 group-hover:text-slate-700 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                </div>
+                <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                  <span>{isFieldWorker ? 'Switch channel' : 'Switch role'}</span>
+                  <span>•</span>
+                  <span className="text-emerald-600 font-medium">{currentContact.status}</span>
+                </p>
               </div>
-              <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                <span>{isFieldWorker ? 'Switch channel' : 'Switch role'}</span>
-                <span>•</span>
-                <span className="text-emerald-600 font-medium">{currentContact.status}</span>
-              </p>
+            </button>
+          ) : (
+            <div className="flex items-center gap-3 p-1 text-left">
+              <div className="relative shrink-0">
+                <div className={`w-10 h-10 rounded-full ${currentContact.avatarColor} text-white flex items-center justify-center font-bold shadow-xs`}>
+                  {React.createElement(currentContact.icon, { className: 'w-5 h-5' })}
+                </div>
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-extrabold text-slate-900 tracking-tight">
+                    {currentContact.role}
+                  </span>
+                  <span className="text-[10px] font-bold text-[#006B56] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    {currentContact.name}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                  <span>{currentContact.title}</span>
+                  <span>•</span>
+                  <span className="text-emerald-600 font-medium">{currentContact.status}</span>
+                </p>
+              </div>
             </div>
-          </button>
+          )}
 
           {/* Clean Dropdown Menu Popover */}
           {isDropdownOpen && (

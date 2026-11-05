@@ -231,7 +231,6 @@ export function AdminConsolePage() {
       icon: Lock,
       functions: [
         { id: 'audit', name: 'Immutable Audit Trail', icon: History, num: 'F11' },
-        { id: 'security', name: 'Security & Password Policies', icon: Lock, num: 'F12' },
         { id: 'notifications', name: 'System Announcements & Alerts', icon: Radio, num: 'F13' },
       ]
     },
@@ -414,10 +413,7 @@ export function AdminConsolePage() {
 
         {/* Hub 5: Security & Governance */}
         {activeHub === 'security' && activeFunction === 'audit' && (
-          <SecurityAuditView initialTab="audit" />
-        )}
-        {activeHub === 'security' && activeFunction === 'security' && (
-          <SecurityAuditView initialTab="security" />
+          <SecurityAuditView />
         )}
         {activeHub === 'security' && activeFunction === 'notifications' && (
           <NotificationsBroadcastView />

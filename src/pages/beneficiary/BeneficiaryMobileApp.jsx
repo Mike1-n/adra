@@ -21,7 +21,8 @@ import {
   ExternalLink,
   QrCode,
   CheckCircle2,
-  Info
+  Info,
+  HelpCircle
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/supabase';
@@ -41,6 +42,7 @@ import { NotificationsView } from './components/NotificationsView';
 import { FeedbackComplaintsView } from './components/FeedbackComplaintsView';
 import { BeneficiaryProfileView } from './components/BeneficiaryProfileView';
 import { HelpSupportContactView } from './components/HelpSupportContactView';
+import { BeneficiaryHelpView } from './components/BeneficiaryHelpView';
 import { SecuritySettingsView } from './components/SecuritySettingsView';
 import { AboutUsView } from './components/AboutUsView';
 import { BeneficiaryReceiptConfirmModal } from './components/BeneficiaryReceiptConfirmModal';
@@ -178,6 +180,8 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
         return 'My Household Profile';
       case 'support':
         return 'Help & Contact ADRA';
+      case 'help':
+        return 'Help & FAQs';
       case 'about':
         return 'About ADRA';
       case 'security':
@@ -214,6 +218,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
       label: 'Updates & Help',
       items: [
         { id: 'notifications', name: 'Notifications', icon: Bell, badge: unreadCount > 0 ? unreadCount : null, alert: true },
+        { id: 'help', name: 'Help & FAQs', icon: HelpCircle },
         { id: 'feedback', name: 'Feedback & Complaints', icon: MessageSquare },
         { id: 'about', name: 'About Us', icon: Info },
         { id: 'support', name: 'Contact Us', icon: Headphones },
@@ -677,6 +682,11 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
             {/* HELP & CONTACT */}
             {currentView === 'support' && (
               <HelpSupportContactView beneficiary={beneficiary} />
+            )}
+
+            {/* HELP & FAQS */}
+            {currentView === 'help' && (
+              <BeneficiaryHelpView onNavigateTab={(tab) => setCurrentView(tab)} />
             )}
 
             {/* ABOUT US */}

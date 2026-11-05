@@ -107,26 +107,49 @@ export function SupplierPortalApp({
   }, []);
 
   // Helper for stage determination
+  // Helper for stage determination
   const getPOStage = (po) => {
     if (po.stage === -1 || Number(po.stage) === -1 || po.status === 'Returned & Rejected' || po.status?.includes('Returned') || po.status?.includes('Rejected')) return -1;
-    if (po.stage) return Number(po.stage);
-    if (po.status === 'Paid & Settled' || po.payment_status === 'Paid') return 4;
-    if (po.status?.includes('Received') || po.status?.includes('Confirmed') || po.grn_number) return 3;
-    if (po.status?.includes('Transit') || po.status?.includes('Supplied') || po.waybill_number) return 2;
-    return 1;
+    if (po.status === 'Paid & Settled' || po.payment_status === 'Paid' || po.status === 'Paid' || Number(po.stage) === 4) return 4;
+    if (po.grn_number || po.status?.includes('Received') || po.status?.includes('Confirmed') || Number(po.stage) === 3) return 3;
+    if (po.waybill_number || po.supplier_invoice_number || po.status?.includes('Transit') || po.status?.includes('Supplied') || Number(po.stage) === 2) return 2;
+    if (po.status === 'Pending Supplier Supply' || po.status === 'Pending Delivery' || Number(po.stage) === 1) return 1;
+    return Number(po.stage) || 1;
   };
 
-  // Find matching supplier profile for current user
+  // Selected supplier ID: Defaults to matching supplier or first vendor
+  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+
+  // Automatically select matching supplier or first supplier once loaded
+  useEffect(() => {
+    if (suppliers.length > 0 && (!selectedSupplierId || selectedSupplierId === 'all')) {
+      const matched =
+        suppliers.find(s => s.email?.toLowerCase() === currentUser?.email?.toLowerCase()) ||
+        suppliers.find(s => s.company_name?.toLowerCase() === currentUser?.department?.toLowerCase()) ||
+        suppliers[0];
+      if (matched) {
+        setSelectedSupplierId(matched.id);
+      }
+    }
+  }, [suppliers, currentUser, selectedSupplierId]);
+
+  // Find matching supplier profile for current user or selected vendor
   const currentSupplier = useMemo(() => {
-    if (!currentUser) return suppliers[0] || null;
-    return (
-      suppliers.find(s => s.email?.toLowerCase() === currentUser.email?.toLowerCase()) ||
-      suppliers.find(s => s.company_name?.toLowerCase() === currentUser.department?.toLowerCase()) ||
-      suppliers.find(s => s.contact_person?.toLowerCase() === currentUser.full_name?.toLowerCase()) ||
-      suppliers[0] ||
-      null
-    );
-  }, [suppliers, currentUser]);
+    const activeId = selectedSupplierId || suppliers[0]?.id;
+    if (activeId) {
+      return suppliers.find(s => s.id === activeId) || null;
+    }
+    if (currentUser) {
+      return (
+        suppliers.find(s => s.email?.toLowerCase() === currentUser.email?.toLowerCase()) ||
+        suppliers.find(s => s.company_name?.toLowerCase() === currentUser.department?.toLowerCase()) ||
+        suppliers.find(s => s.contact_person?.toLowerCase() === currentUser.full_name?.toLowerCase()) ||
+        suppliers[0] ||
+        null
+      );
+    }
+    return suppliers[0] || null;
+  }, [suppliers, selectedSupplierId, currentUser]);
 
   // Sync profile form when currentSupplier changes
   useEffect(() => {
@@ -159,23 +182,26 @@ export function SupplierPortalApp({
     }
   }, [currentSupplier, currentUser]);
 
-  // Filter purchase orders directed to this supplier (or all POs if demo)
-  const myPurchaseOrders = useMemo(() => {
-    if (!currentSupplier) return purchaseOrders;
-    return purchaseOrders.filter(po => 
-      po.supplier_id === currentSupplier.id ||
-      po.supplier_name?.toLowerCase() === currentSupplier.company_name?.toLowerCase() ||
-      po.supplier_email?.toLowerCase() === currentUser?.email?.toLowerCase()
-    );
-  }, [purchaseOrders, currentSupplier, currentUser]);
-
-  const displayedPOs = myPurchaseOrders.length > 0 ? myPurchaseOrders : purchaseOrders;
+  // Filter purchase orders directed to this supplier
+  const displayedPOs = useMemo(() => {
+    const activeId = selectedSupplierId || suppliers[0]?.id;
+    if (!activeId) return purchaseOrders;
+    const sup = suppliers.find(s => s.id === activeId);
+    return purchaseOrders.filter(po => {
+      if (po.supplier_id && po.supplier_id === activeId) return true;
+      if (sup?.company_name && po.supplier_name?.toLowerCase()?.trim() === sup.company_name?.toLowerCase()?.trim()) return true;
+      if (sup?.email && po.supplier_email?.toLowerCase()?.trim() === sup.email?.toLowerCase()?.trim()) return true;
+      return false;
+    });
+  }, [purchaseOrders, selectedSupplierId, suppliers]);
 
   const filteredPOs = useMemo(() => {
     return displayedPOs.filter(po => {
       const q = searchTerm.toLowerCase();
       const matches =
         (po.po_number || '').toLowerCase().includes(q) ||
+        (po.supplier_name || '').toLowerCase().includes(q) ||
+        (po.item_name || '').toLowerCase().includes(q) ||
         (po.items_summary || '').toLowerCase().includes(q) ||
         (po.warehouse_destination || '').toLowerCase().includes(q) ||
         (po.supplier_invoice_number || '').toLowerCase().includes(q) ||
@@ -251,7 +277,9 @@ export function SupplierPortalApp({
     }
   };
 
-  const companyDisplayName = currentSupplier?.company_name || profileForm.company_name || currentUser?.department || 'My Supplier Portal';
+  const companyDisplayName = selectedSupplierId === 'all'
+    ? 'Vendor Portal'
+    : (currentSupplier?.company_name || profileForm.company_name || 'Vendor Portal');
 
   const handleDeletePO = async (poId) => {
     try {
@@ -266,9 +294,9 @@ export function SupplierPortalApp({
 
   // Reusable Navigation Items for both Desktop Sidebar & Mobile Drawer
   const renderNavLinks = (onItemClick) => (
-    <div className="space-y-1">
-      <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600">
-        Fulfillment Stages
+    <div className="space-y-1 min-w-0">
+      <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
+        Orders & Fulfillment
       </div>
 
       {/* All Orders */}
@@ -278,17 +306,17 @@ export function SupplierPortalApp({
           setActiveTab('all');
           if (onItemClick) onItemClick();
         }}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left min-w-0 ${
           activeTab === 'all'
             ? 'bg-[#006B56] text-white shadow-xs'
             : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
           <ShoppingCart className="w-4 h-4 shrink-0" />
-          <span>All Orders</span>
+          <span className="truncate">All Orders</span>
         </div>
-        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 ${
           activeTab === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
         }`}>
           {supplierStats.total}
@@ -302,17 +330,17 @@ export function SupplierPortalApp({
           setActiveTab('orders');
           if (onItemClick) onItemClick();
         }}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left min-w-0 ${
           activeTab === 'orders'
             ? 'bg-[#006B56] text-white shadow-xs'
             : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
           <Clock className={`w-4 h-4 shrink-0 ${activeTab === 'orders' ? 'text-amber-200' : 'text-amber-700'}`} />
-          <span>New Requests</span>
+          <span className="truncate">New Requests</span>
         </div>
-        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 ${
           activeTab === 'orders' 
             ? 'bg-amber-400 text-amber-950' 
             : supplierStats.pendingCount > 0 
@@ -330,17 +358,17 @@ export function SupplierPortalApp({
           setActiveTab('intransit');
           if (onItemClick) onItemClick();
         }}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left min-w-0 ${
           activeTab === 'intransit'
             ? 'bg-[#006B56] text-white shadow-xs'
             : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
           <Truck className={`w-4 h-4 shrink-0 ${activeTab === 'intransit' ? 'text-blue-200' : 'text-blue-700'}`} />
-          <span>In Transit</span>
+          <span className="truncate">In Transit</span>
         </div>
-        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 ${
           activeTab === 'intransit'
             ? 'bg-blue-300 text-blue-950'
             : supplierStats.inTransitCount > 0
@@ -351,24 +379,24 @@ export function SupplierPortalApp({
         </span>
       </button>
 
-      {/* Accepted & GRN */}
+      {/* GRN Confirmed */}
       <button
         type="button"
         onClick={() => {
           setActiveTab('confirmed');
           if (onItemClick) onItemClick();
         }}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left min-w-0 ${
           activeTab === 'confirmed'
             ? 'bg-[#006B56] text-white shadow-xs'
             : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
           <PackageCheck className={`w-4 h-4 shrink-0 ${activeTab === 'confirmed' ? 'text-emerald-200' : 'text-[#006B56]'}`} />
-          <span>Accepted & GRN</span>
+          <span className="truncate">GRN Confirmed</span>
         </div>
-        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 ${
           activeTab === 'confirmed'
             ? 'bg-emerald-300 text-emerald-950'
             : supplierStats.grnConfirmedCount > 0
@@ -386,17 +414,17 @@ export function SupplierPortalApp({
           setActiveTab('payments');
           if (onItemClick) onItemClick();
         }}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left min-w-0 ${
           activeTab === 'payments'
             ? 'bg-[#006B56] text-white shadow-xs'
             : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
           <DollarSign className={`w-4 h-4 shrink-0 ${activeTab === 'payments' ? 'text-teal-200' : 'text-teal-700'}`} />
-          <span>Paid</span>
+          <span className="truncate">Payments</span>
         </div>
-        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 ${
           activeTab === 'payments'
             ? 'bg-teal-300 text-teal-950'
             : supplierStats.paidCount > 0
@@ -409,8 +437,8 @@ export function SupplierPortalApp({
 
       {/* Divider for Exceptions & Management */}
       <div className="my-2 border-t border-slate-100" />
-      <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600">
-        Exceptions & Profile
+      <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
+        Exceptions & Account
       </div>
 
       {/* Returned / Rejected */}
@@ -420,7 +448,7 @@ export function SupplierPortalApp({
           setActiveTab('returned');
           if (onItemClick) onItemClick();
         }}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left min-w-0 ${
           activeTab === 'returned'
             ? 'bg-rose-600 text-white shadow-xs'
             : supplierStats.returnedCount > 0
@@ -428,11 +456,11 @@ export function SupplierPortalApp({
               : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
           <XCircle className={`w-4 h-4 shrink-0 ${activeTab === 'returned' ? 'text-white' : 'text-rose-600'}`} />
-          <span>Returned / Rejected</span>
+          <span className="truncate">Rejected Deliveries</span>
         </div>
-        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black shrink-0 ${
           activeTab === 'returned'
             ? 'bg-white text-rose-800'
             : supplierStats.returnedCount > 0
@@ -450,15 +478,15 @@ export function SupplierPortalApp({
           setActiveTab('profile');
           if (onItemClick) onItemClick();
         }}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left min-w-0 ${
           activeTab === 'profile'
             ? 'bg-[#006B56] text-white shadow-xs'
             : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
           <Building2 className={`w-4 h-4 shrink-0 ${activeTab === 'profile' ? 'text-emerald-200' : 'text-slate-600'}`} />
-          <span>Bank & Profile</span>
+          <span className="truncate">Bank & Profile</span>
         </div>
       </button>
 
@@ -469,15 +497,15 @@ export function SupplierPortalApp({
           setActiveTab('feedback');
           if (onItemClick) onItemClick();
         }}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left ${
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-left min-w-0 ${
           activeTab === 'feedback'
             ? 'bg-[#006B56] text-white shadow-xs'
             : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
           <MessageSquare className={`w-4 h-4 shrink-0 ${activeTab === 'feedback' ? 'text-emerald-200' : 'text-slate-600'}`} />
-          <span>Feedback & Complaints</span>
+          <span className="truncate">Feedback</span>
         </div>
       </button>
     </div>
@@ -487,36 +515,33 @@ export function SupplierPortalApp({
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans antialiased">
       
       {/* 1. DESKTOP SIDEBAR (Permanent full-height left sidebar on lg+ screens) */}
-      <aside className="hidden lg:flex w-64 xl:w-72 bg-white border-r border-slate-200 flex-col h-full shrink-0 select-none">
+      <aside className="hidden lg:flex w-64 xl:w-72 bg-white border-r border-slate-200 flex-col h-full shrink-0 select-none overflow-x-hidden min-w-0">
         
         {/* Brand / Vendor Identity Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 bg-white shrink-0">
-          <AdraLogo
-            isCollapsed={false}
-            subtitle="Supplier"
-            description={companyDisplayName || "Vendor Portal"}
-          />
+        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 bg-white shrink-0 min-w-0 overflow-hidden">
+          <div className="min-w-0 overflow-hidden flex-1">
+            <AdraLogo
+              isCollapsed={false}
+              subtitle="Supplier"
+              description={companyDisplayName || "Vendor Portal"}
+            />
+          </div>
         </div>
 
         {/* Navigation Links (Scrollable) */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-1 min-w-0">
           {renderNavLinks()}
         </div>
 
         {/* Bottom Verified Supplier Identity Card */}
-        <div className="p-3.5 border-t border-slate-200 bg-slate-50/80 shrink-0 space-y-2 text-xs">
-          <div className="flex items-center gap-1.5 text-emerald-800 font-bold">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#006B56]" />
-            <span className="text-[11px] uppercase tracking-wider">Verified Partner</span>
+        <div className="p-3.5 border-t border-slate-200 bg-slate-50/80 shrink-0 space-y-1.5 text-xs min-w-0 overflow-hidden">
+          <div className="flex items-center gap-1.5 text-emerald-800 font-bold min-w-0">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#006B56] shrink-0" />
+            <span className="text-[11px] uppercase tracking-wider truncate">Verified Partner</span>
           </div>
           <p className="text-[11px] text-slate-600 font-medium truncate">
-            {currentSupplier?.category || profileForm.category || 'General Humanitarian Supplies'}
+            {currentSupplier?.company_name || profileForm.company_name || 'ADRA South Sudan'}
           </p>
-          {currentSupplier?.bank_name && (
-            <p className="text-[10px] text-slate-500 truncate">
-              Bank: <strong className="text-slate-700">{currentSupplier.bank_name}</strong>
-            </p>
-          )}
         </div>
       </aside>
 
@@ -527,20 +552,22 @@ export function SupplierPortalApp({
             className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity" 
             onClick={() => setIsMobileDrawerOpen(false)} 
           />
-          <aside className="relative w-72 max-w-[80vw] h-full bg-white shadow-2xl flex flex-col z-10 animate-in slide-in-from-left duration-200">
+          <aside className="relative w-72 max-w-[80vw] h-full bg-white shadow-2xl flex flex-col z-10 animate-in slide-in-from-left duration-200 overflow-x-hidden min-w-0">
             
             {/* Drawer Header with mobile status bar clearance */}
             <div className="pt-safe-drawer border-b border-slate-200 bg-white shrink-0">
-              <div className="h-16 flex items-center justify-between px-4">
-                <AdraLogo
-                  isCollapsed={false}
-                  subtitle="Supplier"
-                  description={companyDisplayName || "Vendor Portal"}
-                />
+              <div className="h-16 flex items-center justify-between px-4 min-w-0">
+                <div className="min-w-0 overflow-hidden flex-1 mr-2">
+                  <AdraLogo
+                    isCollapsed={false}
+                    subtitle="Supplier"
+                    description={companyDisplayName || "Vendor Portal"}
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => setIsMobileDrawerOpen(false)}
-                  className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
+                  className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer shrink-0"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -548,18 +575,18 @@ export function SupplierPortalApp({
             </div>
 
             {/* Drawer Navigation List */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-1 min-w-0">
               {renderNavLinks(() => setIsMobileDrawerOpen(false))}
             </div>
 
             {/* Bottom Supplier Info in Drawer */}
-            <div className="p-3.5 border-t border-slate-200 bg-slate-50/80 shrink-0 text-xs space-y-1">
-              <div className="flex items-center gap-1.5 text-emerald-800 font-bold">
-                <ShieldCheck className="w-3.5 h-3.5 text-[#006B56]" />
-                <span className="text-[11px]">ADRA Approved Vendor</span>
+            <div className="p-3.5 border-t border-slate-200 bg-slate-50/80 shrink-0 text-xs space-y-1 min-w-0 overflow-hidden">
+              <div className="flex items-center gap-1.5 text-emerald-800 font-bold min-w-0">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#006B56] shrink-0" />
+                <span className="text-[11px] truncate">ADRA Approved Vendor</span>
               </div>
               <p className="text-[11px] text-slate-500 truncate">
-                {currentSupplier?.email || currentUser?.email}
+                {currentSupplier?.company_name || currentSupplier?.email || currentUser?.email}
               </p>
             </div>
 
@@ -725,7 +752,7 @@ export function SupplierPortalApp({
 
 
             {/* Search and Header Bar (for PO pages) */}
-            {activeTab !== 'profile' && (
+            {activeTab !== 'profile' && activeTab !== 'feedback' && (
               <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
@@ -956,7 +983,7 @@ export function SupplierPortalApp({
                   </>
                 )}
               </div>
-            ) : activeTab !== 'profile' ? (
+            ) : (activeTab !== 'profile' && activeTab !== 'feedback') ? (
               /* Dedicated PO Table View */
               <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
                 {filteredPOs.length === 0 ? (
@@ -972,152 +999,273 @@ export function SupplierPortalApp({
                     </p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
-                          <th className="py-2.5 px-3 sm:py-3 sm:px-4">PO & Items</th>
-                          <th className="hidden md:table-cell py-3 px-4">Destination Depot</th>
-                          <th className="hidden sm:table-cell py-3 px-4">Stage / Status</th>
-                          <th className="hidden lg:table-cell py-3 px-4">Documents Trail</th>
-                          <th className="py-2.5 px-3 sm:py-3 sm:px-4">Amount</th>
-                          <th className="py-2.5 px-3 sm:py-3 sm:px-4 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {filteredPOs.map((po) => {
-                          const stage = getPOStage(po);
+                  <>
+                    {/* 1. MOBILE VIEW (< md): Clean stacked cards locked to phone width, zero horizontal scrolling */}
+                    <div className="block md:hidden divide-y divide-slate-100">
+                      {filteredPOs.map((po) => {
+                        const stage = getPOStage(po);
+                        const totalVal = Number(po.total_amount) || 0;
 
-                          return (
-                            <tr
-                              key={po.id}
-                              className={`transition hover:bg-slate-50/70 ${
-                                stage === -1 ? 'bg-rose-50/20' : ''
-                              }`}
-                            >
-                              {/* PO Number, Item & Date (Compact on mobile) */}
-                              <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 align-middle sm:align-top">
-                                <span className="font-mono font-bold text-slate-900 text-xs block leading-tight">
+                        return (
+                          <div key={po.id} className="p-3.5 space-y-2.5 hover:bg-slate-50/60 transition">
+                            {/* Top Row: PO Number + Stage Badge */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-mono font-bold text-slate-900 text-xs truncate">
                                   {po.po_number}
                                 </span>
-                                <span className="text-[11px] font-semibold text-slate-700 block truncate max-w-[140px] sm:max-w-[200px] mt-0.5">
-                                  {po.items_summary || 'Goods Consignment'}
+                                <span className="text-[10px] text-slate-400 font-medium shrink-0">
+                                  • {po.order_date}
                                 </span>
-                                <span className="text-[10px] text-slate-400 block mt-0.5">
-                                  {po.order_date}
-                                </span>
-                              </td>
+                              </div>
 
-                              {/* Destination Depot (md+ screens) */}
-                              <td className="hidden md:table-cell py-3.5 px-4 align-top max-w-[180px]">
-                                <div className="flex items-center gap-1 text-[11px] text-slate-700 font-medium">
-                                  <MapPin className="w-3.5 h-3.5 text-[#006B56] shrink-0" />
-                                  <span className="truncate">{po.warehouse_destination || 'ADRA Depot'}</span>
-                                </div>
-                                {stage === -1 && (
-                                  <div className="mt-1 p-1 rounded bg-rose-50 border border-rose-200 text-[10px] text-rose-800">
-                                    <span className="font-bold">Rejected:</span> {po.return_reason || 'Failed inspection'}
+                              <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                                stage === -1 ? 'bg-rose-100 text-rose-900 border border-rose-300' :
+                                stage === 4 ? 'bg-teal-100 text-teal-900 border border-teal-200' :
+                                stage === 3 ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' :
+                                stage === 2 ? 'bg-blue-100 text-blue-900 border border-blue-200' :
+                                'bg-amber-100 text-amber-900 border border-amber-200'
+                              }`}>
+                                {stage === -1 ? 'Rejected' : stage === 4 ? 'Stage 4: Paid' : stage === 3 ? 'Stage 3: GRN' : stage === 2 ? 'Stage 2: In Transit' : 'Stage 1: Pending'}
+                              </span>
+                            </div>
+
+                            {/* Commodity / Items + Amount */}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-slate-800 line-clamp-2 leading-snug">
+                                  {po.items_summary || 'Goods Consignment'}
+                                </p>
+                                {po.supplier_name && (
+                                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 inline-block mt-1 truncate max-w-full">
+                                    {po.supplier_name}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase block">Amount</span>
+                                <span className="font-mono font-black text-[#006B56] text-xs">
+                                  {totalVal > 0 ? `SSP ${totalVal.toLocaleString()}` : 'Pending Quote'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Destination Depot */}
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
+                              <MapPin className="w-3.5 h-3.5 text-[#006B56] shrink-0" />
+                              <span className="truncate">{po.warehouse_destination || 'ADRA Depot'}</span>
+                            </div>
+
+                            {/* Documents Trail (Compact row on mobile) */}
+                            {(po.supplier_invoice_number || po.waybill_number || po.grn_number || po.payment_voucher_number) && (
+                              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600 flex flex-wrap gap-x-3 gap-y-1">
+                                {po.supplier_invoice_number && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-slate-400">• Inv:</span>
+                                    <span className="font-mono font-bold text-blue-700">{po.supplier_invoice_number}</span>
                                   </div>
                                 )}
-                              </td>
+                                {po.waybill_number && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-slate-400">• Waybill:</span>
+                                    <span className="font-mono text-slate-800">{po.waybill_number}</span>
+                                  </div>
+                                )}
+                                {po.grn_number && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-slate-400">• GRN:</span>
+                                    <span className="font-mono font-bold text-[#006B56]">{po.grn_number}</span>
+                                  </div>
+                                )}
+                                {po.payment_voucher_number && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-slate-400">• PV:</span>
+                                    <span className="font-mono font-bold text-purple-700">{po.payment_voucher_number}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
-                              {/* Stage / Status Badge (sm+ screens) */}
-                              <td className="hidden sm:table-cell py-3.5 px-4 align-top whitespace-nowrap">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                                  stage === -1 ? 'bg-rose-100 text-rose-900 border border-rose-300' :
-                                  stage === 4 ? 'bg-teal-100 text-teal-900 border border-teal-200' :
-                                  stage === 3 ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' :
-                                  stage === 2 ? 'bg-blue-100 text-blue-900 border border-blue-200' :
-                                  'bg-amber-100 text-amber-900 border border-amber-200'
-                                }`}>
-                                  {stage === -1 ? `Returned: ${po.status}` : `Stage ${stage}: ${po.status}`}
-                                </span>
-                              </td>
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPOForDetail(po)}
+                                className="flex-1 py-1.5 px-3 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200 active:scale-[0.99]"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Details</span>
+                              </button>
 
-                              {/* Documents Trail (lg+ screens) */}
-                              <td className="hidden lg:table-cell py-3.5 px-4 align-top max-w-[220px]">
-                                <div className="space-y-0.5 text-[11px] text-slate-600">
-                                  {po.supplier_invoice_number && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-slate-400">• Inv:</span>
-                                      <span className="font-mono font-bold text-blue-700">{po.supplier_invoice_number}</span>
-                                    </div>
-                                  )}
-                                  {po.waybill_number && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-slate-400">• Waybill:</span>
-                                      <span className="font-mono text-slate-800">{po.waybill_number}</span>
-                                    </div>
-                                  )}
-                                  {po.grn_number && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-slate-400">• GRN:</span>
-                                      <span className="font-mono font-bold text-[#006B56]">{po.grn_number}</span>
-                                    </div>
-                                  )}
-                                  {po.payment_voucher_number && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-slate-400">• PV:</span>
-                                      <span className="font-mono font-bold text-purple-700">{po.payment_voucher_number}</span>
-                                    </div>
-                                  )}
-                                  {!po.supplier_invoice_number && !po.waybill_number && !po.grn_number && !po.payment_voucher_number && (
-                                    <span className="text-slate-400 italic text-[10px]">No documents generated</span>
-                                  )}
-                                </div>
-                              </td>
+                              {stage === 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedPOForDispatch(po)}
+                                  className="flex-1 py-1.5 px-3 rounded-xl bg-[#006B56] hover:bg-[#005443] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer"
+                                >
+                                  <Truck className="w-3.5 h-3.5" />
+                                  <span>Dispatch</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
 
-                              {/* Total Amount + Mobile Status */}
-                              <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 align-middle sm:align-top whitespace-nowrap">
-                                <span className="font-mono font-black text-[#006B56] text-xs block">
-                                  {Number(po.total_amount) > 0 ? `SSP ${Number(po.total_amount).toLocaleString()}` : 'SSP 0'}
-                                </span>
-                                {/* Compact Mobile Status Tag (< sm) */}
-                                <div className="block sm:hidden mt-0.5">
-                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide ${
-                                    stage === -1 ? 'bg-rose-100 text-rose-800' :
-                                    stage === 4 ? 'bg-teal-100 text-teal-800' :
-                                    stage === 3 ? 'bg-emerald-100 text-emerald-800' :
-                                    stage === 2 ? 'bg-blue-100 text-blue-800' :
-                                    'bg-amber-100 text-amber-800'
-                                  }`}>
-                                    {stage === 4 ? 'Paid' : stage === 3 ? 'GRN' : stage === 2 ? 'In Transit' : stage === 1 ? 'Pending' : 'Returned'}
+                    {/* 2. DESKTOP / TABLET VIEW (>= md): Full data table */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
+                            <th className="py-2.5 px-3 sm:py-3 sm:px-4">PO & Items</th>
+                            <th className="hidden md:table-cell py-3 px-4">Destination Depot</th>
+                            <th className="hidden sm:table-cell py-3 px-4">Stage / Status</th>
+                            <th className="hidden lg:table-cell py-3 px-4">Documents Trail</th>
+                            <th className="py-2.5 px-3 sm:py-3 sm:px-4">Amount</th>
+                            <th className="py-2.5 px-3 sm:py-3 sm:px-4 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredPOs.map((po) => {
+                            const stage = getPOStage(po);
+
+                            return (
+                              <tr
+                                key={po.id}
+                                className={`transition hover:bg-slate-50/70 ${
+                                  stage === -1 ? 'bg-rose-50/20' : ''
+                                }`}
+                              >
+                                {/* PO Number, Item & Date (Compact on mobile) */}
+                                <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 align-middle sm:align-top">
+                                  <span className="font-mono font-bold text-slate-900 text-xs block leading-tight">
+                                    {po.po_number}
                                   </span>
-                                </div>
-                              </td>
+                                  <span className="text-[11px] font-semibold text-slate-700 block truncate max-w-[140px] sm:max-w-[200px] mt-0.5">
+                                    {po.items_summary || 'Goods Consignment'}
+                                  </span>
+                                  {po.supplier_name && (
+                                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 inline-block mt-0.5 max-w-[180px] truncate">
+                                      {po.supplier_name}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                                    {po.order_date}
+                                  </span>
+                                </td>
 
-                              {/* Actions */}
-                              <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 align-middle sm:align-top text-right whitespace-nowrap">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedPOForDetail(po)}
-                                    className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition flex items-center gap-1 cursor-pointer border border-slate-200"
-                                    title="View Details & Documents"
-                                  >
-                                    <Eye className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">Details</span>
-                                    <span className="sm:hidden">View</span>
-                                  </button>
+                                {/* Destination Depot (md+ screens) */}
+                                <td className="hidden md:table-cell py-3.5 px-4 align-top max-w-[180px]">
+                                  <div className="flex items-center gap-1 text-[11px] text-slate-700 font-medium">
+                                    <MapPin className="w-3.5 h-3.5 text-[#006B56] shrink-0" />
+                                    <span className="truncate">{po.warehouse_destination || 'ADRA Depot'}</span>
+                                  </div>
+                                  {stage === -1 && (
+                                    <div className="mt-1 p-1 rounded bg-rose-50 border border-rose-200 text-[10px] text-rose-800">
+                                      <span className="font-bold">Rejected:</span> {po.return_reason || 'Failed inspection'}
+                                    </div>
+                                  )}
+                                </td>
 
-                                  {stage === 1 && (
+                                {/* Stage / Status Badge (sm+ screens) */}
+                                <td className="hidden sm:table-cell py-3.5 px-4 align-top whitespace-nowrap">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                                    stage === -1 ? 'bg-rose-100 text-rose-900 border border-rose-300' :
+                                    stage === 4 ? 'bg-teal-100 text-teal-900 border border-teal-200' :
+                                    stage === 3 ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' :
+                                    stage === 2 ? 'bg-blue-100 text-blue-900 border border-blue-200' :
+                                    'bg-amber-100 text-amber-900 border border-amber-200'
+                                  }`}>
+                                    {stage === -1 ? `Returned: ${po.status}` : `Stage ${stage}: ${po.status}`}
+                                  </span>
+                                </td>
+
+                                {/* Documents Trail (lg+ screens) */}
+                                <td className="hidden lg:table-cell py-3.5 px-4 align-top max-w-[220px]">
+                                  <div className="space-y-0.5 text-[11px] text-slate-600">
+                                    {po.supplier_invoice_number && (
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-slate-400">• Inv:</span>
+                                        <span className="font-mono font-bold text-blue-700">{po.supplier_invoice_number}</span>
+                                      </div>
+                                    )}
+                                    {po.waybill_number && (
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-slate-400">• Waybill:</span>
+                                        <span className="font-mono text-slate-800">{po.waybill_number}</span>
+                                      </div>
+                                    )}
+                                    {po.grn_number && (
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-slate-400">• GRN:</span>
+                                        <span className="font-mono font-bold text-[#006B56]">{po.grn_number}</span>
+                                      </div>
+                                    )}
+                                    {po.payment_voucher_number && (
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-slate-400">• PV:</span>
+                                        <span className="font-mono font-bold text-purple-700">{po.payment_voucher_number}</span>
+                                      </div>
+                                    )}
+                                    {!po.supplier_invoice_number && !po.waybill_number && !po.grn_number && !po.payment_voucher_number && (
+                                      <span className="text-slate-400 italic text-[10px]">No documents generated</span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Total Amount + Mobile Status */}
+                                <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 align-middle sm:align-top whitespace-nowrap">
+                                  <span className="font-mono font-black text-[#006B56] text-xs block">
+                                    {Number(po.total_amount) > 0 ? `SSP ${Number(po.total_amount).toLocaleString()}` : 'SSP 0'}
+                                  </span>
+                                  {/* Compact Mobile Status Tag (< sm) */}
+                                  <div className="block sm:hidden mt-0.5">
+                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide ${
+                                      stage === -1 ? 'bg-rose-100 text-rose-800' :
+                                      stage === 4 ? 'bg-teal-100 text-teal-800' :
+                                      stage === 3 ? 'bg-emerald-100 text-emerald-800' :
+                                      stage === 2 ? 'bg-blue-100 text-blue-800' :
+                                      'bg-amber-100 text-amber-800'
+                                    }`}>
+                                      {stage === 4 ? 'Paid' : stage === 3 ? 'GRN' : stage === 2 ? 'In Transit' : stage === 1 ? 'Pending' : 'Returned'}
+                                    </span>
+                                  </div>
+                                </td>
+
+                                {/* Actions */}
+                                <td className="py-2.5 px-3 sm:py-3.5 sm:px-4 align-middle sm:align-top text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1.5">
                                     <button
                                       type="button"
-                                      onClick={() => setSelectedPOForDispatch(po)}
-                                      className="px-2.5 py-1 rounded-lg bg-[#006B56] hover:bg-[#005443] text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition active:scale-[0.99] cursor-pointer"
+                                      onClick={() => setSelectedPOForDetail(po)}
+                                      className="px-2.5 py-1 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition flex items-center gap-1 cursor-pointer border border-slate-200"
+                                      title="View Details & Documents"
                                     >
-                                      <Truck className="w-3.5 h-3.5" />
-                                      <span className="hidden sm:inline">Dispatch</span>
+                                      <Eye className="w-3.5 h-3.5" />
+                                      <span className="hidden sm:inline">Details</span>
+                                      <span className="sm:hidden">View</span>
                                     </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+
+                                    {stage === 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedPOForDispatch(po)}
+                                        className="px-2.5 py-1 rounded-lg bg-[#006B56] hover:bg-[#005443] text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition active:scale-[0.99] cursor-pointer"
+                                      >
+                                        <Truck className="w-3.5 h-3.5" />
+                                        <span className="hidden sm:inline">Dispatch</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </div>
             ) : null}
@@ -1203,7 +1351,7 @@ export function SupplierPortalApp({
             {/* 6. FEEDBACK & COMPLAINTS DESK */}
             {activeTab === 'feedback' && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs h-[calc(100vh-140px)] min-h-[500px]">
-                <FeedbackComplaintsView currentUser={currentUser} />
+                <FeedbackComplaintsView currentUser={currentUser} userType="supplier" />
               </div>
             )}
 

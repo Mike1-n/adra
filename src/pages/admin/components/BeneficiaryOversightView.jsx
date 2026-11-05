@@ -22,7 +22,9 @@ import {
   Mail,
   Home,
   Edit2,
-  Power
+  Power,
+  Printer,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Card, CardHeader } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
@@ -31,6 +33,7 @@ import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
 import { db } from '../../../lib/supabase';
 import { formatDate } from '../../../lib/utils';
 import { useToast } from '../../../context/ToastContext';
+import { exportToPDF, exportToCSV } from '../../../lib/reportGenerator';
 
 export function BeneficiaryOversightView() {
   const [beneficiaries, setBeneficiaries] = useState([]);
@@ -274,13 +277,99 @@ export function BeneficiaryOversightView() {
   const flaggedCount = beneficiaries.filter(b => getStatus(b) === 'Flagged').length;
   const deactivatedCount = beneficiaries.filter(b => getStatus(b) === 'Deactivated').length;
 
+  // --- Print & Export Handlers ---
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      const columns = [
+        { header: 'Beneficiary ID', key: 'beneficiary_code' },
+        { header: 'Full Legal Name', key: 'full_name' },
+        { header: 'National ID', key: 'national_id' },
+        { header: 'Phone Number', key: 'phone_number' },
+        { header: 'Location / Camp', key: 'location' },
+        { header: 'Vulnerability Group', key: 'vulnerability_category' },
+        { header: 'Status', key: 'status_label' },
+      ];
+
+      const dataToExport = filtered.map(b => ({
+        ...b,
+        status_label: getStatus(b),
+        national_id: b.national_id || b.id_number || 'N/A',
+        phone_number: b.phone_number || b.phone || 'N/A',
+        location: b.location || 'Unassigned',
+        vulnerability_category: b.vulnerability_category || 'General Community'
+      }));
+
+      await exportToPDF({
+        title: 'ADRA SOUTH SUDAN • BENEFICIARY COMPLIANCE CENSUS',
+        subtitle: `Official Household Verification Registry • Scope: ${filtered.length} Households (${statusFilter === 'ALL' ? 'All States' : statusFilter}) • Generated: ${new Date().toLocaleDateString()}`,
+        columns,
+        data: dataToExport,
+        fileName: `ADRA_Beneficiary_Census_${new Date().toISOString().split('T')[0]}.pdf`,
+        summary: [
+          { label: 'Total Enrolled', value: String(beneficiaries.length) },
+          { label: 'Verified Active', value: String(verifiedCount) },
+          { label: 'Pending Review', value: String(pendingCount) }
+        ]
+      });
+
+      toast.success('Beneficiary census PDF exported successfully.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export PDF.');
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      const dataToExport = filtered.map(b => ({
+        'Beneficiary ID': b.beneficiary_code,
+        'Full Legal Name': b.full_name,
+        'Email Address': b.email || '',
+        'National ID Number': b.national_id || b.id_number || '',
+        'Phone Number': b.phone_number || b.phone || '',
+        'Location / Camp': b.location || '',
+        'Vulnerability Category': b.vulnerability_category || '',
+        'Verification Status': getStatus(b),
+        'Registration Date': b.registration_date || b.created_at ? formatDate(b.registration_date || b.created_at) : '',
+      }));
+
+      exportToCSV(dataToExport, `ADRA_Beneficiary_Census_${new Date().toISOString().split('T')[0]}.csv`);
+      toast.success(`Exported ${filtered.length} beneficiary records to CSV.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export CSV.');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Official Print Header */}
+      <div className="hidden print:block pb-4 mb-4 border-b border-slate-300">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">ADRA SOUTH SUDAN • HUMANITARIAN MANAGEMENT SYSTEM</h1>
+            <h2 className="text-sm font-semibold text-emerald-800 mt-0.5">
+              Beneficiary Household Verification & Compliance Roll
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Official Certified Registry • Printed: {new Date().toLocaleDateString()}
+            </p>
+          </div>
+          <div className="text-right text-xs text-slate-600 font-mono">
+            <span>Scope: {filtered.length} Households ({statusFilter === 'ALL' ? 'All States' : statusFilter})</span>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 no-print">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-6 h-6 text-emerald-600" />
+            <Users className="w-6 h-6 text-[#006B56]" />
             Beneficiary Verification & Compliance Oversight
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
@@ -288,6 +377,38 @@ export function BeneficiaryOversightView() {
           </p>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            icon={FileSpreadsheet}
+            className="text-xs"
+            title="Download CSV spreadsheet"
+          >
+            Export CSV
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleExportPDF}
+            icon={Download}
+            className="text-xs font-semibold"
+            title="Download official PDF report"
+          >
+            Download PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrint}
+            icon={Printer}
+            className="text-xs"
+            title="Print beneficiary census"
+          >
+            Print
+          </Button>
+        </div>
       </div>
 
 
@@ -341,7 +462,7 @@ export function BeneficiaryOversightView() {
       </div>
 
       {/* Filters Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 no-print">
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -403,7 +524,7 @@ export function BeneficiaryOversightView() {
                   <th className="py-3.5 px-4">Location</th>
                   <th className="py-3.5 px-4">Vulnerability Category</th>
                   <th className="py-3.5 px-4">Verification Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-4 text-right no-print">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-slate-800">
@@ -474,7 +595,7 @@ export function BeneficiaryOversightView() {
                           {status}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-3.5 px-4 text-right no-print">
                         <div className="flex items-center justify-end gap-1.5">
                           {isPending && (
                             <button

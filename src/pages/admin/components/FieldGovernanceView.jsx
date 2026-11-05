@@ -13,7 +13,10 @@ import {
   Shield,
   Layers,
   Search,
-  Filter
+  Filter,
+  Download,
+  Printer,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Card, CardHeader } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
@@ -22,6 +25,7 @@ import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
 import { db } from '../../../lib/supabase';
 import { formatCurrency, formatDate } from '../../../lib/utils';
 import { useToast } from '../../../context/ToastContext';
+import { exportToPDF, exportToCSV } from '../../../lib/reportGenerator';
 
 export function FieldGovernanceView({ initialTab = 'programmes' }) {
   const [activeSubTab, setActiveSubTab] = useState(initialTab);
@@ -182,44 +186,263 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
     }
   };
 
+  // --- Print & Export Handlers ---
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExportProgrammesPDF = async () => {
+    try {
+      const columns = [
+        { header: 'Code', key: 'project_code' },
+        { header: 'Programme Title', key: 'project_name' },
+        { header: 'Status', key: 'status' },
+        { header: 'Responsible Manager', key: 'manager_name' },
+        { header: 'Operational Zone', key: 'location' },
+        { header: 'Budget', key: 'budget_display' },
+        { header: 'Timeline', key: 'timeline_display' },
+      ];
+
+      const dataToExport = programmes.map(p => ({
+        ...p,
+        manager_name: p.manager_name || 'Unassigned',
+        budget_display: formatCurrency(p.budget),
+        timeline_display: `${formatDate(p.start_date)} — ${formatDate(p.end_date)}`,
+      }));
+
+      const totalBudget = programmes.reduce((sum, p) => sum + (Number(p.budget) || 0), 0);
+      const activeCount = programmes.filter(p => p.status === 'Active').length;
+
+      await exportToPDF({
+        title: 'ADRA SOUTH SUDAN • FIELD PROGRAMMES PORTFOLIO',
+        subtitle: `Official Field Programme Registry • Scope: ${programmes.length} Humanitarian Programmes • Generated: ${new Date().toLocaleDateString()}`,
+        columns,
+        data: dataToExport,
+        fileName: `ADRA_Field_Programmes_${new Date().toISOString().split('T')[0]}.pdf`,
+        summary: [
+          { label: 'Total Programmes', value: String(programmes.length) },
+          { label: 'Active Programmes', value: String(activeCount) },
+          { label: 'Total Allocated Budget', value: formatCurrency(totalBudget) }
+        ]
+      });
+
+      toast.success('Field programmes PDF exported successfully.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export PDF.');
+    }
+  };
+
+  const handleExportProgrammesCSV = () => {
+    try {
+      const dataToExport = programmes.map(p => ({
+        'Programme Code': p.project_code,
+        'Programme Title': p.project_name,
+        'Description': p.description || '',
+        'Status': p.status,
+        'Responsible Manager': p.manager_name || 'Unassigned',
+        'Operational Zone': p.location || '',
+        'Budget (SSP)': p.budget || 0,
+        'Start Date': p.start_date || '',
+        'End Date': p.end_date || '',
+      }));
+
+      exportToCSV(dataToExport, `ADRA_Field_Programmes_${new Date().toISOString().split('T')[0]}.csv`);
+      toast.success(`Exported ${programmes.length} programmes to CSV.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export CSV.');
+    }
+  };
+
+  const handleExportLocationsPDF = async () => {
+    try {
+      const columns = [
+        { header: 'Location Name', key: 'name' },
+        { header: 'Classification', key: 'type' },
+        { header: 'State / Province', key: 'state' },
+        { header: 'County / District', key: 'county_district' },
+        { header: 'Community / Camp', key: 'community' },
+        { header: 'Contact', key: 'contact' },
+      ];
+
+      const dataToExport = locations.map(l => ({
+        ...l,
+        county_district: `${l.county || ''} / ${l.district || ''}`.trim().replace(/^\/|\/$/g, ''),
+        contact: l.contact || 'N/A'
+      }));
+
+      await exportToPDF({
+        title: 'ADRA SOUTH SUDAN • OPERATIONAL LOCATIONS REGISTRY',
+        subtitle: `Official Field Operational Territory & Jurisdiction Directory • Generated: ${new Date().toLocaleDateString()}`,
+        columns,
+        data: dataToExport,
+        fileName: `ADRA_Operational_Locations_${new Date().toISOString().split('T')[0]}.pdf`,
+        summary: [
+          { label: 'Total Locations', value: String(locations.length) },
+        ]
+      });
+
+      toast.success('Operational locations PDF exported successfully.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export PDF.');
+    }
+  };
+
+  const handleExportLocationsCSV = () => {
+    try {
+      const dataToExport = locations.map(l => ({
+        'Location Name': l.name,
+        'Classification': l.type,
+        'State': l.state,
+        'County': l.county,
+        'District': l.district,
+        'Community / Camp': l.community,
+        'Contact Person': l.contact || 'N/A',
+      }));
+
+      exportToCSV(dataToExport, `ADRA_Operational_Locations_${new Date().toISOString().split('T')[0]}.csv`);
+      toast.success(`Exported ${locations.length} locations to CSV.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to export CSV.');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Header & Sub-Tab Switcher */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Layers className="w-6 h-6 text-emerald-600" />
-            Field Programmes & Location Governance
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Configure humanitarian programmes, assign Program Managers, and manage operational territory zones.
-          </p>
-        </div>
-
-        {/* Sub-tab pills */}
-        <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
-          <button
-            onClick={() => setActiveSubTab('programmes')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
-              activeSubTab === 'programmes'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Programme Management ({programmes.length})
-          </button>
-          <button
-            onClick={() => setActiveSubTab('locations')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
-              activeSubTab === 'locations'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Location Management ({locations.length})
-          </button>
+      {/* Official Print Header (Visible only when printed) */}
+      <div className="hidden print:block pb-4 mb-4 border-b border-slate-300">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">ADRA SOUTH SUDAN • HUMANITARIAN MANAGEMENT SYSTEM</h1>
+            <h2 className="text-sm font-semibold text-emerald-800 mt-0.5">
+              {activeSubTab === 'programmes' ? 'Field Programmes Portfolio & Strategic Execution' : 'Operational Locations & Territory Jurisdiction'}
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Official Certified Record • Printed: {new Date().toLocaleDateString()}
+            </p>
+          </div>
+          <div className="text-right text-xs text-slate-600 font-mono">
+            <span>Scope: {activeSubTab === 'programmes' ? `${programmes.length} Programmes` : `${locations.length} Locations`}</span>
+          </div>
         </div>
       </div>
+
+      {/* Header for Programmes */}
+      {activeSubTab === 'programmes' && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 no-print">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <FolderKanban className="w-5 h-5 text-[#006B56]" />
+              Field Programmes Management
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Configure humanitarian programmes, assign Program Managers, and track operational project portfolios.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportProgrammesCSV}
+              icon={FileSpreadsheet}
+              className="text-xs"
+              title="Download CSV spreadsheet"
+            >
+              Export CSV
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExportProgrammesPDF}
+              icon={Download}
+              className="text-xs font-semibold"
+              title="Download PDF document"
+            >
+              Download PDF
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrint}
+              icon={Printer}
+              className="text-xs"
+              title="Print programme list"
+            >
+              Print
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleOpenCreateProg}
+              icon={Plus}
+              className="text-xs font-semibold"
+            >
+              Configure Programme
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Header for Locations */}
+      {activeSubTab === 'locations' && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 no-print">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-[#006B56]" />
+              Operational Territory & Location Governance
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Operational jurisdiction: States, counties, districts, community camps, and regional field offices.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportLocationsCSV}
+              icon={FileSpreadsheet}
+              className="text-xs"
+              title="Download CSV spreadsheet"
+            >
+              Export CSV
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExportLocationsPDF}
+              icon={Download}
+              className="text-xs font-semibold"
+              title="Download PDF document"
+            >
+              Download PDF
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrint}
+              icon={Printer}
+              className="text-xs"
+              title="Print location list"
+            >
+              Print
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsCreateLocOpen(true)}
+              icon={Plus}
+              className="text-xs font-semibold"
+            >
+              Add Location
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* --- SUBTAB 1: PROGRAMME MANAGEMENT (Function 7) --- */}
       {activeSubTab === 'programmes' && (() => {
@@ -233,25 +456,21 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
 
         return (
           <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 no-print">
               <div className="relative flex-1 max-w-sm">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search programmes by name, code..."
+                  placeholder="Search programmes by name, code, or operational zone..."
                   className="adra-input pl-10 text-xs sm:text-sm"
                 />
               </div>
 
-              <Button
-                variant="primary"
-                onClick={handleOpenCreateProg}
-                icon={Plus}
-              >
-                Configure Programme
-              </Button>
+              <div className="text-xs text-slate-500 font-medium">
+                Active Portfolio: <strong className="text-slate-900 font-bold">{filteredProgs.length}</strong> of {programmes.length} Programmes
+              </div>
             </div>
 
             {filteredProgs.length === 0 ? (
@@ -284,7 +503,7 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
                         <th className="py-3.5 px-4 hidden md:table-cell">Operational Zone</th>
                         <th className="py-3.5 px-4">Budget</th>
                         <th className="py-3.5 px-4 hidden lg:table-cell">Timeline</th>
-                        <th className="py-3.5 px-4 text-right">Actions</th>
+                        <th className="py-3.5 px-4 text-right no-print">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 text-slate-800">
@@ -344,7 +563,7 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
                               <span>{formatDate(p.start_date)} — {formatDate(p.end_date)}</span>
                             </div>
                           </td>
-                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap no-print">
                             <Button
                               variant="outline"
                               size="sm"
@@ -369,18 +588,10 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
       {/* --- SUBTAB 2: LOCATION MANAGEMENT (Function 8) --- */}
       {activeSubTab === 'locations' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-600">
-              Operational jurisdiction: States, counties, districts, community camps, and regional field offices.
-            </p>
-
-            <Button
-              variant="primary"
-              onClick={() => setIsCreateLocOpen(true)}
-              icon={Plus}
-            >
-              Add Location
-            </Button>
+          <div className="flex items-center justify-between gap-3 text-xs text-slate-500 no-print">
+            <span className="font-medium">
+              Registered Operational Zones: <strong className="text-slate-900 font-bold">{locations.length}</strong>
+            </span>
           </div>
 
           <Card className="p-0 overflow-hidden">
@@ -394,7 +605,7 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
                     <th className="py-3.5 px-4">County / District</th>
                     <th className="py-3.5 px-4">Community / Camp</th>
                     <th className="py-3.5 px-4">Contact</th>
-                    <th className="py-3.5 px-4 text-right">Actions</th>
+                    <th className="py-3.5 px-4 text-right no-print">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-slate-800">
@@ -422,13 +633,13 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
                         <td className="py-3.5 px-4 text-slate-800">{loc.county} / {loc.district}</td>
                         <td className="py-3.5 px-4 text-slate-600">{loc.community}</td>
                         <td className="py-3.5 px-4 font-mono text-[11px] text-slate-600">{loc.contact || 'N/A'}</td>
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-3.5 px-4 text-right no-print">
                           <button
                             onClick={() => {
                               setSelectedLoc(loc);
                               setIsDeleteLocOpen(true);
                             }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                             title="Delete Location"
                           >
                             <Trash2 className="w-4 h-4" />

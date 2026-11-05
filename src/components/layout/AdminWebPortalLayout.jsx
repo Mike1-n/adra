@@ -120,10 +120,9 @@ export function AdminWebPortalLayout({
     },
     {
       id: 'identity',
-      name: 'Users',
+      name: 'Users & Roles',
       icon: Users,
-      badge: pendingApprovals > 0 ? pendingApprovals : null,
-      desc: 'Users, Roles & Approvals'
+      desc: 'User Accounts & Access Control'
     },
     {
       id: 'beneficiaries',
@@ -135,6 +134,7 @@ export function AdminWebPortalLayout({
       id: 'field',
       name: 'Field Operations',
       icon: FolderKanban,
+      badge: pendingApprovals > 0 ? pendingApprovals : null,
       desc: 'Programmes & Locations'
     },
     {
@@ -144,23 +144,17 @@ export function AdminWebPortalLayout({
       desc: 'Inter-Party Complaints & AAP Desk'
     },
     {
-      id: 'security',
-      name: 'Security & Audit',
-      icon: ShieldCheck,
-      desc: 'Audit Logs & Policies'
-    },
-    {
       id: 'reports',
-      name: 'Reports',
+      name: 'Reports & Audit',
       icon: FileText,
-      desc: 'Programmes, Beneficiaries & Operations'
+      desc: 'Financial, Programme & Audit Reports'
     }
   ];
 
   return (
-    <div className="flex h-screen bg-white text-slate-900 overflow-hidden font-sans antialiased">
+    <div className="flex h-screen bg-white text-slate-900 overflow-hidden font-sans antialiased print:h-auto print:overflow-visible">
       {/* Streamlined Desktop Sidebar */}
-      <aside className={`hidden lg:flex bg-white border-r border-slate-200 flex-col h-full shrink-0 z-30 transition-all duration-200 ${
+      <aside className={`no-print hidden lg:flex bg-white border-r border-slate-200 flex-col h-full shrink-0 z-30 transition-all duration-200 ${
         isCollapsed ? 'w-20' : 'w-64'
       }`}>
         {/* Brand Header */}
@@ -236,9 +230,9 @@ export function AdminWebPortalLayout({
       </aside>
 
       {/* Main Viewport */}
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden print:h-auto print:overflow-visible">
         {/* Sleek Topbar Header (Green Brand Header) */}
-        <header className="bg-[#004D3F] border-b border-[#003B30] text-white px-4 sm:px-6 shrink-0 z-20 pt-safe shadow-md">
+        <header className="no-print bg-[#004D3F] border-b border-[#003B30] text-white px-4 sm:px-6 shrink-0 z-20 pt-safe shadow-md">
           <div className="h-16 flex items-center justify-between">
             {/* Left: Mobile Menu & Current Section Title */}
             <div className="flex items-center gap-3">
@@ -296,7 +290,7 @@ export function AdminWebPortalLayout({
       </header>
 
         {/* Content Body with Generous Whitespace */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-white">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-white print:p-0 print:overflow-visible">
           <div className="max-w-7xl mx-auto space-y-6">
             {children}
           </div>

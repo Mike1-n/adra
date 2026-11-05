@@ -28,14 +28,12 @@ import { PermissionMatrixView } from './components/PermissionMatrixView';
 import { ApprovalManagementView } from './components/ApprovalManagementView';
 import { BeneficiaryOversightView } from './components/BeneficiaryOversightView';
 import { FieldGovernanceView } from './components/FieldGovernanceView';
-import { SecurityAuditView } from './components/SecurityAuditView';
-import { NotificationsBroadcastView } from './components/NotificationsBroadcastView';
 import { AdminFeedbackComplaintsOversightView } from './components/AdminFeedbackComplaintsOversightView';
 import { ReportsPage } from '../ReportsPage';
 
 export function AdminWebPortalPage({ onSwitchToFieldApp, initialSection = 'overview', onSectionChange }) {
   const { currentUser } = useAuth();
-  // Primary Sections: 'overview', 'lifecycle', 'identity', 'beneficiaries', 'field', 'security', 'reports', 'feedback'
+  // Primary Sections: 'overview', 'lifecycle', 'identity', 'beneficiaries', 'field', 'reports', 'feedback'
   const [activeSection, setActiveSection] = useState(initialSection || 'overview');
 
   // Keep activeSection in sync if initialSection changes via browser navigation
@@ -52,9 +50,7 @@ export function AdminWebPortalPage({ onSwitchToFieldApp, initialSection = 'overv
 
   // Sub-tabs for each section
   const [subTabs, setSubTabs] = useState({
-    identity: 'users',      // 'users' | 'approvals'
     field: 'programmes',    // 'programmes' | 'locations' | 'approvals'
-    security: 'audit',      // 'audit' | 'policies' | 'broadcasts'
   });
 
   const setSectionSubTab = (section, tab) => {
@@ -69,16 +65,12 @@ export function AdminWebPortalPage({ onSwitchToFieldApp, initialSection = 'overv
         nextSec = 'lifecycle';
         break;
       case 'users':
-        nextSec = 'identity';
-        setSectionSubTab('identity', 'users');
-        break;
       case 'permissions':
         nextSec = 'identity';
-        setSectionSubTab('identity', 'permissions');
         break;
       case 'approvals':
-        nextSec = 'identity';
-        setSectionSubTab('identity', 'approvals');
+        nextSec = 'field';
+        setSectionSubTab('field', 'approvals');
         break;
       case 'beneficiaries':
         nextSec = 'beneficiaries';
@@ -92,12 +84,8 @@ export function AdminWebPortalPage({ onSwitchToFieldApp, initialSection = 'overv
         setSectionSubTab('field', 'locations');
         break;
       case 'security':
-        nextSec = 'security';
-        setSectionSubTab('security', 'policies');
-        break;
       case 'audit':
-        nextSec = 'security';
-        setSectionSubTab('security', 'audit');
+        nextSec = 'reports';
         break;
       case 'feedback':
         nextSec = 'feedback';
@@ -130,40 +118,10 @@ export function AdminWebPortalPage({ onSwitchToFieldApp, initialSection = 'overv
         </div>
       )}
 
-      {/* 3. USERS */}
+      {/* 3. USERS & ROLES */}
       {activeSection === 'identity' && (
         <div className="space-y-6">
-          {/* Clean Segmented Tab Control */}
-          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-850 border border-slate-800 w-fit">
-            <button
-              onClick={() => setSectionSubTab('identity', 'users')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                subTabs.identity === 'users'
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              Users & Roles
-            </button>
-
-            <button
-              onClick={() => setSectionSubTab('identity', 'approvals')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                subTabs.identity === 'approvals'
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              Account Approvals
-            </button>
-          </div>
-
-          <div>
-            {subTabs.identity === 'users' && <UserRoleManagementView />}
-            {subTabs.identity === 'approvals' && <ApprovalManagementView initialCategory="User Registration" />}
-          </div>
+          <UserRoleManagementView />
         </div>
       )}
 
@@ -177,7 +135,7 @@ export function AdminWebPortalPage({ onSwitchToFieldApp, initialSection = 'overv
       {/* 4. FIELD OPERATIONS */}
       {activeSection === 'field' && (
         <div className="space-y-6">
-          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-850 border border-slate-800 w-fit">
+          <div className="no-print flex items-center gap-1.5 p-1 rounded-xl bg-slate-850 border border-slate-800 w-fit">
             <button
               onClick={() => setSectionSubTab('field', 'programmes')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
@@ -223,56 +181,7 @@ export function AdminWebPortalPage({ onSwitchToFieldApp, initialSection = 'overv
         </div>
       )}
 
-      {/* 5. SECURITY & AUDIT */}
-      {activeSection === 'security' && (
-        <div className="space-y-6">
-          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-850 border border-slate-800 w-fit">
-            <button
-              onClick={() => setSectionSubTab('security', 'audit')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                subTabs.security === 'audit'
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              <History className="w-3.5 h-3.5" />
-              Audit Logs
-            </button>
-
-            <button
-              onClick={() => setSectionSubTab('security', 'policies')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                subTabs.security === 'policies'
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              <Lock className="w-3.5 h-3.5" />
-              Security Policies
-            </button>
-
-            <button
-              onClick={() => setSectionSubTab('security', 'broadcasts')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-                subTabs.security === 'broadcasts'
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-              }`}
-            >
-              <Radio className="w-3.5 h-3.5" />
-              Announcements & Alerts
-            </button>
-          </div>
-
-          <div>
-            {subTabs.security === 'audit' && <SecurityAuditView initialTab="audit" />}
-            {subTabs.security === 'policies' && <SecurityAuditView initialTab="security" />}
-            {subTabs.security === 'broadcasts' && <NotificationsBroadcastView />}
-          </div>
-        </div>
-      )}
-
-      {/* 6. INTER-PARTY FEEDBACK & COMPLAINTS OVERSIGHT (AAP) */}
+      {/* 5. INTER-PARTY FEEDBACK & COMPLAINTS OVERSIGHT (AAP) */}
       {activeSection === 'feedback' && (
         <AdminFeedbackComplaintsOversightView />
       )}

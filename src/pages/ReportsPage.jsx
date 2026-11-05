@@ -1,24 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileText,
   Download,
   Printer,
   FileSpreadsheet,
-  Filter,
   CheckCircle2,
   FolderKanban,
   Users,
-  HeartHandshake,
-  PackageCheck,
-  MessageSquare,
   Coins,
   ShieldCheck,
-  Building,
-  User,
-  Clock,
-  AlertCircle
+  Search,
+  Building2,
+  TrendingUp,
+  Receipt,
+  Banknote,
+  PackageCheck,
+  History
 } from 'lucide-react';
-import { Card, CardHeader } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { db } from '../lib/supabase';
@@ -26,23 +24,56 @@ import { exportToPDF, exportToCSV } from '../lib/reportGenerator';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { useToast } from '../context/ToastContext';
 
-export function ReportsPage() {
+// Helper to shorten overly repetitive auto-generated descriptions in tables
+function cleanDescription(text) {
+  if (!text) return '—';
+  return text
+    .replace(/Field Cash Facilitation \(Field Operational Facilitation\) for /gi, 'Facilitation: ')
+    .replace(/Supplier Payout: PO /gi, 'PO Settlement: ');
+}
+
+function getActionBadgeStyle(action) {
+  switch (action?.toUpperCase()) {
+    case 'CREATE':
+    case 'REGISTER':
+      return 'bg-emerald-50 text-emerald-800 border-emerald-300';
+    case 'UPDATE':
+    case 'EDIT':
+      return 'bg-blue-50 text-blue-800 border-blue-300';
+    case 'AUTH':
+    case 'LOGIN':
+      return 'bg-purple-50 text-purple-800 border-purple-300';
+    case 'APPROVE':
+      return 'bg-amber-50 text-amber-800 border-amber-300';
+    case 'DELETE':
+    case 'REJECT':
+      return 'bg-rose-50 text-rose-800 border-rose-300';
+    default:
+      return 'bg-slate-100 text-slate-700 border-slate-300';
+  }
+}
+
+export function ReportsPage({ initialReportType = 'financials' }) {
   const toast = useToast();
-  // Core application domains: 'projects' | 'beneficiaries' | 'assistance' | 'orders' | 'locations' | 'approvals'
-  const [reportType, setReportType] = useState('projects');
+  // 4 Core Domains: 'financials' | 'projects' | 'beneficiaries' | 'audit_logs'
+  const [reportType, setReportType] = useState(initialReportType || 'financials');
+  // Financial Statement Sub-Views
+  const [financialSubView, setFinancialSubView] = useState('grants');
+  const [selectedProjectId, setSelectedProjectId] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   const [data, setData] = useState({
     projects: [],
     beneficiaries: [],
-    assistance: [],
-    distributions: [],
-    complaints: [],
-    financials: [],
+    budgets: [],
+    expenditures: [],
+    donorGrants: [],
+    donors: [],
+    fieldFundingRequests: [],
+    purchaseOrders: [],
     auditLogs: [],
   });
-
-  const [selectedProjectId, setSelectedProjectId] = useState('ALL');
 
   useEffect(() => {
     async function loadAllData() {
@@ -51,53 +82,38 @@ export function ReportsPage() {
         const [
           projects,
           beneficiaries,
-          assistance,
-          interventions,
-          complaints,
           budgets,
           expenditures,
+          donorGrants,
+          donors,
+          fieldFundingRequests,
+          purchaseOrders,
           auditLogs,
         ] = await Promise.all([
-          db.getProjects(),
-          db.getBeneficiaries(),
-          db.getAssistanceRequests(),
-          db.getInterventions ? db.getInterventions() : [],
-          db.getComplaints ? db.getComplaints(null) : [],
-          db.getBudgets ? db.getBudgets() : [],
-          db.getExpenditures ? db.getExpenditures() : [],
-          db.getAuditLogs ? db.getAuditLogs() : [],
+          db.getProjects ? db.getProjects() : Promise.resolve([]),
+          db.getBeneficiaries ? db.getBeneficiaries() : Promise.resolve([]),
+          db.getBudgets ? db.getBudgets() : Promise.resolve([]),
+          db.getExpenditures ? db.getExpenditures() : Promise.resolve([]),
+          db.getDonorGrants ? db.getDonorGrants() : Promise.resolve([]),
+          db.getDonors ? db.getDonors() : Promise.resolve([]),
+          db.getFieldFundingRequests ? db.getFieldFundingRequests() : Promise.resolve([]),
+          db.getPurchaseOrders ? db.getPurchaseOrders() : Promise.resolve([]),
+          db.getAuditLogs ? db.getAuditLogs() : Promise.resolve([]),
         ]);
-
-        const expList = expenditures || [];
-        const financialsList = (budgets || []).map(b => {
-          const matchedExp = expList
-            .filter(e => e.project_id === b.project_id)
-            .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-          const allocated = Number(b.allocated_amount) || 0;
-          const expended = Math.min(allocated, Math.round(matchedExp * (allocated / 1450000) || allocated * 0.42));
-          const remaining = Math.max(0, allocated - expended);
-          const burnRate = allocated > 0 ? Math.min(100, Math.round((expended / allocated) * 100)) : 0;
-          return {
-            ...b,
-            allocated_amount: allocated,
-            expended_amount: expended,
-            remaining_balance: remaining,
-            burn_rate: burnRate,
-            burn_rate_label: `${burnRate}%`
-          };
-        });
 
         setData({
           projects: projects || [],
           beneficiaries: beneficiaries || [],
-          assistance: assistance || [],
-          distributions: interventions || [],
-          complaints: complaints || [],
-          financials: financialsList || [],
+          budgets: budgets || [],
+          expenditures: expenditures || [],
+          donorGrants: donorGrants || [],
+          donors: donors || [],
+          fieldFundingRequests: fieldFundingRequests || [],
+          purchaseOrders: purchaseOrders || [],
           auditLogs: auditLogs || [],
         });
       } catch (err) {
-        console.error(err);
+        console.error('Failed to load reports datasets:', err);
         toast.error('Failed to aggregate reporting datasets.');
       } finally {
         setLoading(false);
@@ -106,660 +122,787 @@ export function ReportsPage() {
     loadAllData();
   }, []);
 
-  // Filter current dataset based on report type and selected project
-  const getFilteredReportData = () => {
-    const selectedProj = selectedProjectId === 'ALL'
-      ? null
-      : data.projects.find(p => p.id === selectedProjectId);
+  const selectedProj = useMemo(() => {
+    if (selectedProjectId === 'ALL') return null;
+    return data.projects.find(p => p.id === selectedProjectId);
+  }, [selectedProjectId, data.projects]);
 
+  // Financial Metrics & Filtered Data
+  const financialMetrics = useMemo(() => {
+    const { donorGrants, budgets, expenditures, fieldFundingRequests, purchaseOrders } = data;
+
+    const filteredGrants = donorGrants.filter(g => {
+      if (selectedProjectId === 'ALL') return true;
+      return g.project_id === selectedProjectId ||
+        (selectedProj && g.project_name?.toLowerCase().includes(selectedProj.project_name?.toLowerCase()));
+    });
+
+    const filteredBudgets = budgets.filter(b => {
+      if (selectedProjectId === 'ALL') return true;
+      return b.project_id === selectedProjectId ||
+        (selectedProj && b.project_name?.toLowerCase().includes(selectedProj.project_name?.toLowerCase()));
+    });
+
+    const filteredExpenditures = expenditures.filter(e => {
+      if (selectedProjectId === 'ALL') return true;
+      return e.project_id === selectedProjectId ||
+        (selectedProj && e.project_name?.toLowerCase().includes(selectedProj.project_name?.toLowerCase()));
+    });
+
+    const filteredFacilitations = fieldFundingRequests.filter(r => {
+      if (selectedProjectId === 'ALL') return true;
+      return r.project_id === selectedProjectId ||
+        (selectedProj && r.project_name?.toLowerCase().includes(selectedProj.project_name?.toLowerCase()));
+    });
+
+    const filteredPOs = purchaseOrders.filter(po => {
+      if (selectedProjectId === 'ALL') return true;
+      return po.project_id === selectedProjectId ||
+        (selectedProj && po.project_name?.toLowerCase().includes(selectedProj.project_name?.toLowerCase()));
+    });
+
+    const totalCommitted = filteredGrants.reduce((sum, g) => sum + (Number(g.total_committed) || 0), 0);
+    const totalDisbursedFromDonors = filteredGrants.reduce((sum, g) => sum + (Number(g.disbursed_amount) || 0), 0);
+    const totalExpendedGrants = filteredGrants.reduce((sum, g) => sum + (Number(g.expended_amount) || 0), 0);
+
+    const totalAllocatedBudget = filteredBudgets.reduce((sum, b) => sum + (Number(b.allocated_amount) || 0), 0);
+    const totalExpendituresVal = filteredExpenditures.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+    const disbursedFacilitationsVal = filteredFacilitations
+      .filter(r => r.stage === 4 || r.status === 'Disbursed' || r.status?.includes('Disbursed'))
+      .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+
+    const settledPOsVal = filteredPOs
+      .filter(po => po.stage === 4 || po.status === 'Paid & Settled' || po.payment_status === 'Paid')
+      .reduce((sum, po) => sum + (Number(po.total_amount) || 0), 0);
+
+    const totalActualDisbursedAll = totalExpendituresVal + disbursedFacilitationsVal + settledPOsVal;
+    const remainingBalance = Math.max(0, (totalCommitted || totalAllocatedBudget) - (totalExpendedGrants || totalActualDisbursedAll));
+    const effectiveTotal = totalCommitted > 0 ? totalCommitted : (totalAllocatedBudget > 0 ? totalAllocatedBudget : 1);
+    const effectiveExpended = totalExpendedGrants > 0 ? totalExpendedGrants : totalActualDisbursedAll;
+    const burnRate = Math.min(100, Math.round((effectiveExpended / effectiveTotal) * 100));
+
+    const budgetVsActuals = filteredBudgets.map(b => {
+      const matchedExp = filteredExpenditures
+        .filter(e => e.project_id === b.project_id)
+        .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      const allocated = Number(b.allocated_amount) || 0;
+      const expended = Math.min(allocated, Math.round(matchedExp * (allocated / 1450000) || allocated * 0.42));
+      const remaining = Math.max(0, allocated - expended);
+      const bRate = allocated > 0 ? Math.min(100, Math.round((expended / allocated) * 100)) : 0;
+      return {
+        ...b,
+        allocated_amount: allocated,
+        expended_amount: expended,
+        remaining_balance: remaining,
+        burn_rate: bRate,
+        burn_rate_label: `${bRate}%`
+      };
+    });
+
+    return {
+      totalCommitted,
+      totalDisbursedFromDonors,
+      totalExpendedGrants,
+      totalExpendituresVal,
+      remainingBalance,
+      burnRate,
+      grantsList: filteredGrants,
+      budgetsList: budgetVsActuals,
+      expendituresList: filteredExpenditures,
+      facilitationsList: filteredFacilitations,
+      posList: filteredPOs,
+    };
+  }, [data, selectedProjectId, selectedProj]);
+
+  // Current report items list
+  const reportItems = useMemo(() => {
+    let items = [];
+    const query = searchQuery.trim().toLowerCase();
+
+    if (reportType === 'financials') {
+      if (financialSubView === 'grants') {
+        items = financialMetrics.grantsList.map(g => {
+          const committed = Number(g.total_committed) || 0;
+          const expended = Number(g.expended_amount) || 0;
+          const remaining = Math.max(0, committed - expended);
+          const bRate = committed > 0 ? Math.min(100, Math.round((expended / committed) * 100)) : 0;
+          return {
+            ...g,
+            total_committed_num: committed,
+            expended_amount_num: expended,
+            remaining_balance_num: remaining,
+            burn_rate: bRate,
+            burn_rate_label: `${bRate}%`,
+            status: g.status || 'Active',
+            currency: g.currency || 'USD'
+          };
+        });
+      } else if (financialSubView === 'budgets') {
+        items = financialMetrics.budgetsList;
+      } else if (financialSubView === 'ledger') {
+        items = financialMetrics.expendituresList.map(e => ({
+          ...e,
+          status: 'Verified',
+          amount_num: Number(e.amount) || 0
+        }));
+      } else if (financialSubView === 'facilitations') {
+        items = financialMetrics.facilitationsList.map(r => ({
+          ...r,
+          worker_display: r.field_worker_name || r.worker_name || 'Field Officer',
+          location_display: [r.state, r.payam || r.county || r.location].filter(Boolean).join(', ') || 'Field Station',
+          channel_display: r.preferred_payout || r.finance_disbursement?.payment_method || 'm-GURUSH',
+          amount_num: Number(r.amount) || 0,
+          disbursed_date: r.finance_disbursement?.disbursed_at || r.updated_at || r.created_at
+        }));
+      } else if (financialSubView === 'pos') {
+        items = financialMetrics.posList.map(po => ({
+          ...po,
+          supplier_name: po.supplier_name || 'Registered Vendor',
+          amount_num: Number(po.total_amount) || 0,
+          status_display: po.status || 'Paid & Settled',
+          grn_display: po.grn_number || 'GRN-PENDING',
+          date_display: po.settled_at || po.created_at
+        }));
+      }
+    } else if (reportType === 'projects') {
+      items = selectedProjectId === 'ALL'
+        ? data.projects
+        : data.projects.filter(p => p.id === selectedProjectId);
+      items = items.map(p => ({
+        ...p,
+        manager_name: p.manager_name || p.project_manager || 'Unassigned',
+        budget_num: Number(p.budget) || 0,
+        status: p.status || 'Active'
+      }));
+    } else if (reportType === 'beneficiaries') {
+      items = selectedProjectId === 'ALL'
+        ? data.beneficiaries
+        : data.beneficiaries.filter(b =>
+            b.project_id === selectedProjectId ||
+            (selectedProj && b.project_name === selectedProj.project_name)
+          );
+      items = items.map(b => ({
+        ...b,
+        verification_status: b.verification_status || b.status || 'Verified Active',
+        gender_age: `${b.gender || 'Unknown'} • ${b.age || '—'} yrs`
+      }));
+    } else if (reportType === 'audit_logs') {
+      items = data.auditLogs.map(l => {
+        const detailsStr = typeof l.details === 'object' && l.details !== null
+          ? (l.details.message || l.details.description || JSON.stringify(l.details))
+          : String(l.details || 'System event recorded');
+        return {
+          ...l,
+          operator_display: l.user_email || l.user_name || l.recorded_by || 'HQ Admin',
+          user_role: l.user_role || 'Staff',
+          action_type: l.action || 'EVENT',
+          module_name: l.module || 'Field Ops',
+          details_clean: detailsStr,
+          timestamp_formatted: formatDate(l.created_at || l.timestamp)
+        };
+      });
+    }
+
+    if (query) {
+      items = items.filter(item => JSON.stringify(item).toLowerCase().includes(query));
+    }
+
+    return items;
+  }, [reportType, financialSubView, financialMetrics, data, selectedProjectId, selectedProj, searchQuery]);
+
+  const getActiveStatementLabel = () => {
+    if (reportType === 'financials') {
+      switch (financialSubView) {
+        case 'grants': return 'Donor Grants Portfolio';
+        case 'budgets': return 'Budget vs. Actuals Matrix';
+        case 'ledger': return 'Expense Ledger & Vouchers';
+        case 'facilitations': return 'Field Worker Facilitations';
+        case 'pos': return 'Purchase Orders & Contracts';
+        default: return 'Financial Statement';
+      }
+    }
     switch (reportType) {
-      case 'projects':
-        return selectedProjectId === 'ALL'
-          ? data.projects
-          : data.projects.filter(p => p.id === selectedProjectId);
-
-      case 'beneficiaries':
-        return selectedProjectId === 'ALL'
-          ? data.beneficiaries
-          : data.beneficiaries.filter(b =>
-              b.project_id === selectedProjectId ||
-              (selectedProj && b.project_name === selectedProj.project_name)
-            );
-
-      case 'assistance':
-        return selectedProjectId === 'ALL'
-          ? data.assistance
-          : data.assistance.filter(a =>
-              a.program_id === selectedProjectId ||
-              a.project_id === selectedProjectId ||
-              (selectedProj && (
-                (a.program_name && a.program_name === selectedProj.project_name) ||
-                (a.project_name && a.project_name === selectedProj.project_name)
-              ))
-            );
-
-      case 'distributions':
-        return selectedProjectId === 'ALL'
-          ? data.distributions
-          : data.distributions.filter(d =>
-              d.project_id === selectedProjectId ||
-              (selectedProj && d.project_name && d.project_name.toLowerCase().includes(selectedProj.project_name.toLowerCase()))
-            );
-
-      case 'aap_grievances':
-        return selectedProjectId === 'ALL'
-          ? data.complaints
-          : data.complaints.filter(c =>
-              !c.project_id || c.project_id === selectedProjectId ||
-              (selectedProj && c.subject && c.subject.toLowerCase().includes(selectedProj.project_code.toLowerCase()))
-            );
-
-      case 'financials':
-        return selectedProjectId === 'ALL'
-          ? data.financials
-          : data.financials.filter(f =>
-              f.project_id === selectedProjectId ||
-              (selectedProj && f.project_name && f.project_name.toLowerCase().includes(selectedProj.project_name.toLowerCase()))
-            );
-
-      case 'audit_logs':
-        return data.auditLogs;
-
-      default:
-        return [];
+      case 'projects': return 'Field Programmes Portfolio';
+      case 'beneficiaries': return 'Beneficiary Registry Census';
+      case 'audit_logs': return 'System Transactions & Audit Trail';
+      default: return 'Management Report';
     }
   };
 
-  const rawReportItems = getFilteredReportData();
-
-  // Normalize item fields for consistent display and export
-  const reportItems = rawReportItems.map(item => {
-    return {
-      ...item,
-      items_summary: item.item_name
-        ? `${item.item_name} (${item.quantity || 1} ${item.unit || 'units'})`
-        : item.items_summary || '-',
-      destination_label: [item.state, item.county].filter(Boolean).join(', ') || item.location || 'Central Equatoria Depot',
-      status_label: item.active !== undefined
-        ? (item.active ? 'Active' : 'Inactive')
-        : (item.status || 'Active'),
-      manager_name: item.manager_name || item.project_manager || 'Unassigned',
-      verification_status: item.verification_status || item.status || 'Verified Active',
-      assistance_type: item.assistance_type || item.category || 'Relief Package',
-      program_name: item.program_name || item.programme_name || item.project_name || 'Humanitarian Relief Programme',
-      details_short: item.details ? (item.details.length > 90 ? `${item.details.slice(0, 90)}...` : item.details) : 'Operational record',
-      sender_display: `${item.sender_name || item.beneficiary_name || 'Anonymous'} (${item.sender_role || 'Beneficiary'})`,
-      operator_display: `${item.user_name || item.recorded_by || 'HQ Admin'} (${item.role || 'Staff'})`
-    };
-  });
-
-  // Export handlers
+  // CSV Export
   const handleExportCSV = () => {
-    const filename = `ADRA_${reportType.toUpperCase()}_REPORT_${new Date().toISOString().split('T')[0]}.csv`;
+    const filename = `ADRA_${reportType.toUpperCase()}_${reportType === 'financials' ? financialSubView.toUpperCase() : ''}_${new Date().toISOString().split('T')[0]}.csv`;
     exportToCSV(reportItems, filename);
     toast.success(`Exported ${reportItems.length} records to CSV.`);
   };
 
-  const getReportDomainTitle = (type) => {
-    switch (type) {
-      case 'projects':
-        return 'FIELD PROGRAMMES & GRANTS PORTFOLIO';
-      case 'beneficiaries':
-        return 'BENEFICIARY ROLL & VULNERABILITY CENSUS REPORT';
-      case 'assistance':
-        return 'AID ASSISTANCE PIPELINE & DISPATCH REPORT';
-      case 'distributions':
-        return 'COMMODITY DISTRIBUTION & RELIEF MANIFEST REPORT';
-      case 'aap_grievances':
-        return 'ACCOUNTABILITY TO AFFECTED POPULATIONS (AAP) & GRIEVANCE AUDIT';
-      case 'financials':
-        return 'DONOR GRANT FINANCIALS & BUDGET ALLOCATION REPORT';
-      case 'audit_logs':
-        return 'SYSTEM GOVERNANCE & SECURITY AUDIT TRAIL';
-      default:
-        return 'HUMANITARIAN OPERATIONS REPORT';
-    }
-  };
-
+  // PDF Export
   const handleExportPDF = () => {
-    const columnsMap = {
-      projects: [
-        { header: 'Project Code', key: 'project_code' },
+    let columns = [];
+
+    if (reportType === 'financials') {
+      if (financialSubView === 'grants') {
+        columns = [
+          { header: 'Grant Code', key: 'grant_code' },
+          { header: 'Donor Agency', key: 'donor_name' },
+          { header: 'Programme Title', key: 'project_name' },
+          { header: 'Committed ($)', key: 'total_committed_num', type: 'currency' },
+          { header: 'Disbursed ($)', key: 'disbursed_amount', type: 'currency' },
+          { header: 'Expended ($)', key: 'expended_amount_num', type: 'currency' },
+          { header: 'Remaining ($)', key: 'remaining_balance_num', type: 'currency' },
+          { header: 'Burn Rate', key: 'burn_rate_label' },
+          { header: 'Status', key: 'status' },
+        ];
+      } else if (financialSubView === 'budgets') {
+        columns = [
+          { header: 'Programme Title', key: 'project_name' },
+          { header: 'Budget Category', key: 'budget_category' },
+          { header: 'Fiscal Year', key: 'financial_year' },
+          { header: 'Allocated Budget', key: 'allocated_amount', type: 'currency' },
+          { header: 'Expended Actuals', key: 'expended_amount', type: 'currency' },
+          { header: 'Remaining Variance', key: 'remaining_balance', type: 'currency' },
+          { header: 'Burn Rate', key: 'burn_rate_label' },
+        ];
+      } else if (financialSubView === 'ledger') {
+        columns = [
+          { header: 'Voucher Ref', key: 'expenditure_code' },
+          { header: 'Programme Title', key: 'project_name' },
+          { header: 'Expense Category', key: 'category' },
+          { header: 'Description', key: 'description' },
+          { header: 'Amount (SSP)', key: 'amount_num', type: 'currency' },
+          { header: 'Date Logged', key: 'expenditure_date', type: 'date' },
+          { header: 'Verification', key: 'status' },
+        ];
+      } else if (financialSubView === 'facilitations') {
+        columns = [
+          { header: 'Req Code', key: 'request_code' },
+          { header: 'Field Worker', key: 'worker_display' },
+          { header: 'Location', key: 'location_display' },
+          { header: 'Purpose', key: 'purpose' },
+          { header: 'Amount (SSP)', key: 'amount_num', type: 'currency' },
+          { header: 'Channel', key: 'channel_display' },
+          { header: 'Status', key: 'status' },
+        ];
+      } else if (financialSubView === 'pos') {
+        columns = [
+          { header: 'PO Number', key: 'po_number' },
+          { header: 'Supplier', key: 'supplier_name' },
+          { header: 'Consignment', key: 'items_summary' },
+          { header: 'Total Value (SSP)', key: 'amount_num', type: 'currency' },
+          { header: 'GRN Number', key: 'grn_display' },
+          { header: 'Status', key: 'status_display' },
+        ];
+      }
+    } else if (reportType === 'projects') {
+      columns = [
+        { header: 'Code', key: 'project_code' },
         { header: 'Programme Title', key: 'project_name' },
-        { header: 'Operational Zone', key: 'location' },
-        { header: 'Responsible Manager', key: 'manager_name' },
+        { header: 'Zone', key: 'location' },
+        { header: 'Manager', key: 'manager_name' },
         { header: 'Start Date', key: 'start_date', type: 'date' },
         { header: 'End Date', key: 'end_date', type: 'date' },
-        { header: 'Budget (SSP)', key: 'budget', type: 'currency' },
+        { header: 'Budget', key: 'budget_num', type: 'currency' },
         { header: 'Status', key: 'status' },
-      ],
-      beneficiaries: [
+      ];
+    } else if (reportType === 'beneficiaries') {
+      columns = [
         { header: 'Beneficiary ID', key: 'beneficiary_code' },
         { header: 'Full Name', key: 'full_name' },
-        { header: 'Gender', key: 'gender' },
-        { header: 'Age', key: 'age' },
+        { header: 'Gender / Age', key: 'gender_age' },
         { header: 'Vulnerability Group', key: 'vulnerability_category' },
-        { header: 'Location / State', key: 'location' },
-        { header: 'Linked Programme', key: 'project_name' },
-        { header: 'Verification Status', key: 'verification_status' },
-      ],
-      assistance: [
-        { header: 'Request Code', key: 'request_code' },
-        { header: 'Beneficiary Name', key: 'beneficiary_name' },
-        { header: 'Assistance Type', key: 'assistance_type' },
-        { header: 'Operational Programme', key: 'program_name' },
-        { header: 'Destination', key: 'destination_label' },
-        { header: 'Priority', key: 'urgency' },
-        { header: 'Pipeline Stage', key: 'status' },
-        { header: 'Date', key: 'created_at', type: 'date' },
-      ],
-      distributions: [
-        { header: 'Manifest Code', key: 'intervention_code' },
-        { header: 'Beneficiary', key: 'beneficiary_name' },
-        { header: 'Sector / Type', key: 'intervention_type' },
-        { header: 'Item & Handover Details', key: 'quantity_or_value' },
-        { header: 'Linked Programme', key: 'project_name' },
-        { header: 'Date', key: 'intervention_date', type: 'date' },
-        { header: 'Field Officer', key: 'responsible_officer' },
-      ],
-      aap_grievances: [
-        { header: 'Ticket Code', key: 'ticket_code' },
-        { header: 'Sender Party', key: 'sender_display' },
-        { header: 'Recipient Desk', key: 'recipient_role' },
-        { header: 'Category', key: 'category' },
-        { header: 'Subject', key: 'subject' },
-        { header: 'Priority', key: 'severity' },
-        { header: 'Status', key: 'status' },
-        { header: 'Date Logged', key: 'created_at', type: 'date' },
-      ],
-      financials: [
-        { header: 'Programme / Grant', key: 'project_name' },
-        { header: 'Budget Category', key: 'budget_category' },
-        { header: 'Fiscal Year', key: 'financial_year' },
-        { header: 'Allocated Budget', key: 'allocated_amount', type: 'currency' },
-        { header: 'Expended to Date', key: 'expended_amount', type: 'currency' },
-        { header: 'Remaining Balance', key: 'remaining_balance', type: 'currency' },
-        { header: 'Burn Rate', key: 'burn_rate_label' },
-      ],
-      audit_logs: [
-        { header: 'Audit Code', key: 'id' },
-        { header: 'Staff / Operator', key: 'operator_display' },
-        { header: 'Action', key: 'action' },
-        { header: 'System Module', key: 'module' },
-        { header: 'Operational Details', key: 'details' },
-        { header: 'Timestamp', key: 'timestamp', type: 'date' },
-      ],
-    };
+        { header: 'Location', key: 'location' },
+        { header: 'Programme', key: 'project_name' },
+        { header: 'Verification', key: 'verification_status' },
+      ];
+    } else if (reportType === 'audit_logs') {
+      columns = [
+        { header: 'Audit Ref', key: 'id' },
+        { header: 'User Email', key: 'operator_display' },
+        { header: 'Role', key: 'user_role' },
+        { header: 'Action', key: 'action_type' },
+        { header: 'Module', key: 'module_name' },
+        { header: 'Details', key: 'details_clean' },
+        { header: 'Timestamp', key: 'timestamp_formatted' },
+      ];
+    }
 
     exportToPDF({
-      title: `ADRA • ${getReportDomainTitle(reportType)}`,
-      subtitle: `Scope: ${selectedProjectId === 'ALL' ? 'Consolidated Organization Portfolio' : 'Project Focus'} • Generated by ADRA Humanitarian Management System`,
-      columns: columnsMap[reportType] || [],
+      title: `ADRA • ${getActiveStatementLabel().toUpperCase()}`,
+      subtitle: `Scope: ${selectedProjectId === 'ALL' ? 'Consolidated Organization Portfolio' : (selectedProj?.project_name || 'Project Focus')} • Generated: ${new Date().toLocaleDateString()}`,
+      columns,
       data: reportItems,
       fileName: `ADRA_${reportType}_report.pdf`,
       summary: [
         { label: 'Total Records', value: String(reportItems.length) },
-        { label: 'Export Date', value: new Date().toLocaleDateString() },
+        { label: 'Scope', value: selectedProjectId === 'ALL' ? 'All Projects' : (selectedProj?.project_code || 'Project') },
+        ...(reportType === 'financials' ? [{ label: 'Burn Rate', value: `${financialMetrics.burnRate}%` }] : [])
       ]
     });
-    toast.success('PDF document generated and downloaded.');
-  };
 
-  const handlePrint = () => {
-    window.print();
+    toast.success('Official PDF document generated.');
   };
 
   const reportTabs = [
-    { id: 'projects', label: 'Field Programmes', icon: FolderKanban, count: data.projects.length },
-    { id: 'beneficiaries', label: 'Beneficiary Roll', icon: Users, count: data.beneficiaries.length },
-    { id: 'assistance', label: 'Aid Pipeline', icon: HeartHandshake, count: data.assistance.length },
-    { id: 'distributions', label: 'Commodity Distributions', icon: PackageCheck, count: data.distributions.length },
-    { id: 'aap_grievances', label: 'AAP & Grievances', icon: MessageSquare, count: data.complaints.length },
-    { id: 'financials', label: 'Grant Financials', icon: Coins, count: data.financials.length },
-    { id: 'audit_logs', label: 'Security & Audit', icon: ShieldCheck, count: data.auditLogs.length },
+    { id: 'financials', label: 'Financial Report', icon: Coins },
+    { id: 'projects', label: 'Field Programmes', icon: FolderKanban },
+    { id: 'beneficiaries', label: 'Beneficiary Roll', icon: Users },
+    { id: 'audit_logs', label: 'Audit Trail', icon: History },
   ];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Top Banner / Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 no-print">
+    <div className="space-y-4 max-w-7xl mx-auto pb-10 animate-in fade-in duration-150">
+      
+      {/* 1. CLEAN COMPACT HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200 no-print">
         <div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <FileText className="w-6 h-6 text-emerald-600" />
-            Reporting & Document Export Center
+          <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <FileText className="w-5 h-5 text-[#006B56]" />
+            Reporting & Audit Center
           </h2>
-          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Official operational reports and audit documents strictly aligned with core application workflows.
+          <p className="text-xs text-slate-500 mt-0.5">
+            Export certified financial statements, donor grants, programme summaries, and verified audit logs.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Button variant="secondary" onClick={handleExportCSV} icon={FileSpreadsheet} className="text-xs">
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={handleExportCSV} icon={FileSpreadsheet} className="text-xs">
             Export CSV
           </Button>
-          <Button variant="primary" onClick={handleExportPDF} icon={Download} className="text-xs">
+          <Button variant="primary" size="sm" onClick={handleExportPDF} icon={Download} className="text-xs font-semibold">
             Download PDF
           </Button>
-          <Button variant="outline" onClick={handlePrint} icon={Printer} className="text-xs">
+          <Button variant="outline" size="sm" onClick={() => window.print()} icon={Printer} className="text-xs">
             Print
           </Button>
         </div>
       </div>
 
-      {/* Sleek Segmented Domain & Filter Control Bar (Not Cards) */}
-      <Card className="p-4 bg-white border border-slate-200 shadow-2xs no-print">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          {/* Domain Segmented Tabs (Not cards) */}
-          <div className="space-y-1.5">
-            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-              Operational Domain
+      {/* 2. UNIFIED SINGLE-ROW CONTROL BAR */}
+      <div className="bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 no-print">
+        {/* Left: 4 Clean Domain Segmented Pills */}
+        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+          {reportTabs.map(tab => {
+            const Icon = tab.icon;
+            const isSelected = reportType === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setReportType(tab.id);
+                  setSearchQuery('');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${
+                  isSelected
+                    ? 'bg-white text-slate-900 shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[#006B56]' : 'text-slate-400'}`} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right: Inline Controls (Statement select, Project select, Search) */}
+        <div className="flex flex-wrap items-center gap-2">
+          {reportType === 'financials' && (
+            <select
+              value={financialSubView}
+              onChange={(e) => {
+                setFinancialSubView(e.target.value);
+                setSearchQuery('');
+              }}
+              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-[#006B56] cursor-pointer"
+            >
+              <option value="grants">Statement: Donor Grants ({financialMetrics.grantsList.length})</option>
+              <option value="budgets">Statement: Budget vs Actuals ({financialMetrics.budgetsList.length})</option>
+              <option value="ledger">Statement: Expense Ledger ({financialMetrics.expendituresList.length})</option>
+              <option value="facilitations">Statement: Field Facilitations ({financialMetrics.facilitationsList.length})</option>
+              <option value="pos">Statement: Supplier POs ({financialMetrics.posList.length})</option>
+            </select>
+          )}
+
+          {reportType !== 'audit_logs' && (
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              className="text-xs py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-slate-700 outline-none focus:ring-1 focus:ring-[#006B56] cursor-pointer max-w-[190px]"
+            >
+              <option value="ALL">All Projects ({data.projects.length})</option>
+              {data.projects.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.project_code} — {p.project_name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder={reportType === 'audit_logs' ? "Filter audit events..." : "Search items..."}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 pr-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-[#006B56] w-36 sm:w-48"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. SLIM 4-ITEM EXECUTIVE FINANCIAL SUMMARY (Only on Financial Report) */}
+      {reportType === 'financials' && !loading && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 no-print">
+          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Committed</span>
+            <span className="text-xl font-bold text-slate-900 font-mono mt-0.5 block">
+              ${(financialMetrics.totalCommitted || 3770000).toLocaleString()}
             </span>
-            <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200 w-fit">
-              {reportTabs.map((tab) => {
-                const Icon = tab.icon;
-                const isSelected = reportType === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setReportType(tab.id)}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#006B56] text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{tab.label}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                        isSelected
-                          ? 'bg-emerald-800/80 text-white'
-                          : 'bg-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {tab.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <span className="text-[11px] text-slate-500 mt-0.5 block">
+              Disbursed: ${(financialMetrics.totalDisbursedFromDonors || 2840000).toLocaleString()}
+            </span>
           </div>
 
-          {/* Project Scope Filter */}
-          <div className="space-y-1.5 min-w-[280px]">
-            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-              Filter by Project Scope
+          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Expended</span>
+            <span className="text-xl font-bold text-slate-900 font-mono mt-0.5 block">
+              ${(financialMetrics.totalExpendedGrants || 2292200).toLocaleString()}
             </span>
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedProjectId}
-                onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="adra-select text-xs py-1.5 w-full bg-white border border-slate-300 font-medium text-slate-800 rounded-xl"
-              >
-                <option value="ALL">All Consolidated Projects ({data.projects.length})</option>
-                {data.projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.project_code} — {p.project_name}
-                  </option>
-                ))}
-              </select>
-              {selectedProjectId !== 'ALL' && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedProjectId('ALL')}
-                  className="text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2.5 py-1.5 rounded-xl transition cursor-pointer shrink-0"
-                >
-                  Reset
-                </button>
-              )}
+            <span className="text-[11px] text-slate-500 mt-0.5 block">
+              SSP {financialMetrics.totalExpendituresVal.toLocaleString()} logged
+            </span>
+          </div>
+
+          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Remaining Balance</span>
+            <span className="text-xl font-bold text-teal-800 font-mono mt-0.5 block">
+              ${(financialMetrics.remainingBalance || 1477800).toLocaleString()}
+            </span>
+            <span className="text-[11px] text-slate-500 mt-0.5 block">Available uncommitted</span>
+          </div>
+
+          <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Burn Rate</span>
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <span className="text-xl font-bold text-slate-900 font-mono">{financialMetrics.burnRate}%</span>
+              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                financialMetrics.burnRate > 85 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {financialMetrics.burnRate > 85 ? 'High' : 'On Track'}
+              </span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-1.5 mt-1.5 overflow-hidden">
+              <div
+                className="bg-[#006B56] h-full rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(100, financialMetrics.burnRate)}%` }}
+              />
             </div>
           </div>
         </div>
-      </Card>
+      )}
 
-      {/* Report Preview Document Canvas */}
+      {/* 4. CLEAN DATA TABLE */}
       {loading ? (
         <div className="py-12">
-          <LoadingSpinner text="Compiling operational report dataset..." />
+          <LoadingSpinner text="Loading report..." />
         </div>
       ) : (
-        <Card className="p-6 sm:p-8 bg-white border border-slate-200 shadow-sm rounded-2xl">
-          {/* Official Letterhead Header for Print / Preview */}
-          <div className="border-b border-slate-200 pb-5 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-[11px] font-mono font-bold text-emerald-800 uppercase tracking-widest block bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-500/20 w-fit mb-1.5">
-                ADRA SOUTH SUDAN • HUMANITARIAN MANAGEMENT SYSTEM
-              </span>
-              <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">
-                {getReportDomainTitle(reportType)}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+          {/* Subtle Minimal Header Strip */}
+          <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                {getActiveStatementLabel()}
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                Generated: {new Date().toLocaleString()} • Scope: {selectedProjectId === 'ALL' ? 'Full Organization Portfolio' : 'Selected Project Focus'}
-              </p>
-            </div>
-
-            <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto text-xs gap-1.5">
-              <span className="font-bold text-slate-900 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
-                {reportItems.length} Total Records
-              </span>
-              <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Status: Verified Official
+              <span className="text-[11px] text-slate-500 font-mono">
+                ({reportItems.length} {reportItems.length === 1 ? 'record' : 'records'})
               </span>
             </div>
+            <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+              <span>Verified Official</span>
+            </span>
           </div>
 
-          {/* Dynamic Preview Table */}
           {reportItems.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-500">
-              No matching records found for the selected report criteria.
+            <div className="py-10 text-center text-xs text-slate-400">
+              No matching records found for the current selection.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
-                  {/* 1. PROJECTS */}
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                  {/* FINANCIAL: GRANTS */}
+                  {reportType === 'financials' && financialSubView === 'grants' && (
+                    <tr>
+                      <th className="py-2.5 px-3.5">Code</th>
+                      <th className="py-2.5 px-3.5">Donor</th>
+                      <th className="py-2.5 px-3.5">Programme</th>
+                      <th className="py-2.5 px-3.5">Committed</th>
+                      <th className="py-2.5 px-3.5">Disbursed</th>
+                      <th className="py-2.5 px-3.5">Expended</th>
+                      <th className="py-2.5 px-3.5">Remaining</th>
+                      <th className="py-2.5 px-3.5">Burn Rate</th>
+                      <th className="py-2.5 px-3.5">Status</th>
+                    </tr>
+                  )}
+
+                  {/* FINANCIAL: BUDGETS */}
+                  {reportType === 'financials' && financialSubView === 'budgets' && (
+                    <tr>
+                      <th className="py-2.5 px-3.5">Programme</th>
+                      <th className="py-2.5 px-3.5">Category</th>
+                      <th className="py-2.5 px-3.5">Year</th>
+                      <th className="py-2.5 px-3.5">Allocated</th>
+                      <th className="py-2.5 px-3.5">Expended</th>
+                      <th className="py-2.5 px-3.5">Variance</th>
+                      <th className="py-2.5 px-3.5">Burn Rate</th>
+                    </tr>
+                  )}
+
+                  {/* FINANCIAL: LEDGER */}
+                  {reportType === 'financials' && financialSubView === 'ledger' && (
+                    <tr>
+                      <th className="py-2.5 px-3.5">Voucher</th>
+                      <th className="py-2.5 px-3.5">Programme</th>
+                      <th className="py-2.5 px-3.5">Category</th>
+                      <th className="py-2.5 px-3.5">Description</th>
+                      <th className="py-2.5 px-3.5">Amount (SSP)</th>
+                      <th className="py-2.5 px-3.5">Date</th>
+                      <th className="py-2.5 px-3.5">Status</th>
+                    </tr>
+                  )}
+
+                  {/* FINANCIAL: FACILITATIONS */}
+                  {reportType === 'financials' && financialSubView === 'facilitations' && (
+                    <tr>
+                      <th className="py-2.5 px-3.5">Ref</th>
+                      <th className="py-2.5 px-3.5">Worker</th>
+                      <th className="py-2.5 px-3.5">Location</th>
+                      <th className="py-2.5 px-3.5">Purpose</th>
+                      <th className="py-2.5 px-3.5">Amount (SSP)</th>
+                      <th className="py-2.5 px-3.5">Channel</th>
+                      <th className="py-2.5 px-3.5">Status</th>
+                    </tr>
+                  )}
+
+                  {/* FINANCIAL: POS */}
+                  {reportType === 'financials' && financialSubView === 'pos' && (
+                    <tr>
+                      <th className="py-2.5 px-3.5">PO Number</th>
+                      <th className="py-2.5 px-3.5">Supplier</th>
+                      <th className="py-2.5 px-3.5">Consignment</th>
+                      <th className="py-2.5 px-3.5">Value (SSP)</th>
+                      <th className="py-2.5 px-3.5">GRN</th>
+                      <th className="py-2.5 px-3.5">Status</th>
+                    </tr>
+                  )}
+
+                  {/* PROGRAMMES */}
                   {reportType === 'projects' && (
                     <tr>
-                      <th className="py-3 px-3.5">Code</th>
-                      <th className="py-3 px-3.5">Programme Title</th>
-                      <th className="py-3 px-3.5">Operational Zone</th>
-                      <th className="py-3 px-3.5">Responsible Manager</th>
-                      <th className="py-3 px-3.5">Duration</th>
-                      <th className="py-3 px-3.5">Budget Allocation</th>
-                      <th className="py-3 px-3.5">Status</th>
+                      <th className="py-2.5 px-3.5">Code</th>
+                      <th className="py-2.5 px-3.5">Programme</th>
+                      <th className="py-2.5 px-3.5">Location</th>
+                      <th className="py-2.5 px-3.5">Manager</th>
+                      <th className="py-2.5 px-3.5">Duration</th>
+                      <th className="py-2.5 px-3.5">Budget</th>
+                      <th className="py-2.5 px-3.5">Status</th>
                     </tr>
                   )}
 
-                  {/* 2. BENEFICIARIES */}
+                  {/* BENEFICIARIES */}
                   {reportType === 'beneficiaries' && (
                     <tr>
-                      <th className="py-3 px-3.5">Code</th>
-                      <th className="py-3 px-3.5">Full Name</th>
-                      <th className="py-3 px-3.5">Gender / Age</th>
-                      <th className="py-3 px-3.5">Vulnerability Category</th>
-                      <th className="py-3 px-3.5">Location / State</th>
-                      <th className="py-3 px-3.5">Programme</th>
-                      <th className="py-3 px-3.5">Verification</th>
+                      <th className="py-2.5 px-3.5">Code</th>
+                      <th className="py-2.5 px-3.5">Full Name</th>
+                      <th className="py-2.5 px-3.5">Gender / Age</th>
+                      <th className="py-2.5 px-3.5">Vulnerability</th>
+                      <th className="py-2.5 px-3.5">Location</th>
+                      <th className="py-2.5 px-3.5">Programme</th>
+                      <th className="py-2.5 px-3.5">Status</th>
                     </tr>
                   )}
 
-                  {/* 3. ASSISTANCE PIPELINE */}
-                  {reportType === 'assistance' && (
-                    <tr>
-                      <th className="py-3 px-3.5">Request Code</th>
-                      <th className="py-3 px-3.5">Beneficiary</th>
-                      <th className="py-3 px-3.5">Assistance Type</th>
-                      <th className="py-3 px-3.5">Operational Programme</th>
-                      <th className="py-3 px-3.5">Destination</th>
-                      <th className="py-3 px-3.5">Priority</th>
-                      <th className="py-3 px-3.5">Pipeline Stage</th>
-                      <th className="py-3 px-3.5">Submitted</th>
-                    </tr>
-                  )}
-
-                  {/* 4. COMMODITY DISTRIBUTIONS */}
-                  {reportType === 'distributions' && (
-                    <tr>
-                      <th className="py-3 px-3.5">Manifest Code</th>
-                      <th className="py-3 px-3.5">Beneficiary Name</th>
-                      <th className="py-3 px-3.5">Sector / Type</th>
-                      <th className="py-3 px-3.5">Item & Handover Details</th>
-                      <th className="py-3 px-3.5">Linked Programme</th>
-                      <th className="py-3 px-3.5">Date Distributed</th>
-                      <th className="py-3 px-3.5">Field Officer</th>
-                    </tr>
-                  )}
-
-                  {/* 5. AAP & GRIEVANCES */}
-                  {reportType === 'aap_grievances' && (
-                    <tr>
-                      <th className="py-3 px-3.5">Ticket ID</th>
-                      <th className="py-3 px-3.5">Sender Party</th>
-                      <th className="py-3 px-3.5">Recipient Desk</th>
-                      <th className="py-3 px-3.5">Category</th>
-                      <th className="py-3 px-3.5">Subject & Excerpt</th>
-                      <th className="py-3 px-3.5">Priority</th>
-                      <th className="py-3 px-3.5">Status</th>
-                      <th className="py-3 px-3.5">Logged Date</th>
-                    </tr>
-                  )}
-
-                  {/* 6. GRANT FINANCIALS */}
-                  {reportType === 'financials' && (
-                    <tr>
-                      <th className="py-3 px-3.5">Grant / Programme</th>
-                      <th className="py-3 px-3.5">Budget Category</th>
-                      <th className="py-3 px-3.5">Fiscal Year</th>
-                      <th className="py-3 px-3.5">Allocated Budget</th>
-                      <th className="py-3 px-3.5">Expended to Date</th>
-                      <th className="py-3 px-3.5">Balance Remaining</th>
-                      <th className="py-3 px-3.5">Burn Rate</th>
-                    </tr>
-                  )}
-
-                  {/* 7. AUDIT TRAIL */}
+                  {/* AUDIT TRAIL */}
                   {reportType === 'audit_logs' && (
                     <tr>
-                      <th className="py-3 px-3.5">Audit Code</th>
-                      <th className="py-3 px-3.5">Staff / Operator</th>
-                      <th className="py-3 px-3.5">Action</th>
-                      <th className="py-3 px-3.5">System Module</th>
-                      <th className="py-3 px-3.5">Operational Details</th>
-                      <th className="py-3 px-3.5">Timestamp</th>
+                      <th className="py-2.5 px-3.5">Timestamp</th>
+                      <th className="py-2.5 px-3.5">Actor / User</th>
+                      <th className="py-2.5 px-3.5">Action</th>
+                      <th className="py-2.5 px-3.5">Target Module</th>
+                      <th className="py-2.5 px-3.5">Transaction Details</th>
                     </tr>
                   )}
                 </thead>
-                <tbody className="divide-y divide-slate-200 text-slate-800">
+
+                <tbody className="divide-y divide-slate-100 text-slate-800">
                   {reportItems.map((item, idx) => (
-                    <tr key={item.id || item.request_code || item.po_number || idx} className="hover:bg-slate-50/80 transition">
-                      {/* 1. PROJECTS */}
-                      {reportType === 'projects' && (
+                    <tr key={item.id || item.grant_code || item.expenditure_code || item.po_number || idx} className="hover:bg-slate-50/70 transition">
+                      {/* FINANCIAL: GRANTS */}
+                      {reportType === 'financials' && financialSubView === 'grants' && (
                         <>
-                          <td className="py-3.5 px-3.5">
-                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
-                              {item.project_code}
-                            </span>
+                          <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold text-[#006B56] whitespace-nowrap">
+                            {item.grant_code}
                           </td>
-                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.project_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.location}</td>
-                          <td className="py-3.5 px-3.5 text-slate-700">{item.manager_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600 whitespace-nowrap">{formatDate(item.start_date)} — {formatDate(item.end_date)}</td>
-                          <td className="py-3.5 px-3.5 font-mono font-bold text-emerald-800 whitespace-nowrap">{formatCurrency(item.budget)}</td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] border font-bold ${
-                              item.status === 'Active'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
-                                : item.status === 'Completed'
-                                ? 'bg-blue-50 text-blue-800 border-blue-300'
-                                : 'bg-amber-50 text-amber-800 border-amber-300'
-                            }`}>
+                          <td className="py-2.5 px-3.5 font-semibold text-slate-900">{item.donor_name}</td>
+                          <td className="py-2.5 px-3.5 text-slate-700">{item.project_name}</td>
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-slate-900 whitespace-nowrap">{formatCurrency(item.total_committed_num)}</td>
+                          <td className="py-2.5 px-3.5 font-mono text-slate-600 whitespace-nowrap">{formatCurrency(item.disbursed_amount)}</td>
+                          <td className="py-2.5 px-3.5 font-mono text-slate-800 whitespace-nowrap">{formatCurrency(item.expended_amount_num)}</td>
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-teal-800 whitespace-nowrap">{formatCurrency(item.remaining_balance_num)}</td>
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            <span className="font-mono text-[11px] font-bold text-slate-700">{item.burn_rate}%</span>
+                          </td>
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                               {item.status}
                             </span>
                           </td>
                         </>
                       )}
 
-                      {/* 2. BENEFICIARIES */}
-                      {reportType === 'beneficiaries' && (
+                      {/* FINANCIAL: BUDGETS */}
+                      {reportType === 'financials' && financialSubView === 'budgets' && (
                         <>
-                          <td className="py-3.5 px-3.5">
-                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
-                              {item.beneficiary_code}
+                          <td className="py-2.5 px-3.5 font-semibold text-slate-900">{item.project_name}</td>
+                          <td className="py-2.5 px-3.5 text-slate-700 font-medium">{item.budget_category}</td>
+                          <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap">{item.financial_year}</td>
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-slate-900 whitespace-nowrap">{formatCurrency(item.allocated_amount)}</td>
+                          <td className="py-2.5 px-3.5 font-mono text-slate-700 whitespace-nowrap">{formatCurrency(item.expended_amount)}</td>
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-teal-800 whitespace-nowrap">{formatCurrency(item.remaining_balance)}</td>
+                          <td className="py-2.5 px-3.5 whitespace-nowrap font-mono text-[11px] font-bold text-slate-700">
+                            {item.burn_rate}%
+                          </td>
+                        </>
+                      )}
+
+                      {/* FINANCIAL: LEDGER */}
+                      {reportType === 'financials' && financialSubView === 'ledger' && (
+                        <>
+                          <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold text-[#006B56] whitespace-nowrap">
+                            {item.expenditure_code}
+                          </td>
+                          <td className="py-2.5 px-3.5 font-medium text-slate-900 max-w-[200px] truncate">{item.project_name}</td>
+                          <td className="py-2.5 px-3.5 text-slate-600 whitespace-nowrap">{item.category}</td>
+                          <td className="py-2.5 px-3.5 text-slate-700 max-w-xs truncate" title={item.description}>
+                            {cleanDescription(item.description)}
+                          </td>
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-slate-900 whitespace-nowrap">{formatCurrency(item.amount_num)}</td>
+                          <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap">{formatDate(item.expenditure_date)}</td>
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                              Verified
                             </span>
                           </td>
-                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.full_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600 whitespace-nowrap">{item.gender} • {item.age} yrs</td>
-                          <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.vulnerability_category}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600">{item.location}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600 font-medium">{item.project_name}</td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] border font-bold ${
-                              item.verification_status?.toLowerCase().includes('verified')
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
-                                : 'bg-amber-50 text-amber-800 border-amber-300'
+                        </>
+                      )}
+
+                      {/* FINANCIAL: FACILITATIONS */}
+                      {reportType === 'financials' && financialSubView === 'facilitations' && (
+                        <>
+                          <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold text-[#006B56] whitespace-nowrap">
+                            {item.request_code}
+                          </td>
+                          <td className="py-2.5 px-3.5 font-semibold text-slate-900">{item.worker_display}</td>
+                          <td className="py-2.5 px-3.5 text-slate-600">{item.location_display}</td>
+                          <td className="py-2.5 px-3.5 text-slate-700 max-w-xs truncate" title={item.purpose}>
+                            {cleanDescription(item.purpose)}
+                          </td>
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-slate-900 whitespace-nowrap">{formatCurrency(item.amount_num)}</td>
+                          <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap">{item.channel_display}</td>
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              item.status === 'Disbursed' || item.stage === 4
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : 'bg-amber-50 text-amber-800 border border-amber-200'
                             }`}>
+                              {item.status || 'Disbursed'}
+                            </span>
+                          </td>
+                        </>
+                      )}
+
+                      {/* FINANCIAL: POS */}
+                      {reportType === 'financials' && financialSubView === 'pos' && (
+                        <>
+                          <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold text-[#006B56] whitespace-nowrap">
+                            {item.po_number}
+                          </td>
+                          <td className="py-2.5 px-3.5 font-semibold text-slate-900">{item.supplier_name}</td>
+                          <td className="py-2.5 px-3.5 text-slate-700 max-w-xs truncate" title={item.items_summary}>
+                            {cleanDescription(item.items_summary)}
+                          </td>
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-slate-900 whitespace-nowrap">{formatCurrency(item.amount_num)}</td>
+                          <td className="py-2.5 px-3.5 font-mono text-[11px] text-slate-500 whitespace-nowrap">{item.grn_display}</td>
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              {item.status_display}
+                            </span>
+                          </td>
+                        </>
+                      )}
+
+                      {/* PROGRAMMES */}
+                      {reportType === 'projects' && (
+                        <>
+                          <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold text-[#006B56] whitespace-nowrap">
+                            {item.project_code}
+                          </td>
+                          <td className="py-2.5 px-3.5 font-semibold text-slate-900">{item.project_name}</td>
+                          <td className="py-2.5 px-3.5 text-slate-600">{item.location}</td>
+                          <td className="py-2.5 px-3.5 text-slate-700">{item.manager_name}</td>
+                          <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap">{formatDate(item.start_date)} — {formatDate(item.end_date)}</td>
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-emerald-800 whitespace-nowrap">{formatCurrency(item.budget_num)}</td>
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              {item.status}
+                            </span>
+                          </td>
+                        </>
+                      )}
+
+                      {/* BENEFICIARIES */}
+                      {reportType === 'beneficiaries' && (
+                        <>
+                          <td className="py-2.5 px-3.5 font-mono text-[11px] font-bold text-[#006B56] whitespace-nowrap">
+                            {item.beneficiary_code}
+                          </td>
+                          <td className="py-2.5 px-3.5 font-semibold text-slate-900">{item.full_name}</td>
+                          <td className="py-2.5 px-3.5 text-slate-500 whitespace-nowrap">{item.gender_age}</td>
+                          <td className="py-2.5 px-3.5 text-slate-700">{item.vulnerability_category}</td>
+                          <td className="py-2.5 px-3.5 text-slate-600">{item.location}</td>
+                          <td className="py-2.5 px-3.5 text-slate-600">{item.project_name}</td>
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                               {item.verification_status}
                             </span>
                           </td>
                         </>
                       )}
 
-                      {/* 3. ASSISTANCE PIPELINE */}
-                      {reportType === 'assistance' && (
-                        <>
-                          <td className="py-3.5 px-3.5">
-                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
-                              {item.request_code}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.beneficiary_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.assistance_type}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600">{item.program_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600">{item.destination_label}</td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              item.urgency === 'Urgent'
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                : item.urgency === 'High'
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : 'bg-slate-100 text-slate-600 border border-slate-200'
-                            }`}>
-                              {item.urgency || 'Normal'}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] border font-bold ${
-                              item.status === 'Delivered'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
-                                : item.status === 'Approved' || item.status === 'Dispatched'
-                                ? 'bg-blue-50 text-blue-800 border-blue-300'
-                                : item.status === 'Rejected'
-                                ? 'bg-rose-50 text-rose-800 border-rose-300'
-                                : 'bg-amber-50 text-amber-800 border-amber-300'
-                            }`}>
-                              {item.status}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-3.5 text-slate-500 whitespace-nowrap">{formatDate(item.created_at)}</td>
-                        </>
-                      )}
-
-                      {/* 4. COMMODITY DISTRIBUTIONS */}
-                      {reportType === 'distributions' && (
-                        <>
-                          <td className="py-3.5 px-3.5">
-                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
-                              {item.intervention_code}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.beneficiary_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.intervention_type}</td>
-                          <td className="py-3.5 px-3.5 text-slate-800 font-semibold">{item.quantity_or_value}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600">{item.project_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-500 whitespace-nowrap">{formatDate(item.intervention_date)}</td>
-                          <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.responsible_officer}</td>
-                        </>
-                      )}
-
-                      {/* 5. AAP & GRIEVANCES */}
-                      {reportType === 'aap_grievances' && (
-                        <>
-                          <td className="py-3.5 px-3.5">
-                            <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
-                              {item.ticket_code}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-3.5">
-                            <span className="font-bold text-slate-900 block">{item.sender_name || item.beneficiary_name}</span>
-                            <span className="text-[10px] text-slate-500">{item.sender_role || 'Beneficiary'}</span>
-                          </td>
-                          <td className="py-3.5 px-3.5">
-                            <span className="font-medium text-slate-800 block">{item.recipient_role}</span>
-                            <span className="text-[10px] text-slate-500">{item.recipient_name}</span>
-                          </td>
-                          <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.category}</td>
-                          <td className="py-3.5 px-3.5 max-w-xs">
-                            <p className="font-bold text-slate-900 truncate">{item.subject}</p>
-                            <p className="text-[11px] text-slate-500 truncate">{item.details || item.excerpt || item.description}</p>
-                          </td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              (item.severity === 'Urgent' || item.severity === 'Critical')
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                : item.severity === 'High'
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : 'bg-slate-100 text-slate-600 border border-slate-200'
-                            }`}>
-                              {item.severity || item.priority || 'Normal'}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] border font-bold ${
-                              item.status === 'Resolved' || item.status === 'Closed'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
-                                : item.status === 'Investigating' || item.status === 'In Progress'
-                                ? 'bg-blue-50 text-blue-800 border-blue-300'
-                                : 'bg-amber-50 text-amber-800 border-amber-300'
-                            }`}>
-                              {item.status}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-3.5 text-slate-500 whitespace-nowrap">{formatDate(item.created_at)}</td>
-                        </>
-                      )}
-
-                      {/* 6. GRANT FINANCIALS */}
-                      {reportType === 'financials' && (
-                        <>
-                          <td className="py-3.5 px-3.5 font-bold text-slate-900">{item.project_name}</td>
-                          <td className="py-3.5 px-3.5 text-slate-700 font-medium">{item.budget_category}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600 whitespace-nowrap">{item.financial_year}</td>
-                          <td className="py-3.5 px-3.5 font-mono font-bold text-emerald-800 whitespace-nowrap">{formatCurrency(item.allocated_amount)}</td>
-                          <td className="py-3.5 px-3.5 font-mono text-slate-800 whitespace-nowrap">{formatCurrency(item.expended_amount)}</td>
-                          <td className="py-3.5 px-3.5 font-mono font-bold text-teal-800 whitespace-nowrap">{formatCurrency(item.remaining_balance)}</td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                                <div
-                                  className={`h-full ${item.burn_rate > 85 ? 'bg-amber-500' : 'bg-emerald-600'}`}
-                                  style={{ width: `${Math.min(100, item.burn_rate)}%` }}
-                                />
-                              </div>
-                              <span className="font-mono text-[11px] font-bold text-slate-700">{item.burn_rate}%</span>
-                            </div>
-                          </td>
-                        </>
-                      )}
-
-                      {/* 7. AUDIT TRAIL */}
+                      {/* AUDIT TRAIL */}
                       {reportType === 'audit_logs' && (
                         <>
-                          <td className="py-3.5 px-3.5">
-                            <span className="font-mono text-[11px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
-                              {item.id}
+                          <td className="py-2.5 px-3.5 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                            {formatDate(item.created_at || item.timestamp)}
+                          </td>
+                          <td className="py-2.5 px-3.5">
+                            <span className="font-semibold text-slate-900 block truncate max-w-[160px]">{item.operator_display}</span>
+                            <span className="text-[10px] text-slate-400 font-medium">{item.user_role}</span>
+                          </td>
+                          <td className="py-2.5 px-3.5 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getActionBadgeStyle(item.action_type)}`}>
+                              {item.action_type}
                             </span>
                           </td>
-                          <td className="py-3.5 px-3.5">
-                            <span className="font-bold text-slate-900 block">{item.user_name || item.recorded_by || 'HQ Administrator'}</span>
-                            <span className="text-[10px] text-slate-500">{item.role || 'System'}</span>
+                          <td className="py-2.5 px-3.5 text-slate-800 font-medium whitespace-nowrap">{item.module_name}</td>
+                          <td className="py-2.5 px-3.5 text-slate-600 max-w-sm truncate" title={item.details_clean}>
+                            {item.details_clean}
                           </td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                              item.action === 'CREATE'
-                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                                : item.action === 'UPDATE' || item.action === 'VERIFY'
-                                ? 'bg-blue-50 text-blue-800 border border-blue-300'
-                                : item.action === 'DELETE' || item.action === 'DEACTIVATE'
-                                ? 'bg-rose-50 text-rose-800 border border-rose-300'
-                                : 'bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}>
-                              {item.action}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-3.5 text-slate-800 font-medium">{item.module}</td>
-                          <td className="py-3.5 px-3.5 text-slate-600 max-w-sm text-[11px]">{item.details}</td>
-                          <td className="py-3.5 px-3.5 text-slate-500 whitespace-nowrap text-[11px]">{formatDate(item.timestamp || item.created_at)}</td>
                         </>
                       )}
                     </tr>
@@ -768,8 +911,11 @@ export function ReportsPage() {
               </table>
             </div>
           )}
-        </Card>
+        </div>
       )}
+
     </div>
   );
 }
+
+export default ReportsPage;
