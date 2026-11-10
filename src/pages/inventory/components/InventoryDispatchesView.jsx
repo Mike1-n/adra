@@ -14,6 +14,7 @@ import {
   FileText,
   ArrowRight,
   User,
+  UserCheck,
   PackagePlus,
   ChevronDown,
   ChevronUp,

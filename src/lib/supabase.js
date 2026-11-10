@@ -6,13 +6,13 @@ const supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env?.
 
 // Check if valid Supabase configuration is provided
 export const isSupabaseConfigured = Boolean(
-  supabaseUrl && 
-  supabaseAnonKey && 
+  supabaseUrl &&
+  supabaseAnonKey &&
   supabaseUrl !== 'https://your-project-ref.supabase.co' &&
   !supabaseUrl.includes('your-project-ref')
 );
 
-export const supabase = isSupabaseConfigured 
+export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
@@ -98,17 +98,17 @@ function saveLocalData(key, data) {
 export function normalizeAssistanceRequest(r) {
   if (!r) return r;
 
-  const isSupervisorRej = r.status === 'Rejected by Supervisor' || 
-                          r.status_label === 'Rejected by Supervisor' ||
-                          (typeof r.review_notes === 'string' && r.review_notes.toLowerCase().includes('supervisor') && r.review_notes.toLowerCase().includes('reject'));
+  const isSupervisorRej = r.status === 'Rejected by Supervisor' ||
+    r.status_label === 'Rejected by Supervisor' ||
+    (typeof r.review_notes === 'string' && r.review_notes.toLowerCase().includes('supervisor') && r.review_notes.toLowerCase().includes('reject'));
 
   const isRej = isSupervisorRej ||
-                r.status === 'Rejected' || 
-                r.status_label === 'Rejected by PM' || 
-                Boolean(r.returned_to_worker) || 
-                (typeof r.status === 'string' && r.status.toLowerCase().includes('reject')) ||
-                (typeof r.status_label === 'string' && r.status_label.toLowerCase().includes('reject')) ||
-                (typeof r.review_notes === 'string' && (r.review_notes.toLowerCase().includes('reject') || r.review_notes.toLowerCase().includes('declined')));
+    r.status === 'Rejected' ||
+    r.status_label === 'Rejected by PM' ||
+    Boolean(r.returned_to_worker) ||
+    (typeof r.status === 'string' && r.status.toLowerCase().includes('reject')) ||
+    (typeof r.status_label === 'string' && r.status_label.toLowerCase().includes('reject')) ||
+    (typeof r.review_notes === 'string' && (r.review_notes.toLowerCase().includes('reject') || r.review_notes.toLowerCase().includes('declined')));
 
   let status = isSupervisorRej ? 'Rejected by Supervisor' : (isRej ? 'Rejected' : (r.status || 'Submitted'));
   if (!isRej && (status === 'Pending' || status === 'Pending Review')) {
@@ -142,9 +142,9 @@ export function normalizeAssistanceRequest(r) {
   const program_id = r.program_id || r.project_id || 'prg1';
 
   const rawWorker = r.assigned_field_worker_name || r.field_worker_name || '';
-  const isPendingWorker = !rawWorker || 
-    rawWorker === 'Unassigned' || 
-    rawWorker.toLowerCase().includes('pending') || 
+  const isPendingWorker = !rawWorker ||
+    rawWorker === 'Unassigned' ||
+    rawWorker.toLowerCase().includes('pending') ||
     rawWorker.toLowerCase().includes('awaiting');
   const assigned_field_worker_name = isPendingWorker ? null : rawWorker;
   const assigned_field_worker_id = isPendingWorker ? null : (r.assigned_field_worker_id || r.field_worker_id || null);
@@ -158,13 +158,13 @@ export function normalizeAssistanceRequest(r) {
       .trim();
   }
   if (!extractedRejectionReason && isRej) {
-    extractedRejectionReason = isSupervisorRej 
+    extractedRejectionReason = isSupervisorRej
       ? 'Field assessment rejected by State Supervisor. Returned to field worker for re-audit.'
       : 'Application rejected during Programme Manager review. Returned for field re-assessment.';
   }
 
-  const statusLabel = isSupervisorRej 
-    ? 'Rejected by Supervisor' 
+  const statusLabel = isSupervisorRej
+    ? 'Rejected by Supervisor'
     : (isRej ? 'Rejected by PM' : (r.status_label || (status === 'Submitted' ? 'Pending Review' : status)));
 
   return {
@@ -466,7 +466,7 @@ export const db = {
 
   async registerBeneficiaryAccount(regData) {
     const existing = await this.getBeneficiaries();
-    
+
     // Check for duplicates
     const dupCheck = await this.checkBeneficiaryDuplicate({
       phone_number: regData.phone_number || regData.phone,
@@ -613,9 +613,9 @@ export const db = {
     }
 
     const currentBens = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
-    const updatedBensList = currentBens.map(b => 
-      (b.id === target.id || b.beneficiary_code === target.beneficiary_code) 
-        ? { ...b, verification_status: 'Verified Active' } 
+    const updatedBensList = currentBens.map(b =>
+      (b.id === target.id || b.beneficiary_code === target.beneficiary_code)
+        ? { ...b, verification_status: 'Verified Active' }
         : b
     );
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBensList);
@@ -624,9 +624,9 @@ export const db = {
     const users = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
     const updatedUsers = users.map(u => {
       const matches = (target.email && u.email?.toLowerCase() === target.email.toLowerCase()) ||
-                      (target.phone_number && u.phone === target.phone_number) ||
-                      (target.id && (u.beneficiary_id === target.id || u.id === target.id)) ||
-                      (target.beneficiary_code && u.beneficiary_code === target.beneficiary_code);
+        (target.phone_number && u.phone === target.phone_number) ||
+        (target.id && (u.beneficiary_id === target.id || u.id === target.id)) ||
+        (target.beneficiary_code && u.beneficiary_code === target.beneficiary_code);
       if (matches) {
         return { ...u, status: 'Active', is_active: true, verification_status: 'Verified Active' };
       }
@@ -667,9 +667,9 @@ export const db = {
     const approvals = getLocalData(STORAGE_KEYS.APPROVALS, mock.initialApprovals);
     const updatedApprovals = approvals.map(a => {
       const matches = (a.beneficiary_id && (a.beneficiary_id === target.id || a.beneficiary_id === target.beneficiary_code)) ||
-                      (target.email && a.requester_email?.toLowerCase() === target.email.toLowerCase()) ||
-                      (target.beneficiary_code && a.details?.includes(target.beneficiary_code)) ||
-                      (target.full_name && a.requester_name === target.full_name);
+        (target.email && a.requester_email?.toLowerCase() === target.email.toLowerCase()) ||
+        (target.beneficiary_code && a.details?.includes(target.beneficiary_code)) ||
+        (target.full_name && a.requester_name === target.full_name);
       if (matches && a.status === 'Pending') {
         return { ...a, status: 'Approved', review_notes: notes || 'Verified by Administrator', reviewed_at: new Date().toISOString() };
       }
@@ -703,9 +703,9 @@ export const db = {
     }
 
     const currentBens = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
-    const updatedBensList = currentBens.map(b => 
-      (b.id === target.id || b.beneficiary_code === target.beneficiary_code) 
-        ? { ...b, verification_status: 'Flagged', review_notes: reason } 
+    const updatedBensList = currentBens.map(b =>
+      (b.id === target.id || b.beneficiary_code === target.beneficiary_code)
+        ? { ...b, verification_status: 'Flagged', review_notes: reason }
         : b
     );
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBensList);
@@ -736,9 +736,9 @@ export const db = {
     }
 
     const currentBens = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
-    const updatedBensList = currentBens.map(b => 
-      (b.id === target.id || b.beneficiary_code === target.beneficiary_code) 
-        ? { ...b, verification_status: 'Rejected', review_notes: reason } 
+    const updatedBensList = currentBens.map(b =>
+      (b.id === target.id || b.beneficiary_code === target.beneficiary_code)
+        ? { ...b, verification_status: 'Rejected', review_notes: reason }
         : b
     );
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBensList);
@@ -747,9 +747,9 @@ export const db = {
     const users = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
     const updatedUsers = users.map(u => {
       const matches = (target.email && u.email?.toLowerCase() === target.email.toLowerCase()) ||
-                      (target.phone_number && (u.phone === target.phone_number || (u.phone && target.phone_number && u.phone.replace(/\D/g, '') === target.phone_number.replace(/\D/g, '')))) ||
-                      (target.id && (u.beneficiary_id === target.id || u.id === target.id)) ||
-                      (target.beneficiary_code && (u.beneficiary_code === target.beneficiary_code || u.beneficiary_id === target.beneficiary_code));
+        (target.phone_number && (u.phone === target.phone_number || (u.phone && target.phone_number && u.phone.replace(/\D/g, '') === target.phone_number.replace(/\D/g, '')))) ||
+        (target.id && (u.beneficiary_id === target.id || u.id === target.id)) ||
+        (target.beneficiary_code && (u.beneficiary_code === target.beneficiary_code || u.beneficiary_id === target.beneficiary_code));
       if (matches) {
         return { ...u, status: 'Rejected', is_active: false, verification_status: 'Rejected' };
       }
@@ -762,7 +762,7 @@ export const db = {
         if (target.email) {
           await supabase.from('profiles').update({ status: 'Rejected', is_active: false }).eq('email', target.email);
         }
-      } catch (err) {}
+      } catch (err) { }
     }
 
     // Update approvals
@@ -774,15 +774,15 @@ export const db = {
         if (target.email) {
           await supabase.from('approvals').update({ status: 'Rejected', review_notes: reason, reviewed_at: new Date().toISOString() }).eq('requester_email', target.email);
         }
-      } catch (err) {}
+      } catch (err) { }
     }
 
     const approvals = getLocalData(STORAGE_KEYS.APPROVALS, mock.initialApprovals);
     const updatedApprovals = approvals.map(a => {
       const matches = (a.beneficiary_id && (a.beneficiary_id === target.id || a.beneficiary_id === target.beneficiary_code)) ||
-                      (target.email && a.requester_email?.toLowerCase() === target.email.toLowerCase()) ||
-                      (target.beneficiary_code && a.details?.includes(target.beneficiary_code)) ||
-                      (target.full_name && a.requester_name === target.full_name);
+        (target.email && a.requester_email?.toLowerCase() === target.email.toLowerCase()) ||
+        (target.beneficiary_code && a.details?.includes(target.beneficiary_code)) ||
+        (target.full_name && a.requester_name === target.full_name);
       if (matches && a.status === 'Pending') {
         return { ...a, status: 'Rejected', review_notes: reason, reviewed_at: new Date().toISOString() };
       }
@@ -868,8 +868,8 @@ export const db = {
 
     const current = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
     const target = current.find(b => b.id === id || b.beneficiary_code === id);
-    const updated = current.map(b => (b.id === id || b.beneficiary_code === id) 
-      ? { ...b, status: 'Deactivated', verification_status: 'Deactivated', is_active: false, deactivation_reason: reason } 
+    const updated = current.map(b => (b.id === id || b.beneficiary_code === id)
+      ? { ...b, status: 'Deactivated', verification_status: 'Deactivated', is_active: false, deactivation_reason: reason }
       : b
     );
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updated);
@@ -879,9 +879,9 @@ export const db = {
     const benId = target?.id || id;
     const updatedUsers = users.map(u => {
       const matches = (target?.email && u.email?.toLowerCase() === target.email.toLowerCase()) ||
-                      (target?.phone_number && u.phone === target.phone_number) ||
-                      (benId && (u.beneficiary_id === benId || u.id === benId)) ||
-                      (target?.beneficiary_code && u.beneficiary_code === target.beneficiary_code);
+        (target?.phone_number && u.phone === target.phone_number) ||
+        (benId && (u.beneficiary_id === benId || u.id === benId)) ||
+        (target?.beneficiary_code && u.beneficiary_code === target.beneficiary_code);
       if (matches) {
         return { ...u, status: 'Deactivated', is_active: false, verification_status: 'Deactivated' };
       }
@@ -918,8 +918,8 @@ export const db = {
 
     const current = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
     const target = current.find(b => b.id === id || b.beneficiary_code === id);
-    const updated = current.map(b => (b.id === id || b.beneficiary_code === id) 
-      ? { ...b, status: 'Verified Active', verification_status: 'Verified Active', is_active: true } 
+    const updated = current.map(b => (b.id === id || b.beneficiary_code === id)
+      ? { ...b, status: 'Verified Active', verification_status: 'Verified Active', is_active: true }
       : b
     );
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updated);
@@ -929,9 +929,9 @@ export const db = {
     const benId = target?.id || id;
     const updatedUsers = users.map(u => {
       const matches = (target?.email && u.email?.toLowerCase() === target.email.toLowerCase()) ||
-                      (target?.phone_number && u.phone === target.phone_number) ||
-                      (benId && (u.beneficiary_id === benId || u.id === benId)) ||
-                      (target?.beneficiary_code && u.beneficiary_code === target.beneficiary_code);
+        (target?.phone_number && u.phone === target.phone_number) ||
+        (benId && (u.beneficiary_id === benId || u.id === benId)) ||
+        (target?.beneficiary_code && u.beneficiary_code === target.beneficiary_code);
       if (matches) {
         return { ...u, status: 'Active', is_active: true, verification_status: 'Verified Active' };
       }
@@ -974,7 +974,7 @@ export const db = {
     const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     const isTestOrMock = (r) => (
       !r ||
-      r.id === 'req-128' || 
+      r.id === 'req-128' ||
       (typeof r.id === 'string' && (r.id.startsWith('req-10') || r.id.startsWith('TEST-REQ-') || r.id.startsWith('test-'))) ||
       (typeof r.request_code === 'string' && (
         r.request_code.startsWith('TEST-REQ-') ||
@@ -1012,8 +1012,8 @@ export const db = {
     if (remoteData !== null) {
       const rawLocal = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, []);
       const merged = remoteData.map(rem => {
-        const locMatch = (Array.isArray(rawLocal) ? rawLocal : []).find(loc => 
-          loc.id === rem.id || 
+        const locMatch = (Array.isArray(rawLocal) ? rawLocal : []).find(loc =>
+          loc.id === rem.id ||
           loc.request_code === rem.request_code ||
           String(loc.id) === String(rem.id) ||
           (loc.request_code && rem.request_code && loc.request_code === rem.request_code)
@@ -1036,24 +1036,24 @@ export const db = {
           const locTime = normLoc.updated_at ? new Date(normLoc.updated_at).getTime() : 0;
           const isRemNewer = remTime >= locTime || isRemApproved;
 
-          const finalStatus = isRemApproved 
-            ? normRem.status 
-            : (isAnySupervisorRej 
-              ? 'Rejected by Supervisor' 
-              : (isAnyRejected 
-                ? 'Rejected' 
+          const finalStatus = isRemApproved
+            ? normRem.status
+            : (isAnySupervisorRej
+              ? 'Rejected by Supervisor'
+              : (isAnyRejected
+                ? 'Rejected'
                 : (isRemNewer ? (normRem.status || normLoc.status) : (normLoc.status || normRem.status))));
-          const finalLabel = isRemApproved 
+          const finalLabel = isRemApproved
             ? (normRem.status_label || 'Approved')
-            : (isAnySupervisorRej 
-              ? 'Rejected by Supervisor' 
-              : (isAnyRejected 
-                ? 'Rejected by PM' 
+            : (isAnySupervisorRej
+              ? 'Rejected by Supervisor'
+              : (isAnyRejected
+                ? 'Rejected by PM'
                 : (isRemNewer ? (normRem.status_label || normLoc.status_label) : (normLoc.status_label || normRem.status_label))));
-          const finalStage = isRemApproved 
+          const finalStage = isRemApproved
             ? (normRem.status_stage ?? 3)
-            : (isAnyRejected 
-              ? (isAnySupervisorRej ? -1 : 6) 
+            : (isAnyRejected
+              ? (isAnySupervisorRej ? -1 : 6)
               : (isRemNewer ? (normRem.status_stage ?? normLoc.status_stage) : (normLoc.status_stage ?? normRem.status_stage)));
 
           return {
@@ -1078,9 +1078,9 @@ export const db = {
 
       if (beneficiaryId) {
         const target = String(beneficiaryId).toLowerCase().trim();
-        return merged.filter(r => 
-          (r.beneficiary_id && String(r.beneficiary_id).toLowerCase() === target) || 
-          (r.beneficiary_code && String(r.beneficiary_code).toLowerCase() === target) || 
+        return merged.filter(r =>
+          (r.beneficiary_id && String(r.beneficiary_id).toLowerCase() === target) ||
+          (r.beneficiary_code && String(r.beneficiary_code).toLowerCase() === target) ||
           (r.beneficiary_name && String(r.beneficiary_name).toLowerCase().includes(target))
         );
       }
@@ -1093,9 +1093,9 @@ export const db = {
 
     if (beneficiaryId) {
       const target = String(beneficiaryId).toLowerCase().trim();
-      return cleanedLocal.filter(r => 
-        (r.beneficiary_id && String(r.beneficiary_id).toLowerCase() === target) || 
-        (r.beneficiary_code && String(r.beneficiary_code).toLowerCase() === target) || 
+      return cleanedLocal.filter(r =>
+        (r.beneficiary_id && String(r.beneficiary_id).toLowerCase() === target) ||
+        (r.beneficiary_code && String(r.beneficiary_code).toLowerCase() === target) ||
         (r.beneficiary_name && String(r.beneficiary_name).toLowerCase().includes(target))
       );
     }
@@ -1105,7 +1105,7 @@ export const db = {
   async createAssistanceRequest(requestData) {
     const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     const all = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, []);
-    
+
     // 1. Calculate guaranteed collision-free request code
     let maxNum = 140;
     for (const r of all) {
@@ -1132,7 +1132,7 @@ export const db = {
     // If state/location not fully provided, check registered beneficiary record
     if (!state || !location) {
       const allBens = getLocalData(STORAGE_KEYS.BENEFICIARIES, []);
-      const benMatch = allBens.find(b => 
+      const benMatch = allBens.find(b =>
         (requestData.beneficiary_id && (b.id === requestData.beneficiary_id || b.beneficiary_code === requestData.beneficiary_id)) ||
         (requestData.beneficiary_code && b.beneficiary_code === requestData.beneficiary_code) ||
         (requestData.beneficiary_name && b.full_name && b.full_name.toLowerCase() === requestData.beneficiary_name.toLowerCase())
@@ -1265,7 +1265,7 @@ export const db = {
               if (!newReq.beneficiary_name && bMatch.full_name) newReq.beneficiary_name = bMatch.full_name;
               if (!newReq.beneficiary_code && bMatch.beneficiary_code) newReq.beneficiary_code = bMatch.beneficiary_code;
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
         // Query remote database max request code
@@ -1282,7 +1282,7 @@ export const db = {
             candidateCode = `ADR-REQ-2026-${String(maxNum + 1).padStart(5, '0')}`;
             newReq.request_code = candidateCode;
           }
-        } catch (_) {}
+        } catch (_) { }
 
         const raw = {
           ...newReq,
@@ -1307,7 +1307,7 @@ export const db = {
         if (!supabasePayload.id) delete supabasePayload.id;
 
         let { data, error } = await supabase.from('assistance_requests').insert([supabasePayload]).select().single();
-        
+
         // If unique code collision occurs, retry with a fresh timestamp-based code
         if (error && (error.code === '23505' || String(error.message).includes('unique'))) {
           const retryCode = `ADR-REQ-2026-${String(Date.now()).slice(-5)}`;
@@ -1349,8 +1349,8 @@ export const db = {
 
   async updateAssistanceRequest(id, updates = {}) {
     const all = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, mock.initialAssistanceRequests);
-    const target = all.find(r => 
-      r.id === id || 
+    const target = all.find(r =>
+      r.id === id ||
       r.request_code === id ||
       String(r.id) === String(id) ||
       String(r.request_code) === String(id) ||
@@ -1509,8 +1509,8 @@ export const db = {
     const reason = typeof options === 'string' ? options : (options.reason || '');
     const managerName = typeof options === 'object' && options.managerName ? options.managerName : 'Grace Ochieng';
     const all = getLocalData(STORAGE_KEYS.ASSISTANCE_REQUESTS, mock.initialAssistanceRequests);
-    const target = all.find(r => 
-      r.id === id || 
+    const target = all.find(r =>
+      r.id === id ||
       r.request_code === id ||
       String(r.id) === String(id) ||
       String(r.request_code) === String(id) ||
@@ -1522,11 +1522,11 @@ export const db = {
     const now = new Date().toISOString();
     let hasMatched = false;
     const updated = all.map(r => {
-      const isMatch = r.id === id || 
-                      r.request_code === id ||
-                      String(r.id) === String(id) ||
-                      String(r.request_code) === String(id) ||
-                      (target && (r.id === target.id || String(r.id) === String(target.id) || (r.request_code && r.request_code === target.request_code)));
+      const isMatch = r.id === id ||
+        r.request_code === id ||
+        String(r.id) === String(id) ||
+        String(r.request_code) === String(id) ||
+        (target && (r.id === target.id || String(r.id) === String(target.id) || (r.request_code && r.request_code === target.request_code)));
       if (isMatch) {
         hasMatched = true;
         return {
@@ -1567,10 +1567,10 @@ export const db = {
       const allAssessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
       const updatedAssessments = allAssessments.map(a => {
         const isMatch = (target && a.request_code && (a.request_code === target.request_code || a.request_code === target.id)) ||
-                        (target && a.request_id && (a.request_id === target.id || a.request_id === target.request_code)) ||
-                        (a.request_code && (a.request_code === id || String(a.request_code) === String(id))) ||
-                        (a.request_id && (a.request_id === id || String(a.request_id) === String(id))) ||
-                        (target && a.beneficiary_name && target.beneficiary_name && a.beneficiary_name.toLowerCase() === target.beneficiary_name.toLowerCase());
+          (target && a.request_id && (a.request_id === target.id || a.request_id === target.request_code)) ||
+          (a.request_code && (a.request_code === id || String(a.request_code) === String(id))) ||
+          (a.request_id && (a.request_id === id || String(a.request_id) === String(id))) ||
+          (target && a.beneficiary_name && target.beneficiary_name && a.beneficiary_name.toLowerCase() === target.beneficiary_name.toLowerCase());
         if (isMatch) {
           return {
             ...a,
@@ -1635,7 +1635,7 @@ export const db = {
           review_notes: `Rejected by PM: ${reason}`,
           updated_at: now
         };
-        
+
         let supUpdated = false;
         if (isUUID(finalTarget.id)) {
           const { error } = await supabase.from('assistance_requests').update(updates).eq('id', finalTarget.id);
@@ -1811,15 +1811,15 @@ export const db = {
       }
     }
 
-    const mockList = (mock.initialSupervisors && mock.initialSupervisors.length > 0) 
-      ? mock.initialSupervisors 
+    const mockList = (mock.initialSupervisors && mock.initialSupervisors.length > 0)
+      ? mock.initialSupervisors
       : [];
 
     if (dbSupervisors.length > 0) {
       // Merge DB supervisors with rich mock fields (state, county, active_tasks, etc.)
       return dbSupervisors.map((p, idx) => {
-        const mockMatch = mockList.find(m => 
-          m.email?.toLowerCase() === p.email?.toLowerCase() || 
+        const mockMatch = mockList.find(m =>
+          m.email?.toLowerCase() === p.email?.toLowerCase() ||
           m.name?.toLowerCase() === p.full_name?.toLowerCase()
         ) || mockList[idx] || {};
 
@@ -1883,8 +1883,8 @@ export const db = {
               }
             }
 
-            const localMatch = allWorkers.find(m => 
-              m.id === p.id || 
+            const localMatch = allWorkers.find(m =>
+              m.id === p.id ||
               m.email?.toLowerCase() === p.email?.toLowerCase() ||
               m.name?.toLowerCase() === p.full_name?.toLowerCase()
             ) || {};
@@ -1926,7 +1926,7 @@ export const db = {
 
     const sups = await this.getSupervisors();
     const cleanSup = String(supervisorId).toLowerCase().trim();
-    const sup = sups.find(s => 
+    const sup = sups.find(s =>
       String(s.id).toLowerCase() === cleanSup ||
       String(s.email || '').toLowerCase() === cleanSup ||
       String(s.name || '').toLowerCase() === cleanSup ||
@@ -1977,7 +1977,7 @@ export const db = {
 
     const sups = await this.getSupervisors();
     const cleanSupId = String(supervisorId).toLowerCase().trim();
-    const sup = sups.find(s => 
+    const sup = sups.find(s =>
       String(s.id).toLowerCase() === cleanSupId ||
       String(s.email || '').toLowerCase() === cleanSupId ||
       String(s.name || '').toLowerCase() === cleanSupId ||
@@ -2136,15 +2136,15 @@ export const db = {
     if (!target) throw new Error('Assistance request not found');
 
     const previousWorker = target.assigned_field_worker_name;
-    const hasRealPrev = previousWorker && 
-      previousWorker !== 'Previous Worker' && 
-      previousWorker !== 'Unassigned' && 
+    const hasRealPrev = previousWorker &&
+      previousWorker !== 'Previous Worker' &&
+      previousWorker !== 'Unassigned' &&
       !previousWorker.toLowerCase().includes('pending');
-    
+
     const newNote = hasRealPrev
       ? `Reassigned from ${previousWorker} to ${newFieldWorkerName}${reason ? `. Reason: ${reason}` : ''}`
       : `Assigned to ${newFieldWorkerName}${reason ? `. Reason: ${reason}` : ''}`;
-    
+
     const now = new Date().toISOString();
 
     const updated = allRequests.map(r => {
@@ -2255,7 +2255,7 @@ export const db = {
   // --- SUPERVISOR MODULE: FIELD ASSESSMENTS & REPORT REVIEW ---
   async getFieldAssessments(supervisorId = null, workerId = null, workerName = null) {
     const raw = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
-    
+
     // Also merge any assessments attached to assistance requests
     let merged = [...raw];
     try {
@@ -2323,7 +2323,7 @@ export const db = {
       result = result.filter(a => {
         const aWId = String(a.field_worker_id || a.worker_id || '').toLowerCase().trim();
         const aWName = String(a.field_worker_name || a.assessed_by || '').toLowerCase().trim();
-        
+
         let matchId = false;
         if (cleanWId) {
           matchId = (aWId === cleanWId);
@@ -2346,7 +2346,7 @@ export const db = {
 
     const sups = await this.getSupervisors();
     const cleanSupId = String(supervisorId).toLowerCase().trim();
-    const sup = sups.find(s => 
+    const sup = sups.find(s =>
       String(s.id).toLowerCase() === cleanSupId ||
       String(s.email || '').toLowerCase() === cleanSupId ||
       String(s.name || '').toLowerCase() === cleanSupId ||
@@ -2560,8 +2560,8 @@ export const db = {
     }
 
     const allAssessments = getLocalData(STORAGE_KEYS.FIELD_ASSESSMENTS, mock.initialFieldAssessments || []);
-    const targetAss = allAssessments.find(a => 
-      a.id === assessmentId || 
+    const targetAss = allAssessments.find(a =>
+      a.id === assessmentId ||
       a.assessment_code === assessmentId ||
       (requestId && (a.request_id === requestId || a.request_code === requestId))
     );
@@ -2605,10 +2605,10 @@ export const db = {
     // Update assistance request status
     const allRequests = await this.getAssistanceRequests();
     const updatedRequests = allRequests.map(r => (
-      r.id === targetReqId || 
-      r.request_code === targetReqId || 
-      r.id === assessmentId || 
-      r.request_code === assessmentId || 
+      r.id === targetReqId ||
+      r.request_code === targetReqId ||
+      r.id === assessmentId ||
+      r.request_code === assessmentId ||
       (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code || r.assessment_code === targetAss.assessment_code))
     ) ? {
       ...r,
@@ -2627,11 +2627,11 @@ export const db = {
     if (isSupabaseConfigured) {
       try {
         const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-        const reqTarget = updatedRequests.find(r => 
-          r.id === targetReqId || 
-          r.request_code === targetReqId || 
-          r.id === assessmentId || 
-          r.request_code === assessmentId || 
+        const reqTarget = updatedRequests.find(r =>
+          r.id === targetReqId ||
+          r.request_code === targetReqId ||
+          r.id === assessmentId ||
+          r.request_code === assessmentId ||
           (targetAss && (r.id === targetAss.request_id || r.request_code === targetAss.request_code))
         );
         if (reqTarget) {
@@ -2743,7 +2743,7 @@ export const db = {
             await supabase.from('assistance_requests').update(updates).eq('request_code', reqTarget.request_code);
           }
         }
-      } catch (err) {}
+      } catch (err) { }
     }
 
     // Activity log
@@ -2834,7 +2834,7 @@ export const db = {
     if (isSupabaseConfigured && profileData.email) {
       try {
         await supabase.from('profiles').update(safeData).eq('email', profileData.email);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     return updated.find(u => u.id === supervisorId || u.email === profileData.email || u.role === 'Supervisor');
@@ -2855,25 +2855,25 @@ export const db = {
       if (r.request_code) knownReqCodes.add(r.request_code);
       if (r.id) knownReqIds.add(r.id);
 
-      const matchingDispatch = allDispatches.find(d => 
+      const matchingDispatch = allDispatches.find(d =>
         (d.waybill_number && d.waybill_number === r.waybill_number) ||
         (d.linked_request_id && (d.linked_request_id === r.id || d.linked_request_id === r.request_code)) ||
         (d.request_code && d.request_code === r.request_code)
       );
 
       if (matchingDispatch) {
-        const isCollected = matchingDispatch.status === 'Collected by Field Worker' || 
-                            matchingDispatch.status === 'goods_collected_by_field_worker' || 
-                            matchingDispatch.status === 'Collected' ||
-                            matchingDispatch.dispatch_status === 'Collected by Field Worker' ||
-                            Boolean(matchingDispatch.collected_by);
-        const isArrived = matchingDispatch.status === 'Arrived' || 
-                          matchingDispatch.status === 'goods_arrived_at_hub' ||
-                          matchingDispatch.dispatch_status === 'Arrived at Hub' ||
-                          matchingDispatch.status === 'Arrived at Hub';
-        const isDelivered = matchingDispatch.status === 'Delivered' || 
-                            matchingDispatch.status === 'Verified' ||
-                            matchingDispatch.status === 'Distributed';
+        const isCollected = matchingDispatch.status === 'Collected by Field Worker' ||
+          matchingDispatch.status === 'goods_collected_by_field_worker' ||
+          matchingDispatch.status === 'Collected' ||
+          matchingDispatch.dispatch_status === 'Collected by Field Worker' ||
+          Boolean(matchingDispatch.collected_by);
+        const isArrived = matchingDispatch.status === 'Arrived' ||
+          matchingDispatch.status === 'goods_arrived_at_hub' ||
+          matchingDispatch.dispatch_status === 'Arrived at Hub' ||
+          matchingDispatch.status === 'Arrived at Hub';
+        const isDelivered = matchingDispatch.status === 'Delivered' ||
+          matchingDispatch.status === 'Verified' ||
+          matchingDispatch.status === 'Distributed';
 
         return {
           ...r,
@@ -2881,17 +2881,17 @@ export const db = {
           driver_name: matchingDispatch.driver_name || r.driver_name,
           vehicle_number: matchingDispatch.vehicle_number || r.vehicle_number,
           status: isDelivered ? (r.status === 'Distributed' || r.status === 'Completed' ? r.status : 'Distributed') :
-                  isCollected ? 'goods_collected_by_field_worker' :
-                  isArrived ? (r.status === 'goods_collected_by_field_worker' ? r.status : 'goods_arrived_at_hub') :
-                  r.status,
+            isCollected ? 'goods_collected_by_field_worker' :
+              isArrived ? (r.status === 'goods_collected_by_field_worker' ? r.status : 'goods_arrived_at_hub') :
+                r.status,
           dispatch_status: isDelivered ? 'Distributed' :
-                           isCollected ? 'Collected by Field Worker' :
-                           isArrived ? 'Arrived at Hub' :
-                           (matchingDispatch.status || r.dispatch_status),
+            isCollected ? 'Collected by Field Worker' :
+              isArrived ? 'Arrived at Hub' :
+                (matchingDispatch.status || r.dispatch_status),
           status_label: isDelivered ? 'Delivered & Verified' :
-                        isCollected ? 'Goods Collected - Out for Distribution' :
-                        isArrived ? 'Goods Arrived at Hub Store' :
-                        (r.status_label || matchingDispatch.status),
+            isCollected ? 'Goods Collected - Out for Distribution' :
+              isArrived ? 'Goods Arrived at Hub Store' :
+                (r.status_label || matchingDispatch.status),
           goods_collected_by: matchingDispatch.collected_by || r.goods_collected_by,
           goods_collected_at: matchingDispatch.collected_at || r.goods_collected_at,
           goods_handed_over_by: matchingDispatch.handed_over_by || r.goods_handed_over_by,
@@ -2906,21 +2906,21 @@ export const db = {
     const unlinkedDispatchTasks = [];
     allDispatches.forEach(d => {
       const isAlreadyInRequests = (d.waybill_number && knownWaybills.has(d.waybill_number)) ||
-                                  (d.linked_request_id && (knownReqIds.has(d.linked_request_id) || knownReqCodes.has(d.linked_request_id))) ||
-                                  (d.request_code && knownReqCodes.has(d.request_code));
+        (d.linked_request_id && (knownReqIds.has(d.linked_request_id) || knownReqCodes.has(d.linked_request_id))) ||
+        (d.request_code && knownReqCodes.has(d.request_code));
       if (!isAlreadyInRequests) {
-        const isCollected = d.status === 'Collected by Field Worker' || 
-                            d.status === 'goods_collected_by_field_worker' || 
-                            d.status === 'Collected' ||
-                            d.dispatch_status === 'Collected by Field Worker' ||
-                            Boolean(d.collected_by);
-        const isArrived = d.status === 'Arrived' || 
-                          d.status === 'goods_arrived_at_hub' || 
-                          d.dispatch_status === 'Arrived at Hub' ||
-                          d.status === 'Arrived at Hub';
-        const isDelivered = d.status === 'Delivered' || 
-                            d.status === 'Verified' || 
-                            d.status === 'Distributed';
+        const isCollected = d.status === 'Collected by Field Worker' ||
+          d.status === 'goods_collected_by_field_worker' ||
+          d.status === 'Collected' ||
+          d.dispatch_status === 'Collected by Field Worker' ||
+          Boolean(d.collected_by);
+        const isArrived = d.status === 'Arrived' ||
+          d.status === 'goods_arrived_at_hub' ||
+          d.dispatch_status === 'Arrived at Hub' ||
+          d.status === 'Arrived at Hub';
+        const isDelivered = d.status === 'Delivered' ||
+          d.status === 'Verified' ||
+          d.status === 'Distributed';
 
         const syntheticTask = {
           id: d.id || d.waybill_number,
@@ -2938,17 +2938,17 @@ export const db = {
           boma: d.boma || 'Relief Centre',
           location: d.destination || 'Juba Central, Central Equatoria Relief Centre',
           status: isDelivered ? 'Distributed' :
-                  isCollected ? 'goods_collected_by_field_worker' :
-                  isArrived ? 'goods_arrived_at_hub' :
-                  (d.status === 'In Transit' ? 'warehouse_dispatched' : d.status || 'warehouse_dispatched'),
+            isCollected ? 'goods_collected_by_field_worker' :
+              isArrived ? 'goods_arrived_at_hub' :
+                (d.status === 'In Transit' ? 'warehouse_dispatched' : d.status || 'warehouse_dispatched'),
           dispatch_status: isDelivered ? 'Distributed' :
-                           isCollected ? 'Collected by Field Worker' :
-                           isArrived ? 'Arrived at Hub' :
-                           (d.status || 'In Transit'),
+            isCollected ? 'Collected by Field Worker' :
+              isArrived ? 'Arrived at Hub' :
+                (d.status || 'In Transit'),
           status_label: isDelivered ? 'Delivered & Verified' :
-                        isCollected ? 'Goods Collected - Out for Distribution' :
-                        isArrived ? 'Goods Arrived at Hub Store' :
-                        (d.status || 'In Transit'),
+            isCollected ? 'Goods Collected - Out for Distribution' :
+              isArrived ? 'Goods Arrived at Hub Store' :
+                (d.status || 'In Transit'),
           assigned_field_worker_name: d.collected_by || d.assigned_field_worker_name || workerName || 'Field Officer',
           assigned_field_worker_id: d.assigned_field_worker_id || workerId || 'fw-1',
           collected_by: d.collected_by || (isCollected ? (workerName || 'Field Officer') : null),
@@ -3007,10 +3007,10 @@ export const db = {
       ].includes(r.status) || Boolean(r.returned_to_worker) || r.status_label === 'Rejected by PM';
 
       // If no specific worker is assigned on the case yet or generic assignment
-      if (!r.assigned_field_worker_name || 
-          r.assigned_field_worker_name === 'Unassigned' ||
-          r.assigned_field_worker_name === 'Field Worker' ||
-          r.assigned_field_worker_name === 'Field Officer') {
+      if (!r.assigned_field_worker_name ||
+        r.assigned_field_worker_name === 'Unassigned' ||
+        r.assigned_field_worker_name === 'Field Worker' ||
+        r.assigned_field_worker_name === 'Field Officer') {
         return isFieldStage;
       }
 
@@ -3058,8 +3058,8 @@ export const db = {
     };
 
     // Filter out previous version of this assessment to prevent stale duplicates
-    const filteredOldAssessments = allAssessments.filter(a => 
-      !(a.id === newAssessment.id || 
+    const filteredOldAssessments = allAssessments.filter(a =>
+      !(a.id === newAssessment.id ||
         (newAssessment.request_code && (a.request_code === newAssessment.request_code || a.request_id === newAssessment.request_code)) ||
         (newAssessment.request_id && (a.request_id === newAssessment.request_id || a.request_code === newAssessment.request_id)) ||
         (newAssessment.beneficiary_name && a.beneficiary_name?.toLowerCase() === newAssessment.beneficiary_name?.toLowerCase()))
@@ -3073,9 +3073,9 @@ export const db = {
       const allRequests = await this.getAssistanceRequests();
       const updatedRequests = allRequests.map(r => {
         const isMatch = (newAssessment.request_id && (r.id === newAssessment.request_id || r.request_code === newAssessment.request_id)) ||
-                        (newAssessment.request_code && (r.request_code === newAssessment.request_code || r.id === newAssessment.request_code)) ||
-                        (newAssessment.beneficiary_name && r.beneficiary_name && r.beneficiary_name.toLowerCase() === newAssessment.beneficiary_name.toLowerCase()) ||
-                        (newAssessment.beneficiary_code && r.beneficiary_code && r.beneficiary_code === newAssessment.beneficiary_code);
+          (newAssessment.request_code && (r.request_code === newAssessment.request_code || r.id === newAssessment.request_code)) ||
+          (newAssessment.beneficiary_name && r.beneficiary_name && r.beneficiary_name.toLowerCase() === newAssessment.beneficiary_name.toLowerCase()) ||
+          (newAssessment.beneficiary_code && r.beneficiary_code && r.beneficiary_code === newAssessment.beneficiary_code);
         if (isMatch) {
           return {
             ...r,
@@ -3206,14 +3206,14 @@ export const db = {
     return newAssessment;
   },
 
-  async confirmAidDistribution({ 
-    requestId, 
-    requestCode, 
-    waybillNumber, 
-    qrToken, 
-    notes, 
-    workerName = 'John Deng', 
-    workerId = 'fw-1', 
+  async confirmAidDistribution({
+    requestId,
+    requestCode,
+    waybillNumber,
+    qrToken,
+    notes,
+    workerName = 'John Deng',
+    workerId = 'fw-1',
     itemsDistributed = 'Emergency Relief Package',
     recipientName = '',
     recipientPhone = '',
@@ -3223,10 +3223,10 @@ export const db = {
     const allRequests = await this.getAssistanceRequests();
     const allDispatches = await this.getDispatches();
     const now = new Date().toISOString();
-    
+
     // Find target in requests
-    let target = allRequests.find(r => 
-      (requestId && r.id === requestId) || 
+    let target = allRequests.find(r =>
+      (requestId && r.id === requestId) ||
       (requestCode && r.request_code === requestCode) ||
       (waybillNumber && r.waybill_number === waybillNumber) ||
       (qrToken && (r.qr_code === qrToken || r.request_code === qrToken || r.beneficiary_code === qrToken))
@@ -3253,7 +3253,7 @@ export const db = {
     }
 
     const isTargetAlreadyHandedOver = (target && (
-      target.status === 'Handed Over' || 
+      target.status === 'Handed Over' ||
       (Boolean(target.distributed_at || target.handover_completed_at) && !target.beneficiary_confirmed)
     ));
 
@@ -3364,7 +3364,7 @@ export const db = {
             status: 'Delivered',
             notes: `Handed over to ${effectiveBeneficiaryName}. Awaiting beneficiary confirmation.`
           }).or(`waybill_number.eq.${matchWaybill}`);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
 
@@ -3399,8 +3399,8 @@ export const db = {
     const allDispatches = await this.getDispatches();
     const now = new Date().toISOString();
 
-    let target = allRequests.find(r => 
-      (requestId && (r.id === requestId || String(r.id) === String(requestId))) || 
+    let target = allRequests.find(r =>
+      (requestId && (r.id === requestId || String(r.id) === String(requestId))) ||
       (requestCode && r.request_code === requestCode)
     );
 
@@ -3452,7 +3452,7 @@ export const db = {
             status: 'Delivered',
             notes: `Confirmed received by beneficiary ${target.beneficiary_name}`
           }).eq('waybill_number', target.waybill_number);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
 
@@ -3496,7 +3496,7 @@ export const db = {
         } else if (target.request_code) {
           await supabase.from('assistance_requests').update(updates).eq('request_code', target.request_code);
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     db.logAudit({
@@ -3519,8 +3519,8 @@ export const db = {
 
     // Derive from assessments
     assessments.forEach(ass => {
-      const isAssigned = (!workerId && !workerName) || 
-        (workerId && ass.field_worker_id === workerId) || 
+      const isAssigned = (!workerId && !workerName) ||
+        (workerId && ass.field_worker_id === workerId) ||
         (workerName && ass.field_worker_name?.toLowerCase().includes(workerName.toLowerCase()));
 
       if (isAssigned && ass.submission_date) {
@@ -3539,7 +3539,7 @@ export const db = {
 
     // Derive from distributions
     interventions.forEach(int => {
-      const isDisbursed = (!workerId && !workerName) || 
+      const isDisbursed = (!workerId && !workerName) ||
         (workerName && int.disbursed_by?.toLowerCase().includes(workerName.toLowerCase()));
 
       if (isDisbursed) {
@@ -3587,7 +3587,7 @@ export const db = {
     if (workerId || workerName) {
       const cleanId = workerId ? String(workerId).toLowerCase() : '';
       const cleanName = workerName ? String(workerName).toLowerCase() : '';
-      return all.filter(a => 
+      return all.filter(a =>
         (cleanId && a.worker_id && String(a.worker_id).toLowerCase() === cleanId) ||
         (cleanName && a.worker_name && a.worker_name.toLowerCase().includes(cleanName)) ||
         !a.worker_id
@@ -3638,7 +3638,7 @@ export const db = {
       .map(r => {
         let modified = { ...r };
         const isRejectedStatus = r.status?.includes('Rejected') || r.status?.toLowerCase().includes('reject') || r.status === 'Returned to Field Worker';
-        
+
         if (isRejectedStatus) {
           if (modified.stage !== -1 || !modified.returned_to_worker) {
             needsSave = true;
@@ -3674,7 +3674,7 @@ export const db = {
     if (needsSave && typeof localStorage !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, JSON.stringify(all));
-      } catch (e) {}
+      } catch (e) { }
     }
 
     if (workerId && workerId !== 'all') {
@@ -3688,7 +3688,7 @@ export const db = {
 
       try {
         const workers = await this.getFieldWorkers();
-        const matched = workers.find(w => 
+        const matched = workers.find(w =>
           String(w.id).toLowerCase() === cleanId ||
           (cleanEmail && String(w.email || '').toLowerCase() === cleanEmail) ||
           (cleanName && String(w.name || '').toLowerCase() === cleanName) ||
@@ -3702,7 +3702,7 @@ export const db = {
           if (matched.name) workerNames.add(matched.name.toLowerCase().trim());
           if (matched.email) workerEmails.add(matched.email.toLowerCase().trim());
         }
-      } catch (e) {}
+      } catch (e) { }
 
       return all.filter(r => {
         const rWorkerId = String(r.field_worker_id || '').toLowerCase().trim();
@@ -3725,7 +3725,7 @@ export const db = {
     if (supervisorId && supervisorId !== 'all') {
       const cleanSupId = String(supervisorId).toLowerCase().trim();
       const sups = await this.getSupervisors();
-      const matchedSup = sups.find(s => 
+      const matchedSup = sups.find(s =>
         String(s.id).toLowerCase() === cleanSupId ||
         (s.email && s.email.toLowerCase() === cleanSupId) ||
         (s.name && s.name.toLowerCase() === cleanSupId) ||
@@ -3813,10 +3813,10 @@ export const db = {
 
     // Check if updating an existing requisition (only when explicitly provided ID or code, e.g. revisions)
     const existingIndex = (fundingData.id || fundingData.request_code)
-      ? all.findIndex(r => 
-          (fundingData.id && (r.id === fundingData.id || r.request_code === fundingData.id)) ||
-          (fundingData.request_code && (r.request_code === fundingData.request_code || r.id === fundingData.request_code))
-        )
+      ? all.findIndex(r =>
+        (fundingData.id && (r.id === fundingData.id || r.request_code === fundingData.id)) ||
+        (fundingData.request_code && (r.request_code === fundingData.request_code || r.id === fundingData.request_code))
+      )
       : -1;
 
     // Compute accurate amount from itemized breakdown if present
@@ -3831,7 +3831,7 @@ export const db = {
     let resolvedPayam = fundingData.payam;
 
     const allRosterWorkers = mock.initialFieldWorkers || [];
-    const workerLookup = allRosterWorkers.find(w => 
+    const workerLookup = allRosterWorkers.find(w =>
       (fundingData.field_worker_id && String(w.id).toLowerCase() === String(fundingData.field_worker_id).toLowerCase()) ||
       (fundingData.field_worker_email && String(w.email).toLowerCase() === String(fundingData.field_worker_email).toLowerCase()) ||
       (fundingData.field_worker_name && w.name?.toLowerCase().includes(fundingData.field_worker_name.toLowerCase()))
@@ -4168,12 +4168,12 @@ export const db = {
     const now = new Date().toISOString();
 
     const updated = all.map(r => {
-      const isMatch = r.id === requestId || 
-                      r.request_code === requestId ||
-                      String(r.id) === String(requestId) ||
-                      String(r.request_code) === String(requestId) ||
-                      (r.id && String(requestId).includes(String(r.id))) ||
-                      (r.request_code && String(requestId).includes(r.request_code));
+      const isMatch = r.id === requestId ||
+        r.request_code === requestId ||
+        String(r.id) === String(requestId) ||
+        String(r.request_code) === String(requestId) ||
+        (r.id && String(requestId).includes(String(r.id))) ||
+        (r.request_code && String(requestId).includes(r.request_code));
       if (isMatch) {
         return {
           ...r,
@@ -4198,8 +4198,8 @@ export const db = {
     });
 
     saveLocalData(STORAGE_KEYS.FIELD_FUNDING_REQUESTS, updated);
-    const target = updated.find(r => 
-      r.id === requestId || 
+    const target = updated.find(r =>
+      r.id === requestId ||
       r.request_code === requestId ||
       String(r.id) === String(requestId) ||
       String(r.request_code) === String(requestId)
@@ -5175,10 +5175,10 @@ export const db = {
     if (typeof localStorage !== 'undefined') {
       try {
         currentUser = JSON.parse(localStorage.getItem('adra_current_user') || '{}');
-      } catch (e) {}
+      } catch (e) { }
     }
-    const safeDetails = typeof details === 'object' && details !== null 
-      ? details 
+    const safeDetails = typeof details === 'object' && details !== null
+      ? details
       : { message: String(details || '') };
 
     const newLog = {
@@ -5237,8 +5237,8 @@ export const db = {
     const combined = [...supabaseUsers];
     [...stored, ...demo].forEach(u => {
       const uEmail = (u.email || '').toLowerCase().trim();
-      const exists = combined.some(c => 
-        (c.id && u.id && c.id === u.id) || 
+      const exists = combined.some(c =>
+        (c.id && u.id && c.id === u.id) ||
         (c.email && uEmail && c.email.toLowerCase().trim() === uEmail)
       );
       if (!exists) {
@@ -5279,7 +5279,7 @@ export const db = {
       const uNatId = (u.national_id || u.id_number || '').toLowerCase().trim();
       const uName = (u.full_name || '').toLowerCase().trim();
       const uRole = (u.role || '').toLowerCase().trim();
-      
+
       // Match exact email or username prefix (e.g. 'admin' for 'admin@adra.org')
       if (uEmail && uEmail === cleanId) return true;
       if (uUser && uUser === cleanId) return true;
@@ -5390,7 +5390,7 @@ export const db = {
 
       // Beneficiary check: check if explicitly rejected by admin or pending admin approval
       if (matchedUser.role === 'Beneficiary' || matchedUser.beneficiary_id || matchedUser.beneficiary_code) {
-        const benRecord = beneficiaries.find(b => 
+        const benRecord = beneficiaries.find(b =>
           (matchedUser.beneficiary_id && (b.id === matchedUser.beneficiary_id || b.beneficiary_code === matchedUser.beneficiary_id)) ||
           (matchedUser.beneficiary_code && b.beneficiary_code === matchedUser.beneficiary_code) ||
           (matchedUser.email && b.email && b.email.toLowerCase() === matchedUser.email.toLowerCase()) ||
@@ -5559,9 +5559,9 @@ export const db = {
       const bens = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
       const updatedBens = bens.map(b => {
         const matches = (target.id && (b.id === target.id || b.beneficiary_code === target.id)) ||
-                        (target.beneficiary_id && (b.id === target.beneficiary_id || b.beneficiary_code === target.beneficiary_id)) ||
-                        (target.beneficiary_code && b.beneficiary_code === target.beneficiary_code) ||
-                        (target.email && b.email?.toLowerCase() === target.email.toLowerCase());
+          (target.beneficiary_id && (b.id === target.beneficiary_id || b.beneficiary_code === target.beneficiary_id)) ||
+          (target.beneficiary_code && b.beneficiary_code === target.beneficiary_code) ||
+          (target.email && b.email?.toLowerCase() === target.email.toLowerCase());
         if (matches) {
           return { ...b, status: 'Deactivated', verification_status: 'Deactivated', is_active: false };
         }
@@ -5576,7 +5576,7 @@ export const db = {
           } else if (target.email) {
             await supabase.from('beneficiaries').update({ verification_status: 'Deactivated' }).eq('email', target.email);
           }
-        } catch (e) {}
+        } catch (e) { }
       }
     }
 
@@ -5661,7 +5661,7 @@ export const db = {
     }
 
     const stored = getLocalData(STORAGE_KEYS.APPROVALS, []) || [];
-    
+
     // Merge Supabase approvals and stored approvals
     const combined = [...supabaseApprovals];
     stored.forEach(a => {
@@ -5685,17 +5685,17 @@ export const db = {
       ]);
 
       // 1. Pending Users
-      const pendingUsers = users.filter(u => 
-        u.status === 'Pending Verification' || 
-        u.verification_status === 'Pending Verification' || 
+      const pendingUsers = users.filter(u =>
+        u.status === 'Pending Verification' ||
+        u.verification_status === 'Pending Verification' ||
         u.is_active === false
       );
-      
+
       pendingUsers.forEach(u => {
         const isBen = u.role === 'Beneficiary';
         const cat = isBen ? 'Beneficiary Verification' : 'User Registration';
-        const exists = combined.some(a => 
-          (u.id && a.user_id === u.id) || 
+        const exists = combined.some(a =>
+          (u.id && a.user_id === u.id) ||
           (u.email && a.requester_email?.toLowerCase() === u.email.toLowerCase()) ||
           (u.beneficiary_code && a.details?.includes(u.beneficiary_code))
         );
@@ -5707,7 +5707,7 @@ export const db = {
             requester_email: u.email || 'N/A',
             role_requested: u.role || 'Field Worker',
             department: u.department || 'Operations',
-            details: isBen 
+            details: isBen
               ? `New Beneficiary registration: ${u.full_name || 'Beneficiary'} (Code: ${u.beneficiary_code || 'N/A'}, Phone: ${u.phone || 'N/A'}). Awaiting administrator verification.`
               : `${u.role || 'Staff'} registration for ${u.full_name || 'User'} (${u.email || 'N/A'}). Awaiting administrator compliance & role approval.`,
             status: 'Pending',
@@ -5726,7 +5726,7 @@ export const db = {
       });
 
       pendingBens.forEach(b => {
-        const exists = combined.some(a => 
+        const exists = combined.some(a =>
           (b.id && a.beneficiary_id === b.id) ||
           (b.beneficiary_code && (a.beneficiary_id === b.beneficiary_code || a.details?.includes(b.beneficiary_code))) ||
           (b.email && a.requester_email?.toLowerCase() === b.email.toLowerCase()) ||
@@ -5754,7 +5754,7 @@ export const db = {
 
     saveLocalData(STORAGE_KEYS.APPROVALS, combined);
     if (!categoryFilter || categoryFilter === 'ALL') return combined;
-    return combined.filter(a => 
+    return combined.filter(a =>
       a.category === categoryFilter ||
       (categoryFilter === 'Beneficiary Verification' && (a.category === 'User Onboarding' || a.role_requested === 'Beneficiary')) ||
       (categoryFilter === 'User Registration' && (a.category === 'User Onboarding' || a.role_requested !== 'Beneficiary'))
@@ -5789,12 +5789,12 @@ export const db = {
       // Update users list in local storage
       const users = getLocalData(STORAGE_KEYS.USERS, mock.demoAccounts);
       const updatedUsers = users.map(u => {
-        const matches = (targetApp.user_id && u.id === targetApp.user_id) || 
-            (targetApp.requester_email && u.email?.toLowerCase() === targetApp.requester_email.toLowerCase()) ||
-            (targetApp.requester_name && u.full_name?.toLowerCase() === targetApp.requester_name.toLowerCase()) ||
-            (targetApp.beneficiary_id && (u.beneficiary_id === targetApp.beneficiary_id || u.beneficiary_code === targetApp.beneficiary_id)) ||
-            (targetApp.details && u.beneficiary_code && targetApp.details.includes(u.beneficiary_code)) ||
-            (targetApp.details && u.email && targetApp.details.toLowerCase().includes(u.email.toLowerCase()));
+        const matches = (targetApp.user_id && u.id === targetApp.user_id) ||
+          (targetApp.requester_email && u.email?.toLowerCase() === targetApp.requester_email.toLowerCase()) ||
+          (targetApp.requester_name && u.full_name?.toLowerCase() === targetApp.requester_name.toLowerCase()) ||
+          (targetApp.beneficiary_id && (u.beneficiary_id === targetApp.beneficiary_id || u.beneficiary_code === targetApp.beneficiary_id)) ||
+          (targetApp.details && u.beneficiary_code && targetApp.details.includes(u.beneficiary_code)) ||
+          (targetApp.details && u.email && targetApp.details.toLowerCase().includes(u.email.toLowerCase()));
         if (matches) {
           return { ...u, status: userStatus, is_active: isApproved, verification_status: benStatus };
         }
@@ -5805,11 +5805,11 @@ export const db = {
       // Update beneficiaries list in local storage
       const bens = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
       const updatedBens = bens.map(b => {
-        const matches = (targetApp.beneficiary_id && (b.id === targetApp.beneficiary_id || b.beneficiary_code === targetApp.beneficiary_id)) || 
-            (targetApp.requester_email && b.email?.toLowerCase() === targetApp.requester_email.toLowerCase()) ||
-            (targetApp.requester_name && b.full_name?.toLowerCase() === targetApp.requester_name.toLowerCase()) ||
-            (targetApp.details && b.beneficiary_code && targetApp.details.includes(b.beneficiary_code)) ||
-            (targetApp.details && b.email && targetApp.details.toLowerCase().includes(b.email.toLowerCase()));
+        const matches = (targetApp.beneficiary_id && (b.id === targetApp.beneficiary_id || b.beneficiary_code === targetApp.beneficiary_id)) ||
+          (targetApp.requester_email && b.email?.toLowerCase() === targetApp.requester_email.toLowerCase()) ||
+          (targetApp.requester_name && b.full_name?.toLowerCase() === targetApp.requester_name.toLowerCase()) ||
+          (targetApp.details && b.beneficiary_code && targetApp.details.includes(b.beneficiary_code)) ||
+          (targetApp.details && b.email && targetApp.details.toLowerCase().includes(b.email.toLowerCase()));
         if (matches) {
           return { ...b, verification_status: benStatus, status: benStatus };
         }
@@ -5866,9 +5866,9 @@ export const db = {
     const bens = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries);
     const updatedBens = bens.map(b => {
       const match = (target?.email && b.email?.toLowerCase() === target.email.toLowerCase()) ||
-                    (target?.phone && b.phone_number === target.phone) ||
-                    (target?.full_name && b.full_name?.toLowerCase() === target.full_name.toLowerCase()) ||
-                    (target?.beneficiary_code && b.beneficiary_code === target.beneficiary_code);
+        (target?.phone && b.phone_number === target.phone) ||
+        (target?.full_name && b.full_name?.toLowerCase() === target.full_name.toLowerCase()) ||
+        (target?.beneficiary_code && b.beneficiary_code === target.beneficiary_code);
       return match ? { ...b, verification_status: 'Verified Active', status: 'Verified Active' } : b;
     });
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBens);
@@ -5882,7 +5882,7 @@ export const db = {
         if (target?.email) {
           await supabase.from('approvals').update({ status: 'Approved', reviewed_at: new Date().toISOString() }).eq('requester_email', target.email);
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     const currentApprovals = getLocalData(STORAGE_KEYS.APPROVALS, []);
@@ -6174,7 +6174,7 @@ export const db = {
       saveLocalData(STORAGE_KEYS.INVENTORY, initial);
       return initial;
     }
-    
+
     // Auto-migrate older warehouse names and canonicalize items
     const normalizeKey = (str) => (str || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]/g, '').trim();
 
@@ -6329,7 +6329,7 @@ export const db = {
       const iName = (i.item_name || '').trim().toLowerCase();
       const iKey = normalizeKey(i.item_name);
       const isSameWarehouse = !targetWh || iWh === targetWh || iWh.includes(targetWh) || targetWh.includes(iWh);
-      
+
       const isNameMatch = (iName && iName === (item_name || '').trim().toLowerCase()) ||
         (grnKey.length > 3 && (iKey === grnKey || iKey.includes(grnKey) || grnKey.includes(iKey)));
 
@@ -6368,8 +6368,8 @@ export const db = {
       const globalMatch = currentInventory.find(i => {
         const iName = (i.item_name || '').trim().toLowerCase();
         const iKey = normalizeKey(i.item_name);
-        return (iName && iName === (item_name || '').trim().toLowerCase()) || 
-               (grnKey.length > 3 && (iKey === grnKey || iKey.includes(grnKey) || grnKey.includes(iKey)));
+        return (iName && iName === (item_name || '').trim().toLowerCase()) ||
+          (grnKey.length > 3 && (iKey === grnKey || iKey.includes(grnKey) || grnKey.includes(iKey)));
       });
 
       const canonicalName = globalMatch ? globalMatch.item_name : item_name;
@@ -6691,11 +6691,11 @@ export const db = {
               }
             }
             const cleanNotes = paymentMarkerIndex === -1 ? dbNotes : dbNotes.slice(0, paymentMarkerIndex);
-            
+
             // Match supplier if missing
             const matchedSup = (existingSuppliers || []).find(
-              s => s.id === dbPo.supplier_id || 
-                   s.company_name?.toLowerCase().trim() === dbPo.supplier_name?.toLowerCase().trim()
+              s => s.id === dbPo.supplier_id ||
+                s.company_name?.toLowerCase().trim() === dbPo.supplier_name?.toLowerCase().trim()
             );
 
             // Determine canonical lifecycle stage
@@ -6783,7 +6783,7 @@ export const db = {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const poNumber = poData.po_number || `PO-SS-${new Date().getFullYear()}-${randomSuffix}`;
     const id = poData.id || `po_req_${timestamp}_${randomSuffix}`;
-    
+
     let newPO = {
       id,
       po_number: poNumber,
@@ -6840,10 +6840,14 @@ export const db = {
 
     if (isSupabaseConfigured) {
       const destination = newPO.warehouse_destination || newPO.destination_warehouse || 'Central Equatoria State Depot';
+      const deliveryDate = newPO.expected_delivery || newPO.expected_delivery_date || null;
       const supabasePayload = {
         id: newPO.id,
         po_number: newPO.po_number,
+        supplier_id: newPO.supplier_id || null,
         supplier_name: newPO.supplier_name,
+        supplier_email: newPO.supplier_email || null,
+        supplier_phone: newPO.supplier_phone || null,
         item_name: newPO.item_name,
         category: newPO.category,
         quantity: Number(newPO.quantity) || 1,
@@ -6851,10 +6855,14 @@ export const db = {
         unit_cost: Number(newPO.unit_cost) || 0,
         total_amount: Number(newPO.total_amount) || 0,
         destination_warehouse: destination,
+        warehouse_destination: destination,
         order_date: newPO.order_date,
-        expected_delivery: newPO.expected_delivery || null,
+        expected_delivery: deliveryDate,
+        expected_delivery_date: deliveryDate,
         status: newPO.status || 'Pending Supplier Supply',
+        stage: newPO.stage || 1,
         issued_by: newPO.requested_by,
+        created_by: newPO.requested_by,
         notes: newPO.notes || null
       };
 
@@ -7276,9 +7284,9 @@ export const db = {
     if (linked_request_id) {
       try {
         const reqs = await this.getAssistanceRequests();
-        targetReq = reqs.find(r => 
-          r.id === linked_request_id || 
-          r.request_code === linked_request_id || 
+        targetReq = reqs.find(r =>
+          r.id === linked_request_id ||
+          r.request_code === linked_request_id ||
           r.tracking_number === linked_request_id ||
           String(r.id) === String(linked_request_id)
         );
@@ -7289,17 +7297,17 @@ export const db = {
 
     const effectiveSupervisorId = assigned_supervisor_id || targetReq?.assigned_supervisor_id || 'sup-1';
     const effectiveSupervisorName = (assigned_supervisor_name && !assigned_supervisor_name.toLowerCase().includes('pending'))
-      ? assigned_supervisor_name 
+      ? assigned_supervisor_name
       : (targetReq?.assigned_supervisor_name && !targetReq.assigned_supervisor_name.toLowerCase().includes('pending'))
-      ? targetReq.assigned_supervisor_name
-      : 'Emmanuel Adeyemi';
+        ? targetReq.assigned_supervisor_name
+        : 'Emmanuel Adeyemi';
 
     const effectiveWorkerId = assigned_field_worker_id || targetReq?.assigned_field_worker_id || '';
     const effectiveWorkerName = (assigned_field_worker_name && !assigned_field_worker_name.toLowerCase().includes('pending'))
       ? assigned_field_worker_name
       : (targetReq?.assigned_field_worker_name && !targetReq.assigned_field_worker_name.toLowerCase().includes('pending'))
-      ? targetReq.assigned_field_worker_name
-      : (targetReq?.assigned_field_worker_name || 'John Deng');
+        ? targetReq.assigned_field_worker_name
+        : (targetReq?.assigned_field_worker_name || 'John Deng');
 
     const waybillNumber = `WAYBILL-SS-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
     const dispatchToken = `WB-${(destination || 'DISP').slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -7352,8 +7360,8 @@ export const db = {
     let newTxList = [...currentTx];
 
     items.forEach(itm => {
-      const matchIdx = updatedInventory.findIndex(i => 
-        ((i.item_name && itm.item_name && i.item_name.toLowerCase() === itm.item_name.toLowerCase()) || i.id === itm.item_id) && 
+      const matchIdx = updatedInventory.findIndex(i =>
+        ((i.item_name && itm.item_name && i.item_name.toLowerCase() === itm.item_name.toLowerCase()) || i.id === itm.item_id) &&
         (!origin_warehouse || i.warehouse === origin_warehouse)
       );
       if (matchIdx !== -1) {
@@ -7369,7 +7377,7 @@ export const db = {
         updatedInventory[matchIdx] = updatedTarget;
 
         if (isSupabaseConfigured) {
-          supabase.from('inventory').update(updatedTarget).eq('id', target.id).then(() => {}).catch(e => console.warn('Supabase stock deduction error:', e));
+          supabase.from('inventory').update(updatedTarget).eq('id', target.id).then(() => { }).catch(e => console.warn('Supabase stock deduction error:', e));
         }
 
         const newTxItem = {
@@ -7388,7 +7396,7 @@ export const db = {
         newTxList.unshift(newTxItem);
 
         if (isSupabaseConfigured) {
-          supabase.from('stock_transactions').insert([newTxItem]).then(() => {}).catch(e => console.warn('Supabase transaction insert error:', e));
+          supabase.from('stock_transactions').insert([newTxItem]).then(() => { }).catch(e => console.warn('Supabase transaction insert error:', e));
         }
       }
     });
@@ -7437,7 +7445,7 @@ export const db = {
       };
       const supNotifs = getLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, mock.initialSupervisorNotifications || []);
       saveLocalData(STORAGE_KEYS.SUPERVISOR_NOTIFICATIONS, [supNotif, ...supNotifs]);
-    } catch (e) {}
+    } catch (e) { }
 
     // Push notification to Field Worker
     try {
@@ -7455,7 +7463,7 @@ export const db = {
       };
       const fwNotifs = getLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, []);
       saveLocalData(STORAGE_KEYS.FIELD_WORKER_NOTIFICATIONS, [fwNotif, ...fwNotifs]);
-    } catch (e) {}
+    } catch (e) { }
 
     await this.logAudit({
       action: 'CREATE_WAYBILL',
@@ -7472,17 +7480,17 @@ export const db = {
     const reqs = await this.getAssistanceRequests();
 
     // Match dispatch
-    let targetDispatch = allDispatches.find(d => 
-      d.id === requestIdOrWaybill || 
-      d.waybill_number === requestIdOrWaybill || 
+    let targetDispatch = allDispatches.find(d =>
+      d.id === requestIdOrWaybill ||
+      d.waybill_number === requestIdOrWaybill ||
       d.linked_request_id === requestIdOrWaybill ||
       d.request_code === requestIdOrWaybill
     );
 
     // Match request
-    let targetReq = reqs.find(r => 
-      r.id === requestIdOrWaybill || 
-      r.request_code === requestIdOrWaybill || 
+    let targetReq = reqs.find(r =>
+      r.id === requestIdOrWaybill ||
+      r.request_code === requestIdOrWaybill ||
       (targetDispatch && (r.id === targetDispatch.linked_request_id || r.request_code === targetDispatch.request_code || r.waybill_number === targetDispatch.waybill_number)) ||
       (r.waybill_number && r.waybill_number === requestIdOrWaybill)
     );
@@ -7605,18 +7613,18 @@ export const db = {
     const reqs = await this.getAssistanceRequests();
 
     // Match dispatch
-    let targetDispatch = allDispatches.find(d => 
-      d.id === lookupKey || 
-      d.waybill_number === lookupKey || 
+    let targetDispatch = allDispatches.find(d =>
+      d.id === lookupKey ||
+      d.waybill_number === lookupKey ||
       d.linked_request_id === lookupKey ||
       d.request_code === lookupKey ||
       (typeof lookupKey === 'string' && d.waybill_number && d.waybill_number.toLowerCase() === lookupKey.toLowerCase())
     );
 
     // Match request
-    let targetReq = reqs.find(r => 
-      r.id === lookupKey || 
-      r.request_code === lookupKey || 
+    let targetReq = reqs.find(r =>
+      r.id === lookupKey ||
+      r.request_code === lookupKey ||
       (targetDispatch && (r.id === targetDispatch.linked_request_id || r.request_code === targetDispatch.request_code || r.waybill_number === targetDispatch.waybill_number)) ||
       (r.waybill_number && r.waybill_number === lookupKey)
     );
@@ -7820,8 +7828,8 @@ export const db = {
       try {
         const { data, error } = await supabase.from('stock_transactions').select('*').order('created_at', { ascending: false });
         if (!error && data) {
-          const cleanDb = data.filter(tx => 
-            !SEEDED_TX_IDS.includes(tx.id) && 
+          const cleanDb = data.filter(tx =>
+            !SEEDED_TX_IDS.includes(tx.id) &&
             !SEEDED_TX_CODES.includes(tx.reference_code)
           );
           return cleanDb;
@@ -7831,8 +7839,8 @@ export const db = {
       }
     }
     const current = getLocalData(STORAGE_KEYS.STOCK_TRANSACTIONS, mock.initialStockTransactions || []);
-    const clean = current.filter(tx => 
-      !SEEDED_TX_IDS.includes(tx.id) && 
+    const clean = current.filter(tx =>
+      !SEEDED_TX_IDS.includes(tx.id) &&
       !SEEDED_TX_CODES.includes(tx.reference_code)
     );
     if (clean.length !== current.length) {
@@ -8175,8 +8183,8 @@ export const db = {
         reason: cleanPhone && (matched.phone_number || '').replace(/\D/g, '') === cleanPhone
           ? `Duplicate phone number matches existing registered beneficiary (${matched.beneficiary_code})`
           : cleanId && (matched.national_id || '').trim().toLowerCase() === cleanId
-          ? `Duplicate National/Refugee ID matches existing registered beneficiary (${matched.beneficiary_code})`
-          : `Exact name matches existing registered beneficiary (${matched.beneficiary_code})`
+            ? `Duplicate National/Refugee ID matches existing registered beneficiary (${matched.beneficiary_code})`
+            : `Exact name matches existing registered beneficiary (${matched.beneficiary_code})`
       };
     }
 
@@ -8458,7 +8466,7 @@ export const db = {
               };
             }
           }
-        } catch (e) {}
+        } catch (e) { }
         return null;
       };
 
@@ -8626,7 +8634,7 @@ export const db = {
 
     const updated = [newFeedback, ...current];
     saveLocalData(STORAGE_KEYS.USER_FEEDBACK, updated);
-    
+
     // Log audit trail
     await this.logAudit({
       action: 'FEEDBACK_SUBMITTED',
