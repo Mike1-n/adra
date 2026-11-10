@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Clock,
-  Sparkles,
   ChevronRight,
   Plus,
   Receipt,
@@ -82,38 +81,8 @@ export function FinanceDashboardView({
 
   return (
     <div className="space-y-3.5 pb-8 animate-in fade-in duration-200 max-w-4xl mx-auto">
-      
-      {/* 1. URGENT ACTION: PENDING DISBURSEMENTS */}
-      {pendingDisbursements.length > 0 && (
-        <div
-          onClick={() => onNavigateTab('disbursements')}
-          className="bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent rounded-2xl p-3 border border-amber-300 shadow-2xs hover:shadow-xs transition cursor-pointer flex items-center justify-between gap-3 group"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-2xs shrink-0 animate-pulse">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h4 className="text-xs font-black text-amber-950 truncate">
-                  {pendingDisbursements.length} Payout{pendingDisbursements.length > 1 ? 's' : ''} Ready
-                </h4>
-                <span className="bg-amber-200/90 text-amber-950 text-[9px] font-black px-1.5 py-0.5 rounded">
-                  PM Authorized
-                </span>
-              </div>
-              <p className="text-[11px] text-amber-900 font-medium truncate">
-                Totaling <strong>SSP {pendingDisbursementAmount.toLocaleString()}</strong>
-              </p>
-            </div>
-          </div>
-          <div className="w-6 h-6 rounded-lg bg-amber-200/80 text-amber-900 flex items-center justify-center shrink-0 group-hover:translate-x-0.5 transition">
-            <ChevronRight className="w-3.5 h-3.5" />
-          </div>
-        </div>
-      )}
 
-      {/* 2. BALANCED 2x2 FINANCIAL TILES */}
+      {/* BALANCED 2x2 FINANCIAL TILES */}
       <div className="grid grid-cols-2 gap-2.5">
         {/* Pending Payouts */}
         <div

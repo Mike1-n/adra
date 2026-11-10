@@ -41,7 +41,7 @@ import {
   X,
   ArrowLeft
 } from 'lucide-react';
-import { db } from '../../lib/supabase';
+import { db, isSupabaseConfigured, supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { formatCurrency, formatDate } from '../../lib/utils';
@@ -67,6 +67,8 @@ const getShortDeliverableTitle = (title, type) => {
   return type || (title.length > 25 ? title.slice(0, 24) + '...' : title);
 };
 
+const normalizeDonorIdentity = (value) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
 export function DonorPortalApp({
   currentUser,
   onLogout,
@@ -86,15 +88,19 @@ export function DonorPortalApp({
   // Data states
   const [currentDonor, setCurrentDonor] = useState(null);
   const [grants, setGrants] = useState([]);
+  const [tranches, setTranches] = useState([]);
   const [projects, setProjects] = useState([]);
   const [expenditures, setExpenditures] = useState([]);
   const [beneficiaries, setBeneficiaries] = useState([]);
-  const [activities, setActivities] = useState([]);
   const [interventions, setInterventions] = useState([]);
+  const [assistanceRequests, setAssistanceRequests] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [indicators, setIndicators] = useState([]);
   const [deliverables, setDeliverables] = useState([]);
   const [queries, setQueries] = useState([]);
   const [staffUsers, setStaffUsers] = useState([]);
+  const [loadError, setLoadError] = useState('');
+  const [missingDonorTables, setMissingDonorTables] = useState([]);
 
   // Filters & Selected states
   const [projectSearch, setProjectSearch] = useState('');
@@ -140,122 +146,61 @@ export function DonorPortalApp({
   const loadDonorData = async () => {
     try {
       setLoading(true);
+      setLoadError('');
+      setMissingDonorTables([]);
 
-      const [
-        allDonors,
-        allGrants,
-        allProjects,
-        allExp,
-        allBen,
-        allAct,
-        allInt,
-        allInd,
-        allDel,
-        allQry,
-        allUsers
-      ] = await Promise.all([
-        db.getDonors(),
-        db.getDonorGrants ? db.getDonorGrants() : [],
-        db.getProjects ? db.getProjects() : [],
-        db.getExpenditures ? db.getExpenditures() : [],
-        db.getBeneficiaries ? db.getBeneficiaries() : [],
-        db.getActivities ? db.getActivities() : [],
-        db.getInterventions ? db.getInterventions() : [],
-        db.getIndicators ? db.getIndicators() : [],
-        db.getDonorDeliverables ? db.getDonorDeliverables() : [],
-        db.getDonorQueries ? db.getDonorQueries() : [],
-        db.getUsers ? db.getUsers() : []
-      ]);
+      if (!isSupabaseConfigured || !supabase) {
+        throw new Error('Supabase is not configured for live donor portfolio access.');
+      }
+
+      const data = await db.getDonorPortfolioData();
+      setMissingDonorTables(data.missingDonorTables || []);
 
       // Resolve donor identity
-      const matched = (allDonors || []).find(
-        d => (d.email && currentUser?.email && d.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-             (d.donor_name && currentUser?.department && d.donor_name.toLowerCase().includes(currentUser.department.toLowerCase())) ||
-             (currentUser?.department && currentUser.department.toLowerCase().includes(d.donor_name.toLowerCase()))
-      ) || (allDonors && allDonors[0]) || {
-        id: 'd1',
-        donor_code: 'USAID-BHA',
-        donor_name: 'USAID (Bureau for Humanitarian Assistance)',
-        contact_person: 'Sarah Jenkins',
-        funding_amount: 3770000,
-        disbursed_amount: 2840000,
-        compliance_status: 'Fully Compliant'
-      };
+      let matched = (data.donors || []).find(d =>
+        (d.id && currentUser?.donor_id && d.id === currentUser.donor_id) ||
+        (d.email && currentUser?.email && d.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+        (d.donor_name && currentUser?.department &&
+          normalizeDonorIdentity(d.donor_name) === normalizeDonorIdentity(currentUser.department)) ||
+        (d.contact_person && currentUser?.full_name &&
+          normalizeDonorIdentity(d.contact_person) === normalizeDonorIdentity(currentUser.full_name))
+      );
+
+      // Fallback to primary donor if not explicitly matched so live DB data always populates
+      if (!matched && (data.donors || []).length > 0) {
+        matched = data.donors[0];
+      }
 
       setCurrentDonor(matched);
 
       // Filter grants specific to this donor
-      const donorGrants = (allGrants || []).filter(
-        g => g.donor_id === matched?.id || g.donor_name === matched?.donor_name
-      );
-      const activeGrants = donorGrants.length > 0 ? donorGrants : (allGrants || []);
-      setGrants(activeGrants);
+      const donorGrants = matched ? (data.grants || []).filter(g => g.donor_id === matched.id) : [];
+      setGrants(donorGrants);
 
       // Projects funded by this donor
-      const fundedProjectCodes = activeGrants.map(g => g.project_code || g.project_id);
-      let fundedProjects = (allProjects || []).filter(
-        p => p.donor_id === matched?.id || fundedProjectCodes.includes(p.project_code) || fundedProjectCodes.includes(p.id)
-      );
-
-      // Robust fallback if database projects were cleared: extract funded project entities from grants
-      if (fundedProjects.length === 0 && activeGrants.length > 0) {
-        fundedProjects = activeGrants.map(g => ({
-          id: g.project_id || g.id,
-          project_code: g.project_code,
-          project_name: g.project_name,
-          budget: g.total_committed,
-          status: g.status || 'Active',
-          location: 'Turkana & Garissa Counties',
-          description: 'Emergency Food Security, Climate-Smart Agriculture & Resilience Program'
-        }));
-      }
-
+      const fundedProjectIds = donorGrants.map(g => g.project_id).filter(Boolean);
+      const fundedProjects = matched ? (data.projects || []).filter(
+        p => p.donor_id === matched.id || fundedProjectIds.includes(p.id)
+      ) : [];
       setProjects(fundedProjects);
 
-      // Deliverables & queries
-      setDeliverables((allDel || []).filter(d => !matched || d.donor_id === matched.id || d.donor_id === 'd1'));
-      
-      const donorQrys = (allQry || []).filter(q => !matched || q.donor_id === matched.id || q.donor_id === 'd1');
-      if (donorQrys.length > 0) {
-        setQueries(donorQrys);
-      } else {
-        setQueries([
-          {
-            id: 'qry-1',
-            donor_id: matched?.id || 'd1',
-            subject: 'Verification of Turkana Seed Distribution Sign-off Records',
-            message: 'Could ADRA please provide confirmation on the warehouse dispatch vouchers for the certified sorghum seeds in Lodwar?',
-            sender: `${currentUser?.full_name || 'Sarah Jenkins'} (${matched?.donor_code || 'USAID BHA'})`,
-            date: '2025-02-18',
-            status: 'Clarified',
-            response: 'Verified distribution sheets and GPS-tagged beneficiary lists were uploaded under Activity ACT-2025-101. Total 520 farmers signed.',
-            responded_by: 'Grace Ochieng (Program Manager)',
-            responded_at: '2025-02-19'
-          },
-          {
-            id: 'qry-2',
-            donor_id: matched?.id || 'd1',
-            subject: 'Environmental Compliance for Solar Borehole Installation',
-            message: 'Requesting the hydrologic EIA clearance certification for Marsabit District borehole drilling sites.',
-            sender: `${currentUser?.full_name || 'Sarah Jenkins'} (${matched?.donor_code || 'USAID BHA'})`,
-            date: '2025-03-22',
-            status: 'Under Review',
-            response: 'EIA hydrology permit issued by NEMA has been attached to the Project Documents repository.',
-            responded_by: 'Alex Morgan (Finance Officer)',
-            responded_at: '2025-03-24'
-          }
-        ]);
-      }
-
-      setExpenditures(allExp || []);
-      setBeneficiaries(allBen || []);
-      setActivities(allAct || []);
-      setInterventions(allInt || []);
-      setIndicators(allInd || []);
-      setStaffUsers(allUsers || []);
+      setTranches((data.tranches || []).filter(t => donorGrants.some(g => g.id === t.donor_grant_id)));
+      setDeliverables(matched ? (data.deliverables || []).filter(d => d.donor_id === matched.id) : []);
+      setQueries(matched ? (data.queries || []).filter(q => q.donor_id === matched.id).map(q => ({
+        ...q,
+        date: q.created_at?.split('T')[0]
+      })) : []);
+      setExpenditures(data.expenditures || []);
+      setBeneficiaries(data.beneficiaries || []);
+      setInterventions(data.interventions || []);
+      setAssistanceRequests(data.assistanceRequests || []);
+      setActivities(data.activities || []);
+      setIndicators(data.indicators || []);
+      setStaffUsers(data.users || []);
     } catch (err) {
       console.error('Failed to load donor data:', err);
-      toast.error('Unable to load donor portfolio.');
+      setLoadError(err?.message || 'Unable to load live donor portfolio data.');
+      toast.error('Unable to load live donor portfolio data.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -267,32 +212,106 @@ export function DonorPortalApp({
   }, [currentUser]);
 
   // Calculations
-  const totalCommitted = useMemo(() => {
-    if (grants.length > 0) {
-      return grants.reduce((sum, g) => sum + (Number(g.total_committed) || 0), 0);
-    }
-    return Number(currentDonor?.funding_amount) || 3770000;
-  }, [grants, currentDonor]);
-
-  const totalDisbursed = useMemo(() => {
-    if (grants.length > 0) {
-      return grants.reduce((sum, g) => sum + (Number(g.disbursed_amount) || 0), 0);
-    }
-    return Number(currentDonor?.disbursed_amount) || 2840000;
-  }, [grants, currentDonor]);
-
-  const totalExpended = useMemo(() => {
-    if (grants.length > 0) {
-      return grants.reduce((sum, g) => sum + (Number(g.expended_amount) || 0), 0);
-    }
-    return 2292200;
+  const projectIds = useMemo(() => new Set(projects.map(project => project.id)), [projects]);
+  const donorFileKey = currentDonor?.id?.slice(0, 8) || 'DONOR';
+  const donorExpenditures = useMemo(
+    () => expenditures.filter(item => projectIds.has(item.project_id)),
+    [expenditures, projectIds]
+  );
+  const totalCommitted = grants.length
+    ? grants.reduce((sum, grant) => sum + (Number(grant.total_committed) || 0), 0)
+    : Number(currentDonor?.funding_amount ?? projects.reduce((sum, project) => sum + (Number(project.budget) || 0), 0)) || 0;
+  const trancheDisbursements = tranches
+    .filter(tranche => ['released', 'disbursed', 'fully liquidated', 'active utilization'].some(status => (tranche.status || '').toLowerCase().startsWith(status)))
+    .reduce((sum, tranche) => sum + (Number(tranche.amount) || 0), 0);
+  const totalDisbursed = trancheDisbursements || grants.reduce((sum, grant) => sum + (Number(grant.disbursed_amount) || 0), 0);
+  const totalExpended = donorExpenditures.reduce((sum, expenditure) => sum + (Number(expenditure.amount) || 0), 0);
+  const burnRate = totalDisbursed > 0 ? ((totalExpended / totalDisbursed) * 100).toFixed(1) : '0.0';
+  const portfolioAvailable = Boolean(currentDonor) && !loadError;
+  const donorBeneficiaries = useMemo(() => {
+    const linkedRequests = assistanceRequests.filter(request =>
+      projectIds.has(request.program_id || request.project_id)
+    );
+    const linkedBeneficiaryIds = new Set([
+      ...interventions
+        .filter(intervention => projectIds.has(intervention.project_id))
+        .map(intervention => intervention.beneficiary_id),
+      ...linkedRequests.map(request => request.beneficiary_id)
+    ].filter(Boolean));
+    const linkedBeneficiaryCodes = new Set(
+      linkedRequests.map(request => request.beneficiary_code).filter(Boolean)
+    );
+    const filtered = beneficiaries.filter(beneficiary =>
+      projectIds.has(beneficiary.project_id) ||
+      linkedBeneficiaryIds.has(beneficiary.id) ||
+      linkedBeneficiaryCodes.has(beneficiary.beneficiary_code)
+    );
+    return filtered.length ? filtered : beneficiaries;
+  }, [assistanceRequests, beneficiaries, interventions, projectIds]);
+  const donorActivities = useMemo(
+    () => activities.filter(activity => projectIds.has(activity.project_id)),
+    [activities, projectIds]
+  );
+  const donorIndicators = useMemo(
+    () => indicators.filter(indicator => projectIds.has(indicator.project_id)),
+    [indicators, projectIds]
+  );
+  const beneficiaryCount = donorBeneficiaries.length;
+  const projectSpend = useMemo(() => donorExpenditures.reduce((result, expenditure) => {
+    result[expenditure.project_id] = (result[expenditure.project_id] || 0) + (Number(expenditure.amount) || 0);
+    return result;
+  }, {}), [donorExpenditures]);
+  const budgetLineBreakdown = useMemo(() => {
+    const categories = donorExpenditures.reduce((result, expenditure) => {
+      const category = expenditure.category || 'Uncategorized';
+      result[category] = (result[category] || 0) + (Number(expenditure.amount) || 0);
+      return result;
+    }, {});
+    const total = Object.values(categories).reduce((sum, amount) => sum + amount, 0);
+    const colors = [
+      { accent: 'border-l-emerald-500', valueColor: 'text-emerald-800' },
+      { accent: 'border-l-sky-500', valueColor: 'text-sky-800' },
+      { accent: 'border-l-indigo-500', valueColor: 'text-indigo-800' },
+      { accent: 'border-l-amber-500', valueColor: 'text-amber-800' }
+    ];
+    return Object.entries(categories).map(([name, amount], index) => ({
+      name,
+      amount,
+      pct: total > 0 ? (amount / total) * 100 : 0,
+      ...colors[index % colors.length]
+    }));
+  }, [donorExpenditures]);
+  const beneficiaryBreakdown = useMemo(() => {
+    const categories = donorBeneficiaries.reduce((result, beneficiary) => {
+      const category = beneficiary.vulnerability_category || 'Uncategorized';
+      result[category] = (result[category] || 0) + 1;
+      return result;
+    }, {});
+    const colors = ['bg-[#006B56]', 'bg-sky-600', 'bg-amber-500', 'bg-indigo-500', 'bg-teal-500'];
+    const badges = ['bg-emerald-50 text-[#006B56]', 'bg-sky-50 text-sky-700', 'bg-amber-50 text-amber-700', 'bg-indigo-50 text-indigo-700', 'bg-teal-50 text-teal-700'];
+    return Object.entries(categories).map(([label, count], index) => ({
+      label,
+      count,
+      pct: donorBeneficiaries.length ? (count / donorBeneficiaries.length) * 100 : 0,
+      dotColor: colors[index % colors.length],
+      badgeColor: badges[index % badges.length]
+    }));
+  }, [donorBeneficiaries]);
+  const donorGrantIds = useMemo(() => new Set(grants.map(grant => grant.id)), [grants]);
+  const donorTranches = useMemo(
+    () => tranches.filter(tranche => donorGrantIds.has(tranche.donor_grant_id)),
+    [tranches, donorGrantIds]
+  );
+  const grantPeriod = useMemo(() => {
+    const starts = grants.map(grant => grant.start_date).filter(Boolean).sort();
+    const ends = grants.map(grant => grant.end_date).filter(Boolean).sort();
+    return { start: starts[0], end: ends[ends.length - 1] };
   }, [grants]);
-
-  const burnRate = totalDisbursed > 0 ? ((totalExpended / totalDisbursed) * 100).toFixed(1) : '80.7';
-
-  const verifiedBeneficiariesCount = useMemo(() => {
-    return beneficiaries.length > 0 ? beneficiaries.length * 420 : 2520;
-  }, [beneficiaries]);
+  const jurisdictionCount = useMemo(() => {
+    const beneficiaryLocations = new Set(donorBeneficiaries.map(b => b.location).filter(Boolean));
+    if (beneficiaryLocations.size > 0) return beneficiaryLocations.size;
+    return new Set(projects.map(project => project.location).filter(Boolean)).size || 1;
+  }, [donorBeneficiaries, projects]);
 
   // Project filtering
   const filteredProjects = useMemo(() => {
@@ -311,19 +330,19 @@ export function DonorPortalApp({
       toast.info('Generating official Grant Portfolio Statement...');
       const tableData = grants.map(g => [
         g.grant_code,
-        g.project_name,
-        `$${Number(g.total_committed || 0).toLocaleString()}`,
-        `$${Number(g.disbursed_amount || 0).toLocaleString()}`,
-        `$${Number(g.expended_amount || 0).toLocaleString()}`,
+        g.projects?.project_name || projects.find(project => project.id === g.project_id)?.project_name || '',
+        `SSP ${Number(g.total_committed || 0).toLocaleString()}`,
+        `SSP ${Number(g.disbursed_amount || 0).toLocaleString()}`,
+        `SSP ${Number(projectSpend[g.project_id] || 0).toLocaleString()}`,
         g.status
       ]);
 
       await exportToPDF({
-        title: `Grant Oversight Statement — ${currentDonor?.donor_name || 'USAID'}`,
-        subtitle: `Generated: ${new Date().toLocaleDateString()} | Partner Compliance: Fully Certified`,
+        title: `Grant Oversight Statement — ${currentDonor?.donor_name || 'Donor'}`,
+        subtitle: `Generated: ${new Date().toLocaleDateString()}`,
         columns: ['Grant Agreement', 'Project Title', 'Committed', 'Disbursed', 'Expended', 'Status'],
         data: tableData,
-        fileName: `ADRA_Grant_Summary_${currentDonor?.donor_code || 'DONOR'}.pdf`
+        fileName: `ADRA_Grant_Summary_${donorFileKey}.pdf`
       });
       toast.success('Grant Summary PDF downloaded.');
     } catch (err) {
@@ -337,12 +356,12 @@ export function DonorPortalApp({
     try {
       const csvData = grants.map(g => ({
         'Grant Code': g.grant_code,
-        'Project Code': g.project_code,
-        'Project Title': g.project_name,
-        'Committed (USD)': g.total_committed,
-        'Disbursed (USD)': g.disbursed_amount,
-        'Expended (USD)': g.expended_amount,
-        'Burn Rate (%)': ((g.expended_amount / (g.disbursed_amount || 1)) * 100).toFixed(1) + '%',
+        'Project Code': g.projects?.project_code || projects.find(project => project.id === g.project_id)?.project_code || '',
+        'Project Title': g.projects?.project_name || projects.find(project => project.id === g.project_id)?.project_name || '',
+        'Committed (SSP)': g.total_committed,
+        'Disbursed (SSP)': g.disbursed_amount,
+        'Expended (SSP)': projectSpend[g.project_id] || 0,
+        'Burn Rate (%)': (Number(g.disbursed_amount) > 0 ? ((projectSpend[g.project_id] || 0) / Number(g.disbursed_amount)) * 100 : 0).toFixed(1) + '%',
         'Start Date': g.start_date,
         'End Date': g.end_date,
         'Focal Officer': g.focal_officer,
@@ -356,6 +375,47 @@ export function DonorPortalApp({
     }
   };
 
+  const handleExportCompliancePDF = async () => {
+    try {
+      await exportToPDF({
+        title: `Grant Compliance Deliverables — ${currentDonor?.donor_name || 'Donor'}`,
+        subtitle: `Generated: ${new Date().toLocaleDateString()}`,
+        columns: ['Deliverable', 'Type', 'Due Date', 'Submitted Date', 'Status', 'File'],
+        data: deliverables.map(deliverable => [
+          deliverable.title || '',
+          deliverable.type || '',
+          deliverable.due_date || '',
+          deliverable.submitted_date || '',
+          deliverable.status || '',
+          deliverable.file_name || ''
+        ]),
+        fileName: `ADRA_Compliance_Deliverables_${donorFileKey}.pdf`
+      });
+      toast.success('Compliance deliverables PDF downloaded.');
+    } catch (err) {
+      console.error('Failed to export compliance deliverables:', err);
+      toast.error('Failed to export compliance deliverables.');
+    }
+  };
+
+  const handleOpenDeliverable = (deliverable) => {
+    if (!deliverable?.file_url) {
+      toast.info('No file is attached to this deliverable yet.');
+      return;
+    }
+
+    try {
+      const fileUrl = new URL(deliverable.file_url, window.location.origin);
+      if (!['http:', 'https:'].includes(fileUrl.protocol)) {
+        throw new Error('Unsupported file URL protocol.');
+      }
+      window.open(fileUrl.href, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('Unable to open deliverable file:', err);
+      toast.error('The deliverable file URL is invalid.');
+    }
+  };
+
   // Submit Official Inquiry
   const handleSendInquiry = async (e) => {
     e.preventDefault();
@@ -363,180 +423,135 @@ export function DonorPortalApp({
       toast.warning('Please enter an inquiry subject and message.');
       return;
     }
+    if (!currentDonor?.id || !leadershipDesks.length) {
+      toast.error('A linked donor record and staff contact are required to submit an inquiry.');
+      return;
+    }
 
     try {
+      const recipient = leadershipDesks.find(desk => desk.id === 'grace') || leadershipDesks[0];
       const newQuery = await db.sendDonorQuery({
-        donor_id: currentDonor?.id || 'd1',
+        donor_id: currentDonor.id,
         ticket_code: `DNR-${Date.now().toString().slice(-4)}`,
         subject: inquiryForm.subject,
         message: inquiryForm.message,
-        sender: `${currentUser?.full_name || 'Sarah Jenkins'} (${currentDonor?.donor_name || 'Donor'})`,
-        sender_name: currentUser?.full_name || 'Sarah Jenkins',
+        sender_name: currentUser?.full_name || currentDonor.contact_person || 'Donor',
         sender_role: 'Institutional Donor',
-        recipient_name: 'Grace Ochieng',
-        recipient_role: 'Program Manager',
+        recipient_name: recipient.name,
+        recipient_role: recipient.role,
         status: 'Under Review',
         response: null
       });
 
-      setQueries([newQuery, ...queries]);
+      setQueries(previous => [...previous, newQuery]);
       setIsInquiryModalOpen(false);
       setInquiryForm({ subject: '', category: 'Financial Verification', project_code: '', message: '' });
       toast.success('Inquiry submitted to ADRA Country Leadership.');
     } catch (err) {
+      console.error('Failed to submit donor inquiry:', err);
       toast.error('Failed to transmit inquiry.');
     }
   };
 
-  // Dynamic resolution of staff accounts from database / syste  // Dynamic resolution of staff accounts from database / system
-  // MUST strictly be Admin, Program Manager, and Finance - NO JUNIORS OR BENEFICIARIES!
+  // Resolve inquiry contacts only from actual staff records.
   const pmUser = useMemo(() => {
-    const found = (staffUsers || []).find(u => 
-      u.role !== 'Beneficiary' && 
-      u.role !== 'Field Worker' && 
-      u.role !== 'Supervisor' &&
-      u.role !== 'Supplier' &&
-      (
-        u.email === 'program.manager@adra.org' ||
-        u.id === 'user-pm' ||
-        (u.role && (u.role.toLowerCase() === 'program manager' || u.role.toLowerCase() === 'programme manager'))
-      )
-    );
-    return found || {
-      id: 'user-pm',
-      full_name: 'Grace Ochieng',
-      role: 'Program Manager',
-      email: 'program.manager@adra.org',
-      department: 'Emergency Response & Programs'
-    };
+    return staffUsers.find(user => ['program manager', 'programme manager'].includes((user.role || '').toLowerCase()));
   }, [staffUsers]);
-
 
   const foUser = useMemo(() => {
-    const found = (staffUsers || []).find(u => 
-      u.role !== 'Beneficiary' && 
-      u.role !== 'Field Worker' && 
-      u.role !== 'Supervisor' && 
-      u.role !== 'Supplier' &&
-      (
-        u.email === 'finance.officer@adra.org' ||
-        u.id === 'user-fo' ||
-        (u.role && (u.role.toLowerCase() === 'finance officer' || u.role.toLowerCase().includes('finance')))
-      )
-    );
-    return found || {
-      id: 'user-fo',
-      full_name: 'Alex Morgan',
-      role: 'Finance Officer',
-      email: 'finance.officer@adra.org',
-      department: 'Financial Control & Grants'
-    };
+    return staffUsers.find(user => (user.role || '').toLowerCase().includes('finance'));
   }, [staffUsers]);
 
-  // Module Inquiry Desks mapped to real verified operational module officers
   const leadershipDesks = useMemo(() => [
-    {
+    pmUser && {
       id: 'grace',
       userId: pmUser.id,
-      role: 'Program Manager',
-      name: pmUser.full_name || 'Grace Ochieng',
-      email: pmUser.email || 'program.manager@adra.org',
-      department: pmUser.department || 'Emergency Response & Programs',
-      title: 'Field Operations & Beneficiary Verification Sheets',
-      status: 'Active',
-      badge: 'Field Activities & Sign-off',
+      role: pmUser.role,
+      name: pmUser.full_name || pmUser.email,
+      email: pmUser.email || '',
+      department: pmUser.department || '',
+      title: 'Program Manager',
+      status: pmUser.status || 'Staff contact',
+      badge: 'Programs',
       avatarColor: 'bg-emerald-600',
       icon: ClipboardList,
       isAccount: true,
-      welcomeNote: `Direct desk with ${pmUser.full_name} (Program Manager). Official channel for Field Activity sign-offs, seed dispatch vouchers, and GPS-tagged beneficiary verification sheets.`
+      welcomeNote: 'Contact the Program Manager about project activities and field delivery records.'
     },
-    {
+    foUser && {
       id: 'alex',
       userId: foUser.id,
-      role: foUser.role || 'Finance Officer',
-      name: foUser.full_name || 'Alex Morgan',
-      email: foUser.email || 'finance.officer@adra.org',
-      department: foUser.department || 'Financial Control & Grants',
-      title: 'Financial Accountability & Audit Records',
-      status: 'Active',
-      badge: 'Voucher & Expenditure Audit',
+      role: foUser.role,
+      name: foUser.full_name || foUser.email,
+      email: foUser.email || '',
+      department: foUser.department || '',
+      title: 'Finance Officer',
+      status: foUser.status || 'Staff contact',
+      badge: 'Finance',
       avatarColor: 'bg-blue-600',
       icon: Scale,
       isAccount: true,
-      welcomeNote: `Direct accountability channel with ${foUser.full_name} (${foUser.role || 'Finance Officer'}) for warehouse dispatch vouchers, field expenditure audits, and burn-rate telemetry.`
+      welcomeNote: 'Contact the Finance Officer about grant expenditure and financial records.'
     }
-  ], [pmUser, foUser]);
+  ].filter(Boolean), [pmUser, foUser]);
 
-  const currentDesk = leadershipDesks.find(d => d.id === activeChatDesk || (activeChatDesk === 'david' && d.id === 'alex')) || leadershipDesks[0];
+  const currentDesk = leadershipDesks.find(d => d.id === activeChatDesk) || leadershipDesks[0] || {
+    id: 'unavailable',
+    role: '',
+    name: 'No staff contacts available',
+    email: '',
+    department: '',
+    status: 'Unavailable',
+    avatarColor: 'bg-slate-400',
+    icon: HelpCircle,
+    isAccount: false,
+    welcomeNote: 'No Program Manager or Finance Officer account is available in the database.'
+  };
 
   const activeChatMessages = useMemo(() => {
-    let filtered = queries;
-    if (activeChatDesk === 'grace') {
-      filtered = queries.filter(q => 
-        (q.responded_by && q.responded_by.toLowerCase().includes('grace')) ||
-        (q.subject && q.subject.toLowerCase().includes('seed')) ||
-        (q.subject && q.subject.toLowerCase().includes('turkana'))
-      );
-    } else if (activeChatDesk === 'alex' || activeChatDesk === 'david') {
-      filtered = queries.filter(q => 
-        (q.responded_by && (q.responded_by.toLowerCase().includes('alex') || q.responded_by.toLowerCase().includes('morgan') || q.responded_by.toLowerCase().includes('david') || q.responded_by.toLowerCase().includes('finance'))) ||
-        (q.subject && q.subject.toLowerCase().includes('finance')) ||
-        (q.subject && q.subject.toLowerCase().includes('voucher')) ||
-        (q.subject && q.subject.toLowerCase().includes('expenditure'))
-      );
-    }
+    const filtered = queries.filter(query =>
+      query.recipient_name === currentDesk.name || query.recipient_role === currentDesk.role
+    );
 
     return [...filtered].sort((a, b) => {
-      const timeA = a.date ? new Date(a.date).getTime() : 0;
-      const timeB = b.date ? new Date(b.date).getTime() : 0;
+      const timeA = new Date(a.created_at || a.date || 0).getTime();
+      const timeB = new Date(b.created_at || b.date || 0).getTime();
       return timeA - timeB;
     });
-  }, [queries, activeChatDesk]);
+  }, [queries, currentDesk]);
 
   const getDeskMessageCount = (deskId) => {
-    if (deskId === 'grace') {
-      return queries.filter(q => 
-        (q.responded_by && q.responded_by.toLowerCase().includes('grace')) ||
-        (q.subject && q.subject.toLowerCase().includes('seed')) ||
-        (q.subject && q.subject.toLowerCase().includes('turkana'))
-      ).length;
-    }
-    if (deskId === 'alex' || deskId === 'david') {
-      return queries.filter(q => 
-        (q.responded_by && (q.responded_by.toLowerCase().includes('alex') || q.responded_by.toLowerCase().includes('morgan') || q.responded_by.toLowerCase().includes('david') || q.responded_by.toLowerCase().includes('finance'))) ||
-        (q.subject && q.subject.toLowerCase().includes('finance')) ||
-        (q.subject && q.subject.toLowerCase().includes('voucher')) ||
-        (q.subject && q.subject.toLowerCase().includes('expenditure'))
-      ).length;
-    }
-    return 0;
+    const desk = leadershipDesks.find(item => item.id === deskId);
+    if (!desk) return 0;
+    return queries.filter(query =>
+      query.recipient_name === desk.name || query.recipient_role === desk.role
+    ).length;
   };
 
   const handleSendChatMessage = async (e) => {
     if (e) e.preventDefault();
     if (!chatMessageText.trim() || isSendingChat) return;
+    if (!currentDonor?.id || currentDesk.id === 'unavailable') {
+      toast.error('A linked donor record and staff contact are required to send a message.');
+      return;
+    }
 
     try {
       setIsSendingChat(true);
       const text = chatMessageText.trim();
       const subject = text.length > 50 ? `${text.substring(0, 47)}...` : text;
 
-      let targetResponder = currentDesk.isAccount ? `${currentDesk.name} (${currentDesk.role})` : 'ADRA Senior Leadership';
-
       const newQry = await db.sendDonorQuery({
-        donor_id: currentDonor?.id || 'd1',
+        donor_id: currentDonor.id,
         ticket_code: `DNR-${Date.now().toString().slice(-4)}`,
         subject: subject,
         message: text,
-        sender: `${currentUser?.full_name || 'Sarah Jenkins'} (${currentDonor?.donor_code || 'USAID BHA'})`,
-        sender_name: currentUser?.full_name || 'Sarah Jenkins',
+        sender_name: currentUser?.full_name || currentDonor.contact_person || 'Donor',
         sender_role: 'Institutional Donor',
         recipient_name: currentDesk.name,
         recipient_role: currentDesk.role,
         status: 'Under Review',
-        response: null,
-        responded_by: targetResponder,
-        date: new Date().toISOString().split('T')[0]
+        response: null
       });
 
       setQueries(prev => [...prev, newQry]);
@@ -549,7 +564,7 @@ export function DonorPortalApp({
         }
       }, 100);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to send donor message:', err);
       toast.error('Failed to transmit inquiry.');
     } finally {
       setIsSendingChat(false);
@@ -567,7 +582,7 @@ export function DonorPortalApp({
       id: 'projects',
       label: 'Funded Projects',
       icon: FolderKanban,
-      count: projects.length || 4
+      count: projects.length
     },
     {
       id: 'finances',
@@ -583,13 +598,13 @@ export function DonorPortalApp({
       id: 'compliance',
       label: 'Deliverables & Audits',
       icon: FileText,
-      count: deliverables.length || 5
+      count: deliverables.length
     },
     {
       id: 'inquiries',
       label: 'Official Inquiries',
       icon: Mail,
-      count: queries.length || 2
+      count: queries.length
     }
   ];
 
@@ -676,10 +691,10 @@ export function DonorPortalApp({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-slate-900 truncate">
-                {currentDonor?.donor_code || 'USAID'}
+                {currentDonor?.donor_name || 'No donor linked'}
               </p>
               <p className="text-[10px] text-slate-500 truncate font-medium">
-                {currentUser?.full_name || 'Sarah Jenkins'}
+                {currentUser?.full_name || currentUser?.email || 'Signed-in user'}
               </p>
             </div>
           </div>
@@ -748,78 +763,87 @@ export function DonorPortalApp({
         <main className={`flex-1 bg-slate-50 ${activeTab === 'inquiries' ? 'p-3.5 sm:p-5 flex flex-col h-full overflow-hidden' : 'overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6'}`}>
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center">
-              <LoadingSpinner text="Retrieving verified grant data and field logs..." />
+              <LoadingSpinner text="Loading donor records from the database..." />
             </div>
           ) : (
             <>
+              {(loadError || !currentDonor || (currentDonor && !projects.length) || missingDonorTables.length > 0) && (
+                <div className={`rounded-xl border px-4 py-3 text-sm ${
+                  loadError ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-800'
+                }`}>
+                  {loadError
+                    ? (!isSupabaseConfigured
+                      ? 'Supabase is not configured. Donor portfolio data is not loaded from the database.'
+                      : `Live donor data could not be loaded: ${loadError}`)
+                    : missingDonorTables.length
+                      ? `Donor data is loading from existing records. Apply the Supabase donor portal migration to enable: ${missingDonorTables.join(', ')}.`
+                    : !currentDonor
+                      ? 'No donor record is linked to this account. Link the donor record email to the login email, or ensure the donor name matches the account department.'
+                      : 'No projects or grant agreements are linked to this donor yet. Link funded projects by donor ID or add grant agreements to populate the portfolio.'}
+                </div>
+              )}
+
               {/* Executive Summary Top Metric Strip (Clean Unified ADRA Standard) */}
               {activeTab === 'overview' && (
                 <>
-                  <div className="pb-1">
-                    <h1 className="text-xl font-black text-slate-900 tracking-tight">Executive Summary</h1>
+                  <div className="flex flex-col gap-1 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#006B56]">Grant overview</p>
+                      <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">Executive summary</h1>
+                    </div>
+                    <p className="text-xs text-slate-500">{currentDonor?.donor_name || 'Institutional donor'}</p>
                   </div>
 
-                  {/* Top Metric Strip (Clean Unified ADRA Standard - 2x2 in phone mode) */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-                    <Card className="p-3 sm:p-4 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl flex flex-col justify-between">
-                      <div className="flex items-start justify-between gap-1.5">
-                        <div className="min-w-0">
-                          <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Total Grant Committed</p>
-                          <h3 className="text-lg sm:text-2xl font-black text-slate-900 mt-1 tracking-tight">${totalCommitted.toLocaleString()}</h3>
-                          <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 leading-tight sm:leading-normal">Multi-year bilateral framework</p>
+                  <div className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
+                    {[
+                      {
+                        label: 'Grant committed',
+                        value: portfolioAvailable ? `SSP ${totalCommitted.toLocaleString()}` : '—',
+                        detail: portfolioAvailable ? 'Total approved funding' : 'Link a donor account to view',
+                        Icon: Award,
+                        borderColor: 'border-t-emerald-500',
+                        valueColor: 'text-emerald-700',
+                        iconColor: 'bg-emerald-100 text-emerald-700'
+                      },
+                      {
+                        label: 'Funds disbursed',
+                        value: portfolioAvailable ? `SSP ${totalDisbursed.toLocaleString()}` : '—',
+                        detail: portfolioAvailable ? `${totalCommitted > 0 ? ((totalDisbursed / totalCommitted) * 100).toFixed(0) : 0}% of committed funding` : 'Link a donor account to view',
+                        Icon: DollarSign,
+                        borderColor: 'border-t-sky-500',
+                        valueColor: 'text-sky-700',
+                        iconColor: 'bg-sky-100 text-sky-700'
+                      },
+                      {
+                        label: 'Recorded expenditures',
+                        value: portfolioAvailable ? `SSP ${totalExpended.toLocaleString()}` : '—',
+                        detail: portfolioAvailable ? `${burnRate}% of disbursed funds` : 'Link a donor account to view',
+                        Icon: TrendingUp,
+                        borderColor: 'border-t-violet-500',
+                        valueColor: 'text-violet-700',
+                        iconColor: 'bg-violet-100 text-violet-700'
+                      },
+                      {
+                        label: 'Beneficiaries enrolled',
+                        value: portfolioAvailable ? beneficiaryCount.toLocaleString() : '—',
+                        detail: portfolioAvailable ? `Across ${jurisdictionCount} jurisdictions` : 'Link a donor account to view',
+                        Icon: Users,
+                        borderColor: 'border-t-amber-500',
+                        valueColor: 'text-amber-700',
+                        iconColor: 'bg-amber-100 text-amber-700'
+                      }
+                    ].map(({ label, value, detail, Icon, borderColor, valueColor, iconColor }) => (
+                      <Card key={label} className={`rounded-xl border border-t-[3px] border-slate-200 bg-white p-3 shadow-2xs sm:rounded-2xl sm:p-4 ${borderColor}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] font-semibold leading-tight text-slate-500 sm:text-xs">{label}</p>
+                          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-8 sm:w-8 ${iconColor}`}>
+                            <Icon className="h-4 w-4" />
+                          </span>
                         </div>
-                        <span className="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
-                          <Award className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </span>
-                      </div>
-                    </Card>
-
-                    <Card className="p-3 sm:p-4 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl flex flex-col justify-between">
-                      <div className="flex items-start justify-between gap-1.5">
-                        <div className="min-w-0">
-                          <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Field Disbursements</p>
-                          <h3 className="text-lg sm:text-2xl font-black text-slate-900 mt-1 tracking-tight">${totalDisbursed.toLocaleString()}</h3>
-                          <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 leading-tight sm:leading-normal">
-                            {totalCommitted > 0 ? ((totalDisbursed / totalCommitted) * 100).toFixed(0) : 75}% of committed released
-                          </p>
-                        </div>
-                        <span className="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
-                          <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </span>
-                      </div>
-                    </Card>
-
-                    <Card className="p-3 sm:p-4 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl flex flex-col justify-between">
-                      <div className="flex items-start justify-between gap-1.5">
-                        <div className="min-w-0">
-                          <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Verified Utilization</p>
-                          <h3 className="text-lg sm:text-2xl font-black text-slate-900 mt-1 tracking-tight">${totalExpended.toLocaleString()}</h3>
-                          <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 leading-tight sm:leading-normal">
-                            Burn rate: <span className="text-[#006B56] font-bold">{burnRate}%</span> • <span className="text-emerald-700 font-semibold">On Track</span>
-                          </p>
-                        </div>
-                        <span className="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
-                          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </span>
-                      </div>
-                    </Card>
-
-                    <Card className="p-3 sm:p-4 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl flex flex-col justify-between">
-                      <div className="flex items-start justify-between gap-1.5">
-                        <div className="min-w-0">
-                          <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Beneficiaries Reached</p>
-                          <h3 className="text-lg sm:text-2xl font-black text-slate-900 mt-1 tracking-tight">
-                            {verifiedBeneficiariesCount.toLocaleString()}
-                          </h3>
-                          <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 leading-tight sm:leading-normal">
-                            Across {projects.length || 4} project jurisdictions
-                          </p>
-                        </div>
-                        <span className="p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl bg-emerald-50 text-[#006B56] border border-emerald-100 shrink-0">
-                          <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </span>
-                      </div>
-                    </Card>
+                        <p className={`mt-2 break-words text-lg font-black tracking-tight sm:mt-3 sm:text-2xl ${valueColor}`}>{value}</p>
+                        <p className="mt-1 text-[9px] leading-tight text-slate-500 sm:text-[11px]">{detail}</p>
+                      </Card>
+                    ))}
                   </div>
                 </>
               )}
@@ -833,22 +857,17 @@ export function DonorPortalApp({
 
               {/* TAB 1: EXECUTIVE SUMMARY */}
               {activeTab === 'overview' && (
-                <div className="space-y-6">
-                  {/* Banner Card */}
-                  <Card className="p-5 sm:p-6 bg-white border border-slate-200 shadow-2xs rounded-2xl">
-                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-[#006B56]" />
-                          <h2 className="text-base font-bold text-slate-900">Institutional Grant Portfolio Status</h2>
+                <div className="space-y-5 sm:space-y-6">
+                  <Card className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xs">
+                    <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <h2 className="text-base font-bold tracking-tight text-slate-900 sm:text-lg">Funding & utilization</h2>
                         </div>
-                        <p className="text-xs text-slate-600 max-w-2xl leading-relaxed">
-                          Official accountability telemetry for <span className="text-slate-900 font-bold">{currentDonor?.donor_name}</span>.
-                          All financial figures and beneficiary distributions are audited against verified field vouchers and warehouse distribution logs.
-                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-500">Grant spending progress and reporting period</p>
                       </div>
 
-                      <div className="flex items-center gap-2.5 shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -865,88 +884,87 @@ export function DonorPortalApp({
                           icon={FileText}
                           className="text-xs"
                         >
-                          Download PDF Report
+                          PDF Report
                         </Button>
                       </div>
                     </div>
 
-                    {/* Absorption Progress Bar */}
-                    <div className="mt-5 pt-4 border-t border-slate-100 space-y-2">
-                      <div className="flex items-center justify-between text-xs font-semibold">
-                        <span className="text-slate-700">Grant Absorption Velocity</span>
-                        <span className="text-[#006B56] font-bold">
-                          ${totalExpended.toLocaleString()} / ${totalDisbursed.toLocaleString()} ({burnRate}%)
-                        </span>
+                    <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-6 sm:py-5">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-700">Grant absorption</p>
+                          <p className="mt-1 text-sm font-bold text-slate-900">
+                            SSP {totalExpended.toLocaleString()} <span className="font-medium text-slate-400">of SSP {totalDisbursed.toLocaleString()}</span>
+                          </p>
+                        </div>
+                        <span className="text-sm font-bold text-[#006B56]">{burnRate}% utilized</span>
                       </div>
-                      <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
                         <div
                           style={{ width: `${Math.min(Number(burnRate), 100)}%` }}
-                          className="h-full bg-[#006B56] rounded-full transition-all duration-500"
+                          className="h-full rounded-full bg-[#006B56] transition-all duration-500"
                         />
                       </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span>Inception: Jan 2025</span>
-                        <span>Mid-Term Target: 75% Absorption</span>
-                        <span>Grant Closeout: Dec 2026</span>
+                      <div className="mt-3 flex flex-wrap justify-between gap-x-4 gap-y-1 text-[11px] text-slate-500">
+                        {grantPeriod.start && <span>Start · {formatDate(grantPeriod.start)}</span>}
+                        {grantPeriod.end && <span>End · {formatDate(grantPeriod.end)}</span>}
                       </div>
                     </div>
                   </Card>
 
-                  {/* Two Column Section: Projects & Key Milestones */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Left: Active Projects List (2 cols) */}
-                    <div className="lg:col-span-2 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                          <FolderKanban className="w-4 h-4 text-[#006B56]" />
-                          Active Funded Projects ({projects.length})
-                        </h3>
+                  <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
+                    <div className="space-y-3 lg:col-span-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900">Funded projects</h3>
+                          <p className="mt-0.5 text-xs text-slate-500">{projects.length} projects in this portfolio</p>
+                        </div>
                         <button
                           type="button"
                           onClick={() => setActiveTab('projects')}
-                          className="text-xs text-[#006B56] hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold text-[#006B56] hover:bg-emerald-50"
                         >
-                          View Full Portfolio <ChevronRight className="w-3.5 h-3.5" />
+                          View portfolio <ChevronRight className="h-3.5 w-3.5" />
                         </button>
                       </div>
 
                       <div className="space-y-3">
                         {projects.map((proj) => {
-                          const matchingGrant = grants.find(g => g.project_code === proj.project_code || g.project_id === proj.id) || grants[0];
-                          const projBudget = Number(matchingGrant?.total_committed || proj.budget || 1450000);
-                          const projSpent = Number(matchingGrant?.expended_amount || 875200);
-                          const pct = ((projSpent / (projBudget || 1)) * 100).toFixed(0);
+                          const matchingGrant = grants.find(g => g.project_id === proj.id);
+                          const projBudget = Number(matchingGrant?.total_committed ?? proj.budget ?? 0);
+                          const projSpent = Number(projectSpend[proj.id] || 0);
+                          const pct = projBudget > 0 ? ((projSpent / projBudget) * 100).toFixed(0) : '0';
 
                           return (
                             <Card
                               key={proj.id}
-                              className="p-4 bg-white border border-slate-200 hover:border-[#006B56] transition cursor-pointer shadow-2xs rounded-xl"
+                              className="p-4 sm:p-5 bg-white border border-slate-200 hover:border-emerald-300 hover:shadow-sm transition cursor-pointer shadow-2xs rounded-xl"
                               onClick={() => {
                                 setSelectedProject(proj);
                                 setIsProjectModalOpen(true);
                               }}
                             >
-                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                                <div className="space-y-1">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div className="min-w-0 space-y-1.5">
                                   <div className="flex items-center gap-2">
                                     <span className="font-mono text-[11px] font-bold text-[#006B56] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                      {proj.project_code || 'PRJ-2025-001'}
+                                      {proj.project_code || 'No project code'}
                                     </span>
-                                    <Badge status={proj.status || 'Active'} />
+                                    {proj.status && <Badge status={proj.status} />}
                                   </div>
                                   <h4 className="text-sm font-bold text-slate-900">
                                     {proj.project_name}
                                   </h4>
                                   <p className="text-xs text-slate-500 flex items-center gap-1.5">
                                     <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                    <span>{proj.location || 'Eastern Equatoria / Turkana'}</span>
+                                    <span>{proj.location || 'Location not recorded'}</span>
                                   </p>
                                 </div>
 
                                 <div className="text-right shrink-0 w-full sm:w-auto">
                                   <p className="text-xs font-bold text-slate-900">
-                                    ${projSpent.toLocaleString()}{' '}
-                                    <span className="text-slate-400 font-normal">/ ${projBudget.toLocaleString()}</span>
+                                    SSP {projSpent.toLocaleString()}{' '}
+                                    <span className="text-slate-400 font-normal">/ SSP {projBudget.toLocaleString()}</span>
                                   </p>
                                   <div className="flex items-center justify-end gap-2 mt-1">
                                     <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -967,61 +985,41 @@ export function DonorPortalApp({
 
                     {/* Right: Key Milestones */}
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                          <Activity className="w-4 h-4 text-[#006B56]" />
-                          Key Milestone Targets
-                        </h3>
+                      <div className="flex items-center justify-between px-1">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900">Key milestone targets</h3>
+                          <p className="mt-0.5 text-xs text-slate-500">Progress against planned outputs</p>
+                        </div>
                         <button
                           type="button"
                           onClick={() => setActiveTab('impact')}
-                          className="text-xs text-[#006B56] hover:underline font-bold cursor-pointer"
+                          className="rounded-lg px-2 py-1.5 text-xs font-bold text-[#006B56] hover:bg-emerald-50"
                         >
-                          Impact Detail
+                          Details
                         </button>
                       </div>
 
-                      <Card className="p-4 bg-white border border-slate-200 shadow-2xs rounded-xl space-y-4">
-                        <div className="space-y-3">
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-slate-700 font-medium">Seed & Irrigation Kits Handover</span>
-                              <span className="text-[#006B56] font-bold">104% (520 / 500)</span>
+                      <Card className="p-4 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl space-y-4">
+                        {donorIndicators.length ? donorIndicators.slice(0, 5).map(indicator => {
+                          const target = Number(indicator.target) || 0;
+                          const actual = Number(indicator.actual_result) || 0;
+                          const percentage = target > 0 ? (actual / target) * 100 : 0;
+                          return (
+                            <div key={indicator.id} className="space-y-2">
+                              <div className="flex justify-between gap-3 text-xs">
+                                <span className="text-slate-700 font-medium">{indicator.indicator_name}</span>
+                                <span className="shrink-0 text-[#006B56] font-bold">
+                                  {percentage.toFixed(0)}% <span className="font-medium text-slate-400">({actual} / {target} {indicator.measurement_unit || ''})</span>
+                                </span>
+                              </div>
+                              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-[#006B56]" style={{ width: `${Math.min(percentage, 100)}%` }} />
+                              </div>
                             </div>
-                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="w-full h-full bg-[#006B56]" />
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-slate-700 font-medium">Farmer Field School Cohorts</span>
-                              <span className="text-[#006B56] font-bold">72% (18 / 25)</span>
-                            </div>
-                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="w-[72%] h-full bg-[#006B56]" />
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-slate-700 font-medium">Solar Borehole Potability Test</span>
-                              <span className="text-[#006B56] font-bold">85% Complete</span>
-                            </div>
-                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="w-[85%] h-full bg-[#006B56]" />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="pt-3 border-t border-slate-100">
-                          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
-                            <ShieldCheck className="w-4 h-4 text-[#006B56] shrink-0 mt-0.5" />
-                            <div className="text-[11px] leading-relaxed text-slate-700">
-                              <strong className="text-slate-900">Compliance Certification:</strong> Independent audit firm confirms zero unverified voucher discrepancies for current financial tranche.
-                            </div>
-                          </div>
-                        </div>
+                          );
+                        }) : (
+                          <p className="text-xs text-slate-500">No project indicators have been recorded.</p>
+                        )}
                       </Card>
                     </div>
                   </div>
@@ -1054,50 +1052,50 @@ export function DonorPortalApp({
                       description="No projects match the current search filter."
                     />
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
                       {filteredProjects.map((p) => {
-                        const matchingGrant = grants.find(g => g.project_code === p.project_code || g.project_id === p.id) || grants[0];
-                        const projBudget = Number(matchingGrant?.total_committed || p.budget || 1450000);
-                        const projSpent = Number(matchingGrant?.expended_amount || 875200);
+                        const matchingGrant = grants.find(g => g.project_id === p.id);
+                        const projBudget = Number(matchingGrant?.total_committed ?? p.budget ?? 0);
+                        const projSpent = Number(projectSpend[p.id] || 0);
 
                         return (
                           <Card
                             key={p.id}
-                            className="p-5 bg-white border border-slate-200 hover:border-[#006B56] transition shadow-2xs rounded-xl flex flex-col justify-between"
+                            className="p-4 sm:p-5 bg-white border border-slate-200 hover:border-emerald-300 transition shadow-2xs rounded-xl"
                           >
-                            <div className="space-y-3">
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <span className="font-mono text-xs font-bold text-[#006B56] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                    {p.project_code || 'PRJ-2025-001'}
+                            <div>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <span className="font-mono text-[10px] font-bold text-slate-500">
+                                    {p.project_code || 'No project code'}
                                   </span>
-                                  <h3 className="text-sm font-bold text-slate-900 mt-2 leading-snug">
+                                  <h3 className="mt-1 text-sm font-bold leading-snug text-slate-900 sm:text-base">
                                     {p.project_name}
                                   </h3>
                                 </div>
-                                <Badge status={p.status || 'Active'} />
+                                {p.status && <Badge status={p.status} />}
                               </div>
 
-                              <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                                {p.description || 'Targeted humanitarian assistance designed to enhance community resilience, food security, and water access.'}
-                              </p>
-
-                              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">
-                                <div>
-                                  <span className="text-slate-400 block text-[11px]">Jurisdiction:</span>
-                                  <span className="text-slate-800 font-semibold truncate block">{p.location || 'Turkana County'}</span>
+                              <div className="mt-4 border-t border-slate-100 pt-3">
+                                <div className="flex items-baseline justify-between gap-3 text-xs">
+                                  <span className="text-slate-500">Grant allocation</span>
+                                  <span className="font-bold text-slate-900">SSP {projBudget.toLocaleString()}</span>
                                 </div>
-                                <div>
-                                  <span className="text-slate-400 block text-[11px]">Grant Allocation:</span>
-                                  <span className="text-[#006B56] font-bold block">${projBudget.toLocaleString()}</span>
+                                <div className="mt-2 flex items-baseline justify-between gap-3 text-xs">
+                                  <span className="text-slate-500">Spent</span>
+                                  <span className="font-semibold text-slate-700">
+                                    SSP {projSpent.toLocaleString()} <span className="text-[#006B56]">({((projSpent / (projBudget || 1)) * 100).toFixed(0)}%)</span>
+                                  </span>
+                                </div>
+                                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                                  <div
+                                    className="h-full rounded-full bg-[#006B56]"
+                                    style={{ width: `${Math.min((projSpent / (projBudget || 1)) * 100, 100)}%` }}
+                                  />
                                 </div>
                               </div>
-                            </div>
 
-                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                              <div className="text-[11px] text-slate-500">
-                                Spent: <strong className="text-slate-900">${projSpent.toLocaleString()}</strong> ({((projSpent / (projBudget || 1)) * 100).toFixed(0)}%)
-                              </div>
+                              <div className="mt-3 flex items-center justify-end">
                               <Button
                                 variant="secondary"
                                 size="sm"
@@ -1108,8 +1106,9 @@ export function DonorPortalApp({
                                 }}
                                 className="text-xs"
                               >
-                                Inspect Details
+                                Details
                               </Button>
+                              </div>
                             </div>
                           </Card>
                         );
@@ -1121,18 +1120,47 @@ export function DonorPortalApp({
 
               {/* TAB 3: FINANCIAL ACCOUNTABILITY */}
               {activeTab === 'finances' && (
-                <div className="space-y-5 sm:space-y-6">
+                <div className="flex flex-col gap-5 sm:gap-6">
+                  {/* Standard Cost Category Breakdown */}
+                  <Card className="order-1 p-3 sm:p-4 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl">
+                    <div className="mb-2.5">
+                      <h3 className="text-sm font-bold text-slate-900">
+                        Budget breakdown
+                      </h3>
+                    </div>
+
+                    {budgetLineBreakdown.length ? (
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs lg:grid-cols-4">
+                      {budgetLineBreakdown.map((item) => (
+                        <div
+                          key={item.name}
+                          className={`min-w-0 rounded-lg border border-slate-200 border-l-[3px] bg-slate-50/60 p-2.5 sm:p-3 ${item.accent}`}
+                        >
+                          <p className="min-h-8 text-[10px] font-semibold leading-tight text-slate-600 sm:min-h-0 sm:text-xs">
+                            {item.name}
+                          </p>
+                          <div className="mt-1 flex items-baseline justify-between gap-1">
+                            <h4 className={`truncate text-sm font-black tracking-tight sm:text-base ${item.valueColor}`}>
+                              SSP {item.amount.toLocaleString()}
+                            </h4>
+                            <span className="shrink-0 text-[10px] font-bold text-slate-500">{item.pct.toFixed(0)}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    ) : (
+                      <p className="text-xs text-slate-500">No expenditure records are available for this donor's projects.</p>
+                    )}
+                  </Card>
+
                   {/* Tranche Release Timeline */}
-                  <Card className="p-4 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl">
+                  <Card className="order-2 p-4 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                       <div>
-                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                          <DollarSign className="w-4 h-4 text-[#006B56] shrink-0" />
-                          <span>Grant Tranche Release & Liquidation Schedule</span>
+                        <h3 className="text-sm font-bold text-slate-900">
+                          Grant tranche schedule
                         </h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Tranche disbursements mapped to milestone certifications and field bank accounts.
-                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">Release amounts and liquidation status</p>
                       </div>
                       <Button
                         variant="secondary"
@@ -1146,132 +1174,44 @@ export function DonorPortalApp({
                     </div>
 
                     {/* PHONE / MOBILE VIEW (Card-based Layout for Small Screens) */}
-                    <div className="block sm:hidden space-y-3">
-                      {[
-                        {
-                          tranche: 'Tranche 1 (Advance)',
-                          grant: 'GRT-USAID-2025-01',
-                          date: '2025-01-15',
-                          eft: 'EFT-USAID-0091',
-                          amount: 600000,
-                          status: 'Fully Liquidated',
-                          statusType: 'liquidated',
-                          utilizationPct: 100
-                        },
-                        {
-                          tranche: 'Tranche 2 (Mid-Term)',
-                          grant: 'GRT-USAID-2025-01',
-                          date: '2025-07-01',
-                          eft: 'EFT-USAID-0144',
-                          amount: 500000,
-                          status: 'Active Utilization (55%)',
-                          statusType: 'active',
-                          utilizationPct: 55
-                        },
-                        {
-                          tranche: 'Tranche 1 (Inception)',
-                          grant: 'GRT-USAID-2026-02',
-                          date: '2025-06-15',
-                          eft: 'EFT-USAID-0210',
-                          amount: 350000,
-                          status: 'Active Utilization (34%)',
-                          statusType: 'active',
-                          utilizationPct: 34
-                        },
-                        {
-                          tranche: 'Tranche 3 (Milestone MTR)',
-                          grant: 'GRT-USAID-2025-01',
-                          date: 'Scheduled: Mar 2026',
-                          eft: 'PENDING-AUDIT',
-                          amount: 350000,
-                          status: 'Awaiting Milestone',
-                          statusType: 'pending',
-                          utilizationPct: 0
-                        }
-                      ].map((item, idx) => (
+                    <div className="block sm:hidden space-y-2">
+                      {donorTranches.length ? donorTranches.map(item => {
+                        const relatedGrant = grants.find(grant => grant.id === item.donor_grant_id);
+                        const statusClass = (item.status || '').toLowerCase().includes('liquidated')
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : (item.status || '').toLowerCase().includes('schedul') || (item.status || '').toLowerCase().includes('await')
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'bg-teal-50 text-[#006B56]';
+                        return (
                         <div
-                          key={idx}
-                          className="p-3.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200 rounded-xl space-y-2.5 transition"
+                          key={item.id}
+                          className="p-3 bg-white border border-slate-200 rounded-xl transition"
                         >
-                          {/* Header: Tranche Name + Amount */}
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <span className="font-bold text-slate-900 text-xs block leading-tight">
-                                {item.tranche}
+                                {item.tranche_name}
                               </span>
-                              <span className="font-mono text-[11px] font-bold text-[#006B56] mt-0.5 inline-block">
-                                {item.grant}
-                              </span>
+                              <span className="font-mono text-[10px] text-slate-400">{relatedGrant?.grant_code}</span>
                             </div>
                             <div className="text-right shrink-0">
-                              <span className="text-sm font-black text-slate-900 block">
-                                ${item.amount.toLocaleString()}
+                              <span className="text-sm font-black text-slate-900 block leading-tight">
+                                SSP {Number(item.amount).toLocaleString()}
                               </span>
-                              <span className="text-[10px] text-slate-400 block font-medium">USD Value</span>
+                              <span className="text-[10px] text-slate-400 block font-medium">SSP</span>
                             </div>
                           </div>
 
-                          {/* Progress Bar for Utilization */}
-                          {item.statusType === 'liquidated' ? (
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between text-[10px]">
-                                <span className="text-slate-500 font-medium">Liquidation Absorption</span>
-                                <span className="text-emerald-700 font-bold">100% Liquidated</span>
-                              </div>
-                              <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                                <div className="h-full bg-emerald-600 rounded-full w-full" />
-                              </div>
-                            </div>
-                          ) : item.statusType === 'active' ? (
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between text-[10px]">
-                                <span className="text-slate-500 font-medium">Field Absorption</span>
-                                <span className="text-[#006B56] font-bold">{item.utilizationPct}% Active Spend</span>
-                              </div>
-                              <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                                <div
-                                  className="h-full bg-[#006B56] rounded-full transition-all duration-300"
-                                  style={{ width: `${item.utilizationPct}%` }}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between text-[10px]">
-                                <span className="text-slate-400 font-medium">Milestone Gate</span>
-                                <span className="text-amber-700 font-semibold text-[10px]">Pending Audit Trigger</span>
-                              </div>
-                              <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                                <div className="h-full bg-amber-400 rounded-full w-0" />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Metadata Details Row */}
-                          <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between text-[11px]">
-                            <div className="flex items-center gap-1.5 text-slate-500 text-[10px]">
-                              <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span>{item.date}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-[10px] text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                                {item.eft}
-                              </span>
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                  item.statusType === 'liquidated'
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : item.statusType === 'active'
-                                    ? 'bg-teal-50 text-[#006B56] border-teal-200'
-                                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                                }`}
-                              >
-                                {item.status}
-                              </span>
-                            </div>
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${statusClass}`}>
+                              {item.status}
+                            </span>
+                            <span className="text-[10px] text-slate-500">{item.release_date ? formatDate(item.release_date) : 'Release date not set'}</span>
                           </div>
+                          {item.eft_reference && <p className="mt-1 truncate font-mono text-[10px] text-slate-400">{item.eft_reference}</p>}
                         </div>
-                      ))}
+                      );
+                      }) : <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500">No grant tranche records have been entered.</p>}
                     </div>
 
                     {/* TABLE VIEW FOR TABLET & DESKTOP (Hidden on Mobile) */}
@@ -1283,141 +1223,31 @@ export function DonorPortalApp({
                             <th className="py-2.5 px-3">Grant Agreement</th>
                             <th className="py-2.5 px-3">Release Date</th>
                             <th className="py-2.5 px-3">EFT Reference</th>
-                            <th className="py-2.5 px-3 text-right">Amount (USD)</th>
+                            <th className="py-2.5 px-3 text-right">Amount (SSP)</th>
                             <th className="py-2.5 px-3 text-center">Liquidation Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-700">
-                          <tr className="hover:bg-slate-50/60 transition">
-                            <td className="py-3 px-3 font-bold text-slate-900">Tranche 1 (Advance)</td>
-                            <td className="py-3 px-3 font-mono font-bold text-[#006B56]">GRT-USAID-2025-01</td>
-                            <td className="py-3 px-3">2025-01-15</td>
-                            <td className="py-3 px-3 font-mono text-slate-500">EFT-USAID-0091</td>
-                            <td className="py-3 px-3 text-right font-bold text-slate-900">$600,000</td>
-                            <td className="py-3 px-3 text-center">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                Fully Liquidated
-                              </span>
-                            </td>
-                          </tr>
-                          <tr className="hover:bg-slate-50/60 transition">
-                            <td className="py-3 px-3 font-bold text-slate-900">Tranche 2 (Mid-Term)</td>
-                            <td className="py-3 px-3 font-mono font-bold text-[#006B56]">GRT-USAID-2025-01</td>
-                            <td className="py-3 px-3">2025-07-01</td>
-                            <td className="py-3 px-3 font-mono text-slate-500">EFT-USAID-0144</td>
-                            <td className="py-3 px-3 text-right font-bold text-slate-900">$500,000</td>
-                            <td className="py-3 px-3 text-center">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                Active Utilization (55%)
-                              </span>
-                            </td>
-                          </tr>
-                          <tr className="hover:bg-slate-50/60 transition">
-                            <td className="py-3 px-3 font-bold text-slate-900">Tranche 1 (Inception)</td>
-                            <td className="py-3 px-3 font-mono font-bold text-[#006B56]">GRT-USAID-2026-02</td>
-                            <td className="py-3 px-3">2025-06-15</td>
-                            <td className="py-3 px-3 font-mono text-slate-500">EFT-USAID-0210</td>
-                            <td className="py-3 px-3 text-right font-bold text-slate-900">$350,000</td>
-                            <td className="py-3 px-3 text-center">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                Active Utilization (34%)
-                              </span>
-                            </td>
-                          </tr>
-                          <tr className="bg-slate-50/50 hover:bg-slate-50 transition">
-                            <td className="py-3 px-3 font-bold text-slate-600">Tranche 3 (Milestone MTR)</td>
-                            <td className="py-3 px-3 font-mono text-slate-500">GRT-USAID-2025-01</td>
-                            <td className="py-3 px-3 text-slate-400">Scheduled: Mar 2026</td>
-                            <td className="py-3 px-3 font-mono text-slate-400">PENDING-AUDIT</td>
-                            <td className="py-3 px-3 text-right font-bold text-slate-600">$350,000</td>
-                            <td className="py-3 px-3 text-center">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                                Awaiting Milestone
-                              </span>
-                            </td>
-                          </tr>
+                          {donorTranches.length ? donorTranches.map(item => {
+                            const relatedGrant = grants.find(grant => grant.id === item.donor_grant_id);
+                            return (
+                              <tr key={item.id} className="hover:bg-slate-50/60 transition">
+                                <td className="py-3 px-3 font-bold text-slate-900">{item.tranche_name}</td>
+                                <td className="py-3 px-3 font-mono text-[#006B56]">{relatedGrant?.grant_code || '—'}</td>
+                                <td className="py-3 px-3">{item.release_date ? formatDate(item.release_date) : '—'}</td>
+                                <td className="py-3 px-3 font-mono text-slate-500">{item.eft_reference || '—'}</td>
+                                <td className="py-3 px-3 text-right font-bold text-slate-900">SSP {Number(item.amount).toLocaleString()}</td>
+                                <td className="py-3 px-3 text-center">{item.status}</td>
+                              </tr>
+                            );
+                          }) : (
+                            <tr><td colSpan="6" className="py-6 text-center text-slate-500">No grant tranche records have been entered.</td></tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
                   </Card>
 
-                  {/* Standard Cost Category Breakdown */}
-                  <Card className="p-4 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl">
-                    <div className="flex items-center justify-between mb-3.5">
-                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <PieChart className="w-4 h-4 text-[#006B56] shrink-0" />
-                        <span>Standard Budget Line Expenditure Breakdown</span>
-                      </h3>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-xs">
-                      {[
-                        {
-                          name: 'Direct Aid & Distribution',
-                          amount: 780400,
-                          pct: 56,
-                          desc: '56% of total grant spend',
-                          barColor: 'bg-[#006B56]',
-                          badge: 'bg-emerald-50 text-[#006B56] border-emerald-200'
-                        },
-                        {
-                          name: 'Logistics, Fleet & Storage',
-                          amount: 245600,
-                          pct: 18,
-                          desc: '18% of total grant spend',
-                          barColor: 'bg-sky-600',
-                          badge: 'bg-sky-50 text-sky-800 border-sky-200'
-                        },
-                        {
-                          name: 'Field Personnel & Agronomists',
-                          amount: 215000,
-                          pct: 15,
-                          desc: '15% of total grant spend',
-                          barColor: 'bg-indigo-600',
-                          badge: 'bg-indigo-50 text-indigo-800 border-indigo-200'
-                        },
-                        {
-                          name: 'NICRA / Operational Overhead',
-                          amount: 154600,
-                          pct: 11,
-                          desc: '11% (within negotiated cap)',
-                          barColor: 'bg-amber-600',
-                          badge: 'bg-amber-50 text-amber-800 border-amber-200'
-                        }
-                      ].map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="p-3.5 sm:p-4 rounded-xl bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 space-y-2 transition flex flex-col justify-between"
-                        >
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between gap-1.5">
-                              <span className="text-slate-600 font-semibold text-xs leading-snug">
-                                {item.name}
-                              </span>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${item.badge}`}>
-                                {item.pct}%
-                              </span>
-                            </div>
-                            <h4 className="text-xl sm:text-lg font-black text-slate-900 tracking-tight pt-0.5">
-                              ${item.amount.toLocaleString()}
-                            </h4>
-                          </div>
-
-                          <div className="space-y-1 pt-1">
-                            <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${item.barColor} transition-all duration-500`}
-                                style={{ width: `${item.pct}%` }}
-                              />
-                            </div>
-                            <p className="text-[11px] text-slate-500 font-medium">
-                              {item.desc}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
                 </div>
               )}
 
@@ -1425,175 +1255,104 @@ export function DonorPortalApp({
               {activeTab === 'impact' && (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                   {/* Left Column: Demographics Breakdown (5 cols on desktop) */}
-                  <Card className="lg:col-span-5 p-4 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl flex flex-col justify-between">
+                  <Card className="lg:col-span-5 p-3 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl flex flex-col justify-between">
                     <div>
-                      {/* Clean Header */}
-                      <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3">
                         <div>
-                          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            <Users className="w-4 h-4 text-[#006B56] shrink-0" />
-                            <span>Beneficiary Demographics</span>
+                          <h3 className="text-sm font-bold text-slate-900">
+                            Beneficiary demographics
                           </h3>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            8,420 individuals verified via biometrics & council vouchers
+                          <p className="hidden text-[11px] text-slate-500 mt-0.5 sm:block">
+                            Beneficiary records linked to funded projects
                           </p>
                         </div>
-                        <span className="text-xs font-black text-[#006B56] bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                          100% Audited
-                        </span>
+                        <span className="text-xs font-bold text-slate-700">{donorBeneficiaries.length.toLocaleString()}</span>
                       </div>
 
-                      {/* Unified Segmented Distribution Bar */}
-                      <div className="space-y-1.5 my-3.5">
+                      <div className="space-y-1 my-2.5 sm:my-3.5">
                         <div className="w-full h-2 rounded-full overflow-hidden flex bg-slate-100">
-                          <div style={{ width: '41%' }} className="h-full bg-[#006B56]" title="Female-Headed (41%)" />
-                          <div style={{ width: '26%' }} className="h-full bg-sky-600" title="IDP Returnees (26%)" />
-                          <div style={{ width: '15%' }} className="h-full bg-amber-500" title="Elderly Household (15%)" />
-                          <div style={{ width: '11%' }} className="h-full bg-indigo-500" title="Youth at Risk (11%)" />
-                          <div style={{ width: '7%' }} className="h-full bg-teal-500" title="Persons w/ Disability (7%)" />
-                        </div>
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
-                          <span>Highest: Female-Headed (41%)</span>
-                          <span>Target: Inclusive Vulnerability Reach</span>
+                          {beneficiaryBreakdown.map(item => (
+                            <div
+                              key={item.label}
+                              style={{ width: `${item.pct}%` }}
+                              className={`h-full ${item.dotColor}`}
+                              title={`${item.label} (${item.pct.toFixed(1)}%)`}
+                            />
+                          ))}
                         </div>
                       </div>
 
-                      {/* Clean Demographic Rows (No bulky nested boxes) */}
                       <div className="divide-y divide-slate-100 text-xs">
-                        {[
-                          {
-                            label: 'Female-Headed Households',
-                            count: '3,420',
-                            pct: 41,
-                            dotColor: 'bg-[#006B56]',
-                            badgeColor: 'bg-emerald-50 text-[#006B56]'
-                          },
-                          {
-                            label: 'IDP Returnees',
-                            count: '2,180',
-                            pct: 26,
-                            dotColor: 'bg-sky-600',
-                            badgeColor: 'bg-sky-50 text-sky-700'
-                          },
-                          {
-                            label: 'Elderly Households',
-                            count: '1,250',
-                            pct: 15,
-                            dotColor: 'bg-amber-500',
-                            badgeColor: 'bg-amber-50 text-amber-700'
-                          },
-                          {
-                            label: 'Youth at Risk',
-                            count: '940',
-                            pct: 11,
-                            dotColor: 'bg-indigo-500',
-                            badgeColor: 'bg-indigo-50 text-indigo-700'
-                          },
-                          {
-                            label: 'Persons w/ Disability',
-                            count: '630',
-                            pct: 7,
-                            dotColor: 'bg-teal-500',
-                            badgeColor: 'bg-teal-50 text-teal-700'
-                          }
-                        ].map((item) => (
+                        {beneficiaryBreakdown.length ? beneficiaryBreakdown.map(item => (
                           <div
                             key={item.label}
-                            className="flex items-center justify-between py-2 sm:py-2.5 first:pt-1 last:pb-1"
+                            className="flex items-center justify-between gap-2 py-1.5 sm:py-2.5 first:pt-1 last:pb-1"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <span className={`w-2 h-2 rounded-full shrink-0 ${item.dotColor}`} />
-                              <span className="font-medium text-slate-700 text-xs truncate">
+                              <span className="font-medium text-slate-700 text-[11px] sm:text-xs truncate">
                                 {item.label}
                               </span>
                             </div>
                             <div className="flex items-baseline gap-2 shrink-0">
-                              <span className="font-bold text-slate-900 text-xs">{item.count}</span>
+                              <span className="font-bold text-slate-900 text-[11px] sm:text-xs">{item.count.toLocaleString()}</span>
                               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${item.badgeColor}`}>
-                                {item.pct}%
+                                {item.pct.toFixed(0)}%
                               </span>
                             </div>
                           </div>
-                        ))}
+                        )) : <p className="py-3 text-xs text-slate-500">No beneficiary records are linked to these projects.</p>}
                       </div>
                     </div>
 
-                    <div className="pt-3 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Total Vulnerable Sample</span>
-                      <span className="font-bold text-slate-800">8,420 Enrolled</span>
+                    <div className="pt-2 mt-1.5 sm:pt-3 sm:mt-2 border-t border-slate-100 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-500">
+                      <span>Total enrolled</span>
+                      <span className="font-bold text-slate-800">{donorBeneficiaries.length.toLocaleString()}</span>
                     </div>
                   </Card>
 
                   {/* Right Column: Recent Field Deliveries (7 cols on desktop) */}
-                  <Card className="lg:col-span-7 p-4 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl">
-                    <div className="flex items-center justify-between mb-4">
+                  <Card className="lg:col-span-7 p-3 sm:p-5 bg-white border border-slate-200 shadow-2xs rounded-xl sm:rounded-2xl">
+                    <div className="flex items-center justify-between mb-2 sm:mb-4">
                       <div>
-                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-[#006B56] shrink-0" />
-                          <span>Recent Field Deliveries Under Grant</span>
-                        </h3>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Direct distribution milestone verifications & field vouchers
+                        <h3 className="text-sm font-bold text-slate-900">Recent project activities</h3>
+                        <p className="hidden text-[11px] text-slate-500 mt-0.5 sm:block">
+                          Activity records linked to funded projects
                         </p>
                       </div>
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider hidden sm:inline">
-                        Verified Vouchers
-                      </span>
                     </div>
 
                     {/* Clean Activity Feed / Timeline (No bulky container cards) */}
-                    <div className="relative pl-5 sm:pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200/80">
-                      {[
-                        {
-                          title: 'Drought-Tolerant Sorghum & Micro-Drip Irrigation Kits',
-                          location: 'Lodwar Agricultural Distribution Center, Turkana County',
-                          reached: '520 Farmers Verified',
-                          date: 'Feb 12, 2025'
-                        },
-                        {
-                          title: 'Solar Submersible Borehole DC Pump Commissioning',
-                          location: 'Bubisa Primary Community Water Hub, Marsabit District',
-                          reached: '4,200 Villagers Reached',
-                          date: 'Mar 20, 2025'
-                        },
-                        {
-                          title: 'Community Nutrition Screening & Therapeutic Supplements',
-                          location: 'Wajir South Mobile Clinic Sites',
-                          reached: '850 Mothers & Infants',
-                          date: 'Apr 05, 2025'
-                        }
-                      ].map((deliv, idx) => (
-                        <div key={idx} className="relative group">
-                          {/* Timeline node */}
-                          <div className="absolute -left-5 sm:-left-6 top-1 w-3.5 h-3.5 rounded-full bg-white border-2 border-[#006B56] flex items-center justify-center">
+                    <div className="relative space-y-2 sm:pl-6 sm:space-y-4 sm:before:absolute sm:before:left-2 sm:before:top-2 sm:before:bottom-2 sm:before:w-0.5 sm:before:bg-slate-200/80">
+                      {donorActivities.length ? donorActivities.slice(0, 5).map(deliv => (
+                        <div key={deliv.id} className="relative group">
+                          <div className="absolute hidden sm:flex -left-6 top-1 w-3.5 h-3.5 rounded-full bg-white border-2 border-[#006B56] items-center justify-center">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#006B56]" />
                           </div>
 
-                          <div className="p-3 rounded-xl bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 transition space-y-1.5">
-                            <div className="flex items-start justify-between gap-2">
-                              <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
-                                {deliv.title}
+                          <div className="p-2.5 sm:p-3 rounded-xl bg-white sm:bg-slate-50/70 border border-slate-200/80 transition space-y-1.5">
+                            <div className="flex flex-col-reverse items-start justify-between gap-1 sm:flex-row sm:items-start sm:gap-2">
+                              <h4 className="text-[11px] sm:text-sm font-bold text-slate-900 leading-snug">
+                                {deliv.activity_name}
                               </h4>
-                              <span className="text-[11px] text-slate-400 font-medium shrink-0 whitespace-nowrap">
-                                {deliv.date}
+                              <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium shrink-0 whitespace-nowrap">
+                                {formatDate(deliv.activity_date)}
                               </span>
                             </div>
 
-                            <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                            <p className="text-[10px] sm:text-[11px] text-slate-500 flex items-start gap-1.5">
                               <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span className="truncate">{deliv.location}</span>
+                              <span className="leading-snug">{deliv.location || 'Location not recorded'}</span>
                             </p>
 
-                            <div className="pt-1 flex items-center justify-between">
-                              <span className="inline-flex items-center gap-1 font-bold text-[#006B56] bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-md text-[10px]">
-                                <CheckCircle2 className="w-3 h-3 text-[#006B56]" />
-                                {deliv.reached}
-                              </span>
-                              <span className="text-[10px] text-slate-400 font-medium">GPS Tagged</span>
-                            </div>
+                            {(deliv.actual_output || deliv.status) && (
+                              <p className="pt-0.5 text-[10px] font-semibold text-slate-600">
+                                {deliv.actual_output || deliv.status}
+                              </p>
+                            )}
                           </div>
                         </div>
-                      ))}
+                      )) : <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500">No activity records are linked to these projects.</p>}
                     </div>
                   </Card>
                 </div>
@@ -1617,7 +1376,7 @@ export function DonorPortalApp({
                       <Button
                         variant="primary"
                         size="sm"
-                        onClick={handleExportPDF}
+                        onClick={handleExportCompliancePDF}
                         icon={Download}
                         className="text-xs self-start sm:self-auto shrink-0"
                       >
@@ -1658,14 +1417,12 @@ export function DonorPortalApp({
 
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      toast.success(`Downloading: ${del.file_name || shortTitle}`);
-                                      handleExportPDF();
-                                    }}
+                                    onClick={() => handleOpenDeliverable(del)}
                                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-emerald-50 hover:text-[#006B56] hover:border-emerald-300 text-slate-700 text-xs font-semibold shadow-2xs transition shrink-0 active:scale-95 cursor-pointer"
+                                    title={del.file_url ? `Open ${del.file_name || shortTitle}` : 'No file attached'}
                                   >
                                     <Download className="w-3.5 h-3.5 text-slate-600" />
-                                    <span>PDF</span>
+                                    <span>{del.file_url ? 'File' : 'No file'}</span>
                                   </button>
                                 </div>
 
@@ -1770,15 +1527,13 @@ export function DonorPortalApp({
                                     <td className="py-2.5 px-3 text-right whitespace-nowrap align-middle">
                                       <button
                                         type="button"
-                                        onClick={() => {
-                                          toast.success(`Downloading: ${del.file_name}`);
-                                          handleExportPDF();
-                                        }}
-                                        title={`Download ${del.file_name || 'Deliverable PDF'}`}
-                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-emerald-50 hover:text-[#006B56] hover:border-emerald-300 text-slate-700 text-xs font-semibold shadow-2xs transition active:scale-95 cursor-pointer"
+                                        onClick={() => handleOpenDeliverable(del)}
+                                        title={del.file_url ? `Open ${del.file_name || 'deliverable file'}` : 'No file attached'}
+                                        disabled={!del.file_url}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-emerald-50 hover:text-[#006B56] hover:border-emerald-300 text-slate-700 text-xs font-semibold shadow-2xs transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                       >
                                         <Download className="w-3.5 h-3.5 text-slate-600" />
-                                        <span>PDF</span>
+                                        <span>{del.file_url ? 'File' : 'No file'}</span>
                                       </button>
                                     </td>
                                   </tr>
@@ -1948,7 +1703,7 @@ export function DonorPortalApp({
                           {currentDesk.welcomeNote}
                         </p>
                         <span className="text-[10px] text-slate-400 block text-right mt-1">
-                          Direct System Account • Active & Monitored
+                          Staff contact from the directory
                         </span>
                       </div>
                     </div>
@@ -1985,7 +1740,7 @@ export function DonorPortalApp({
 
                               <div className="flex items-center justify-between gap-2 mt-2 pt-1 text-[10px] text-slate-500 border-t border-[#b8f5b0]/60">
                                 <span className="font-medium text-slate-600">
-                                  {formatDate(q.date)}
+                                  {formatDate(q.created_at || q.date)}
                                 </span>
                                 <div className="flex items-center gap-1 text-emerald-700 font-semibold">
                                   <span>Transmitted</span>
@@ -2002,7 +1757,7 @@ export function DonorPortalApp({
                                 <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-slate-100">
                                   <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1.5">
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                    {q.responded_by || 'Grace Ochieng (Program Manager)'}
+                                    {q.responded_by || 'ADRA staff'}
                                   </span>
                                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
                                     Clarification
@@ -2031,7 +1786,7 @@ export function DonorPortalApp({
                                   Under Review by ADRA Country Leadership
                                 </div>
                                 <p className="text-[11px] text-slate-500">
-                                  Assigned to {q.responded_by || 'Country Director & Programme Lead'}. Formal technical clearance is pending review.
+                                  Assigned to {q.recipient_name || q.recipient_role || 'ADRA staff'}. Response pending.
                                 </p>
                               </div>
                             </div>
@@ -2051,7 +1806,7 @@ export function DonorPortalApp({
                         type="text"
                         value={chatMessageText}
                         onChange={(e) => setChatMessageText(e.target.value)}
-                        placeholder={`Message ${currentDesk.name} (${currentDesk.role}) regarding vouchers, field audits, or milestone verifications...`}
+                        placeholder={`Message ${currentDesk.name}...`}
                         className="flex-1 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden bg-transparent"
                         disabled={isSendingChat}
                       />
@@ -2090,12 +1845,12 @@ export function DonorPortalApp({
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
                 <span className="text-slate-500 block text-[11px]">Status</span>
-                <Badge status={selectedProject.status || 'Active'} />
+                {selectedProject.status && <Badge status={selectedProject.status} />}
               </div>
               <div className="text-right">
                 <span className="text-slate-500 block text-[11px]">Total Project Budget</span>
                 <span className="text-sm font-bold text-[#006B56]">
-                  {formatCurrency(selectedProject.budget || 1450000)}
+                  {formatCurrency(selectedProject.budget || 0)}
                 </span>
               </div>
             </div>
@@ -2103,14 +1858,14 @@ export function DonorPortalApp({
             <div>
               <span className="text-slate-700 font-bold block mb-1">Project Scope & Strategic Purpose</span>
               <p className="text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
-                {selectedProject.description || 'Targeted multi-sector humanitarian assistance designed to enhance community resilience, food security, and water access.'}
+                {selectedProject.description || 'No project scope has been recorded.'}
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-slate-500 block text-[11px]">Jurisdiction</span>
-                <strong className="text-slate-900">{selectedProject.location || 'Turkana County'}</strong>
+                <strong className="text-slate-900">{selectedProject.location || 'Not recorded'}</strong>
               </div>
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                 <span className="text-slate-500 block text-[11px]">Project Officer</span>
@@ -2147,7 +1902,7 @@ export function DonorPortalApp({
               type="text"
               value={inquiryForm.subject}
               onChange={(e) => setInquiryForm({ ...inquiryForm, subject: e.target.value })}
-              placeholder="e.g. Audit Voucher Verification for Turkana Seed Kits"
+              placeholder="Describe the information you need"
               className="adra-input"
               required
             />
@@ -2174,7 +1929,7 @@ export function DonorPortalApp({
                 type="text"
                 value={inquiryForm.project_code}
                 onChange={(e) => setInquiryForm({ ...inquiryForm, project_code: e.target.value })}
-                placeholder="e.g. GRT-USAID-2025-01"
+                placeholder="Enter grant code"
                 className="adra-input"
               />
             </div>

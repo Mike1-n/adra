@@ -39,6 +39,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { SupplierDispatchModal } from '../inventory/components/SupplierDispatchModal';
 import { PODetailModal } from '../inventory/components/PODetailModal';
+import { SupplierPaymentReceiptModal } from './components/SupplierPaymentReceiptModal';
 import { AdraLogo } from '../../components/common/AdraLogo';
 import { FloatingFeedbackButton } from '../../components/common/FloatingFeedbackButton';
 import { FeedbackComplaintsView } from '../../components/common/FeedbackComplaintsView';
@@ -66,6 +67,7 @@ export function SupplierPortalApp({
   // Modals
   const [selectedPOForDispatch, setSelectedPOForDispatch] = useState(null);
   const [selectedPOForDetail, setSelectedPOForDetail] = useState(null);
+  const [selectedPOForReceipt, setSelectedPOForReceipt] = useState(null);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
   // Profile Form State
@@ -1107,6 +1109,16 @@ export function SupplierPortalApp({
                                   <span>Dispatch</span>
                                 </button>
                               )}
+                              {stage === 4 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedPOForReceipt(po)}
+                                  className="flex-1 py-1.5 px-3 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer"
+                                >
+                                  <Receipt className="w-3.5 h-3.5" />
+                                  <span>Receipt</span>
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
@@ -1257,6 +1269,17 @@ export function SupplierPortalApp({
                                         <span className="hidden sm:inline">Dispatch</span>
                                       </button>
                                     )}
+                                    {stage === 4 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedPOForReceipt(po)}
+                                        className="px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                                        title="Print or download payment receipt"
+                                      >
+                                        <Receipt className="w-3.5 h-3.5" />
+                                        <span>Receipt</span>
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -1351,7 +1374,16 @@ export function SupplierPortalApp({
             {/* 6. FEEDBACK & COMPLAINTS DESK */}
             {activeTab === 'feedback' && (
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs h-[calc(100vh-140px)] min-h-[500px]">
-                <FeedbackComplaintsView currentUser={currentUser} userType="supplier" />
+                <FeedbackComplaintsView
+                  currentUser={{
+                    ...currentUser,
+                    ...currentSupplier,
+                    role: 'Supplier',
+                    name: currentSupplier?.company_name || currentUser?.full_name,
+                    full_name: currentSupplier?.company_name || currentUser?.full_name
+                  }}
+                  userType="supplier"
+                />
               </div>
             )}
 
@@ -1537,6 +1569,11 @@ export function SupplierPortalApp({
         supplier={currentSupplier}
         onOpenSupplierDispatch={(po) => setSelectedPOForDispatch(po)}
         onDeletePO={handleDeletePO}
+      />
+
+      <SupplierPaymentReceiptModal
+        purchaseOrder={selectedPOForReceipt}
+        onClose={() => setSelectedPOForReceipt(null)}
       />
 
       {/* Module Feedback Trigger */}

@@ -67,6 +67,7 @@ export function AuthProvider({ children }) {
           setCurrentUser({
             id: session.user.id,
             email: session.user.email,
+            donor_id: profile.donor_id || null,
             full_name: profile.full_name || session.user.email,
             role: profile.role || 'Project Officer',
             department: profile.department || 'Operations',
@@ -215,6 +216,7 @@ export function AuthProvider({ children }) {
             const userObj = {
               id: data.user.id,
               email: data.user.email,
+              donor_id: profile?.donor_id || null,
               full_name: profile?.full_name || data.user.email,
               role: profile?.role || 'Administrator',
               department: profile?.department || 'Operations',

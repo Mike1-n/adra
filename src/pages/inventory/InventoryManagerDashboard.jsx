@@ -117,6 +117,7 @@ export function InventoryManagerDashboard({
       setInventory(invData || []);
       setWarehouses(whData || []);
       setSuppliers(supData || []);
+      setPurchaseOrders(poData || []);
       setFleetVehicles(fleetData || []);
       const seenWbs = new Set();
       const uniqueDispatches = (dispData || []).filter(d => {

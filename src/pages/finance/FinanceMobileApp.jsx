@@ -131,9 +131,7 @@ export function FinanceMobileApp({
   };
 
   const handlePaySupplier = async (poId, paymentData) => {
-    const res = await db.paySupplierPO(poId, paymentData);
-    await loadData(true);
-    return res;
+    return db.paySupplierPO(poId, paymentData);
   };
 
   useEffect(() => {
@@ -416,6 +414,7 @@ export function FinanceMobileApp({
                   onFilterChange={setSupplierPaymentsFilter}
                   onOpenSidebar={() => setIsSidebarOpen(true)}
                   onPaySupplier={handlePaySupplier}
+                  onViewVoucher={handleViewVoucher}
                   onRefresh={() => loadData(true)}
                 />
               )}

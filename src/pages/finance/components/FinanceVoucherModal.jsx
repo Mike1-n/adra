@@ -7,7 +7,7 @@ import {
   Building2,
   ShieldCheck
 } from 'lucide-react';
-import { exportVoucherPDF } from '../../../lib/reportGenerator';
+import { exportSupplierPaymentReceiptPDF, exportVoucherPDF } from '../../../lib/reportGenerator';
 import { useToast } from '../../../context/ToastContext';
 
 export function FinanceVoucherModal({
@@ -18,24 +18,39 @@ export function FinanceVoucherModal({
   const toast = useToast();
   if (!isOpen || !item) return null;
 
-  const voucherCode = item.finance_disbursement?.voucher_reference || item.expenditure_code || item.request_code || 'PV-2026-001';
-  const txnCode = item.finance_disbursement?.transaction_ref || 'TXN-MG-VERIFIED';
-  const payeeName = item.field_worker_name || item.recorded_by || 'Field Worker';
+  const isSupplierPayment = Boolean(item.po_number);
+  const voucherCode = isSupplierPayment
+    ? item.payment_voucher_number || item.po_number
+    : item.finance_disbursement?.voucher_reference || item.expenditure_code || item.request_code || 'PV-2026-001';
+  const txnCode = isSupplierPayment
+    ? item.payment_reference || 'Not provided'
+    : item.finance_disbursement?.transaction_ref || 'TXN-MG-VERIFIED';
+  const payeeName = isSupplierPayment
+    ? item.supplier_name || 'Supplier'
+    : item.field_worker_name || item.recorded_by || 'Field Worker';
   const payeePhone = item.payout_phone || item.field_worker_phone || item.recipient_phone;
-  const amount = Number(item.amount || 0);
+  const amount = Number(isSupplierPayment ? item.paid_amount ?? item.total_amount : item.amount || 0);
   const currency = item.currency || 'SSP';
-  const dateStr = new Date(item.finance_disbursement?.disbursed_at || item.expenditure_date || item.created_at || Date.now()).toLocaleDateString([], {
+  const dateStr = new Date((isSupplierPayment ? item.paid_date : null) || item.finance_disbursement?.disbursed_at || item.expenditure_date || item.created_at || Date.now()).toLocaleDateString([], {
     month: 'short',
     day: 'numeric',
     year: 'numeric'
   });
-  const paymentChannel = item.finance_disbursement?.payment_method || item.preferred_payout || 'm-Gurush Mobile Money';
+  const paymentChannel = isSupplierPayment
+    ? item.payment_method || 'Not provided'
+    : item.finance_disbursement?.payment_method || item.preferred_payout || 'm-Gurush Mobile Money';
   const pmApprover = item.pm_approved_by || 'Grace Ochieng';
-  const financeApprover = item.finance_disbursement?.disbursed_by || 'Alex Morgan';
+  const financeApprover = isSupplierPayment
+    ? item.paid_by || 'Finance Officer'
+    : item.finance_disbursement?.disbursed_by || 'Alex Morgan';
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     try {
-      exportVoucherPDF(item);
+      if (isSupplierPayment) {
+        await exportSupplierPaymentReceiptPDF(item);
+      } else {
+        await exportVoucherPDF(item);
+      }
       toast.success(`Receipt downloaded (${voucherCode})`);
     } catch (err) {
       console.error(err);
@@ -64,7 +79,7 @@ export function FinanceVoucherModal({
               <div className="flex items-center gap-1.5">
                 <span className="text-sm font-black text-slate-900 tracking-tight">ADRA</span>
                 <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                  Payment Receipt
+                  {isSupplierPayment ? 'Supplier Payment Receipt' : 'Payment Receipt'}
                 </span>
               </div>
               <p className="text-[10px] text-slate-500 font-mono">
@@ -98,14 +113,14 @@ export function FinanceVoucherModal({
         {/* Compact Details Summary */}
         <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200/70 space-y-2.5 text-xs">
           <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-            <span className="text-slate-500 font-medium">Payee</span>
+            <span className="text-slate-500 font-medium">{isSupplierPayment ? 'Supplier' : 'Payee'}</span>
             <span className="font-bold text-slate-900 text-right truncate max-w-[170px]">
               {payeeName} {payeePhone ? `(${payeePhone})` : ''}
             </span>
           </div>
 
           <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-            <span className="text-slate-500 font-medium">Channel & Ref</span>
+            <span className="text-slate-500 font-medium">{isSupplierPayment ? 'Payment Method & Ref' : 'Channel & Ref'}</span>
             <span className="font-medium text-slate-800 text-right truncate max-w-[170px]">
               {paymentChannel} • <span className="font-mono text-slate-600">{txnCode}</span>
             </span>
@@ -116,17 +131,26 @@ export function FinanceVoucherModal({
             <span className="font-medium text-slate-800">{dateStr}</span>
           </div>
 
+          {isSupplierPayment && (
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+              <span className="text-slate-500 font-medium">Purchase Order</span>
+              <span className="font-mono font-medium text-slate-800">{item.po_number}</span>
+            </div>
+          )}
+
           <div className="space-y-0.5 pt-0.5">
             <span className="text-[10px] text-slate-400 font-bold uppercase block">Purpose</span>
             <p className="text-slate-700 text-[11px] line-clamp-2 leading-tight">
-              {item.description || item.purpose || item.reason || 'Operational mission facilitation stipend.'}
+              {isSupplierPayment
+                ? item.items_summary || item.item_name || 'Supplier goods'
+                : item.description || item.purpose || item.reason || 'Operational mission facilitation stipend.'}
             </p>
           </div>
         </div>
 
         {/* Minimal Sign-off Footer */}
         <div className="flex items-center justify-between text-[10px] text-slate-500 bg-white px-1">
-          <span>PM: <strong className="text-slate-800">{pmApprover}</strong></span>
+          {!isSupplierPayment && <span>PM: <strong className="text-slate-800">{pmApprover}</strong></span>}
           <span>Finance: <strong className="text-slate-800">{financeApprover}</strong></span>
         </div>
 

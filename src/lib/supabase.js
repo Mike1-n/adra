@@ -4870,6 +4870,92 @@ export const db = {
     return getLocalData(STORAGE_KEYS.DONORS, mock.initialDonors);
   },
 
+  async getDonorPortfolioData() {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Donor portfolio requires a configured Supabase database.');
+    }
+
+    let [
+      donors,
+      grants,
+      tranches,
+      projects,
+      expenditures,
+      beneficiaries,
+      interventions,
+      assistanceRequests,
+      activities,
+      indicators,
+      deliverables,
+      queries,
+      users
+    ] = await Promise.all([
+      supabase.from('donors').select('*').order('created_at', { ascending: false }),
+      supabase.from('donor_grants').select('*, projects(project_code, project_name)').order('created_at', { ascending: false }),
+      supabase.from('donor_grant_tranches').select('*').order('release_date', { ascending: false }),
+      supabase.from('projects').select('*').order('created_at', { ascending: false }),
+      supabase.from('expenditures').select('*').order('expenditure_date', { ascending: false }),
+      supabase.from('beneficiaries').select('*').order('registration_date', { ascending: false }),
+      supabase.from('interventions').select('beneficiary_id, project_id'),
+      supabase.from('assistance_requests').select('beneficiary_id, beneficiary_code, beneficiary_name, program_id'),
+      supabase.from('activities').select('*').order('activity_date', { ascending: false }),
+      supabase.from('indicators').select('*').order('indicator_code'),
+      supabase.from('donor_deliverables').select('*').order('due_date', { ascending: true }),
+      supabase.from('donor_queries').select('*').order('created_at', { ascending: true }),
+      supabase.from('profiles').select('*')
+    ]);
+
+    const missingDonorTables = [];
+    const handleOptionalDonorTable = (table, result) => {
+      if (result.error?.code === 'PGRST205' && result.error.message?.includes(`public.${table}`)) {
+        missingDonorTables.push(table);
+        return { ...result, data: [], error: null };
+      }
+      return result;
+    };
+    grants = handleOptionalDonorTable('donor_grants', grants);
+    tranches = handleOptionalDonorTable('donor_grant_tranches', tranches);
+    deliverables = handleOptionalDonorTable('donor_deliverables', deliverables);
+    queries = handleOptionalDonorTable('donor_queries', queries);
+
+    const results = [
+      donors,
+      grants,
+      tranches,
+      projects,
+      expenditures,
+      beneficiaries,
+      interventions,
+      assistanceRequests,
+      activities,
+      indicators,
+      deliverables,
+      queries,
+      users
+    ];
+    const failedResult = results.find(result => result.error);
+    if (failedResult?.error) {
+      throw failedResult.error;
+    }
+
+    return {
+      donors: donors.data || [],
+      grants: grants.data || [],
+      tranches: tranches.data || [],
+      projects: projects.data || [],
+      expenditures: expenditures.data || [],
+      beneficiaries: beneficiaries.data || [],
+      interventions: interventions.data || [],
+      assistanceRequests: assistanceRequests.data || [],
+      activities: activities.data || [],
+      indicators: indicators.data || [],
+      deliverables: deliverables.data || [],
+      queries: queries.data || [],
+      users: users.data || [],
+      missingDonorTables
+    };
+  },
+
   async createDonor(donor) {
     const newD = {
       id: isSupabaseConfigured ? undefined : `d_${Date.now()}`,
@@ -4899,6 +4985,13 @@ export const db = {
   },
 
   async getDonorGrants(donorId = null) {
+    if (isSupabaseConfigured && supabase) {
+      let request = supabase.from('donor_grants').select('*, projects(project_code, project_name)').order('created_at', { ascending: false });
+      if (donorId) request = request.eq('donor_id', donorId);
+      const { data, error } = await request;
+      if (error) throw error;
+      return data || [];
+    }
     const all = getLocalData(STORAGE_KEYS.DONOR_GRANTS, mock.initialDonorGrants || []);
     if (!donorId) return all;
     return all.filter(g => g.donor_id === donorId);
@@ -4910,6 +5003,11 @@ export const db = {
       created_at: new Date().toISOString(),
       ...grant
     };
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.from('donor_grants').insert([grant]).select().single();
+      if (error) throw error;
+      return data;
+    }
     const current = getLocalData(STORAGE_KEYS.DONOR_GRANTS, mock.initialDonorGrants || []);
     const updated = [newG, ...current];
     saveLocalData(STORAGE_KEYS.DONOR_GRANTS, updated);
@@ -4917,6 +5015,11 @@ export const db = {
   },
 
   async updateDonorGrant(id, updates) {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.from('donor_grants').update(updates).eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    }
     const current = getLocalData(STORAGE_KEYS.DONOR_GRANTS, mock.initialDonorGrants || []);
     const updated = current.map(g => g.id === id ? { ...g, ...updates } : g);
     saveLocalData(STORAGE_KEYS.DONOR_GRANTS, updated);
@@ -4924,6 +5027,13 @@ export const db = {
   },
 
   async getDonorDeliverables(donorId = null) {
+    if (isSupabaseConfigured && supabase) {
+      let request = supabase.from('donor_deliverables').select('*').order('due_date', { ascending: true });
+      if (donorId) request = request.eq('donor_id', donorId);
+      const { data, error } = await request;
+      if (error) throw error;
+      return data || [];
+    }
     const all = getLocalData(STORAGE_KEYS.DONOR_DELIVERABLES, mock.initialDonorDeliverables || []);
     if (!donorId) return all;
     return all.filter(d => d.donor_id === donorId);
@@ -4935,6 +5045,11 @@ export const db = {
       submitted_date: new Date().toISOString().split('T')[0],
       ...deliverable
     };
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.from('donor_deliverables').insert([deliverable]).select().single();
+      if (error) throw error;
+      return data;
+    }
     const current = getLocalData(STORAGE_KEYS.DONOR_DELIVERABLES, mock.initialDonorDeliverables || []);
     const updated = [newD, ...current];
     saveLocalData(STORAGE_KEYS.DONOR_DELIVERABLES, updated);
@@ -4942,6 +5057,13 @@ export const db = {
   },
 
   async getDonorQueries(donorId = null) {
+    if (isSupabaseConfigured && supabase) {
+      let request = supabase.from('donor_queries').select('*').order('created_at', { ascending: true });
+      if (donorId) request = request.eq('donor_id', donorId);
+      const { data, error } = await request;
+      if (error) throw error;
+      return data || [];
+    }
     const all = getLocalData(STORAGE_KEYS.DONOR_QUERIES, mock.initialDonorQueries || []);
     if (!donorId) return all;
     return all.filter(q => q.donor_id === donorId);
@@ -4955,6 +5077,11 @@ export const db = {
       status: 'Under Review',
       ...query
     };
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.from('donor_queries').insert([query]).select().single();
+      if (error) throw error;
+      return { ...data, date: data.created_at?.split('T')[0] };
+    }
     const current = getLocalData(STORAGE_KEYS.DONOR_QUERIES, mock.initialDonorQueries || []);
     const updated = [newQ, ...current];
     saveLocalData(STORAGE_KEYS.DONOR_QUERIES, updated);
@@ -4962,6 +5089,14 @@ export const db = {
   },
 
   async updateDonorQuery(id, updates) {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.from('donor_queries').update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      }).eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    }
     const current = getLocalData(STORAGE_KEYS.DONOR_QUERIES, mock.initialDonorQueries || []);
     const updated = current.map(q => (q.id === id || q.ticket_code === id) ? { ...q, ...updates, updated_at: new Date().toISOString() } : q);
     saveLocalData(STORAGE_KEYS.DONOR_QUERIES, updated);
@@ -6544,6 +6679,18 @@ export const db = {
 
           const merged = data.filter(po => !isOldSeed(po)).map(dbPo => {
             const localMatch = (localList || []).find(l => l.id === dbPo.id || l.po_number === dbPo.po_number) || {};
+            const dbNotes = String(dbPo.notes || '');
+            const paymentMarker = '\n[ADRA_PAYMENT_RECEIPT]';
+            const paymentMarkerIndex = dbNotes.lastIndexOf(paymentMarker);
+            let paymentReceipt = {};
+            if (paymentMarkerIndex !== -1) {
+              try {
+                paymentReceipt = JSON.parse(dbNotes.slice(paymentMarkerIndex + paymentMarker.length));
+              } catch (error) {
+                console.warn(`Could not read payment receipt metadata for purchase order ${dbPo.po_number}:`, error);
+              }
+            }
+            const cleanNotes = paymentMarkerIndex === -1 ? dbNotes : dbNotes.slice(0, paymentMarkerIndex);
             
             // Match supplier if missing
             const matchedSup = (existingSuppliers || []).find(
@@ -6570,6 +6717,7 @@ export const db = {
             return {
               ...localMatch,
               ...dbPo,
+              ...paymentReceipt,
               id: dbPo.id || localMatch.id,
               po_number: dbPo.po_number || localMatch.po_number,
               supplier_id: dbPo.supplier_id || localMatch.supplier_id || matchedSup?.id || null,
@@ -6586,6 +6734,7 @@ export const db = {
               order_date: dbPo.order_date || localMatch.order_date,
               expected_delivery: dbPo.expected_delivery || dbPo.expected_delivery_date || localMatch.expected_delivery,
               status: dbPo.status || localMatch.status || 'Pending Supplier Supply',
+              notes: cleanNotes || localMatch.notes || '',
               stage,
               requested_by: dbPo.issued_by || dbPo.created_by || localMatch.requested_by || 'Gabriel Majok (Inventory Manager)',
               items_summary: dbPo.items_summary || (dbPo.item_name ? `${dbPo.quantity || ''} ${dbPo.unit || ''} ${dbPo.item_name}`.trim() : (localMatch.items_summary || 'Humanitarian Supplies'))
@@ -6690,52 +6839,40 @@ export const db = {
     }
 
     if (isSupabaseConfigured) {
-      try {
-        const destination = newPO.warehouse_destination || newPO.destination_warehouse || 'Central Equatoria State Depot';
-        const supabasePayload = {
-          id: newPO.id,
-          po_number: newPO.po_number,
-          supplier_name: newPO.supplier_name,
-          supplier_id: newPO.supplier_id || null,
-          supplier_email: newPO.supplier_email || null,
-          supplier_phone: newPO.supplier_phone || null,
-          item_name: newPO.item_name,
-          category: newPO.category,
-          quantity: Number(newPO.quantity) || 1,
-          unit: newPO.unit || 'Units',
-          unit_cost: Number(newPO.unit_cost) || 0,
-          total_amount: Number(newPO.total_amount) || 0,
-          warehouse_destination: destination,
-          destination_warehouse: destination,
-          order_date: newPO.order_date,
-          status: newPO.status || 'Pending Supplier Supply',
-          stage: 1,
-          items_summary: newPO.items_summary,
-          issued_by: newPO.requested_by,
-          created_by: newPO.requested_by,
-          notes: newPO.notes || null
-        };
+      const destination = newPO.warehouse_destination || newPO.destination_warehouse || 'Central Equatoria State Depot';
+      const supabasePayload = {
+        id: newPO.id,
+        po_number: newPO.po_number,
+        supplier_name: newPO.supplier_name,
+        item_name: newPO.item_name,
+        category: newPO.category,
+        quantity: Number(newPO.quantity) || 1,
+        unit: newPO.unit || 'Units',
+        unit_cost: Number(newPO.unit_cost) || 0,
+        total_amount: Number(newPO.total_amount) || 0,
+        destination_warehouse: destination,
+        order_date: newPO.order_date,
+        expected_delivery: newPO.expected_delivery || null,
+        status: newPO.status || 'Pending Supplier Supply',
+        issued_by: newPO.requested_by,
+        notes: newPO.notes || null
+      };
 
-        if (newPO.expected_delivery) {
-          supabasePayload.expected_delivery_date = newPO.expected_delivery;
-          supabasePayload.expected_delivery = newPO.expected_delivery;
-        }
-
-        const { data, error } = await supabase.from('purchase_orders').insert([supabasePayload]).select().single();
-        if (!error && data) {
-          newPO = {
-            ...newPO,
-            ...data,
-            stage: 1,
-            warehouse_destination: data.warehouse_destination || data.destination_warehouse || destination,
-            destination_warehouse: data.destination_warehouse || data.warehouse_destination || destination
-          };
-        } else if (error) {
-          console.warn('Supabase purchase_orders insert notice (falling back to local):', error.message);
-        }
-      } catch (err) {
-        console.warn('Error inserting purchase order to Supabase:', err);
+      const { data, error } = await supabase.from('purchase_orders').insert([supabasePayload]).select().single();
+      if (error) {
+        throw new Error(`Failed to save purchase order to Supabase: ${error.message}`);
       }
+      if (!data) {
+        throw new Error('Supabase did not return the saved purchase order.');
+      }
+
+      newPO = {
+        ...newPO,
+        ...data,
+        stage: 1,
+        warehouse_destination: data.warehouse_destination || data.destination_warehouse || destination,
+        destination_warehouse: data.destination_warehouse || data.warehouse_destination || destination
+      };
     }
     const current = await this.getPurchaseOrders();
     const updated = [newPO, ...current.filter(p => p.id !== newPO.id && p.po_number !== newPO.po_number)];
@@ -6923,22 +7060,28 @@ export const db = {
     };
 
     if (isSupabaseConfigured) {
-      try {
-        await supabase
-          .from('purchase_orders')
-          .update({
-            status: 'Paid & Settled',
-            stage: 4,
-            payment_status: 'Paid',
-            payment_reference: paymentRef,
-            paid_by: paidBy,
-            paid_date: paidDate,
-            total_amount: paymentAmount,
-            notes: (targetPO?.notes ? `${targetPO.notes} | ` : '') + `Voucher: ${voucherNo}, Ref: ${paymentRef}, Method: ${paymentMethod}`
-          })
-          .or(`id.eq.${id},po_number.eq.${id}`);
-      } catch (err) {
-        console.warn('Error recording PO payment in Supabase:', err);
+      const paymentReceipt = {
+        payment_status: 'Paid',
+        payment_method: paymentMethod,
+        payment_reference: paymentRef,
+        payment_voucher_number: voucherNo,
+        paid_amount: paymentAmount,
+        paid_by: paidBy,
+        paid_date: paidDate,
+        payment_notes: notes
+      };
+      const baseNotes = String(targetPO.notes || '').replace(/\n\[ADRA_PAYMENT_RECEIPT\][\s\S]*$/, '');
+      const persistedNotes = `${baseNotes}\n[ADRA_PAYMENT_RECEIPT]${JSON.stringify(paymentReceipt)}`;
+      const { error } = await supabase
+        .from('purchase_orders')
+        .update({
+          status: 'Paid & Settled',
+          total_amount: paymentAmount,
+          notes: persistedNotes
+        })
+        .or(`id.eq.${id},po_number.eq.${id}`);
+      if (error) {
+        throw new Error(`Failed to save supplier payment: ${error.message}`);
       }
     }
 

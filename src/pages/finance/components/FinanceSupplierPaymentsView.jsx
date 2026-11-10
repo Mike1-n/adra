@@ -20,7 +20,8 @@ import {
   ChevronUp,
   SlidersHorizontal,
   FileText,
-  MapPin
+  MapPin,
+  Download
 } from 'lucide-react';
 import { PaySupplierModal } from '../../inventory/components/PaySupplierModal';
 import { PODetailModal } from '../../inventory/components/PODetailModal';
@@ -32,6 +33,7 @@ export function FinanceSupplierPaymentsView({
   onFilterChange,
   onOpenSidebar,
   onPaySupplier,
+  onViewVoucher,
   onRefresh
 }) {
   const [internalFilter, setInternalFilter] = useState('pending_payment');
@@ -76,10 +78,12 @@ export function FinanceSupplierPaymentsView({
   }, [purchaseOrders, searchTerm, filter]);
 
   const handlePaySuccess = async (poId, paymentData) => {
+    let updatedPO;
     if (onPaySupplier) {
-      await onPaySupplier(poId, paymentData);
+      updatedPO = await onPaySupplier(poId, paymentData);
     }
-    if (onRefresh) onRefresh();
+    if (onRefresh) await onRefresh();
+    if (updatedPO && onViewVoucher) onViewVoucher(updatedPO);
   };
 
   return (
@@ -178,6 +182,17 @@ export function FinanceSupplierPaymentsView({
                         <span className="hidden sm:inline">Pay</span>
                       </button>
                     )}
+                    {isPaid && onViewVoucher && (
+                      <button
+                        type="button"
+                        onClick={() => onViewVoucher(po)}
+                        className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                        title="Download supplier payment receipt"
+                        aria-label={`Download receipt for ${po.po_number}`}
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -262,10 +277,22 @@ export function FinanceSupplierPaymentsView({
                       )}
 
                       {isPaid && (
-                        <span className="px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-900 text-xs font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                          <span>Settled in Full</span>
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-900 text-xs font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Settled in Full</span>
+                          </span>
+                          {onViewVoucher && (
+                            <button
+                              type="button"
+                              onClick={() => onViewVoucher(po)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              Download Receipt
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

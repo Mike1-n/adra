@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   HardHat,
   ClipboardList,
-  Scale,
   CheckCheck,
   ChevronDown,
   Check,
@@ -13,7 +12,9 @@ import {
   MessageSquare,
   Reply,
   X,
-  Package
+  Package,
+  DollarSign,
+  Search
 } from 'lucide-react';
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
@@ -28,38 +29,36 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
   const isSupplier = userType === 'supplier' || role.includes('supplier');
   const isFieldWorker = !isSupplier && role.includes('field');
   const isBeneficiary = !isSupplier && (!effectiveUser?.role || role.includes('beneficiary'));
+  const isFinanceOfficer = role.includes('finance');
   const isAdmin = role.includes('admin') || role.includes('director');
   const [showAdminOversight, setShowAdminOversight] = useState(isAdmin);
 
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [directories, setDirectories] = useState({
+    users: [],
+    fieldWorkers: [],
+    supervisors: [],
+    suppliers: []
+  });
 
   // Default active tab based on user role
   const getInitialTab = () => {
     if (isSupplier) return 'inventoryManager';
     if (isFieldWorker) return 'beneficiaries';
-    if (role.includes('program')) return 'supervisor';
-    if (role.includes('supervisor')) return 'programManager';
-    if (role.includes('finance')) return 'programManager';
-    if (role.includes('inventory') || role.includes('logistics')) return 'programManager';
+    if (role.includes('supervisor')) return 'fieldWorkers';
+    if (role.includes('finance')) return 'suppliers';
     return 'fieldWorker';
   };
 
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
   const [replyingTo, setReplyingTo] = useState(null);
   const dropdownRef = useRef(null);
   const chatBottomRef = useRef(null);
   const inputRef = useRef(null);
   const toast = useToast();
-
-  // Assigned personnel
-  const [personnel, setPersonnel] = useState({
-    fieldWorker: 'Rose Poni',
-    supervisor: 'Mary Akech',
-    programManager: 'Grace Ochieng',
-    complianceOfficer: 'David Ochieng'
-  });
 
   // Chat input state
   const [messageText, setMessageText] = useState('');
@@ -76,79 +75,30 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Resolve assigned personnel dynamically
+  // Load directory-backed recipients for direct feedback conversations
   useEffect(() => {
-    const resolveAssignedPersonnel = async () => {
+    const loadDirectories = async () => {
       try {
-        const [requests, projects, supervisors] = await Promise.all([
-          db.getAssistanceRequests(beneficiary?.id || beneficiary?.beneficiary_code || 'b7'),
-          db.getProjects ? db.getProjects() : [],
-          db.getSupervisors ? db.getSupervisors() : []
+        const [users, fieldWorkers, supervisors, suppliers] = await Promise.all([
+          db.getUsers(),
+          db.getFieldWorkers(),
+          db.getSupervisors(),
+          db.getSuppliers()
         ]);
-
-        // 1. Resolve Assigned Field Worker
-        let fw = beneficiary?.assigned_field_worker || beneficiary?.field_worker_name || beneficiary?.field_worker;
-        if (!fw && Array.isArray(requests) && requests.length > 0) {
-          const reqWithWorker = requests.find(r => r.assigned_field_worker_name && r.assigned_field_worker_name !== 'Unassigned')
-            || requests.find(r => r.field_worker_name && r.field_worker_name !== 'Unassigned');
-          if (reqWithWorker) {
-            fw = reqWithWorker.assigned_field_worker_name || reqWithWorker.field_worker_name;
-          }
-        }
-        if (!fw) fw = 'Rose Poni';
-
-        // 2. Resolve Assigned Program Manager
-        let pm = null;
-        const projId = beneficiary?.project_id || beneficiary?.program_id;
-        const projName = beneficiary?.project_name || beneficiary?.programme;
-        if (Array.isArray(projects) && projects.length > 0) {
-          const matchedProj = projects.find(p =>
-            (projId && p.id === projId) ||
-            (projName && p.project_name?.toLowerCase().includes(projName.toLowerCase()))
-          );
-          if (matchedProj) {
-            pm = matchedProj.manager_name || matchedProj.program_manager || matchedProj.pm_name;
-          }
-        }
-        if (!pm && Array.isArray(requests) && requests.length > 0) {
-          const reqWithPM = requests.find(r => r.reviewed_by || r.manager_name || r.program_manager_name);
-          if (reqWithPM) {
-            pm = reqWithPM.reviewed_by || reqWithPM.manager_name || reqWithPM.program_manager_name;
-          }
-        }
-        if (pm) {
-          pm = pm.replace(/\s*\([^)]*\)/g, '').trim();
-        } else {
-          pm = 'Grace Ochieng';
-        }
-
-        // 3. Resolve Field Supervisor
-        let sup = null;
-        if (Array.isArray(requests) && requests.length > 0) {
-          const reqWithSup = requests.find(r => r.assigned_supervisor_name || r.supervisor_name);
-          if (reqWithSup) {
-            sup = reqWithSup.assigned_supervisor_name || reqWithSup.supervisor_name;
-          }
-        }
-        if (!sup && Array.isArray(supervisors) && supervisors.length > 0) {
-          const matchedSup = supervisors.find(s => s.name === 'Mary Akech' || s.full_name === 'Mary Akech');
-          sup = matchedSup?.full_name || matchedSup?.name || supervisors[0]?.full_name || supervisors[0]?.name;
-        }
-        if (!sup) sup = 'Mary Akech';
-
-        setPersonnel({
-          fieldWorker: fw,
-          supervisor: sup,
-          programManager: pm,
-          complianceOfficer: 'David Ochieng'
+        setDirectories({
+          users: users || [],
+          fieldWorkers: fieldWorkers || [],
+          supervisors: supervisors || [],
+          suppliers: suppliers || []
         });
       } catch (e) {
-        console.warn('Could not resolve assigned personnel:', e);
+        console.error('Could not load feedback contact directories:', e);
+        toast.error('Failed to load feedback contacts');
       }
     };
 
-    resolveAssignedPersonnel();
-  }, [beneficiary]);
+    loadDirectories();
+  }, []);
 
   // Load complaints
   const loadComplaints = async () => {
@@ -196,139 +146,215 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     }, 60);
   };
 
-  // Contacts definition: tailored for Supplier vs Field Worker vs Beneficiary
-  const contacts = isSupplier ? [
-    {
-      id: 'inventoryManager',
-      role: 'Inventory Manager',
-      name: 'Gabriel Majok',
-      title: 'ADRA Inventory & Warehouse Manager',
-      status: 'Online',
-      badge: 'Procurement & Logistics Desk',
-      avatarColor: 'bg-[#006B56]',
-      icon: Package,
-      welcomeNote: 'Hello! I am Gabriel Majok, your ADRA Inventory & Procurement Manager. Reach out directly for supply requests, delivery confirmations, purchase orders, or depot logistics.'
-    }
-  ] : isFieldWorker ? [
-    {
-      id: 'beneficiaries',
-      role: 'Household Inquiries',
-      name: 'Registered Households',
-      title: 'Direct Beneficiary Inquiries',
-      status: 'Live',
-      badge: 'Incoming from Community',
-      avatarColor: 'bg-emerald-600',
-      icon: Users,
-      welcomeNote: 'Incoming messages and questions from registered households in your zone appear here. Tap Reply on any message to respond directly.'
-    },
-    {
-      id: 'supervisor',
-      role: 'Supervisor',
-      name: personnel.supervisor,
-      title: 'Zonal Field Supervisor',
-      status: 'Active',
-      badge: 'Zonal Operations',
-      avatarColor: 'bg-blue-600',
-      icon: ShieldCheck,
-      welcomeNote: 'This is the Zonal Supervisor channel. Contact for depot queues, distribution safety, or team inquiries.'
-    },
-    {
-      id: 'programManager',
-      role: 'Program Manager',
-      name: personnel.programManager,
-      title: 'Programme Manager',
-      status: 'Active',
-      badge: 'Programme Manager',
-      avatarColor: 'bg-purple-600',
-      icon: ClipboardList,
-      welcomeNote: 'Direct channel with Programme Manager for project updates, escalations, and approvals.'
-    },
-    {
-      id: 'complianceOfficer',
-      role: 'Compliance Officer',
-      name: personnel.complianceOfficer,
-      title: 'Safeguarding Officer',
-      status: 'Official Helpline',
-      badge: 'Safeguarding Desk',
-      avatarColor: 'bg-rose-600',
-      icon: Scale,
-      welcomeNote: 'Official Independent Safeguarding Desk. All reports are strictly confidential.'
-    }
-  ] : [
-    {
-      id: 'fieldWorker',
-      role: 'Field Worker',
-      name: personnel.fieldWorker,
-      title: 'Assigned Household Worker',
-      status: 'Online',
-      badge: 'Assigned to You',
-      avatarColor: 'bg-emerald-600',
-      icon: HardHat,
-      welcomeNote: 'Hello! I am your assigned ADRA Field Worker for visits, token verification, and household aid supplies.'
-    },
-    {
-      id: 'supervisor',
-      role: 'Supervisor',
-      name: personnel.supervisor,
-      title: 'Zonal Field Supervisor',
-      status: 'Active',
-      badge: 'Zonal Operations',
-      avatarColor: 'bg-blue-600',
-      icon: ShieldCheck,
-      welcomeNote: 'This is the Zonal Supervisor channel. Contact me for depot queues, distribution safety, or team inquiries.'
-    },
-    {
-      id: 'programManager',
-      role: 'Program Manager',
-      name: personnel.programManager,
-      title: 'Programme Manager',
-      status: 'Active',
-      badge: 'Programme Manager',
-      avatarColor: 'bg-purple-600',
-      icon: ClipboardList,
-      welcomeNote: 'Welcome. As your ADRA Programme Manager, feel free to submit programme feedback, appeal inclusion, or request policy clarity.'
-    },
-    {
-      id: 'complianceOfficer',
-      role: 'Compliance Officer',
-      name: personnel.complianceOfficer,
-      title: 'Safeguarding Officer',
-      status: 'Official Helpline',
-      badge: 'Safeguarding Desk',
-      avatarColor: 'bg-rose-600',
-      icon: Scale,
-      welcomeNote: 'Official Independent Safeguarding Desk. All reports are strictly confidential.'
-    }
-  ];
+  const currentId = String(
+    effectiveUser?.id ||
+    effectiveUser?.supplier_id ||
+    effectiveUser?.beneficiary_code ||
+    effectiveUser?.company_name ||
+    (isBeneficiary ? 'b7' : '')
+  );
+  const makeRoleContact = (contactRole, title, icon, avatarColor) => ({
+    id: `role:${contactRole.toLowerCase()}`,
+    recipientId: `role:${contactRole.toLowerCase()}`,
+    isRoleInbox: true,
+    role: contactRole,
+    name: `${contactRole} Team`,
+    title,
+    status: 'Online',
+    badge: contactRole,
+    avatarColor,
+    icon,
+    welcomeNote: `Send a message to the ${contactRole} team.`
+  });
+  const makeUserContact = (person, fallbackRole, icon, avatarColor) => {
+    const personRole = person.role || fallbackRole;
+    const personName = person.full_name || person.name || person.company_name || person.email || personRole;
+    return {
+      id: `user:${person.id}`,
+      recipientId: String(person.id),
+      role: personRole,
+      name: personName,
+      title: person.department || person.email || personRole,
+      email: person.email || '',
+      status: person.status || 'Online',
+      badge: personRole,
+      avatarColor,
+      icon,
+      welcomeNote: `Direct conversation with ${personName}.`
+    };
+  };
+  const makeSupplierContact = (supplier) => ({
+    id: `supplier:${supplier.id}`,
+    recipientId: String(supplier.id),
+    role: 'Supplier',
+    name: supplier.company_name || supplier.contact_person || 'Supplier',
+    title: supplier.contact_person || supplier.email || supplier.category || 'Supplier contact',
+    email: supplier.email || '',
+    status: supplier.status || 'Active',
+    badge: 'Supplier',
+    avatarColor: 'bg-amber-600',
+    icon: Package,
+    welcomeNote: `Direct conversation with ${supplier.company_name || 'supplier'} about invoices, payments, or purchase orders.`
+  });
+  const contacts = (() => {
+    const activeSuppliers = directories.suppliers.filter(s => (s.status || '').toLowerCase() !== 'inactive');
+    const usersByRole = (roleTerm) => directories.users.filter(u =>
+      (u.role || '').toLowerCase().includes(roleTerm) &&
+      String(u.status || 'active').toLowerCase() !== 'inactive' &&
+      u.id &&
+      String(u.id || '') !== currentId
+    );
+    const roleContacts = (roleTerm, title, icon, color) => {
+      const users = usersByRole(roleTerm);
+      return users.length
+        ? users.map(user => makeUserContact(user, roleTerm, icon, color))
+        : [makeRoleContact(title, title, icon, color)];
+    };
 
-  const currentContact = contacts.find(c => c.id === activeTab) || contacts[0];
+    if (isSupplier) {
+      return [
+        ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]'),
+        ...roleContacts('finance', 'Finance Officer', DollarSign, 'bg-blue-700')
+      ];
+    }
+    if (isFinanceOfficer) {
+      return [
+        ...activeSuppliers.map(makeSupplierContact),
+        ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600'),
+        ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]')
+      ];
+    }
+    if (isFieldWorker) {
+      const assignedSupervisorId = effectiveUser?.supervisor_id;
+      const assignedSupervisorName = (effectiveUser?.supervisor_name || '').toLowerCase();
+      const assignedSupervisors = directories.supervisors.filter(person =>
+        (assignedSupervisorId && String(person.id) === String(assignedSupervisorId)) ||
+        (assignedSupervisorName && (person.name || '').toLowerCase() === assignedSupervisorName)
+      );
+      const supervisors = assignedSupervisors.length ? assignedSupervisors : directories.supervisors;
+      return [
+        {
+          id: 'beneficiaries',
+          role: 'Household Inquiries',
+          name: 'Registered Households',
+          title: 'Direct Beneficiary Inquiries',
+          status: 'Live',
+          badge: 'Incoming from Community',
+          avatarColor: 'bg-emerald-600',
+          icon: Users,
+          welcomeNote: 'Incoming messages and questions from registered households appear here. Reply to continue a conversation.'
+        },
+        ...supervisors
+          .filter(person => String(person.id) !== currentId)
+          .map(person => makeUserContact(person, 'Supervisor', ShieldCheck, 'bg-blue-600')),
+        ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600')
+      ];
+    }
+    if (role.includes('supervisor')) {
+      const assignedWorkers = directories.fieldWorkers.filter(worker =>
+        String(worker.supervisor_id || '') === currentId ||
+        (worker.supervisor_name && worker.supervisor_name.toLowerCase() === (effectiveUser?.full_name || effectiveUser?.name || '').toLowerCase())
+      );
+      const workers = assignedWorkers.length ? assignedWorkers : directories.fieldWorkers;
+      return [
+        ...workers
+          .filter(person => String(person.id) !== currentId)
+          .map(person => makeUserContact(person, 'Field Worker', HardHat, 'bg-emerald-600')),
+        ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600')
+      ];
+    }
+    if (role.includes('inventory') || role.includes('logistics')) {
+      return activeSuppliers.map(makeSupplierContact);
+    }
+    if (isBeneficiary) {
+      const assignedName = beneficiary?.assigned_field_worker || beneficiary?.field_worker_name || beneficiary?.field_worker;
+      const assignedId = beneficiary?.assigned_field_worker_id || beneficiary?.field_worker_id;
+      const assignedWorkers = directories.fieldWorkers.filter(worker =>
+        (assignedId && String(worker.id) === String(assignedId)) ||
+        (assignedName && (worker.name || worker.full_name || '').toLowerCase() === String(assignedName).toLowerCase())
+      );
+      const workers = assignedWorkers.length ? assignedWorkers : directories.fieldWorkers;
+      return [
+        ...workers.map(person => makeUserContact(person, 'Field Worker', HardHat, 'bg-emerald-600')),
+        ...directories.supervisors.map(person => makeUserContact(person, 'Supervisor', ShieldCheck, 'bg-blue-600')),
+        ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600')
+      ];
+    }
+    return [
+      ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600'),
+      ...roleContacts('supervisor', 'Supervisor', ShieldCheck, 'bg-blue-600'),
+      ...roleContacts('field', 'Field Worker', HardHat, 'bg-emerald-600')
+    ];
+  })();
+
+  useEffect(() => {
+    if (contacts.length && !contacts.some(contact => contact.id === activeTab)) {
+      setActiveTab(contacts[0].id);
+    }
+  }, [contacts, activeTab]);
+
+  const currentContact = contacts.find(c => c.id === activeTab) || contacts[0] || {
+    id: 'no-contact',
+    role: 'Feedback',
+    name: 'No contacts available',
+    title: 'No directory contacts found',
+    status: 'Offline',
+    avatarColor: 'bg-slate-500',
+    icon: Users,
+    welcomeNote: 'No contacts are currently available.'
+  };
+  const isMessageForContact = (message, contact) => {
+    if (!contact) return false;
+    const senderId = String(message.beneficiary_id || '');
+    const recipientId = String(message.recipient_id || '');
+    const recipientRole = (message.recipient_role || '').toLowerCase();
+    const recipientName = (message.recipient_name || '').toLowerCase();
+    const contactName = contact.name.toLowerCase();
+    const currentRole = (effectiveUser?.role || (isSupplier ? 'Supplier' : '')).toLowerCase();
+
+    if (contact.id === 'beneficiaries') {
+      return recipientRole.includes('field') ||
+        recipientName.includes((effectiveUser?.name || '').toLowerCase()) ||
+        message.category === 'Field Worker Response';
+    }
+
+    const roleRecipientMatches = contact.isRoleInbox
+      ? recipientId === contact.recipientId || recipientRole === contact.role.toLowerCase()
+      : false;
+    const incomingToCurrentUser = recipientId === currentId || recipientId === `role:${currentRole}`;
+    const outgoingToContact = senderId === currentId &&
+      (recipientId === contact.recipientId || roleRecipientMatches);
+    const incomingFromContact = senderId === contact.recipientId && incomingToCurrentUser;
+    if (outgoingToContact || incomingFromContact) return true;
+
+    if (recipientId) return false;
+    const legacyRoleMatch = recipientRole === contact.role.toLowerCase();
+    const legacyNameMatch = recipientName.includes(contactName) || contactName.includes(recipientName);
+    if (contact.isRoleInbox) return legacyRoleMatch;
+    if (isSupplier && (message.category === 'Supplier Logistics Feedback' || message.category === 'Feedback & Accountability')) {
+      return legacyRoleMatch || legacyNameMatch;
+    }
+    if (isFinanceOfficer && message.category === 'Supplier Logistics Feedback' && senderId === contact.recipientId) {
+      return true;
+    }
+    return legacyRoleMatch && legacyNameMatch;
+  };
+  const filteredContacts = contacts.filter(contact => {
+    const search = contactSearch.trim().toLowerCase();
+    return !search || [contact.name, contact.role, contact.title, contact.email]
+      .some(value => (value || '').toLowerCase().includes(search));
+  });
 
   // Filter and sort complaints for the currently selected contact (first sent at top, newest at bottom)
   const activeChatMessages = complaints
     .filter(c => {
-      if (isSupplier) {
-        const isInventoryMsg = (c.recipient_role || '').toLowerCase().includes('inventory') ||
-                               (c.recipient_name || '').toLowerCase().includes('gabriel') ||
-                               c.category === 'Supplier Logistics Feedback' ||
-                               c.category === 'Feedback & Accountability';
-        return isInventoryMsg;
-      }
-
       if (isFieldWorker && activeTab === 'beneficiaries') {
         const isFieldWorkerMsg = (c.recipient_role || '').toLowerCase().includes('field') ||
-                                (c.recipient_name || '').toLowerCase().includes(personnel.fieldWorker.toLowerCase()) ||
                                 (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
                                 c.category === 'Field Worker Response';
         return isFieldWorkerMsg;
       }
-
-      const roleMatch = (c.recipient_role || '').toLowerCase() === currentContact.role.toLowerCase();
-      const nameMatch = (c.recipient_name || '').toLowerCase().includes(currentContact.name.toLowerCase()) ||
-                        currentContact.name.toLowerCase().includes((c.recipient_name || '').toLowerCase());
-      if (currentContact.id === 'complianceOfficer' && c.ticket_code === 'CMP-2025-001') {
-        return true;
-      }
-      return roleMatch || nameMatch;
+      return isMessageForContact(c, currentContact);
     })
     .sort((a, b) => {
       const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -338,29 +364,16 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
   // Count messages per contact
   const getContactMessageCount = (contactId) => {
-    if (isSupplier) {
-      return complaints.filter(c =>
-        (c.recipient_role || '').toLowerCase().includes('inventory') ||
-        (c.recipient_name || '').toLowerCase().includes('gabriel') ||
-        c.category === 'Supplier Logistics Feedback'
-      ).length;
-    }
     if (isFieldWorker && contactId === 'beneficiaries') {
       return complaints.filter(c => 
         (c.recipient_role || '').toLowerCase().includes('field') ||
-        (c.recipient_name || '').toLowerCase().includes(personnel.fieldWorker.toLowerCase()) ||
         (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
         c.category === 'Field Worker Response'
       ).length;
     }
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return 0;
-    return complaints.filter(c => {
-      const roleMatch = (c.recipient_role || '').toLowerCase() === contact.role.toLowerCase();
-      const nameMatch = (c.recipient_name || '').toLowerCase().includes(contact.name.toLowerCase());
-      if (contactId === 'complianceOfficer' && c.ticket_code === 'CMP-2025-001') return true;
-      return roleMatch || nameMatch;
-    }).length;
+    return complaints.filter(c => isMessageForContact(c, contact)).length;
   };
 
   // Send message in WhatsApp chat
@@ -370,7 +383,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
     try {
       setIsSubmitting(true);
-      const workerName = effectiveUser?.full_name || effectiveUser?.name || personnel.fieldWorker || 'Rose Poni';
+      const workerName = effectiveUser?.full_name || effectiveUser?.name || 'Field Worker';
 
       if (isFieldWorker && activeTab === 'beneficiaries') {
         // Field worker replying to beneficiary inquiry
@@ -387,10 +400,11 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
         // Also add clean response complaint to the shared thread
         await db.createComplaint({
-          beneficiary_id: targetComplaint?.beneficiary_id || 'b7',
-          beneficiary_name: targetComplaint?.beneficiary_name || 'Michael Ngatia',
-          recipient_role: 'Field Worker',
-          recipient_name: workerName,
+          beneficiary_id: currentId,
+          beneficiary_name: workerName,
+          recipient_id: targetComplaint?.beneficiary_id || 'b7',
+          recipient_role: 'Beneficiary',
+          recipient_name: targetComplaint?.beneficiary_name || 'Household Member',
           category: 'Field Worker Response',
           severity: 'Low',
           is_anonymous: false,
@@ -406,11 +420,12 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         setReplyingTo(null);
       } else {
         const senderName = effectiveUser?.company_name || effectiveUser?.full_name || effectiveUser?.name || 'Authorized Member';
-        const senderId = effectiveUser?.id || (isSupplier ? `supplier_${Date.now()}` : isBeneficiary ? 'b7' : `staff_${Date.now()}`);
+        const senderId = currentId;
 
         await db.createComplaint({
           beneficiary_id: senderId,
           beneficiary_name: senderName,
+          recipient_id: currentContact.recipientId,
           recipient_role: currentContact.role,
           recipient_name: currentContact.name,
           category: isSupplier ? 'Supplier Logistics Feedback' : 'Feedback & Accountability',
@@ -525,12 +540,28 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
           {/* Clean Dropdown Menu Popover */}
           {isDropdownOpen && (
-            <div className="absolute top-full left-0 mt-2 w-80 bg-white text-slate-900 rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 animate-in fade-in-50 duration-150">
+            <div className="absolute top-full left-0 mt-2 w-80 max-h-[70vh] overflow-y-auto bg-white text-slate-900 rounded-2xl border border-slate-200 shadow-2xl z-50 divide-y divide-slate-100 animate-in fade-in-50 duration-150">
               <div className="p-2.5 bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 {isFieldWorker ? 'Select Communication Channel' : 'Select Recipient to Chat With'}
               </div>
 
-              {contacts.map(c => {
+              {contacts.length > 5 && (
+                <div className="p-2 border-b border-slate-100">
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2">
+                    <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <input
+                      type="search"
+                      value={contactSearch}
+                      onChange={event => setContactSearch(event.target.value)}
+                      placeholder="Search contacts..."
+                      className="w-full text-xs outline-none"
+                      aria-label="Search feedback contacts"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {filteredContacts.map(c => {
                 const isSelected = activeTab === c.id;
                 const IconComp = c.icon;
                 const count = getContactMessageCount(c.id);
@@ -543,6 +574,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
                       setActiveTab(c.id);
                       setReplyingTo(null);
                       setIsDropdownOpen(false);
+                      setContactSearch('');
                     }}
                     className={`w-full p-3 text-left flex items-center justify-between transition cursor-pointer ${
                       isSelected
@@ -578,6 +610,9 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
                   </button>
                 );
               })}
+              {filteredContacts.length === 0 && (
+                <p className="p-4 text-xs text-slate-500">No contacts match your search.</p>
+              )}
             </div>
           )}
         </div>
@@ -622,6 +657,14 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
             </span>
           </div>
         </div>
+
+        {!contacts.length && (
+          <div className="text-center py-4">
+            <span className="text-xs text-slate-500 bg-white/80 px-3 py-1.5 rounded-full border border-slate-200">
+              No active contacts are available in the directory.
+            </span>
+          </div>
+        )}
 
         {/* Thread Messages */}
         {activeChatMessages.length === 0 ? (
@@ -728,11 +771,20 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
             }
 
             // Standard View (Beneficiary view or Staff messaging superiors)
+            const isOutgoing = !msg.recipient_id || String(msg.beneficiary_id || '') === currentId;
             return (
               <div key={msg.id || msg.ticket_code} className="space-y-1.5">
-                {/* Outgoing Bubble (WhatsApp Green - Aligned Right, clean without technical tags) */}
-                <div className="flex justify-end">
-                  <div className="max-w-[85%] sm:max-w-[75%] bg-[#d9fdd3] text-slate-900 rounded-2xl rounded-tr-xs p-3 shadow-xs border border-[#b8f5b0]">
+                <div className={`flex ${isOutgoing ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] sm:max-w-[75%] text-slate-900 rounded-2xl p-3 shadow-xs border ${
+                    isOutgoing
+                      ? 'bg-[#d9fdd3] rounded-tr-xs border-[#b8f5b0]'
+                      : 'bg-white rounded-tl-xs border-slate-200'
+                  }`}>
+                    {!isOutgoing && (
+                      <p className="text-[11px] font-bold text-emerald-800 mb-1">
+                        {msg.beneficiary_name || currentContact.name}
+                      </p>
+                    )}
                     <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap py-0.5">
                       {msg.description || msg.subject}
                     </p>
@@ -825,7 +877,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         {/* WhatsApp Green Send Button */}
         <button
           type="submit"
-          disabled={!messageText.trim() || isSubmitting}
+          disabled={!messageText.trim() || isSubmitting || !contacts.length}
           className={`w-10 h-10 rounded-full flex items-center justify-center transition shadow-md shrink-0 cursor-pointer ${
             messageText.trim() && !isSubmitting
               ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
