@@ -470,7 +470,7 @@ export function FinanceMobileApp({
                 <AdraLogo
                   isCollapsed={false}
                   subtitle="Finance"
-                  description="Alex Morgan (Officer)"
+                  description="Finance Officer"
                 />
                 <button
                   type="button"

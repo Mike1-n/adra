@@ -13,10 +13,25 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL UNIQUE,
     full_name TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('Administrator', 'Project Officer', 'Finance Officer', 'M&E Officer')),
+    role TEXT NOT NULL CHECK (role IN (
+        'Administrator',
+        'Program Manager',
+        'Programme Manager',
+        'Supervisor',
+        'Project Officer',
+        'Finance Officer',
+        'M&E Officer',
+        'Inventory Manager',
+        'Field Worker',
+        'Supplier',
+        'Donor',
+        'Beneficiary',
+        'Compliance Officer'
+    )),
     phone TEXT,
     department TEXT,
     avatar_url TEXT,
+    status TEXT NOT NULL DEFAULT 'Active',
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
@@ -145,11 +160,67 @@ CREATE TABLE IF NOT EXISTS public.donor_queries (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS public.user_feedbacks (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ticket_code TEXT NOT NULL,
+    module TEXT NOT NULL,
+    module_id TEXT NOT NULL,
+    user_name TEXT NOT NULL,
+    user_email TEXT NOT NULL,
+    user_role TEXT NOT NULL,
+    category TEXT NOT NULL,
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'Normal',
+    status TEXT NOT NULL DEFAULT 'Submitted',
+    admin_response TEXT,
+    responded_by TEXT,
+    responded_at TIMESTAMPTZ,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.beneficiary_complaints (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ticket_code TEXT NOT NULL,
+    beneficiary_id TEXT,
+    beneficiary_name TEXT,
+    sender_email TEXT,
+    sender_name TEXT,
+    sender_role TEXT,
+    sender_location TEXT,
+    recipient_id TEXT,
+    recipient_email TEXT,
+    recipient_name TEXT,
+    recipient_role TEXT,
+    recipient_department TEXT,
+    category TEXT,
+    severity TEXT,
+    priority TEXT,
+    is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+    subject TEXT,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'Submitted',
+    resolution_notes TEXT,
+    resolved_by TEXT,
+    resolved_at TIMESTAMPTZ,
+    responses JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_donor_grants_donor ON public.donor_grants(donor_id);
 CREATE INDEX IF NOT EXISTS idx_donor_grants_project ON public.donor_grants(project_id);
 CREATE INDEX IF NOT EXISTS idx_donor_tranches_grant ON public.donor_grant_tranches(donor_grant_id);
 CREATE INDEX IF NOT EXISTS idx_donor_deliverables_donor ON public.donor_deliverables(donor_id);
 CREATE INDEX IF NOT EXISTS idx_donor_queries_donor_created ON public.donor_queries(donor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_feedbacks_created_at ON public.user_feedbacks(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_feedbacks_module_id ON public.user_feedbacks(module_id);
+CREATE INDEX IF NOT EXISTS idx_beneficiary_complaints_created_at ON public.beneficiary_complaints(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_beneficiary_complaints_beneficiary_id ON public.beneficiary_complaints(beneficiary_id);
+CREATE INDEX IF NOT EXISTS idx_beneficiary_complaints_recipient_id ON public.beneficiary_complaints(recipient_id);
 
 -- ----------------------------------------------------------------------------
 -- 5. BENEFICIARIES TABLE
@@ -335,6 +406,8 @@ ALTER TABLE public.donor_grants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.donor_grant_tranches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.donor_deliverables ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.donor_queries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_feedbacks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.beneficiary_complaints ENABLE ROW LEVEL SECURITY;
 
 -- 1. Profiles Policies
 DROP POLICY IF EXISTS "Profiles read access for authenticated users" ON public.profiles;
@@ -419,8 +492,13 @@ CREATE POLICY "Donor and staff read donor queries" ON public.donor_queries
         public.get_auth_role() IN ('Administrator', 'Program Manager', 'Programme Manager', 'Finance Officer')
         OR EXISTS (
             SELECT 1 FROM public.donors d
-            WHERE d.id = donor_id
+            WHERE d.id = donor_queries.donor_id
               AND lower(d.email) = lower(auth.jwt() ->> 'email')
+        )
+        OR EXISTS (
+            SELECT 1 FROM public.profiles p
+            WHERE p.id = auth.uid()
+              AND p.donor_id = donor_queries.donor_id
         )
     );
 DROP POLICY IF EXISTS "Donor submit donor queries" ON public.donor_queries;
@@ -428,8 +506,13 @@ CREATE POLICY "Donor submit donor queries" ON public.donor_queries
     FOR INSERT TO authenticated WITH CHECK (
         EXISTS (
             SELECT 1 FROM public.donors d
-            WHERE d.id = donor_id
+            WHERE d.id = donor_queries.donor_id
               AND lower(d.email) = lower(auth.jwt() ->> 'email')
+        )
+        OR EXISTS (
+            SELECT 1 FROM public.profiles p
+            WHERE p.id = auth.uid()
+              AND p.donor_id = donor_queries.donor_id
         )
     );
 DROP POLICY IF EXISTS "Staff respond to donor queries" ON public.donor_queries;
@@ -437,6 +520,90 @@ CREATE POLICY "Staff respond to donor queries" ON public.donor_queries
     FOR UPDATE TO authenticated
     USING (public.get_auth_role() IN ('Administrator', 'Program Manager', 'Programme Manager', 'Finance Officer'))
     WITH CHECK (public.get_auth_role() IN ('Administrator', 'Program Manager', 'Programme Manager', 'Finance Officer'));
+
+DROP POLICY IF EXISTS "Read feedback registry" ON public.user_feedbacks;
+CREATE POLICY "Read feedback registry" ON public.user_feedbacks
+    FOR SELECT TO authenticated
+    USING (
+        lower(user_email) = lower(auth.jwt() ->> 'email')
+        OR public.get_auth_role() IN (
+            'Administrator', 'Program Manager', 'Programme Manager',
+            'Finance Officer', 'Project Officer', 'M&E Officer',
+            'Inventory Manager', 'Logistics Officer'
+        )
+    );
+
+DROP POLICY IF EXISTS "Submit own user feedback" ON public.user_feedbacks;
+CREATE POLICY "Submit own user feedback" ON public.user_feedbacks
+    FOR INSERT TO authenticated
+    WITH CHECK (lower(user_email) = lower(auth.jwt() ->> 'email'));
+
+DROP POLICY IF EXISTS "Staff respond to user feedback" ON public.user_feedbacks;
+CREATE POLICY "Staff respond to user feedback" ON public.user_feedbacks
+    FOR UPDATE TO authenticated
+    USING (public.get_auth_role() IN (
+        'Administrator', 'Program Manager', 'Programme Manager',
+        'Finance Officer', 'Project Officer', 'M&E Officer',
+        'Inventory Manager', 'Logistics Officer'
+    ))
+    WITH CHECK (public.get_auth_role() IN (
+        'Administrator', 'Program Manager', 'Programme Manager',
+        'Finance Officer', 'Project Officer', 'M&E Officer',
+        'Inventory Manager', 'Logistics Officer'
+    ));
+
+DROP POLICY IF EXISTS "Administrators delete user feedback" ON public.user_feedbacks;
+CREATE POLICY "Administrators delete user feedback" ON public.user_feedbacks
+    FOR DELETE TO authenticated
+    USING (public.get_auth_role() = 'Administrator');
+
+DROP POLICY IF EXISTS "Read complaints registry" ON public.beneficiary_complaints;
+CREATE POLICY "Read complaints registry" ON public.beneficiary_complaints
+    FOR SELECT TO authenticated
+    USING (
+        lower(sender_email) = lower(auth.jwt() ->> 'email')
+        OR lower(recipient_email) = lower(auth.jwt() ->> 'email')
+        OR beneficiary_id = auth.uid()::text
+        OR recipient_id = auth.uid()::text
+        OR public.get_auth_role() IN (
+            'Administrator', 'Program Manager', 'Programme Manager',
+            'Finance Officer', 'Project Officer', 'M&E Officer',
+            'Inventory Manager', 'Logistics Officer', 'Supervisor',
+            'Field Worker', 'Compliance Officer'
+        )
+    );
+
+DROP POLICY IF EXISTS "Submit complaints" ON public.beneficiary_complaints;
+CREATE POLICY "Submit complaints" ON public.beneficiary_complaints
+    FOR INSERT TO authenticated
+    WITH CHECK (
+        lower(sender_email) = lower(auth.jwt() ->> 'email')
+        OR
+        beneficiary_id = auth.uid()::text
+        OR public.get_auth_role() IN (
+            'Administrator', 'Program Manager', 'Programme Manager',
+            'Finance Officer', 'Project Officer', 'M&E Officer',
+            'Inventory Manager', 'Logistics Officer', 'Supervisor',
+            'Field Worker', 'Compliance Officer', 'Supplier', 'Donor',
+            'Beneficiary'
+        )
+    );
+
+DROP POLICY IF EXISTS "Staff update complaints" ON public.beneficiary_complaints;
+CREATE POLICY "Staff update complaints" ON public.beneficiary_complaints
+    FOR UPDATE TO authenticated
+    USING (public.get_auth_role() IN (
+        'Administrator', 'Program Manager', 'Programme Manager',
+        'Finance Officer', 'Project Officer', 'M&E Officer',
+        'Inventory Manager', 'Logistics Officer', 'Supervisor',
+        'Field Worker', 'Compliance Officer'
+    ))
+    WITH CHECK (public.get_auth_role() IN (
+        'Administrator', 'Program Manager', 'Programme Manager',
+        'Finance Officer', 'Project Officer', 'M&E Officer',
+        'Inventory Manager', 'Logistics Officer', 'Supervisor',
+        'Field Worker', 'Compliance Officer'
+    ));
 
 DROP POLICY IF EXISTS "Allow authenticated read on partners" ON public.partners;
 CREATE POLICY "Allow authenticated read on partners" ON public.partners FOR SELECT TO authenticated USING (true);
@@ -763,7 +930,8 @@ CREATE POLICY "Allow authenticated write on suppliers" ON public.suppliers FOR A
 -- ----------------------------------------------------------------------------
 -- 19. USER CREDENTIALS & SECURITY ENHANCEMENTS
 -- ----------------------------------------------------------------------------
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password TEXT DEFAULT 'Password123!';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password TEXT;
+ALTER TABLE public.profiles ALTER COLUMN password DROP DEFAULT;
 
 -- Add evidence and field verification columns to assistance_requests
 ALTER TABLE public.assistance_requests ADD COLUMN IF NOT EXISTS evidence_documents JSONB DEFAULT '[]'::jsonb;

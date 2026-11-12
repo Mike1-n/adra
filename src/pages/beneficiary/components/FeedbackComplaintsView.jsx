@@ -28,9 +28,12 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
   const role = (effectiveUser?.role || '').toLowerCase();
   const isSupplier = userType === 'supplier' || role.includes('supplier');
   const isFieldWorker = !isSupplier && role.includes('field');
-  const isBeneficiary = !isSupplier && (!effectiveUser?.role || role.includes('beneficiary'));
+  const isSupervisor = !isSupplier && role.includes('supervisor');
+  const isBeneficiary = !isSupplier && !isSupervisor && !isFieldWorker && (!effectiveUser?.role || role.includes('beneficiary'));
   const isFinanceOfficer = role.includes('finance');
+  const isInventoryManager = role.includes('inventory') || role.includes('logistics');
   const isAdmin = role.includes('admin') || role.includes('director');
+  const canViewOversight = isAdmin || isInventoryManager || isFinanceOfficer;
   const [showAdminOversight, setShowAdminOversight] = useState(isAdmin);
 
   const [complaints, setComplaints] = useState([]);
@@ -38,15 +41,19 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
   const [directories, setDirectories] = useState({
     users: [],
     fieldWorkers: [],
-    supervisors: [],
-    suppliers: []
+    supervisors: []
+  });
+  const [assignedInfo, setAssignedInfo] = useState({
+    supervisorId: null,
+    supervisorName: null,
+    fieldWorkerId: null,
+    fieldWorkerName: null
   });
 
   // Default active tab based on user role
   const getInitialTab = () => {
     if (isSupplier) return 'inventoryManager';
-    if (isFieldWorker) return 'beneficiaries';
-    if (role.includes('supervisor')) return 'fieldWorkers';
+    if (isFieldWorker || isSupervisor) return 'beneficiaries';
     if (role.includes('finance')) return 'suppliers';
     return 'fieldWorker';
   };
@@ -75,21 +82,77 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // For beneficiaries, dynamically resolve assigned supervisor and field worker from requests
+  useEffect(() => {
+    const resolveAssignments = async () => {
+      if (!isBeneficiary) return;
+      try {
+        const benId = beneficiary?.id || beneficiary?.beneficiary_code || effectiveUser?.id;
+        const benCode = beneficiary?.beneficiary_code || effectiveUser?.beneficiary_code;
+        const benName = beneficiary?.full_name || effectiveUser?.full_name || effectiveUser?.name;
+        const benEmail = beneficiary?.email || effectiveUser?.email;
+
+        let sId = beneficiary?.assigned_supervisor_id || beneficiary?.supervisor_id || effectiveUser?.assigned_supervisor_id || effectiveUser?.supervisor_id;
+        let sName = beneficiary?.assigned_supervisor_name || beneficiary?.supervisor_name || beneficiary?.assigned_supervisor || effectiveUser?.assigned_supervisor_name || effectiveUser?.supervisor_name;
+        let fwId = beneficiary?.assigned_field_worker_id || beneficiary?.field_worker_id || effectiveUser?.assigned_field_worker_id;
+        let fwName = beneficiary?.assigned_field_worker_name || beneficiary?.assigned_field_worker || beneficiary?.field_worker_name || beneficiary?.field_worker || effectiveUser?.assigned_field_worker_name;
+
+        if ((!sName && !sId) || (!fwName && !fwId)) {
+          let reqs = benId ? await db.getAssistanceRequests(benId) : [];
+          if (!reqs.length && benCode) {
+            reqs = await db.getAssistanceRequests(benCode);
+          }
+          if (!reqs.length && benName) {
+            reqs = await db.getAssistanceRequests(benName);
+          }
+          if (!reqs.length) {
+            const all = await db.getAssistanceRequests();
+            reqs = (all || []).filter(r =>
+              (benId && (String(r.beneficiary_id) === String(benId) || String(r.beneficiary_code) === String(benId))) ||
+              (benCode && String(r.beneficiary_code) === String(benCode)) ||
+              (benEmail && r.beneficiary_email && r.beneficiary_email.toLowerCase() === benEmail.toLowerCase()) ||
+              (benName && r.beneficiary_name && r.beneficiary_name.toLowerCase().includes(benName.toLowerCase()))
+            );
+          }
+
+          const matched = (reqs || []).find(r =>
+            Boolean(r.assigned_supervisor_name || r.assigned_supervisor_id || r.assigned_field_worker_name)
+          ) || reqs?.[0];
+
+          if (matched) {
+            sId = sId || matched.assigned_supervisor_id || matched.supervisor_id;
+            sName = sName || matched.assigned_supervisor_name || matched.supervisor_name;
+            fwId = fwId || matched.assigned_field_worker_id || matched.field_worker_id;
+            fwName = fwName || matched.assigned_field_worker_name || matched.field_worker_name;
+          }
+        }
+
+        setAssignedInfo({
+          supervisorId: sId || null,
+          supervisorName: sName || null,
+          fieldWorkerId: fwId || null,
+          fieldWorkerName: fwName || null
+        });
+      } catch (err) {
+        console.warn('Could not resolve beneficiary assignments:', err);
+      }
+    };
+    resolveAssignments();
+  }, [beneficiary?.id, beneficiary?.beneficiary_code, effectiveUser?.id, effectiveUser?.email, isBeneficiary]);
+
   // Load directory-backed recipients for direct feedback conversations
   useEffect(() => {
     const loadDirectories = async () => {
       try {
-        const [users, fieldWorkers, supervisors, suppliers] = await Promise.all([
+        const [users, fieldWorkers, supervisors] = await Promise.all([
           db.getUsers(),
           db.getFieldWorkers(),
-          db.getSupervisors(),
-          db.getSuppliers()
+          db.getSupervisors()
         ]);
         setDirectories({
           users: users || [],
           fieldWorkers: fieldWorkers || [],
-          supervisors: supervisors || [],
-          suppliers: suppliers || []
+          supervisors: supervisors || []
         });
       } catch (e) {
         console.error('Could not load feedback contact directories:', e);
@@ -105,22 +168,15 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     try {
       setLoading(true);
       let data = [];
-      if (isFieldWorker) {
-        // Field worker queries all complaints so messages directed to them are retrieved
-        data = await db.getComplaints('all');
-      } else if (isBeneficiary) {
-        const benId = beneficiary?.id || beneficiary?.beneficiary_code || effectiveUser?.id || 'b7';
-        data = await db.getComplaints(benId);
-        if (!data || data.length === 0) {
-          data = await db.getComplaints('b7');
-        }
+      if (isFinanceOfficer) {
+        data = await db.getConversationComplaints(effectiveUser, contacts);
       } else {
         data = await db.getComplaints('all');
       }
       setComplaints(data || []);
     } catch (e) {
       console.error(e);
-      toast.error('Failed to load messages');
+      toast.error(`Failed to load messages: ${e.message || 'Unknown database error.'}`);
     } finally {
       setLoading(false);
     }
@@ -128,7 +184,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
   useEffect(() => {
     loadComplaints();
-  }, [beneficiary, effectiveUser?.id]);
+  }, [beneficiary, effectiveUser?.id, directories.users]);
 
   useEffect(() => {
     if (chatBottomRef.current) {
@@ -183,21 +239,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
       welcomeNote: `Direct conversation with ${personName}.`
     };
   };
-  const makeSupplierContact = (supplier) => ({
-    id: `supplier:${supplier.id}`,
-    recipientId: String(supplier.id),
-    role: 'Supplier',
-    name: supplier.company_name || supplier.contact_person || 'Supplier',
-    title: supplier.contact_person || supplier.email || supplier.category || 'Supplier contact',
-    email: supplier.email || '',
-    status: supplier.status || 'Active',
-    badge: 'Supplier',
-    avatarColor: 'bg-amber-600',
-    icon: Package,
-    welcomeNote: `Direct conversation with ${supplier.company_name || 'supplier'} about invoices, payments, or purchase orders.`
-  });
   const contacts = (() => {
-    const activeSuppliers = directories.suppliers.filter(s => (s.status || '').toLowerCase() !== 'inactive');
     const usersByRole = (roleTerm) => directories.users.filter(u =>
       (u.role || '').toLowerCase().includes(roleTerm) &&
       String(u.status || 'active').toLowerCase() !== 'inactive' &&
@@ -219,7 +261,6 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     }
     if (isFinanceOfficer) {
       return [
-        ...activeSuppliers.map(makeSupplierContact),
         ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600'),
         ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]')
       ];
@@ -250,13 +291,24 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600')
       ];
     }
-    if (role.includes('supervisor')) {
+    if (isSupervisor) {
       const assignedWorkers = directories.fieldWorkers.filter(worker =>
         String(worker.supervisor_id || '') === currentId ||
         (worker.supervisor_name && worker.supervisor_name.toLowerCase() === (effectiveUser?.full_name || effectiveUser?.name || '').toLowerCase())
       );
       const workers = assignedWorkers.length ? assignedWorkers : directories.fieldWorkers;
       return [
+        {
+          id: 'beneficiaries',
+          role: 'Household Inquiries',
+          name: 'Registered Households',
+          title: 'Direct Beneficiary Inquiries',
+          status: 'Live',
+          badge: 'Incoming from Community',
+          avatarColor: 'bg-emerald-600',
+          icon: Users,
+          welcomeNote: 'Incoming messages and questions from registered households appear here. Reply to continue a conversation.'
+        },
         ...workers
           .filter(person => String(person.id) !== currentId)
           .map(person => makeUserContact(person, 'Field Worker', HardHat, 'bg-emerald-600')),
@@ -264,19 +316,100 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
       ];
     }
     if (role.includes('inventory') || role.includes('logistics')) {
-      return activeSuppliers.map(makeSupplierContact);
+      return [
+        ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]'),
+        ...roleContacts('finance', 'Finance Manager', DollarSign, 'bg-blue-700')
+      ];
     }
     if (isBeneficiary) {
-      const assignedName = beneficiary?.assigned_field_worker || beneficiary?.field_worker_name || beneficiary?.field_worker;
-      const assignedId = beneficiary?.assigned_field_worker_id || beneficiary?.field_worker_id;
-      const assignedWorkers = directories.fieldWorkers.filter(worker =>
-        (assignedId && String(worker.id) === String(assignedId)) ||
-        (assignedName && (worker.name || worker.full_name || '').toLowerCase() === String(assignedName).toLowerCase())
-      );
-      const workers = assignedWorkers.length ? assignedWorkers : directories.fieldWorkers;
+      // 1. Resolve assigned supervisor from assignedInfo or beneficiary record
+      const assignedSupervisorId = assignedInfo.supervisorId || beneficiary?.assigned_supervisor_id || beneficiary?.supervisor_id;
+      const assignedSupervisorName = assignedInfo.supervisorName || beneficiary?.assigned_supervisor_name || beneficiary?.supervisor_name || beneficiary?.assigned_supervisor;
+      const assignedFwId = assignedInfo.fieldWorkerId || beneficiary?.assigned_field_worker_id || beneficiary?.field_worker_id;
+      const assignedFwName = assignedInfo.fieldWorkerName || beneficiary?.assigned_field_worker_name || beneficiary?.assigned_field_worker || beneficiary?.field_worker_name || beneficiary?.field_worker;
+
+      const cleanSupId = assignedSupervisorId ? String(assignedSupervisorId).toLowerCase().trim() : '';
+      const cleanSupName = assignedSupervisorName ? String(assignedSupervisorName).toLowerCase().trim() : '';
+
+      const matchedSupervisor = (cleanSupId || cleanSupName)
+        ? directories.supervisors.find(sup =>
+            (cleanSupId && (String(sup.id).toLowerCase() === cleanSupId || String(sup.email || '').toLowerCase() === cleanSupId)) ||
+            (cleanSupName && (
+              (sup.full_name || sup.name || '').toLowerCase().includes(cleanSupName) ||
+              cleanSupName.includes((sup.full_name || sup.name || '').toLowerCase())
+            ))
+          )
+        : null;
+
+      const hasAssignedSupervisor = Boolean(matchedSupervisor || cleanSupName || cleanSupId);
+
+      // If supervisor IS assigned, show assigned supervisor + assigned field worker
+      if (hasAssignedSupervisor) {
+        const supervisorContactObj = matchedSupervisor
+          ? makeUserContact(matchedSupervisor, 'Supervisor', ShieldCheck, 'bg-blue-600')
+          : {
+              id: cleanSupId ? `user:${cleanSupId}` : 'assigned:supervisor',
+              recipientId: cleanSupId || 'assigned-supervisor',
+              role: 'Supervisor',
+              name: assignedSupervisorName || 'Assigned Supervisor',
+              title: 'Field Operations & Supervisory',
+              email: '',
+              status: 'Online',
+              badge: 'Supervisor',
+              avatarColor: 'bg-blue-600',
+              icon: ShieldCheck,
+              welcomeNote: `Direct conversation with your assigned Supervisor ${assignedSupervisorName || ''}.`
+            };
+
+        // Find assigned field worker
+        const cleanFwId = assignedFwId ? String(assignedFwId).toLowerCase().trim() : '';
+        const cleanFwName = assignedFwName ? String(assignedFwName).toLowerCase().trim() : '';
+
+        let matchedWorker = (cleanFwId || cleanFwName)
+          ? directories.fieldWorkers.find(w =>
+              (cleanFwId && String(w.id).toLowerCase() === cleanFwId) ||
+              (cleanFwName && (
+                (w.full_name || w.name || '').toLowerCase().includes(cleanFwName) ||
+                cleanFwName.includes((w.full_name || w.name || '').toLowerCase())
+              ))
+            )
+          : null;
+
+        // If no direct worker by name, find workers belonging to this supervisor
+        if (!matchedWorker && matchedSupervisor) {
+          matchedWorker = directories.fieldWorkers.find(w =>
+            String(w.supervisor_id || '') === String(matchedSupervisor.id) ||
+            (w.supervisor_name && (matchedSupervisor.name || matchedSupervisor.full_name) &&
+             w.supervisor_name.toLowerCase() === (matchedSupervisor.name || matchedSupervisor.full_name || '').toLowerCase())
+          );
+        }
+
+        const workerContactObj = matchedWorker
+          ? makeUserContact(matchedWorker, 'Field Worker', HardHat, 'bg-emerald-600')
+          : (cleanFwName || cleanFwId)
+          ? {
+              id: cleanFwId ? `user:${cleanFwId}` : 'assigned:field_worker',
+              recipientId: cleanFwId || 'assigned-field-worker',
+              role: 'Field Worker',
+              name: assignedFwName || 'Assigned Field Officer',
+              title: 'Field Relief Operations',
+              email: '',
+              status: 'Online',
+              badge: 'Field Worker',
+              avatarColor: 'bg-emerald-600',
+              icon: HardHat,
+              welcomeNote: `Direct conversation with your assigned Field Worker ${assignedFwName || ''}.`
+            }
+          : null;
+
+        return [
+          supervisorContactObj,
+          ...(workerContactObj ? [workerContactObj] : [])
+        ];
+      }
+
+      // No supervisor assigned — show only the Programme Manager
       return [
-        ...workers.map(person => makeUserContact(person, 'Field Worker', HardHat, 'bg-emerald-600')),
-        ...directories.supervisors.map(person => makeUserContact(person, 'Supervisor', ShieldCheck, 'bg-blue-600')),
         ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600')
       ];
     }
@@ -303,42 +436,94 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     icon: Users,
     welcomeNote: 'No contacts are currently available.'
   };
+
   const isMessageForContact = (message, contact) => {
     if (!contact) return false;
     const senderId = String(message.beneficiary_id || '');
     const recipientId = String(message.recipient_id || '');
-    const recipientRole = (message.recipient_role || '').toLowerCase();
-    const recipientName = (message.recipient_name || '').toLowerCase();
-    const contactName = contact.name.toLowerCase();
-    const currentRole = (effectiveUser?.role || (isSupplier ? 'Supplier' : '')).toLowerCase();
+    const senderEmail = (message.sender_email || '').toLowerCase().trim();
+    const recipientEmail = (message.recipient_email || '').toLowerCase().trim();
+    const recipientRole = (message.recipient_role || '').toLowerCase().trim();
+    const recipientName = (message.recipient_name || '').toLowerCase().trim();
+    const senderName = (message.sender_name || message.beneficiary_name || '').toLowerCase().trim();
+
+    const currentRole = (effectiveUser?.role || (isSupplier ? 'Supplier' : (isBeneficiary ? 'Beneficiary' : ''))).toLowerCase().trim();
+    const currentName = (effectiveUser?.name || effectiveUser?.full_name || '').toLowerCase().trim();
 
     if (contact.id === 'beneficiaries') {
+      if (isSupervisor) {
+        return recipientRole.includes('supervisor') ||
+          (currentName && recipientName.includes(currentName)) ||
+          recipientId === currentId ||
+          message.category === 'Supervisor Response';
+      }
       return recipientRole.includes('field') ||
-        recipientName.includes((effectiveUser?.name || '').toLowerCase()) ||
+        (currentName && recipientName.includes(currentName)) ||
+        recipientId === currentId ||
         message.category === 'Field Worker Response';
     }
 
-    const roleRecipientMatches = contact.isRoleInbox
-      ? recipientId === contact.recipientId || recipientRole === contact.role.toLowerCase()
-      : false;
-    const incomingToCurrentUser = recipientId === currentId || recipientId === `role:${currentRole}`;
-    const outgoingToContact = senderId === currentId &&
-      (recipientId === contact.recipientId || roleRecipientMatches);
-    const incomingFromContact = senderId === contact.recipientId && incomingToCurrentUser;
-    if (outgoingToContact || incomingFromContact) return true;
+    const myIds = new Set([
+      String(effectiveUser?.id || ''),
+      String(beneficiary?.id || ''),
+      String(authUser?.id || ''),
+      String(effectiveUser?.beneficiary_code || ''),
+      String(beneficiary?.beneficiary_code || ''),
+      currentId
+    ].filter(Boolean));
 
-    if (recipientId) return false;
-    const legacyRoleMatch = recipientRole === contact.role.toLowerCase();
-    const legacyNameMatch = recipientName.includes(contactName) || contactName.includes(recipientName);
-    if (contact.isRoleInbox) return legacyRoleMatch;
+    const myEmails = new Set([
+      (effectiveUser?.email || '').toLowerCase().trim(),
+      (beneficiary?.email || '').toLowerCase().trim(),
+      (authUser?.email || '').toLowerCase().trim()
+    ].filter(Boolean));
+
+    const contactIds = new Set([
+      String(contact.recipientId || ''),
+      String(contact.id || '').replace(/^user:/, '')
+    ].filter(Boolean));
+
+    const contactEmail = (contact.email || '').toLowerCase().trim();
+    const contactEmails = new Set([contactEmail].filter(Boolean));
+
+    const contactName = (contact.name || '').toLowerCase().trim();
+    const contactRole = (contact.role || '').toLowerCase().trim();
+
+    // Check if this message was sent by current user
+    const isFromMe = myIds.has(senderId) || (senderEmail && myEmails.has(senderEmail));
+
+    // Check if this message was sent to current user
+    const isToMe = myIds.has(recipientId) ||
+      (recipientEmail && myEmails.has(recipientEmail)) ||
+      recipientId === `role:${currentRole}` ||
+      (currentRole && recipientRole === currentRole);
+
+    // Is the contact the recipient of this message?
+    const toContact = contactIds.has(recipientId) ||
+      (contactEmail && recipientEmail && contactEmails.has(recipientEmail)) ||
+      (contactName && recipientName && (recipientName.includes(contactName) || contactName.includes(recipientName))) ||
+      (contact.isRoleInbox && recipientRole === contactRole);
+
+    // Is the contact the sender of this message?
+    const fromContact = contactIds.has(senderId) ||
+      (contactEmail && senderEmail && contactEmails.has(senderEmail)) ||
+      (contactName && senderName && (senderName.includes(contactName) || contactName.includes(senderName)));
+
+    if (isFromMe && toContact) return true;
+    if (isToMe && fromContact) return true;
+
+    // Fallback for role-inbox or legacy category
+    if (contact.isRoleInbox && recipientRole === contactRole) return true;
     if (isSupplier && (message.category === 'Supplier Logistics Feedback' || message.category === 'Feedback & Accountability')) {
-      return legacyRoleMatch || legacyNameMatch;
+      return recipientRole === contactRole || (recipientName && contactName && recipientName.includes(contactName));
     }
-    if (isFinanceOfficer && message.category === 'Supplier Logistics Feedback' && senderId === contact.recipientId) {
+    if (isInventoryManager && message.category === 'Supplier Logistics Feedback' && (senderId === contact.recipientId || contactRole === 'supplier')) {
       return true;
     }
-    return legacyRoleMatch && legacyNameMatch;
+
+    return false;
   };
+
   const filteredContacts = contacts.filter(contact => {
     const search = contactSearch.trim().toLowerCase();
     return !search || [contact.name, contact.role, contact.title, contact.email]
@@ -348,11 +533,15 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
   // Filter and sort complaints for the currently selected contact (first sent at top, newest at bottom)
   const activeChatMessages = complaints
     .filter(c => {
-      if (isFieldWorker && activeTab === 'beneficiaries') {
-        const isFieldWorkerMsg = (c.recipient_role || '').toLowerCase().includes('field') ||
-                                (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
-                                c.category === 'Field Worker Response';
-        return isFieldWorkerMsg;
+      if ((isFieldWorker || isSupervisor) && activeTab === 'beneficiaries') {
+        const isTargeted = isSupervisor
+          ? ((c.recipient_role || '').toLowerCase().includes('supervisor') ||
+             (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
+             c.category === 'Supervisor Response')
+          : ((c.recipient_role || '').toLowerCase().includes('field') ||
+             (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
+             c.category === 'Field Worker Response');
+        return isTargeted;
       }
       return isMessageForContact(c, currentContact);
     })
@@ -364,12 +553,17 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
   // Count messages per contact
   const getContactMessageCount = (contactId) => {
-    if (isFieldWorker && contactId === 'beneficiaries') {
-      return complaints.filter(c => 
-        (c.recipient_role || '').toLowerCase().includes('field') ||
-        (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
-        c.category === 'Field Worker Response'
-      ).length;
+    if ((isFieldWorker || isSupervisor) && contactId === 'beneficiaries') {
+      return complaints.filter(c => {
+        if (isSupervisor) {
+          return (c.recipient_role || '').toLowerCase().includes('supervisor') ||
+            (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
+            c.category === 'Supervisor Response';
+        }
+        return (c.recipient_role || '').toLowerCase().includes('field') ||
+          (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
+          c.category === 'Field Worker Response';
+      }).length;
     }
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return 0;
@@ -383,17 +577,21 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
     try {
       setIsSubmitting(true);
-      const workerName = effectiveUser?.full_name || effectiveUser?.name || 'Field Worker';
+      const workerName = effectiveUser?.full_name || effectiveUser?.name || (isSupervisor ? 'Supervisor' : 'Field Worker');
 
-      if (isFieldWorker && activeTab === 'beneficiaries') {
-        // Field worker replying to beneficiary inquiry
-        const targetComplaint = replyingTo || activeChatMessages.find(m => (!m.resolution_notes || m.status !== 'Resolved') && m.category !== 'Field Worker Response') || activeChatMessages[activeChatMessages.length - 1];
+      if ((isFieldWorker || isSupervisor) && activeTab === 'beneficiaries') {
+        // Staff replying to beneficiary inquiry
+        const responderRole = isSupervisor ? 'Supervisor' : 'Field Worker';
+        const responderTitle = isSupervisor ? 'Field Supervisor' : 'Field Officer';
+        const responseCategory = isSupervisor ? 'Supervisor Response' : 'Field Worker Response';
+
+        const targetComplaint = replyingTo || activeChatMessages.find(m => (!m.resolution_notes || m.status !== 'Resolved') && m.category !== responseCategory) || activeChatMessages[activeChatMessages.length - 1];
 
         if (targetComplaint && targetComplaint.id) {
           await db.updateComplaint(targetComplaint.id, {
             status: 'Resolved',
             resolution_notes: messageText.trim(),
-            resolved_by: `${workerName} (Field Officer)`,
+            resolved_by: `${workerName} (${responderTitle})`,
             resolved_at: new Date().toISOString()
           });
         }
@@ -402,16 +600,20 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         await db.createComplaint({
           beneficiary_id: currentId,
           beneficiary_name: workerName,
+          sender_email: effectiveUser?.email || null,
+          sender_name: workerName,
+          sender_role: effectiveUser?.role || responderRole,
           recipient_id: targetComplaint?.beneficiary_id || 'b7',
           recipient_role: 'Beneficiary',
           recipient_name: targetComplaint?.beneficiary_name || 'Household Member',
-          category: 'Field Worker Response',
+          recipient_email: targetComplaint?.sender_email || null,
+          category: responseCategory,
           severity: 'Low',
           is_anonymous: false,
           subject: messageText.trim().length > 40 ? `${messageText.trim().substring(0, 37)}...` : messageText.trim(),
           description: messageText.trim(),
           resolution_notes: messageText.trim(),
-          resolved_by: `${workerName} (Field Officer)`,
+          resolved_by: `${workerName} (${responderTitle})`,
           resolved_at: new Date().toISOString(),
           status: 'Resolved'
         });
@@ -425,52 +627,65 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         await db.createComplaint({
           beneficiary_id: senderId,
           beneficiary_name: senderName,
+          sender_email: effectiveUser?.email || null,
+          sender_name: senderName,
+          sender_role: effectiveUser?.role || (isSupplier ? 'Supplier' : (isBeneficiary ? 'Beneficiary' : undefined)),
           recipient_id: currentContact.recipientId,
           recipient_role: currentContact.role,
           recipient_name: currentContact.name,
+          recipient_email: currentContact.email || null,
           category: isSupplier ? 'Supplier Logistics Feedback' : 'Feedback & Accountability',
           severity: 'Medium',
           is_anonymous: false,
           subject: messageText.trim().length > 50 ? `${messageText.trim().substring(0, 47)}...` : messageText.trim(),
-          description: messageText.trim()
+          description: messageText.trim(),
+          status: 'Submitted'
         });
 
-        toast.success(`Message sent directly to ${currentContact.role}`);
+        toast.success(`Message sent directly to ${currentContact.name || currentContact.role}`);
       }
 
       setMessageText('');
       await loadComplaints();
     } catch (err) {
       console.error(err);
-      toast.error('Could not send message. Please try again.');
+      toast.error(`Could not send message: ${err.message || 'Unknown database error.'}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (isAdmin && showAdminOversight) {
+  if (canViewOversight && showAdminOversight) {
     return (
-      <div className="w-full h-full flex flex-col space-y-3 p-4 bg-slate-50 overflow-y-auto">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+      <div className="w-full h-full flex flex-col bg-slate-50 overflow-hidden font-sans">
+        {/* Clean top bar matching the direct messages header */}
+        <div className="bg-white border-b border-slate-200 px-3 py-2 text-slate-900 shrink-0 flex items-center justify-between gap-3 relative z-30">
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs">
-              <ShieldCheck className="w-4 h-4" />
-              Administrator Central Ledger
-            </span>
-            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-              Full visibility into all inter-party feedbacks with sender & receiver routing
-            </span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-[#006B56] flex items-center justify-center border border-emerald-100 shrink-0">
+              <ClipboardList className="w-3.5 h-3.5" />
+            </div>
+            <h2 className="text-sm font-semibold text-slate-900 tracking-tight">
+              {isFinanceOfficer ? 'Supplier feedback ledger' : 'Feedback ledger'}
+            </h2>
           </div>
+
           <button
             type="button"
             onClick={() => setShowAdminOversight(false)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-slate-700 hover:text-emerald-700 hover:bg-slate-100 border border-slate-300 shadow-2xs transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-medium transition cursor-pointer shrink-0"
           >
-            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Switch to Direct Chat Mode</span>
+            <MessageSquare className="w-3.5 h-3.5 text-[#006B56]" />
+            <span>Chat</span>
           </button>
         </div>
-        <AdminFeedbackComplaintsOversightView />
+
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-50">
+          <AdminFeedbackComplaintsOversightView
+            hideHeader={true}
+            scope={isFinanceOfficer ? 'supplier-ledger' : 'all'}
+            currentUser={effectiveUser}
+          />
+        </div>
       </div>
     );
   }
@@ -479,7 +694,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     <div className="w-full flex-1 flex flex-col h-full min-h-[calc(100vh-120px)] bg-white border-0 shadow-none rounded-none overflow-hidden font-sans">
       
       {/* CLEAN LIGHT WHATSAPP HEADER BAR */}
-      <div className="bg-white border-b border-slate-200 px-4 py-3 text-slate-900 shrink-0 flex items-center justify-between shadow-xs relative z-30" ref={dropdownRef}>
+      <div className="bg-white border-b border-slate-200 px-4 py-3 text-slate-900 shrink-0 flex items-center justify-between gap-3 shadow-2xs relative z-30" ref={dropdownRef}>
         
         {/* Left: Officer Role & Switch Button (or static info if single contact like Supplier) */}
         <div className="relative">
@@ -617,15 +832,16 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
           )}
         </div>
 
-        {isAdmin && (
+        {canViewOversight && (
           <button
             type="button"
             onClick={() => setShowAdminOversight(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs transition cursor-pointer"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-semibold shadow-2xs transition active:scale-95 cursor-pointer shrink-0"
             title="Inspect All Senders & Receivers"
           >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Admin Oversight (All Senders & Receivers)</span>
+            <ClipboardList className="w-3.5 h-3.5 text-[#006B56]" />
+            <span className="hidden sm:inline">Complaints & Feedback Ledger</span>
+            <span className="sm:hidden">Ledger</span>
           </button>
         )}
       </div>

@@ -423,22 +423,6 @@ export function AssistanceRequestView({
                       </span>
                     )}
                   </div>
-
-                  {/* Review Notes (if available) */}
-                  {req.review_notes && (
-                    <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/60 text-emerald-900 space-y-1">
-                      <p className="font-bold text-emerald-950 flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5 text-[#006B56]" />
-                        <span>ADRA Field Office Review</span>
-                      </p>
-                      <p className="text-slate-700 leading-relaxed">{req.review_notes}</p>
-                      {req.expected_dispatch_date && (
-                        <p className="text-[11px] font-bold text-[#006B56] pt-0.5">
-                          Scheduled Collection: {req.expected_dispatch_date}
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             );

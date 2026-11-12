@@ -169,6 +169,7 @@ export function Sidebar({
         </div>
       )}
 
+      <div className="hidden">
       {/* Role Switcher for Quick Academic Defense */}
       {!isCollapsed ? (
         <div className="p-3 mx-3 my-2.5 rounded-xl bg-slate-50 border border-slate-200 shrink-0">
@@ -212,6 +213,7 @@ export function Sidebar({
           </button>
         </div>
       )}
+      </div>
 
       {/* Dedicated Admin Web App Launcher for Administrators */}
       {currentUser?.role === 'Administrator' && onSwitchToAdminWeb && (

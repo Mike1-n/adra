@@ -67,8 +67,6 @@ const getShortDeliverableTitle = (title, type) => {
   return type || (title.length > 25 ? title.slice(0, 24) + '...' : title);
 };
 
-const normalizeDonorIdentity = (value) => (value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
 export function DonorPortalApp({
   currentUser,
   onLogout,
@@ -156,20 +154,16 @@ export function DonorPortalApp({
       const data = await db.getDonorPortfolioData();
       setMissingDonorTables(data.missingDonorTables || []);
 
-      // Resolve donor identity
-      let matched = (data.donors || []).find(d =>
-        (d.id && currentUser?.donor_id && d.id === currentUser.donor_id) ||
-        (d.email && currentUser?.email && d.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-        (d.donor_name && currentUser?.department &&
-          normalizeDonorIdentity(d.donor_name) === normalizeDonorIdentity(currentUser.department)) ||
-        (d.contact_person && currentUser?.full_name &&
-          normalizeDonorIdentity(d.contact_person) === normalizeDonorIdentity(currentUser.full_name))
+      const currentEmail = currentUser?.email?.toLowerCase();
+      const linkedProfile = (data.users || []).find(profile =>
+        (currentUser?.id && profile.id === currentUser.id) ||
+        (currentEmail && profile.email?.toLowerCase() === currentEmail)
       );
-
-      // Fallback to primary donor if not explicitly matched so live DB data always populates
-      if (!matched && (data.donors || []).length > 0) {
-        matched = data.donors[0];
-      }
+      const linkedDonorId = currentUser?.donor_id || linkedProfile?.donor_id;
+      const matched = (data.donors || []).find(donor =>
+        (linkedDonorId && donor.id === linkedDonorId) ||
+        (currentEmail && donor.email?.toLowerCase() === currentEmail)
+      );
 
       setCurrentDonor(matched);
 
@@ -416,6 +410,28 @@ export function DonorPortalApp({
     }
   };
 
+  const verifyDonorSession = async () => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured for donor inquiries.');
+    }
+
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    const user = session?.user;
+    if (!user) {
+      throw new Error('This login has no Supabase Auth session. Donor inquiries require signing in with a real Supabase donor account; demo or role-switched sessions cannot submit to the database.');
+    }
+    if (user.id !== currentUser?.id) {
+      throw new Error('You are viewing a switched Donor role, not signed in as that donor. Sign in with the donor account to send inquiries.');
+    }
+
+    const donorEmail = currentDonor?.email?.trim().toLowerCase();
+    const userEmail = user.email?.trim().toLowerCase();
+    if (currentUser?.donor_id !== currentDonor?.id && (!userEmail || userEmail !== donorEmail)) {
+      throw new Error('This signed-in account is not linked to this donor record. Link the donor email or profile donor ID before sending inquiries.');
+    }
+  };
+
   // Submit Official Inquiry
   const handleSendInquiry = async (e) => {
     e.preventDefault();
@@ -429,6 +445,7 @@ export function DonorPortalApp({
     }
 
     try {
+      await verifyDonorSession();
       const recipient = leadershipDesks.find(desk => desk.id === 'grace') || leadershipDesks[0];
       const newQuery = await db.sendDonorQuery({
         donor_id: currentDonor.id,
@@ -449,7 +466,7 @@ export function DonorPortalApp({
       toast.success('Inquiry submitted to ADRA Country Leadership.');
     } catch (err) {
       console.error('Failed to submit donor inquiry:', err);
-      toast.error('Failed to transmit inquiry.');
+      toast.error(`Failed to transmit inquiry: ${err.message || 'Unknown database error.'}`);
     }
   };
 
@@ -538,6 +555,7 @@ export function DonorPortalApp({
 
     try {
       setIsSendingChat(true);
+      await verifyDonorSession();
       const text = chatMessageText.trim();
       const subject = text.length > 50 ? `${text.substring(0, 47)}...` : text;
 
@@ -565,7 +583,7 @@ export function DonorPortalApp({
       }, 100);
     } catch (err) {
       console.error('Failed to send donor message:', err);
-      toast.error('Failed to transmit inquiry.');
+      toast.error(`Failed to transmit inquiry: ${err.message || 'Unknown database error.'}`);
     } finally {
       setIsSendingChat(false);
     }
@@ -778,7 +796,7 @@ export function DonorPortalApp({
                     : missingDonorTables.length
                       ? `Donor data is loading from existing records. Apply the Supabase donor portal migration to enable: ${missingDonorTables.join(', ')}.`
                     : !currentDonor
-                      ? 'No donor record is linked to this account. Link the donor record email to the login email, or ensure the donor name matches the account department.'
+                      ? 'No donor record is linked to this account. Ensure the donor record email matches the login email or link its ID to this account in profiles.'
                       : 'No projects or grant agreements are linked to this donor yet. Link funded projects by donor ID or add grant agreements to populate the portfolio.'}
                 </div>
               )}

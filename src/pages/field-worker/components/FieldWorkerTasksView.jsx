@@ -22,11 +22,14 @@ import {
   PackageCheck,
   QrCode,
   Package,
-  UserCheck
+  UserCheck,
+  Lock
 } from 'lucide-react';
+import { getTaskFacilitationStatus } from '../../../lib/utils';
 
 export function FieldWorkerTasksView({
   tasks = [],
+  fundingRequests = [],
   statusFilter: externalStatusFilter,
   onStatusFilterChange,
   onStartAssessment,
@@ -467,19 +470,65 @@ export function FieldWorkerTasksView({
                           </span>
                         )}
 
-                        {onRequestFacilitation && (isPending || isRejected) && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onRequestFacilitation(task);
-                            }}
-                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1 transition active:scale-95 cursor-pointer"
-                          >
-                            <DollarSign className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Request Facilitation</span>
-                          </button>
-                        )}
+                        {/* Facilitation Button (Locked when Approved / Paid / Pending) */}
+                        {(() => {
+                          const facStatus = getTaskFacilitationStatus(task, fundingRequests);
+                          if (facStatus.isPaid) {
+                            return (
+                              <button
+                                type="button"
+                                disabled
+                                className="px-2.5 py-1.5 bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1 cursor-not-allowed opacity-90"
+                                title="Facilitation has been approved and paid for this case. You cannot request again."
+                              >
+                                <Lock className="w-3.5 h-3.5 text-emerald-700" />
+                                <span>Facilitation Paid</span>
+                              </button>
+                            );
+                          }
+                          if (facStatus.isApproved) {
+                            return (
+                              <button
+                                type="button"
+                                disabled
+                                className="px-2.5 py-1.5 bg-emerald-100 text-[#006B56] border border-emerald-300 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1 cursor-not-allowed opacity-90"
+                                title="Facilitation is already approved for this case. You cannot request again."
+                              >
+                                <Lock className="w-3.5 h-3.5 text-[#006B56]" />
+                                <span>Facilitation Approved</span>
+                              </button>
+                            );
+                          }
+                          if (facStatus.isPending) {
+                            return (
+                              <button
+                                type="button"
+                                disabled
+                                className="px-2.5 py-1.5 bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1 cursor-not-allowed opacity-90"
+                                title="Facilitation request is currently under review."
+                              >
+                                <Lock className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Facilitation Pending</span>
+                              </button>
+                            );
+                          }
+                          if (onRequestFacilitation && (isPending || isRejected)) {
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRequestFacilitation(task);
+                                }}
+                                className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-xl shadow-2xs flex items-center gap-1 transition active:scale-95 cursor-pointer"
+                              >
+                                <DollarSign className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Request Facilitation</span>
+                              </button>
+                            );
+                          }
+                          return null;
+                        })()}
 
                         <button
                           type="button"

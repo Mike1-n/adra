@@ -15,7 +15,6 @@ import {
   Clock,
   CheckCircle2,
   MapPin,
-  PackageCheck,
   AlertCircle,
   HelpCircle
 } from 'lucide-react';
@@ -32,13 +31,6 @@ export function BeneficiaryMobileDashboard({
 }) {
   const currentReq = requests[0] || null;
   const currentDist = distributions[0] || null;
-
-  const pendingConfirmReq = requests.find(r => 
-    r.status === 'Handed Over' || 
-    r.status === 'Awaiting Beneficiary Confirmation' || 
-    r.dispatch_status === 'Handed Over' ||
-    (r.distributed_at && !r.beneficiary_confirmed && !r.recipient_confirmed)
-  );
 
   const pendingRequestsCount = requests.filter(r => 
     r.status !== 'Rejected' && 
@@ -92,54 +84,6 @@ export function BeneficiaryMobileDashboard({
           <span>Request Aid</span>
         </button>
       </div>
-
-      {/* 1.5 URGENT ACTION: BENEFICIARY RECEIPT CONFIRMATION */}
-      {pendingConfirmReq && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white shadow-lg shadow-amber-600/20 border border-amber-400 space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
-                <PackageCheck className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider bg-white/25 px-2 py-0.5 rounded-full inline-block mb-0.5">
-                  Action Required • Relief Handover
-                </span>
-                <h3 className="text-sm font-black leading-tight text-white">
-                  Have You Received Your Relief Supplies?
-                </h3>
-              </div>
-            </div>
-            <span className="text-[10px] font-mono bg-black/25 text-white px-2 py-0.5 rounded-md font-bold shrink-0">
-              #{pendingConfirmReq.request_code}
-            </span>
-          </div>
-
-          <div className="bg-black/15 backdrop-blur-xs p-2.5 rounded-xl text-xs text-amber-50 leading-relaxed">
-            <p className="font-medium">
-              Field Worker <strong>{pendingConfirmReq.distributed_by || pendingConfirmReq.assigned_field_worker_name || 'ADRA Relief Officer'}</strong> reported physical handover of your <strong>{pendingConfirmReq.category || 'Relief Package'}</strong> supplies. Please confirm that you have physically received them.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 pt-0.5">
-            <button
-              type="button"
-              onClick={() => onConfirmReceipt && onConfirmReceipt(pendingConfirmReq)}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-white text-amber-950 hover:bg-amber-50 font-black text-xs flex items-center justify-center gap-2 shadow-sm transition active:scale-98 cursor-pointer"
-            >
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Yes, I Received My Supplies</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigateTab('my_requests')}
-              className="py-2.5 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs transition cursor-pointer"
-            >
-              Details
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 2. FOUR VIBRANT FOCUSED KPI CARDS (MATCHING PROGRAM MANAGER OVERVIEW STYLE) */}
       <div className="grid grid-cols-2 gap-2.5">

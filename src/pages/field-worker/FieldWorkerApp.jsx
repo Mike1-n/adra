@@ -39,6 +39,7 @@ import { FieldWorkerDashboardView } from './components/FieldWorkerDashboardView'
 import { FieldWorkerTasksView } from './components/FieldWorkerTasksView';
 import { FieldWorkerBeneficiariesView } from './components/FieldWorkerBeneficiariesView';
 import { FieldFundingListView } from './components/FieldFundingListView';
+import { FieldWorkerProfileView } from './components/FieldWorkerProfileView';
 import { AdraLogo } from '../../components/common/AdraLogo';
 
 import { FieldAssessmentFormModal } from './components/FieldAssessmentFormModal';
@@ -1008,6 +1009,7 @@ export function FieldWorkerApp({
               {activeTab === 'tasks' && (
                 <FieldWorkerTasksView
                   tasks={tasks}
+                  fundingRequests={fundingRequests}
                   statusFilter={taskStatusFilter}
                   onStatusFilterChange={setTaskStatusFilter}
                   onStartAssessment={(task) => {
@@ -1116,6 +1118,7 @@ export function FieldWorkerApp({
             project={selectedProjectForAudit}
             tasks={tasks}
             assessments={assessments}
+            fundingRequests={fundingRequests}
             worker={worker}
             onSubmitAssessment={handleSubmitAssessment}
             onRequestFacilitation={(targetTask) => {

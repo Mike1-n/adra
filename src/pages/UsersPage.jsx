@@ -34,11 +34,12 @@ export function UsersPage() {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [newRole, setNewRole] = useState('Project Officer');
-  const [newPassword, setNewPassword] = useState('Password123!');
-  const [confirmPassword, setConfirmPassword] = useState('Password123!');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [passwordUpdated, setPasswordUpdated] = useState(false);
 
   const loadUsers = async () => {
     try {
@@ -64,10 +65,11 @@ export function UsersPage() {
 
   const handleOpenPasswordModal = (u) => {
     setSelectedUser(u);
-    setNewPassword('Password123!');
-    setConfirmPassword('Password123!');
+    setNewPassword('');
+    setConfirmPassword('');
     setShowPassword(false);
     setIsCopied(false);
+    setPasswordUpdated(false);
     setIsPasswordModalOpen(true);
   };
 
@@ -96,9 +98,10 @@ export function UsersPage() {
 
     try {
       setIsResetting(true);
-      await db.resetUserPassword(selectedUser.id, newPassword);
+      await db.resetUserPassword(selectedUser.id, newPassword, selectedUser);
       toast.success(`Password successfully changed for ${selectedUser.full_name}`);
-      setIsPasswordModalOpen(false);
+      setPasswordUpdated(true);
+      setShowPassword(true);
       loadUsers();
     } catch (err) {
       toast.error(err.message || 'Failed to change password.');
@@ -236,8 +239,13 @@ export function UsersPage() {
       {selectedUser && (
         <Modal
           isOpen={isPasswordModalOpen}
-          onClose={() => setIsPasswordModalOpen(false)}
-          title={`Change Password: ${selectedUser.full_name}`}
+          onClose={() => {
+            setIsPasswordModalOpen(false);
+            setNewPassword('');
+            setConfirmPassword('');
+            setPasswordUpdated(false);
+          }}
+          title={passwordUpdated ? `Password Updated: ${selectedUser.full_name}` : `Change Password: ${selectedUser.full_name}`}
           maxWidth="max-w-md"
         >
           <form onSubmit={handleSavePassword} className="space-y-4">
@@ -246,19 +254,28 @@ export function UsersPage() {
               <p className="text-slate-500 font-mono text-[11px]">{selectedUser.email}</p>
             </div>
 
+            {passwordUpdated && (
+              <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800 text-emerald-200 text-xs">
+                <p className="font-semibold">Password updated successfully.</p>
+                <p className="mt-1 text-[11px]">This is the password now set for this account. Share it securely with the user.</p>
+              </div>
+            )}
+
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-semibold text-slate-300">
-                  New Password *
+                  {passwordUpdated ? 'Updated Password' : 'New Password *'}
                 </label>
-                <button
-                  type="button"
-                  onClick={handleGeneratePassword}
-                  className="text-[11px] font-bold text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>Generate Password</span>
-                </button>
+                {!passwordUpdated && (
+                  <button
+                    type="button"
+                    onClick={handleGeneratePassword}
+                    className="text-[11px] font-bold text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Generate Password</span>
+                  </button>
+                )}
               </div>
               <div className="relative">
                 <input
@@ -266,6 +283,7 @@ export function UsersPage() {
                   required
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                  readOnly={passwordUpdated}
                   placeholder="Enter new password (min. 6 chars)"
                   className="adra-input text-sm font-mono pr-16"
                 />
@@ -295,27 +313,42 @@ export function UsersPage() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Confirm New Password *
-              </label>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-type new password"
-                className="adra-input text-sm font-mono"
-              />
-            </div>
+            {!passwordUpdated && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Confirm New Password *
+                </label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-type new password"
+                  className="adra-input text-sm font-mono"
+                />
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-              <Button type="button" variant="secondary" onClick={() => setIsPasswordModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" loading={isResetting}>
-                Save Password
-              </Button>
+              {passwordUpdated ? (
+                <Button type="button" variant="primary" onClick={() => {
+                  setIsPasswordModalOpen(false);
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setPasswordUpdated(false);
+                }}>
+                  Done
+                </Button>
+              ) : (
+                <>
+                  <Button type="button" variant="secondary" onClick={() => setIsPasswordModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary" loading={isResetting}>
+                    Save Password
+                  </Button>
+                </>
+              )}
             </div>
           </form>
         </Modal>

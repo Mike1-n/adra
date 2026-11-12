@@ -75,8 +75,7 @@ FROM (
     HAVING count(*) = 1
 ) AS matching_donor
 WHERE profile.donor_id IS NULL
-  AND lower(profile.email) = matching_donor.normalized_email
-  AND profile.role = 'Donor';
+  AND lower(profile.email) = matching_donor.normalized_email;
 
 CREATE INDEX IF NOT EXISTS idx_donor_grants_donor ON public.donor_grants(donor_id);
 CREATE INDEX IF NOT EXISTS idx_donor_grants_project ON public.donor_grants(project_id);

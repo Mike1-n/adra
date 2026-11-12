@@ -25,6 +25,7 @@ import {
   Copy,
   Check,
   Sparkles,
+  RefreshCw,
   Printer,
   Download,
   FileSpreadsheet
@@ -48,6 +49,10 @@ export function UserRoleManagementView() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isSyncingAuth, setIsSyncingAuth] = useState(false);
+  const [authSyncProgress, setAuthSyncProgress] = useState(null);
+  const [isMigratingBrowserData, setIsMigratingBrowserData] = useState(false);
+  const [browserMigrationProgress, setBrowserMigrationProgress] = useState(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -89,6 +94,7 @@ export function UserRoleManagementView() {
   const [showPassword, setShowPassword] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [passwordUpdated, setPasswordUpdated] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -127,6 +133,82 @@ export function UserRoleManagementView() {
     }
   };
 
+  const handleSyncAllToAuth = async () => {
+    if (!window.confirm(`Sync all ${users.length} visible accounts—including demo accounts—to Supabase Auth? Existing Auth accounts will not have their passwords changed.`)) {
+      return;
+    }
+
+    try {
+      setIsSyncingAuth(true);
+      setAuthSyncProgress({ completed: 0, total: users.length });
+      const results = await db.migrateUsersToAuth(users, (completed, total) => {
+        setAuthSyncProgress({ completed, total });
+      });
+      const created = results.filter(result => result.status === 'created').length;
+      const linked = results.filter(result => result.status === 'profile_linked').length;
+      const alreadyLinked = results.filter(result => result.status === 'already_linked').length;
+      const failures = results.filter(result => result.status === 'failed');
+
+      await loadData();
+      if (failures.length) {
+        const firstFailure = failures[0];
+        toast.error(`Synced ${created} new, linked ${linked}, already linked ${alreadyLinked}; ${failures.length} failed. ${firstFailure.email}: ${firstFailure.error}`);
+      } else {
+        toast.success(`Supabase Auth sync complete: ${created} created, ${linked} linked, ${alreadyLinked} already linked.`);
+      }
+    } catch (err) {
+      console.error('Failed to sync user accounts to Supabase Auth:', err);
+      toast.error(err.message || 'Failed to sync user accounts to Supabase Auth.');
+    } finally {
+      setIsSyncingAuth(false);
+      setAuthSyncProgress(null);
+    }
+  };
+
+  const handleMigrateBrowserData = async () => {
+    if (!window.confirm(
+      'Import this browser’s saved beneficiaries, assistance requests, suppliers, warehouses, purchase orders, fleet vehicles, dispatches, and user accounts into Supabase? Existing matching records will be left unchanged. This will not delete the browser copy.'
+    )) {
+      return;
+    }
+
+    try {
+      setIsMigratingBrowserData(true);
+      setBrowserMigrationProgress({ category: 'Starting', completed: 0, total: 0 });
+      const result = await db.migrateBrowserDataToSupabase(setBrowserMigrationProgress);
+      const recordResults = Object.entries(result.records);
+      const processed = recordResults.reduce((sum, [, value]) => sum + value.processed, 0);
+      const failures = recordResults.filter(([, value]) => value.failed > 0);
+      const failureCount = result.users.failed + failures.reduce((sum, [, value]) => sum + value.failed, 0);
+      await loadData();
+
+      if (failureCount) {
+        const firstFailure = failures.find(([, value]) => value.error);
+        toast.error(
+          `Migration partially completed: ${result.users.migrated} accounts linked or created, ${processed} records processed, ${failureCount} failed.` +
+          (firstFailure ? ` ${firstFailure[0]}: ${firstFailure[1].error}` : '')
+        );
+      } else if (result.notMigrated.length) {
+        const pending = result.notMigrated
+          .map(item => `${item.count} ${item.category} record(s) still need migration: ${item.reason}`)
+          .join(' ');
+        toast.info(
+          `Imported ${result.users.migrated} accounts and processed ${processed} records. Local copies remain untouched. ${pending}`
+        );
+      } else {
+        toast.success(
+          `Migration complete: ${result.users.migrated} accounts linked or created, ${processed} records processed. Existing matching records were left unchanged.`
+        );
+      }
+    } catch (err) {
+      console.error('Browser data migration failed:', err);
+      toast.error(err.message || 'Failed to migrate browser data to Supabase.');
+    } finally {
+      setIsMigratingBrowserData(false);
+      setBrowserMigrationProgress(null);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -152,12 +234,13 @@ export function UserRoleManagementView() {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     try {
-      await db.createUser(formData);
+      await db.createUser({ ...formData, status: 'Active', is_active: true });
       toast.success(`Account created for ${formData.full_name} (${formData.role})`);
       setIsCreateOpen(false);
       loadData();
     } catch (err) {
-      toast.error('Failed to create user.');
+      console.error('Failed to create authenticated user:', err);
+      toast.error(`Failed to create user: ${err.message || 'Unknown error.'}`);
     }
   };
 
@@ -178,6 +261,10 @@ export function UserRoleManagementView() {
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!selectedUser) return;
+    if (editFormData.password && editFormData.password.trim().length < 6) {
+      toast.error('Password must be at least 6 characters.');
+      return;
+    }
     try {
       const isAct = editFormData.status === 'Active';
       const payload = {
@@ -189,23 +276,28 @@ export function UserRoleManagementView() {
         is_active: isAct
       };
       await db.updateUser(selectedUser.id, payload);
-      if (editFormData.password && editFormData.password.trim().length >= 6) {
-        await db.resetUserPassword(selectedUser.id, editFormData.password.trim());
+      if (editFormData.password) {
+        await db.resetUserPassword(selectedUser.id, editFormData.password, {
+          ...selectedUser,
+          ...payload
+        });
       }
       toast.success(`Updated profile for ${editFormData.full_name}`);
       setIsEditOpen(false);
       loadData();
     } catch (err) {
-      toast.error('Failed to update user.');
+      console.error('Failed to update user:', err);
+      toast.error(`Failed to update user: ${err.message || 'Unknown error.'}`);
     }
   };
 
   const handleOpenPasswordModal = (user) => {
     setSelectedUser(user);
-    setNewPassword('Password123!');
-    setConfirmPassword('Password123!');
+    setNewPassword('');
+    setConfirmPassword('');
     setShowPassword(false);
     setIsCopied(false);
+    setPasswordUpdated(false);
     setIsPasswordModalOpen(true);
   };
 
@@ -242,9 +334,10 @@ export function UserRoleManagementView() {
 
     try {
       setIsResettingPassword(true);
-      await db.resetUserPassword(selectedUser.id, newPassword);
+      await db.resetUserPassword(selectedUser.id, newPassword, selectedUser);
       toast.success(`Password successfully changed for ${selectedUser.full_name}!`);
-      setIsPasswordModalOpen(false);
+      setPasswordUpdated(true);
+      setShowPassword(true);
       loadData();
     } catch (err) {
       toast.error(err.message || 'Failed to change password.');
@@ -481,10 +574,36 @@ export function UserRoleManagementView() {
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
             Create, view, edit, deactivate, and assign role-based access for system stakeholders.
+            {authSyncProgress && ` Syncing ${authSyncProgress.completed} of ${authSyncProgress.total} accounts...`}
+            {browserMigrationProgress && ` Migrating ${browserMigrationProgress.category}: ${browserMigrationProgress.completed} of ${browserMigrationProgress.total}...`}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSyncAllToAuth}
+            icon={RefreshCw}
+            loading={isSyncingAuth}
+            disabled={isSyncingAuth || isMigratingBrowserData || loading || users.length === 0}
+            className="text-xs"
+            title="Create or link all visible accounts in Supabase Auth"
+          >
+            Sync All to Supabase Auth
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleMigrateBrowserData}
+            icon={RefreshCw}
+            loading={isMigratingBrowserData}
+            disabled={isSyncingAuth || isMigratingBrowserData || loading}
+            className="text-xs"
+            title="Import saved browser records into Supabase without overwriting existing matching records"
+          >
+            Migrate Browser Data
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -1055,8 +1174,13 @@ export function UserRoleManagementView() {
       {selectedUser && (
         <Modal
           isOpen={isPasswordModalOpen}
-          onClose={() => setIsPasswordModalOpen(false)}
-          title={`Change Password: ${selectedUser.full_name}`}
+          onClose={() => {
+            setIsPasswordModalOpen(false);
+            setNewPassword('');
+            setConfirmPassword('');
+            setPasswordUpdated(false);
+          }}
+          title={passwordUpdated ? `Password Updated: ${selectedUser.full_name}` : `Change Password: ${selectedUser.full_name}`}
           maxWidth="max-w-md"
         >
           <form onSubmit={handleSavePassword} className="space-y-4 text-xs">
@@ -1070,17 +1194,26 @@ export function UserRoleManagementView() {
               <p className="text-slate-500 font-mono text-[11px]">{selectedUser.email}</p>
             </div>
 
+            {passwordUpdated && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">
+                <p className="font-semibold">Password updated successfully.</p>
+                <p className="mt-1 text-[11px]">This is the password now set for this account. Share it securely with the user.</p>
+              </div>
+            )}
+
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="font-semibold text-slate-800">New Password *</label>
-                <button
-                  type="button"
-                  onClick={handleGeneratePassword}
-                  className="text-[10px] font-bold text-[#006B56] hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>Generate Strong Password</span>
-                </button>
+                <label className="font-semibold text-slate-800">{passwordUpdated ? 'Updated Password' : 'New Password *'}</label>
+                {!passwordUpdated && (
+                  <button
+                    type="button"
+                    onClick={handleGeneratePassword}
+                    className="text-[10px] font-bold text-[#006B56] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Generate Strong Password</span>
+                  </button>
+                )}
               </div>
               <div className="relative">
                 <input
@@ -1088,6 +1221,7 @@ export function UserRoleManagementView() {
                   required
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                  readOnly={passwordUpdated}
                   placeholder="Enter new password (min. 6 characters)"
                   className="adra-input text-xs sm:text-sm font-mono pr-16"
                 />
@@ -1112,19 +1246,21 @@ export function UserRoleManagementView() {
               </div>
             </div>
 
-            <div>
-              <label className="block font-semibold text-slate-800 mb-1">Confirm New Password *</label>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter new password"
-                className="adra-input text-xs sm:text-sm font-mono"
-              />
-            </div>
+            {!passwordUpdated && (
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">Confirm New Password *</label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter new password"
+                  className="adra-input text-xs sm:text-sm font-mono"
+                />
+              </div>
+            )}
 
-            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
+            {!passwordUpdated && <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
               <div className="flex items-center gap-1.5 font-bold text-[11px]">
                 <Key className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                 <span>Admin Override Notice</span>
@@ -1132,15 +1268,28 @@ export function UserRoleManagementView() {
               <p className="text-[10px] text-amber-800/90 leading-relaxed">
                 As Administrator, changing this password immediately overrides existing credentials. The user will be able to log in with this new password right away.
               </p>
-            </div>
+            </div>}
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
-              <Button type="button" variant="secondary" onClick={() => setIsPasswordModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" loading={isResettingPassword}>
-                Save New Password
-              </Button>
+              {passwordUpdated ? (
+                <Button type="button" variant="primary" onClick={() => {
+                  setIsPasswordModalOpen(false);
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setPasswordUpdated(false);
+                }}>
+                  Done
+                </Button>
+              ) : (
+                <>
+                  <Button type="button" variant="secondary" onClick={() => setIsPasswordModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary" loading={isResettingPassword}>
+                    Save New Password
+                  </Button>
+                </>
+              )}
             </div>
           </form>
         </Modal>

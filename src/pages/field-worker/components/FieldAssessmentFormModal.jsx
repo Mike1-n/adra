@@ -23,10 +23,12 @@ import {
   BadgeCheck,
   CheckSquare,
   Square,
-  DollarSign
+  DollarSign,
+  Lock
 } from 'lucide-react';
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
+import { getTaskFacilitationStatus } from '../../../lib/utils';
 
 export function FieldAssessmentFormModal({
   isOpen,
@@ -34,6 +36,7 @@ export function FieldAssessmentFormModal({
   task = null,
   tasks = [],
   assessments = [],
+  fundingRequests = [],
   readOnly = false,
   project = null,
   worker = {},
@@ -644,20 +647,70 @@ export function FieldAssessmentFormModal({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {onRequestFacilitation && (
-              <button
-                type="button"
-                onClick={() => {
-                  const targetT = task || (tasks || []).find(t => (t.id && t.id.toString() === selectedTaskId?.toString()) || (t.request_code && t.request_code.toString() === selectedTaskId?.toString()));
-                  onRequestFacilitation(targetT || { request_code: formData.request_code, beneficiary_name: formData.beneficiary_name });
-                }}
-                className="px-2 py-1 bg-amber-400/25 hover:bg-amber-400/40 text-amber-100 border border-amber-300/40 text-[10px] font-bold rounded-lg flex items-center gap-1 transition cursor-pointer"
-                title="Request Field Facilitation"
-              >
-                <DollarSign className="w-3 h-3 text-amber-200" />
-                <span>Facilitation</span>
-              </button>
-            )}
+            {(() => {
+              const targetT = task || (tasks || []).find(t => (t.id && t.id.toString() === selectedTaskId?.toString()) || (t.request_code && t.request_code.toString() === selectedTaskId?.toString())) || { request_code: formData.request_code, beneficiary_name: formData.beneficiary_name };
+              const facStatus = getTaskFacilitationStatus(targetT, fundingRequests);
+
+              if (facStatus.isPaid) {
+                return (
+                  <button
+                    type="button"
+                    disabled
+                    className="px-2 py-1 bg-emerald-500/25 text-emerald-100 border border-emerald-400/40 text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-not-allowed opacity-90"
+                    title="Facilitation approved and paid. Cannot request again."
+                  >
+                    <Lock className="w-3 h-3 text-emerald-200" />
+                    <span>Paid</span>
+                  </button>
+                );
+              }
+
+              if (facStatus.isApproved) {
+                return (
+                  <button
+                    type="button"
+                    disabled
+                    className="px-2 py-1 bg-emerald-500/25 text-emerald-100 border border-emerald-400/40 text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-not-allowed opacity-90"
+                    title="Facilitation approved. Cannot request again."
+                  >
+                    <Lock className="w-3 h-3 text-emerald-200" />
+                    <span>Approved</span>
+                  </button>
+                );
+              }
+
+              if (facStatus.isPending) {
+                return (
+                  <button
+                    type="button"
+                    disabled
+                    className="px-2 py-1 bg-amber-400/25 text-amber-100 border border-amber-300/40 text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-not-allowed opacity-90"
+                    title="Facilitation request under review."
+                  >
+                    <Lock className="w-3 h-3 text-amber-200" />
+                    <span>Pending</span>
+                  </button>
+                );
+              }
+
+              if (onRequestFacilitation) {
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onRequestFacilitation(targetT);
+                    }}
+                    className="px-2 py-1 bg-amber-400/25 hover:bg-amber-400/40 text-amber-100 border border-amber-300/40 text-[10px] font-bold rounded-lg flex items-center gap-1 transition cursor-pointer"
+                    title="Request Field Facilitation"
+                  >
+                    <DollarSign className="w-3 h-3 text-amber-200" />
+                    <span>Facilitation</span>
+                  </button>
+                );
+              }
+
+              return null;
+            })()}
 
             <button
               type="button"

@@ -1,89 +1,174 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured, db } from '../lib/supabase';
-import { demoAccounts } from '../lib/mockData';
 import { useToast } from './ToastContext';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  // Start with unauthenticated user so the Login / Sign Up page is the first page shown
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem('adra_current_user');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error(e);
-    }
-    return null; // Prompt Login / Sign Up first
-  });
-
-  const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const toast = useToast();
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('adra_current_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('adra_current_user');
+    if (!isSupabaseConfigured || !supabase) {
+      setLoading(false);
+      return undefined;
     }
-  }, [currentUser]);
 
-  // Handle Supabase live auth state change if configured
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) return;
+    let active = true;
+    const applySession = async (session) => {
+      if (!session?.user) {
+        if (active) setCurrentUser(null);
+        return;
+      }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        // Fetch profile
-        const { data: profile } = await supabase
+      try {
+        let { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
+        if (error) throw error;
 
-        if (profile) {
-          const isDemoAccount = demoAccounts.some(d => d.email?.toLowerCase() === (profile.email || session.user.email)?.toLowerCase()) ||
-            (profile.email || session.user.email)?.toLowerCase() === 'admin@adra.org' ||
-            (profile.email || session.user.email)?.toLowerCase() === 'mary.nyambura@adra.community';
-
-          if (profile.role !== 'Administrator' && !isDemoAccount) {
-            const benStatus = (profile.status || profile.verification_status || '').toLowerCase();
-            const userStatus = (profile.status || '').toLowerCase();
-            const isApproved = (
-              (userStatus === 'active' || profile.is_active === true) &&
-              !userStatus.includes('pending') &&
-              !benStatus.includes('pending') &&
-              !benStatus.includes('reject')
-            );
-
-            if (!isApproved) {
-              await supabase.auth.signOut();
-              setCurrentUser(null);
-              return;
-            }
+        if (!profile && session.user.email) {
+          const { data: profByEmail } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('email', session.user.email)
+            .maybeSingle();
+          if (profByEmail) {
+            profile = profByEmail;
+            try {
+              await supabase.from('profiles').update({ id: session.user.id }).eq('email', session.user.email);
+            } catch (_) {}
           }
+        }
 
-          const loc = profile.location || (profile.department?.startsWith('Community (') ? profile.department.slice(11, -1) : undefined);
+        if (!profile) {
+          throw new Error('No ADRA profile is linked to this Supabase Auth account.');
+        }
+
+        const status = String(profile.status || '').toLowerCase();
+        const beneficiaryStatus = String(profile.verification_status || '').toLowerCase();
+        if (
+          !profile.role ||
+          profile.is_active === false ||
+          ['deactivated', 'suspended', 'inactive', 'disabled', 'terminated'].includes(status) ||
+          status.includes('pending') ||
+          status.includes('reject') ||
+          beneficiaryStatus.includes('pending') ||
+          beneficiaryStatus.includes('reject')
+        ) {
+          throw new Error('This account is not active. Contact an ADRA Administrator.');
+        }
+
+        const location = profile.location ||
+          (profile.department?.startsWith('Community (') ? profile.department.slice(11, -1) : undefined);
+        if (active) {
           setCurrentUser({
             id: session.user.id,
             email: session.user.email,
             donor_id: profile.donor_id || null,
             full_name: profile.full_name || session.user.email,
-            role: profile.role || 'Project Officer',
+            role: profile.role,
             department: profile.department || 'Operations',
-            location: loc,
-            avatar: profile.avatar_url || demoAccounts[1].avatar
+            location,
+            avatar: profile.avatar_url || '',
+            phone: profile.phone,
+            status: profile.status || 'Active',
+            is_active: profile.is_active
           });
         }
+      } catch (error) {
+        console.error('Unable to load Supabase Auth profile:', error);
+        if (active) setCurrentUser(null);
+        void supabase.auth.signOut();
       }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      void applySession(session).finally(() => {
+        if (active) setLoading(false);
+      });
     });
 
     return () => {
+      active = false;
       subscription?.unsubscribe();
     };
   }, []);
 
   const login = async (identifier, password) => {
+    setLoading(true);
+    try {
+      if (!isSupabaseConfigured || !supabase) {
+        throw new Error('Supabase Auth is not configured. Set the Supabase project URL and anon key before signing in.');
+      }
+
+      const email = String(identifier || '').trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new Error('Enter the email address registered to this Supabase Auth account.');
+      }
+      if (!password) throw new Error('Enter your password.');
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      if (!data.user) throw new Error('Supabase Auth did not return an authenticated user.');
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      if (!profile) {
+        await supabase.auth.signOut();
+        throw new Error('No ADRA profile is linked to this Supabase Auth account. Ask an Administrator to provision the account.');
+      }
+
+      const status = String(profile.status || '').toLowerCase();
+      const beneficiaryStatus = String(profile.verification_status || '').toLowerCase();
+      if (
+        !profile.role ||
+        profile.is_active === false ||
+        ['deactivated', 'suspended', 'inactive', 'disabled', 'terminated'].includes(status) ||
+        status.includes('pending') ||
+        status.includes('reject') ||
+        beneficiaryStatus.includes('pending') ||
+        beneficiaryStatus.includes('reject')
+      ) {
+        await supabase.auth.signOut();
+        throw new Error('This account is not active. Contact an ADRA Administrator.');
+      }
+
+      const location = profile.location ||
+        (profile.department?.startsWith('Community (') ? profile.department.slice(11, -1) : undefined);
+      const user = {
+        id: data.user.id,
+        email: data.user.email,
+        donor_id: profile.donor_id || null,
+        full_name: profile.full_name || data.user.email,
+        role: profile.role,
+        department: profile.department || 'Operations',
+        location,
+        avatar: profile.avatar_url || '',
+        phone: profile.phone,
+        status: profile.status || 'Active',
+        is_active: profile.is_active
+      };
+
+      setCurrentUser(user);
+      toast.success(`Welcome back, ${user.full_name} (${user.role})!`);
+      return user;
+    } catch (error) {
+      toast.error(error.message || 'Supabase sign-in failed.');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const legacyLogin = async (identifier, password) => {
     setLoading(true);
     try {
       const cleanIdent = (identifier || '').trim();
@@ -145,6 +230,9 @@ export function AuthProvider({ children }) {
         }
       }
 
+      const isDonorAuthAttempt = ['donor', 'usaid'].includes(cleanLower) ||
+        candidateEmail?.toLowerCase() === 'sjenkins@usaid.gov';
+
       // 1. Try Supabase Auth if configured and we have an email
       if (isSupabaseConfigured && supabase && candidateEmail && candidateEmail.includes('@')) {
         try {
@@ -178,6 +266,16 @@ export function AuthProvider({ children }) {
               } catch (err) {
                 // fallback
               }
+            }
+
+            if (!profile) {
+              await supabase.auth.signOut();
+              throw new Error('No ADRA profile is linked to this Supabase Auth account. Ask an Administrator to create the account.');
+            }
+
+            if (isDonorAuthAttempt && profile?.role !== 'Donor') {
+              await supabase.auth.signOut();
+              throw new Error('The Supabase account is missing a Donor profile. Ask an administrator to link this Auth user to the donor record.');
             }
 
             // Verify account status
@@ -218,7 +316,7 @@ export function AuthProvider({ children }) {
               email: data.user.email,
               donor_id: profile?.donor_id || null,
               full_name: profile?.full_name || data.user.email,
-              role: profile?.role || 'Administrator',
+              role: profile.role,
               department: profile?.department || 'Operations',
               location: loc,
               avatar: profile?.avatar_url || demoAccounts[0].avatar,
@@ -236,16 +334,35 @@ export function AuthProvider({ children }) {
             toast.success(`Welcome back, ${userObj.full_name} (${userObj.role})!`);
             return userObj;
           }
-        } catch (supabaseErr) {
-          if (supabaseErr.message && (
-            supabaseErr.message.includes('deactivated') ||
-            supabaseErr.message.includes('pending administrator approval') ||
-            supabaseErr.message.includes('rejected')
-          )) {
-            throw supabaseErr;
+
+          if (isDonorAuthAttempt && (error || !data?.user)) {
+            throw new Error(error?.message || 'Supabase did not return an authenticated user.');
           }
-          // If Supabase auth error is about wrong credentials or other issues, fall through to db.authenticateUser
+          if (error) throw error;
+        } catch (supabaseErr) {
+          if (isDonorAuthAttempt) {
+            throw new Error(`Donor sign-in requires a Supabase Auth account. ${supabaseErr.message || 'Check the account and password, then try again.'}`);
+          }
+          // Accounts registered before auto-confirm was enabled will have unconfirmed
+          // emails — fall through to ADRA DB auth so they can still log in.
+          const isEmailNotConfirmed = (supabaseErr.message || '').toLowerCase().includes('email not confirmed') ||
+            (supabaseErr.message || '').toLowerCase().includes('email_not_confirmed');
+          if (!isEmailNotConfirmed) {
+            if (supabaseErr.message && (
+              supabaseErr.message.includes('deactivated') ||
+              supabaseErr.message.includes('pending administrator approval') ||
+              supabaseErr.message.includes('rejected')
+            )) {
+              throw supabaseErr;
+            }
+            throw new Error(supabaseErr.message || 'Supabase sign-in failed.');
+          }
+          // isEmailNotConfirmed → fall through to db.authenticateUser below
         }
+      }
+
+      if (isDonorAuthAttempt) {
+        throw new Error('Donor sign-in requires a configured Supabase Auth account. Demo and role-switched logins cannot send database inquiries.');
       }
 
       // 2. Query ADRA database directly (profiles / beneficiaries / demoAccounts)
@@ -264,70 +381,89 @@ export function AuthProvider({ children }) {
   const signup = async (signupData) => {
     setLoading(true);
     try {
-      if (signupData.accountType === 'Beneficiary') {
-        const res = await db.registerBeneficiaryAccount(signupData);
-        const userObj = res.user || res.account || res;
+      const email = (signupData.email || '').trim().toLowerCase();
+      const password = signupData.password || 'Password123!';
+      const fullName = (signupData.full_name || '').trim();
+      const role = signupData.accountType === 'Beneficiary' ? 'Beneficiary' : (signupData.role || 'Beneficiary');
 
-        // Optionally register with Supabase GoTrue
-        if (isSupabaseConfigured && supabase && res.beneficiary?.email && signupData.password) {
-          try {
-            await supabase.auth.signUp({
-              email: res.beneficiary.email,
-              password: signupData.password || 'Password123!',
-              options: {
-                data: {
-                  full_name: signupData.full_name,
-                  role: 'Beneficiary'
-                }
+      let authUserId = null;
+
+      // 1. Create user in Supabase Auth GoTrue first
+      if (isSupabaseConfigured && supabase && email) {
+        try {
+          const { data: authData, error: authError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: fullName,
+                role
               }
-            });
-          } catch (e) {
-            console.warn('Supabase auth signup notice:', e?.message);
-          }
-        }
+            }
+          });
 
-        toast.info(`Account registered for ${signupData.full_name}! Your account requires administrator approval before you can log in.`, 3000);
-        return { ...userObj, beneficiary: res.beneficiary };
+          if (authError) {
+            const msg = (authError.message || '').toLowerCase();
+            if (msg.includes('already registered') || msg.includes('unique constraint') || msg.includes('user already exists')) {
+              throw new Error('An account with this email address already exists. Please log in.');
+            }
+            console.warn('Supabase auth signup notice:', authError.message);
+          } else if (authData?.user) {
+            authUserId = authData.user.id;
+          }
+        } catch (authErr) {
+          if (authErr.message?.includes('already exists')) throw authErr;
+          console.warn('Supabase signUp warning:', authErr.message);
+        }
+      }
+
+      // 2. Register beneficiary or general account in database with matching ID & Pending Verification status
+      let result;
+      if (signupData.accountType === 'Beneficiary') {
+        const res = await db.registerBeneficiaryAccount({
+          ...signupData,
+          email,
+          user_id: authUserId,
+          id: authUserId,
+          status: 'Pending Verification',
+          verification_status: 'Pending Verification',
+          is_active: false,
+          self_register: true
+        });
+        result = res.user || res.account || res;
       } else {
         const newUser = await db.createUser({
-          email: signupData.email,
-          password: signupData.password || 'Password123!',
-          full_name: signupData.full_name,
+          id: authUserId,
+          email,
+          password,
+          full_name: fullName,
           first_name: signupData.first_name,
           middle_name: signupData.middle_name,
           last_name: signupData.last_name,
           id_number: signupData.id_number || signupData.national_id,
           national_id: signupData.id_number || signupData.national_id,
           phone: signupData.phone_number || signupData.phone,
-          role: signupData.role || 'Project Officer',
-          department: signupData.department || 'Field Operations',
+          role,
+          department: signupData.department || (role === 'Beneficiary' ? 'Community' : 'Field Operations'),
           status: 'Pending Verification',
-          is_active: false
+          verification_status: 'Pending Verification',
+          is_active: false,
+          self_register: true
         });
-
-        // Optionally register with Supabase GoTrue
-        if (isSupabaseConfigured && supabase && signupData.email && signupData.password) {
-          try {
-            await supabase.auth.signUp({
-              email: signupData.email,
-              password: signupData.password || 'Password123!',
-              options: {
-                data: {
-                  full_name: signupData.full_name,
-                  role: signupData.role || 'Project Officer'
-                }
-              }
-            });
-          } catch (e) {
-            console.warn('Supabase auth signup notice:', e?.message);
-          }
-        }
-
-        toast.info(`Account registered for ${newUser.full_name}! Your account requires administrator approval before you can log in.`, 3000);
-        return newUser;
+        result = newUser;
       }
+
+      // 3. Clear transient browser session from signUp so user lands cleanly on Login
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.auth.signOut();
+        } catch (_) {}
+      }
+
+      toast.info(`Account registered for ${fullName}! Your profile requires administrator verification before you can log in.`, 6000);
+      return result;
     } catch (err) {
-      toast.error(err.message || 'Registration failed.');
+      toast.error(err.message || 'Registration failed. Please try again.');
       throw err;
     } finally {
       setLoading(false);
@@ -335,31 +471,18 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    if (isSupabaseConfigured && supabase) {
-      await supabase.auth.signOut();
-    }
-    if (currentUser) {
-      db.logAudit({ action: 'AUTH', module: 'Authentication', details: `User logged out: ${currentUser.email || currentUser.full_name}` });
-    }
+    if (isSupabaseConfigured && supabase) await supabase.auth.signOut();
     setCurrentUser(null);
-    localStorage.removeItem('adra_current_user');
     toast.info('You have been logged out.');
   };
 
-  // Quick switch role helper for presentation / viva defense
-  const quickSwitchRole = async (roleName) => {
-    try {
-      const users = await db.getUsers();
-      const target = users.find(a => a.role === roleName) || demoAccounts.find(a => a.role === roleName) || demoAccounts[0];
-      setCurrentUser(target);
-      db.logAudit({ action: 'AUTH', module: 'Role Switch', details: `Switched role to ${roleName}` });
-      toast.info(`Switched view to ${target.role}: ${target.full_name}`);
-      return target;
-    } catch (e) {
-      const fallback = demoAccounts.find(a => a.role === roleName) || demoAccounts[0];
-      setCurrentUser(fallback);
-      return fallback;
-    }
+  const quickSwitchRole = async () => {
+    toast.error('Role switching is disabled. Sign in with the Supabase Auth account for the required role.');
+    return null;
+  };
+
+  const updateCurrentUser = (updates) => {
+    setCurrentUser(prev => (prev ? { ...prev, ...updates } : updates));
   };
 
   const hasPermission = (allowedRoles) => {
@@ -390,9 +513,9 @@ export function AuthProvider({ children }) {
         login,
         signup,
         logout,
+        updateCurrentUser,
         quickSwitchRole,
         hasPermission,
-        demoAccounts,
         ...roleHelpers,
       }}
     >

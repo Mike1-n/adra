@@ -550,6 +550,7 @@ export const db = {
     saveLocalData(STORAGE_KEYS.BENEFICIARIES, [createdBen, ...current]);
 
     const userAccount = await this.createUser({
+      id: regData.user_id || regData.id,
       email: createdBen.email,
       phone: createdBen.phone_number,
       full_name: createdBen.full_name,
@@ -562,12 +563,13 @@ export const db = {
       role: 'Beneficiary',
       department: `Community (${createdBen.location})`,
       password: createdBen.password,
-      status: 'Pending Verification',
-      verification_status: 'Pending Verification',
-      is_active: false,
+      status: regData.status || 'Active',
+      verification_status: regData.verification_status || 'Active',
+      is_active: regData.is_active !== undefined ? regData.is_active : true,
       avatar: createdBen.avatar,
       beneficiary_id: createdBen.id,
-      beneficiary_code: createdBen.beneficiary_code
+      beneficiary_code: createdBen.beneficiary_code,
+      self_register: regData.self_register
     });
 
     await this.createApproval({
@@ -4360,26 +4362,15 @@ export const db = {
     });
     return updated.find(c => c.id === id);
   },
-  _hasComplaintsTable: true,
-
   async getComplaints(queryId = null, role = null) {
-    if (isSupabaseConfigured && this._hasComplaintsTable) {
-      try {
-        let query = supabase.from('beneficiary_complaints').select('*').order('created_at', { ascending: false });
-        if (queryId && queryId !== 'all') {
-          query = query.or(`beneficiary_id.eq.${queryId},recipient_id.eq.${queryId},recipient_name.ilike.%${queryId}%,recipient_role.ilike.%${queryId}%`);
-        }
-        const { data, error } = await query;
-        if (error) {
-          if (error.code === 'PGRST204' || error.code === '42P01' || error.status === 404 || error.message?.includes('not found')) {
-            this._hasComplaintsTable = false;
-          }
-        } else if (data) {
-          return data;
-        }
-      } catch (e) {
-        this._hasComplaintsTable = false;
+    if (isSupabaseConfigured) {
+      let query = supabase.from('beneficiary_complaints').select('*').order('created_at', { ascending: false });
+      if (queryId && queryId !== 'all') {
+        query = query.or(`beneficiary_id.eq.${queryId},recipient_id.eq.${queryId},recipient_name.ilike.%${queryId}%,recipient_role.ilike.%${queryId}%`);
       }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
     }
     const rawAll = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
     let hasChanges = false;
@@ -4413,21 +4404,91 @@ export const db = {
       return benIdMatch || benNameMatch || recIdMatch || recNameMatch || recRoleMatch || roleFilterMatch;
     });
   },
+  async getConversationComplaints(currentUser, contacts = []) {
+    if (!isSupabaseConfigured || !supabase) {
+      return this.getComplaints('all');
+    }
+
+    const currentId = String(currentUser?.id || '');
+    const currentEmail = String(currentUser?.email || '').trim().toLowerCase();
+    const currentRole = String(currentUser?.role || '').trim();
+    const queries = [];
+    const addMatch = (senderField, senderValue, recipientField, recipientValue) => {
+      if (!senderValue || !recipientValue) return;
+      queries.push(
+        supabase
+          .from('beneficiary_complaints')
+          .select('*')
+          .eq(senderField, senderValue)
+          .eq(recipientField, recipientValue)
+          .order('created_at', { ascending: false })
+      );
+    };
+
+    contacts.forEach(contact => {
+      const contactId = String(contact.recipientId || '');
+      const contactEmail = String(contact.email || '').trim().toLowerCase();
+      addMatch('beneficiary_id', currentId, 'recipient_id', contactId);
+      addMatch('beneficiary_id', contactId, 'recipient_id', currentId);
+      addMatch('sender_email', currentEmail, 'recipient_email', contactEmail);
+      addMatch('sender_email', contactEmail, 'recipient_email', currentEmail);
+
+      if (contact.isRoleInbox) {
+        addMatch('beneficiary_id', currentId, 'recipient_role', contact.role);
+        queries.push(
+          supabase
+            .from('beneficiary_complaints')
+            .select('*')
+            .eq('beneficiary_id', currentId)
+            .eq('recipient_role', contact.role)
+            .is('recipient_id', null)
+            .order('created_at', { ascending: false })
+        );
+      } else if (currentRole) {
+        queries.push(
+          supabase
+            .from('beneficiary_complaints')
+            .select('*')
+            .eq('beneficiary_id', contactId)
+            .eq('recipient_role', currentRole)
+            .is('recipient_id', null)
+            .order('created_at', { ascending: false })
+        );
+        queries.push(
+          supabase
+            .from('beneficiary_complaints')
+            .select('*')
+            .eq('beneficiary_id', currentId)
+            .eq('recipient_role', contact.role)
+            .is('recipient_id', null)
+            .order('created_at', { ascending: false })
+        );
+      }
+    });
+
+    if (!queries.length) return [];
+    const results = await Promise.all(queries);
+    const rowsById = new Map();
+    results.forEach(({ data, error }) => {
+      if (error) throw error;
+      (data || []).forEach(row => rowsById.set(row.id, row));
+    });
+    return [...rowsById.values()].sort((a, b) =>
+      new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+    );
+  },
 
   async updateComplaint(id, updates) {
-    if (isSupabaseConfigured && this._hasComplaintsTable) {
-      try {
-        const { data, error } = await supabase.from('beneficiary_complaints').update(updates).eq('id', id).select().single();
-        if (error) {
-          if (error.code === 'PGRST204' || error.code === '42P01' || error.status === 404) {
-            this._hasComplaintsTable = false;
-          }
-        } else if (data) {
-          return data;
-        }
-      } catch (err) {
-        this._hasComplaintsTable = false;
-      }
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('beneficiary_complaints')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      if (!data) throw new Error('The complaint update was not returned after saving.');
+      return data;
     }
     const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
     const updated = all.map(c => (c.id === id || c.ticket_code === id) ? { ...c, ...updates, updated_at: new Date().toISOString() } : c);
@@ -4438,8 +4499,10 @@ export const db = {
   async createComplaint(complaintData) {
     const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints || []);
     const codeNum = String(all.length + 1).padStart(3, '0');
+    const isBrowser = typeof crypto !== 'undefined' && crypto.randomUUID;
+    const generatedUuid = isBrowser ? crypto.randomUUID() : `00000000-0000-4000-8000-${Date.now().toString().padStart(12, '0').slice(-12)}`;
     const newComplaint = {
-      id: isSupabaseConfigured ? undefined : `cmp_${Date.now()}`,
+      id: isSupabaseConfigured ? generatedUuid : `cmp_${Date.now()}`,
       ticket_code: `CMP-2025-${codeNum}`,
       status: 'Submitted',
       created_at: new Date().toISOString(),
@@ -4448,19 +4511,15 @@ export const db = {
       resolved_at: complaintData.resolved_at || null,
       ...complaintData
     };
-    if (isSupabaseConfigured && this._hasComplaintsTable) {
-      try {
-        const { data, error } = await supabase.from('beneficiary_complaints').insert([newComplaint]).select().single();
-        if (error) {
-          if (error.code === 'PGRST204' || error.code === '42P01' || error.status === 404) {
-            this._hasComplaintsTable = false;
-          }
-        } else if (data) {
-          return data;
-        }
-      } catch (err) {
-        this._hasComplaintsTable = false;
-      }
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('beneficiary_complaints')
+        .insert([newComplaint])
+        .select()
+        .single();
+      if (error) throw error;
+      if (!data) throw new Error('The feedback was not returned after saving.');
+      return data;
     }
     const updated = [newComplaint, ...all];
     saveLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, updated);
@@ -4474,6 +4533,9 @@ export const db = {
   },
 
   async updateComplaintStatus(id, updates) {
+    if (isSupabaseConfigured) {
+      return this.updateComplaint(id, updates);
+    }
     const all = getLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, mock.initialBeneficiaryComplaints);
     const updated = all.map(c => (c.id === id || c.ticket_code === id) ? { ...c, ...updates } : c);
     saveLocalData(STORAGE_KEYS.BENEFICIARY_COMPLAINTS, updated);
@@ -5444,16 +5506,45 @@ export const db = {
   },
 
   async createUser(userData) {
+    const isExplicitlyActive = userData.status === 'Active' || userData.is_active === true;
+
+    // Use admin Edge Function ONLY when an Administrator is logged in and provisions a user without an existing id
+    if (isSupabaseConfigured && supabase && isExplicitlyActive && !userData.id && !userData.self_register) {
+      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        body: {
+          email: userData.email,
+          password: userData.password,
+          full_name: userData.full_name,
+          role: userData.role || 'Field Worker',
+          phone: userData.phone || userData.phone_number || null,
+          department: userData.department || 'Field Operations'
+        }
+      });
+
+      if (error) {
+        const response = await error.context?.json?.().catch(() => null);
+        throw new Error(response?.error || error.message || 'Unable to create the authenticated user.');
+      }
+      if (!data?.user) {
+        throw new Error(data?.error || 'The user provisioning service returned no user profile.');
+      }
+
+      return {
+        ...data.user,
+        status: 'Active',
+        is_active: true
+      };
+    }
+
     const isBrowser = typeof crypto !== 'undefined' && crypto.randomUUID;
     const generatedUuid = isBrowser ? crypto.randomUUID() : `00000000-0000-4000-8000-${Date.now().toString().padStart(12, '0').slice(-12)}`;
 
     // Self-registered accounts require admin approval unless explicitly set to Active
-    const isExplicitlyActive = userData.status === 'Active' || userData.is_active === true;
     const initialStatus = isExplicitlyActive ? 'Active' : 'Pending Verification';
     const initialIsActive = isExplicitlyActive ? true : false;
 
     const newUser = {
-      id: isSupabaseConfigured ? generatedUuid : `usr_${Date.now()}`,
+      id: userData.id || (isSupabaseConfigured ? generatedUuid : `usr_${Date.now()}`),
       email: userData.email,
       password: userData.password || 'Password123!',
       full_name: userData.full_name,
@@ -5477,7 +5568,7 @@ export const db = {
 
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase.from('profiles').insert([{
+        const { data, error } = await supabase.from('profiles').upsert([{
           id: newUser.id,
           email: newUser.email,
           password: newUser.password,
@@ -5492,7 +5583,7 @@ export const db = {
           avatar_url: newUser.avatar_url,
           is_active: initialIsActive,
           status: initialStatus
-        }]).select().single();
+        }], { onConflict: 'id' }).select().single();
         if (!error && data) {
           newUser.id = data.id;
         }
@@ -5521,6 +5612,286 @@ export const db = {
     }
 
     return newUser;
+  },
+
+  async migrateUsersToAuth(users, onBatchComplete) {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase must be configured before migrating accounts.');
+    }
+    if (!Array.isArray(users) || users.length === 0) {
+      throw new Error('There are no user accounts to migrate.');
+    }
+
+    const batchSize = 25;
+    const results = [];
+    for (let start = 0; start < users.length; start += batchSize) {
+      const batch = users.slice(start, start + batchSize).map(user => ({
+        email: user.email,
+        password: user.password,
+        full_name: user.full_name,
+        role: user.role,
+        phone: user.phone || user.phone_number || null,
+        department: user.department || '',
+        status: user.status || (user.is_active === false ? 'Deactivated' : 'Active'),
+        is_active: user.is_active
+      }));
+
+      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        body: { action: 'migrate-users', users: batch }
+      });
+      if (error) {
+        const response = await error.context?.json?.().catch(() => null);
+        throw new Error(response?.error || error.message || 'Unable to migrate user accounts.');
+      }
+      if (!Array.isArray(data?.results)) {
+        throw new Error(data?.error || 'The account migration service returned an invalid response.');
+      }
+      results.push(...data.results);
+      onBatchComplete?.(Math.min(start + batchSize, users.length), users.length);
+    }
+
+    return results;
+  },
+
+  async migrateBrowserDataToSupabase(onProgress) {
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Configure Supabase before migrating browser data.');
+    }
+
+    const readLocalRows = (key) => {
+      const raw = localStorage.getItem(key);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        throw new Error(`Local data for ${key} is not a record list and was not migrated.`);
+      }
+      return parsed;
+    };
+    const localUsers = readLocalRows(STORAGE_KEYS.USERS);
+    const result = {
+      users: { migrated: 0, failed: 0 },
+      records: {},
+      notMigrated: []
+    };
+
+    if (localUsers.length) {
+      const userResults = await this.migrateUsersToAuth(localUsers, (completed, total) => {
+        onProgress?.({ category: 'users', completed, total });
+      });
+      result.users.migrated = userResults.filter(row =>
+        ['created', 'profile_linked', 'already_linked'].includes(row.status)
+      ).length;
+      result.users.failed = userResults.filter(row => row.status === 'failed').length;
+    }
+
+    const importRows = async (category, table, localKey, mapRow, conflictKey) => {
+      const sourceRows = readLocalRows(localKey);
+      const rows = sourceRows
+        .filter(row => row && typeof row === 'object')
+        .map(mapRow)
+        .filter(row => row && row[conflictKey] && String(row[conflictKey]) !== 'undefined');
+      const uniqueRows = [...new Map(rows.map(row => [String(row[conflictKey]), row])).values()];
+      if (!uniqueRows.length) {
+        result.records[category] = { processed: 0, failed: 0, skipped: 0 };
+        return [];
+      }
+
+      let processed = 0;
+      const errors = [];
+      for (let start = 0; start < uniqueRows.length; start += 100) {
+        const batch = uniqueRows.slice(start, start + 100);
+        const { error } = await supabase
+          .from(table)
+          .upsert(batch, { onConflict: conflictKey, ignoreDuplicates: true });
+        if (error) {
+          errors.push(error.message);
+        } else {
+          processed += batch.length;
+        }
+        onProgress?.({
+          category,
+          completed: Math.min(start + batch.length, uniqueRows.length),
+          total: uniqueRows.length
+        });
+      }
+      result.records[category] = {
+        processed,
+        failed: errors.length ? uniqueRows.length - processed : 0,
+        skipped: sourceRows.length - uniqueRows.length,
+        ...(errors.length ? { error: [...new Set(errors)].join('; ') } : {})
+      };
+      return errors.length ? [] : uniqueRows;
+    };
+
+    await importRows('suppliers', 'suppliers', STORAGE_KEYS.SUPPLIERS, row => ({
+      id: String(row.id),
+      company_name: String(row.company_name || '').trim(),
+      category: String(row.category || 'General'),
+      contact_person: row.contact_person || null,
+      email: row.email || null,
+      phone: row.phone || null,
+      city: row.city || null,
+      country: row.country || null,
+      address: row.address || null,
+      rating: Number.isFinite(Number(row.rating)) ? Number(row.rating) : 5,
+      status: row.status || 'Active',
+      bank_name: row.bank_name || null,
+      bank_account_no: row.bank_account_no || null,
+      swift_code: row.swift_code || null,
+      mobile_money_number: row.mobile_money_number || null,
+      created_at: row.created_at || new Date().toISOString(),
+      updated_at: row.updated_at || new Date().toISOString()
+    }), 'id');
+
+    await importRows('warehouses', 'warehouses', STORAGE_KEYS.WAREHOUSES, row => ({
+      id: String(row.id),
+      code: row.code || null,
+      name: String(row.name || '').trim(),
+      location: row.location || null,
+      manager_name: row.manager_name || null,
+      contact_phone: row.contact_phone || null,
+      capacity_sqm: Number(row.capacity_sqm) || 0,
+      utilized_pct: Number(row.utilized_pct) || 0,
+      status: row.status || 'Active',
+      created_at: row.created_at || new Date().toISOString()
+    }), 'id');
+
+    await importRows('purchase orders', 'purchase_orders', STORAGE_KEYS.PURCHASE_ORDERS, row => ({
+      id: String(row.id),
+      po_number: String(row.po_number || '').trim(),
+      supplier_name: row.supplier_name || null,
+      item_name: row.item_name || null,
+      category: row.category || null,
+      quantity: Number.isFinite(Number(row.quantity)) ? Number(row.quantity) : null,
+      unit: row.unit || null,
+      unit_cost: Number.isFinite(Number(row.unit_cost)) ? Number(row.unit_cost) : null,
+      total_amount: Number.isFinite(Number(row.total_amount)) ? Number(row.total_amount) : null,
+      destination_warehouse: row.destination_warehouse || row.warehouse_destination || null,
+      order_date: row.order_date || null,
+      expected_delivery: row.expected_delivery || row.expected_delivery_date || null,
+      status: row.status || 'Pending Delivery',
+      issued_by: row.issued_by || row.requested_by || null,
+      grn_number: row.grn_number || null,
+      inspected_date: row.inspected_date || null,
+      notes: row.notes || null,
+      created_at: row.created_at || new Date().toISOString()
+    }), 'po_number');
+
+    await importRows('fleet vehicles', 'fleet_vehicles', STORAGE_KEYS.FLEET_VEHICLES, row => ({
+      id: String(row.id),
+      vehicle_plate: String(row.vehicle_plate || row.plate || '').trim(),
+      driver_name: String(row.driver_name || row.driver || '').trim(),
+      driver_phone: row.driver_phone || row.phone || null,
+      vehicle_type: row.vehicle_type || row.type || null,
+      assigned_depot: row.assigned_depot || row.depot || null,
+      status: row.status || 'Active',
+      capacity_tonnage: Number.isFinite(Number(row.capacity_tonnage)) ? Number(row.capacity_tonnage) : 10,
+      created_at: row.created_at || new Date().toISOString()
+    }), 'id');
+
+    await importRows('beneficiaries', 'beneficiaries', STORAGE_KEYS.BENEFICIARIES, row => {
+      if (!row?.beneficiary_code || !row.full_name || !row.location) return null;
+      return {
+        beneficiary_code: String(row.beneficiary_code),
+        full_name: String(row.full_name),
+        gender: ['Male', 'Female', 'Other'].includes(row.gender) ? row.gender : 'Other',
+        date_of_birth: row.date_of_birth || null,
+        age: Number.isFinite(Number(row.age)) ? Number(row.age) : null,
+        phone_number: row.phone_number || null,
+        location: String(row.location),
+        vulnerability_category: normalizeVulnerabilityCategory(row.vulnerability_category),
+        registration_date: row.registration_date || null,
+        created_at: row.created_at || new Date().toISOString()
+      };
+    }, 'beneficiary_code');
+
+    const { data: savedBeneficiaries, error: beneficiaryLookupError } = await supabase
+      .from('beneficiaries')
+      .select('id, beneficiary_code');
+    if (beneficiaryLookupError) throw beneficiaryLookupError;
+    const beneficiaryIds = new Map((savedBeneficiaries || []).map(row => [row.beneficiary_code, row.id]));
+
+    await importRows('assistance requests', 'assistance_requests', STORAGE_KEYS.ASSISTANCE_REQUESTS, row => {
+      if (!row?.request_code || !row?.beneficiary_name) return null;
+      return {
+        request_code: String(row.request_code),
+        beneficiary_id: beneficiaryIds.get(row.beneficiary_code) || null,
+        beneficiary_name: String(row.beneficiary_name),
+        beneficiary_code: row.beneficiary_code || null,
+        category: String(row.category || row.assistance_type || 'General Assistance'),
+        assistance_type: row.assistance_type || null,
+        urgency: row.urgency || 'Medium',
+        priority: row.priority || row.urgency || 'Medium',
+        status: row.status || 'Submitted',
+        status_label: row.status_label || null,
+        status_stage: Number.isFinite(Number(row.status_stage)) ? Number(row.status_stage) : 1,
+        reason: row.reason || null,
+        description: row.description || null,
+        state: row.state || null,
+        county: row.county || null,
+        payam: row.payam || null,
+        boma: row.boma || null,
+        village: row.village || null,
+        location: row.location || null,
+        program_name: row.program_name || row.programme_name || null,
+        household_members: Number(row.household_members) || 1,
+        preferred_depot: row.preferred_depot || null,
+        eligibility: row.eligibility || null,
+        eligibility_status: row.eligibility_status || null,
+        verification_status: row.verification_status || null,
+        is_duplicate: Boolean(row.is_duplicate || row.duplicate_detected),
+        assigned_supervisor_name: row.assigned_supervisor_name || null,
+        assigned_field_worker_name: row.assigned_field_worker_name || row.field_worker_name || null,
+        review_notes: row.review_notes || null,
+        expected_dispatch_date: row.expected_dispatch_date || null,
+        additional_info: row.additional_info || null,
+        created_at: row.created_at || new Date().toISOString(),
+        updated_at: row.updated_at || new Date().toISOString()
+      };
+    }, 'request_code');
+
+    await importRows('dispatches', 'dispatches', STORAGE_KEYS.DISPATCHES, row => ({
+      id: String(row.id),
+      waybill_number: String(row.waybill_number || '').trim(),
+      dispatch_token: row.dispatch_token || null,
+      origin_warehouse: row.origin_warehouse || null,
+      destination: row.destination || null,
+      project_name: row.project_name || null,
+      linked_request_id: row.linked_request_id || null,
+      beneficiary_name: row.beneficiary_name || null,
+      transport_mode: row.transport_mode || null,
+      vehicle_reg: row.vehicle_reg || null,
+      driver_name: row.driver_name || null,
+      driver_phone: row.driver_phone || null,
+      dispatch_date: row.dispatch_date || null,
+      items: Array.isArray(row.items) ? row.items : [],
+      status: row.status || 'In Transit',
+      released_by: row.released_by || null,
+      received_by: row.received_by || null,
+      qr_token_verified: Boolean(row.qr_token_verified),
+      notes: row.notes || null,
+      created_at: row.created_at || new Date().toISOString()
+    }), 'waybill_number');
+
+    const localFieldWorkers = readLocalRows(STORAGE_KEYS.FIELD_WORKERS);
+    if (localFieldWorkers.length) {
+      result.notMigrated.push({
+        category: 'field worker assignments',
+        count: localFieldWorkers.length,
+        reason: 'These records include assignment fields not represented by the current Supabase profiles schema.'
+      });
+    }
+
+    const localAuditLogs = readLocalRows(STORAGE_KEYS.AUDIT_LOGS);
+    if (localAuditLogs.length) {
+      result.notMigrated.push({
+        category: 'audit logs',
+        count: localAuditLogs.length,
+        reason: 'The current Supabase audit-log schema has conflicting ID definitions; importing these logs safely needs a schema migration.'
+      });
+    }
+
+    return result;
   },
 
   async updateUser(id, userData) {
@@ -5587,43 +5958,50 @@ export const db = {
     return this.updateUser(id, { role });
   },
 
-  async resetUserPassword(id, newPassword) {
-    if (!newPassword || newPassword.trim().length < 6) {
+  async resetUserPassword(id, newPassword, userDetails = {}) {
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
       throw new Error('Password must be at least 6 characters long.');
     }
-    const cleanPass = newPassword.trim();
-    const updated = await this.updateUser(id, { password: cleanPass });
-
-    // Also update in mock.demoAccounts if applicable
-    if (mock.demoAccounts && Array.isArray(mock.demoAccounts)) {
-      const demoItem = mock.demoAccounts.find(d => d.id === id || (d.email && updated?.email && d.email.toLowerCase() === updated.email.toLowerCase()));
-      if (demoItem) {
-        demoItem.password = cleanPass;
-      }
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Password was not changed: Supabase Auth is not configured. Configure Supabase and try again.');
     }
 
-    // Also update in beneficiaries list if this user is linked to a beneficiary
-    const bens = getLocalData(STORAGE_KEYS.BENEFICIARIES, mock.initialBeneficiaries || []);
-    let benMatched = false;
-    const updatedBens = bens.map(b => {
-      if (b.id === id || (b.email && updated?.email && b.email.toLowerCase() === updated.email.toLowerCase()) || (b.beneficiary_code && (b.beneficiary_code === id || b.beneficiary_code === updated?.beneficiary_code))) {
-        benMatched = true;
-        return { ...b, password: cleanPass };
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+    if (!session?.access_token) {
+      throw new Error('Password was not changed: sign in with a Supabase Auth Administrator account first.');
+    }
+
+    const { data, error } = await supabase.functions.invoke('admin-create-user', {
+      body: {
+        action: 'reset-password',
+        user_id: id,
+        password: newPassword,
+        email: userDetails.email,
+        full_name: userDetails.full_name,
+        role: userDetails.role,
+        phone: userDetails.phone || userDetails.phone_number || null,
+        department: userDetails.department || null,
+        status: userDetails.status,
+        is_active: userDetails.is_active
       }
-      return b;
     });
-    if (benMatched) {
-      saveLocalData(STORAGE_KEYS.BENEFICIARIES, updatedBens);
+
+    if (error) {
+      const response = await error.context?.json?.().catch(() => null);
+      throw new Error(response?.error || error.message || 'Unable to change the Auth password.');
+    }
+    if (!data?.user) {
+      throw new Error(data?.error || 'The password update service returned no user.');
     }
 
     await this.logAudit({
       action: 'UPDATE',
       module: 'User Management',
       record_id: id,
-      details: `Administrator changed password for account ${updated?.full_name || id} (${updated?.email || ''})`
+      details: `Administrator changed Auth password for account ${data.user.full_name || id} (${data.user.email || ''})`
     });
-
-    return updated;
+    return data.user;
   },
 
   async getRoles() {
@@ -8492,115 +8870,14 @@ export const db = {
 
   // --- UNIVERSAL MODULE FEEDBACK & USER REVIEWS ---
   async getUserFeedbacks(moduleId = null) {
-    const initialUserFeedbacks = [
-      {
-        id: 'fb-001',
-        ticket_code: 'FB-2026-001',
-        module: 'Field Programmes',
-        module_id: 'field',
-        user_name: 'Grace Ochieng',
-        user_email: 'grace.ochieng@adra.org',
-        user_role: 'Program Manager',
-        category: 'Feature Suggestion',
-        rating: 5,
-        subject: 'Bulk grant budget recalculation on programme status change',
-        message: 'It would be fantastic if changing a project status from Active to Completed automatically prompts an option to freeze remaining budget allocations and generate an archive summary.',
-        priority: 'Normal',
-        status: 'In Progress',
-        admin_response: 'Great suggestion Grace. We have queued this for the Q4 release milestone.',
-        responded_by: 'Dr. Elizabeth Warren',
-        responded_at: '2026-09-24T10:15:00Z',
-        created_at: '2026-09-20T14:30:00Z'
-      },
-      {
-        id: 'fb-002',
-        ticket_code: 'FB-2026-002',
-        module: 'Beneficiary Oversight',
-        module_id: 'beneficiaries',
-        user_name: 'Deng James Maker',
-        user_email: 'deng.maker@adra.org',
-        user_role: 'Supervisor',
-        category: 'Usability & Speed',
-        rating: 4,
-        subject: 'Batch verification for households registered in rural payams',
-        message: 'Field teams in Upper Nile registered over 40 households at once. Having a multi-select checkbox to verify multiple pending beneficiaries simultaneously saves immense time in remote hubs.',
-        priority: 'High',
-        status: 'Resolved',
-        admin_response: 'Batch verification workflow deployed. Field Supervisors can now bulk-verify up to 50 households.',
-        responded_by: 'Dr. Elizabeth Warren',
-        responded_at: '2026-09-27T16:00:00Z',
-        created_at: '2026-09-25T09:12:00Z'
-      },
-      {
-        id: 'fb-003',
-        ticket_code: 'FB-2026-003',
-        module: 'Aid Assistance Pipeline',
-        module_id: 'lifecycle',
-        user_name: 'Rose Poni Lado',
-        user_email: 'rose.poni@adra.org',
-        user_role: 'Field Worker',
-        category: 'Issue / Bug Report',
-        rating: 4,
-        subject: 'GPS coordinate precision warning in offline mode',
-        message: 'When recording relief drop-offs in low-connectivity areas in Garissa, the GPS indicator sometimes stays at orange precision. Adding an option to manually confirm landmark distance would prevent sync delays.',
-        priority: 'Urgent',
-        status: 'Under Review',
-        admin_response: null,
-        responded_by: null,
-        responded_at: null,
-        created_at: '2026-10-02T11:45:00Z'
-      },
-      {
-        id: 'fb-004',
-        ticket_code: 'FB-2026-004',
-        module: 'Reporting & Document Export',
-        module_id: 'reports',
-        user_name: 'Alex Morgan',
-        user_email: 'alex.morgan@adra.org',
-        user_role: 'Finance Officer',
-        category: 'Feature Suggestion',
-        rating: 5,
-        subject: 'Monochrome print-friendly layout for field distribution manifests',
-        message: 'The new executive white letterhead for reports looks sharp on screen. Can we ensure the table borders print cleanly on standard thermal/black-and-white field printers?',
-        priority: 'Normal',
-        status: 'Resolved',
-        admin_response: 'High-contrast print CSS stylesheets applied. All reports now format cleanly in monochrome print mode.',
-        responded_by: 'Dr. Elizabeth Warren',
-        responded_at: '2026-10-08T12:00:00Z',
-        created_at: '2026-10-06T15:20:00Z'
-      },
-      {
-        id: 'fb-005',
-        ticket_code: 'FB-2026-005',
-        module: 'Supply Chain & Purchase Orders',
-        module_id: 'orders',
-        user_name: 'Tariq Al-Mansoor',
-        user_email: 'tariq.mansoor@nilelogistics.com',
-        user_role: 'Supplier',
-        category: 'Usability & Speed',
-        rating: 5,
-        subject: 'Waybill electronic signature upload from mobile browser',
-        message: 'Uploading signed delivery notes directly from phone camera at the state depot entrance worked smoothly. Instant GRN verification received within 15 minutes.',
-        priority: 'Low',
-        status: 'Resolved',
-        admin_response: 'Thank you for the positive confirmation Tariq. State logistics teams were notified.',
-        responded_by: 'Dr. Elizabeth Warren',
-        responded_at: '2026-10-10T09:30:00Z',
-        created_at: '2026-10-09T18:05:00Z'
-      }
-    ];
-
     if (isSupabaseConfigured) {
-      try {
-        let query = supabase.from('user_feedbacks').select('*').order('created_at', { ascending: false });
-        if (moduleId && moduleId !== 'ALL') query = query.eq('module_id', moduleId);
-        const { data, error } = await query;
-        if (!error && Array.isArray(data) && data.length > 0) return data;
-      } catch (e) {
-        console.warn('Supabase getUserFeedbacks fallback:', e?.message);
-      }
+      let query = supabase.from('user_feedbacks').select('*').order('created_at', { ascending: false });
+      if (moduleId && moduleId !== 'ALL') query = query.eq('module_id', moduleId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
     }
-    const current = getLocalData(STORAGE_KEYS.USER_FEEDBACK, initialUserFeedbacks);
+    const current = getLocalData(STORAGE_KEYS.USER_FEEDBACK, []);
     if (moduleId && moduleId !== 'ALL') {
       return current.filter(f => f.module_id === moduleId || f.module?.toLowerCase() === moduleId?.toLowerCase());
     }
@@ -8622,19 +8899,14 @@ export const db = {
     };
 
     if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase.from('user_feedbacks').insert([newFeedback]).select().single();
-        if (!error && data) {
-          newFeedback.id = data.id;
-        }
-      } catch (err) {
-        console.warn('Supabase submitUserFeedback error:', err?.message);
-      }
+      const { data, error } = await supabase.from('user_feedbacks').insert([newFeedback]).select().single();
+      if (error) throw error;
+      if (!data) throw new Error('The feedback was not returned after saving.');
+      Object.assign(newFeedback, data);
+    } else {
+      saveLocalData(STORAGE_KEYS.USER_FEEDBACK, [newFeedback, ...current]);
     }
 
-    const updated = [newFeedback, ...current];
-    saveLocalData(STORAGE_KEYS.USER_FEEDBACK, updated);
-    
     // Log audit trail
     await this.logAudit({
       action: 'FEEDBACK_SUBMITTED',
@@ -8648,11 +8920,14 @@ export const db = {
 
   async updateUserFeedbackStatus(id, updates) {
     if (isSupabaseConfigured) {
-      try {
-        await supabase.from('user_feedbacks').update(updates).eq('id', id);
-      } catch (e) {
-        console.warn('Supabase updateUserFeedbackStatus error:', e?.message);
-      }
+      const { data, error } = await supabase
+        .from('user_feedbacks')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
     }
     const current = await this.getUserFeedbacks();
     const updated = current.map(f => (f.id === id || f.ticket_code === id) ? { ...f, ...updates } : f);

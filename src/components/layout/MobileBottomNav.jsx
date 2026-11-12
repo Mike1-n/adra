@@ -186,6 +186,7 @@ export function MobileBottomNav({ currentTab, onSelectTab, onSwitchToAdminWeb })
               </button>
             </div>
 
+            <div className="hidden">
             {/* User Quick Profile & Viva Role Switcher Card */}
             <div className="p-4 mx-4 my-3 rounded-2xl bg-slate-50 border border-slate-200">
               <div className="flex items-center justify-between mb-3">
@@ -239,6 +240,7 @@ export function MobileBottomNav({ currentTab, onSelectTab, onSwitchToAdminWeb })
                   <option value="M&E Officer">🎯 M&E Officer</option>
                 </select>
               </div>
+            </div>
             </div>
 
             {/* Standalone Admin Web App Portal Mobile Launcher */}

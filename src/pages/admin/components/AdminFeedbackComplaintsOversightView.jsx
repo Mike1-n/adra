@@ -1,41 +1,31 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   MessageSquare,
-  Users,
-  ShieldCheck,
-  HardHat,
-  ClipboardList,
-  Scale,
-  Truck,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  AlertCircle,
   Search,
-  Filter,
   Eye,
   Download,
   FileSpreadsheet,
-  CornerDownRight,
-  UserCheck,
-  Calendar,
-  Layers,
-  Building,
   RefreshCw,
-  X
+  X,
+  SlidersHorizontal
 } from 'lucide-react';
 import { Card } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
 import { Modal } from '../../../components/common/Modal';
 import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
-import { db } from '../../../lib/supabase';
+import { db, isSupabaseConfigured, supabase } from '../../../lib/supabase';
 import { formatDate } from '../../../lib/utils';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { exportToCSV, exportToPDF } from '../../../lib/reportGenerator';
 
-export function AdminFeedbackComplaintsOversightView() {
-  const { currentUser } = useAuth();
+export function AdminFeedbackComplaintsOversightView({
+  hideHeader = false,
+  scope = 'all',
+  currentUser: propUser
+} = {}) {
+  const { currentUser: authUser } = useAuth();
+  const currentUser = propUser || authUser;
   const toast = useToast();
 
   const [complaints, setComplaints] = useState([]);
@@ -51,98 +41,129 @@ export function AdminFeedbackComplaintsOversightView() {
 
   // Inspection Modal
   const [activeComplaint, setActiveComplaint] = useState(null);
-  const [adminNote, setAdminNote] = useState('');
+  const [replyText, setReplyText] = useState('');
   const [newStatus, setNewStatus] = useState('Resolved');
   const [isUpdating, setIsUpdating] = useState(false);
 
   const loadComplaints = async () => {
     try {
       setLoading(true);
-      const [compData, donorData, userFbData] = await Promise.all([
-        db.getComplaints(null),
-        db.getDonorQueries ? db.getDonorQueries() : [],
-        db.getUserFeedbacks ? db.getUserFeedbacks() : []
+      setComplaints([]);
+      if (!isSupabaseConfigured || !supabase) {
+        throw new Error('Supabase is not configured; the feedback ledger only displays database records.');
+      }
+
+      const complaintsQuery = supabase
+        .from('beneficiary_complaints')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (scope === 'supplier-ledger') {
+        complaintsQuery.or('sender_role.ilike.%supplier%,recipient_role.ilike.%supplier%,category.ilike.%supplier%');
+      }
+
+      const emptyResult = Promise.resolve({ data: [], error: null });
+      const [complaintsResult, donorQueriesResult, userFeedbacksResult] = await Promise.all([
+        complaintsQuery,
+        scope === 'supplier-ledger'
+          ? emptyResult
+          : supabase.from('donor_queries').select('*').order('created_at', { ascending: false }),
+        scope === 'supplier-ledger'
+          ? emptyResult
+          : supabase.from('user_feedbacks').select('*').order('created_at', { ascending: false })
       ]);
+      const queryError = complaintsResult.error || donorQueriesResult.error || userFeedbacksResult.error;
+      if (queryError) throw queryError;
+
+      const compData = complaintsResult.data || [];
+      const donorData = donorQueriesResult.data || [];
+      const userFbData = userFeedbacksResult.data || [];
 
       const mappedComplaints = (compData || []).map(c => ({
         ...c,
-        source_type: 'Community Grievance',
-        sender_name: c.sender_name || c.beneficiary_name || 'Anonymous Community Member',
-        sender_role: c.sender_role || 'Beneficiary',
-        sender_location: c.sender_location || 'Field Zone',
-        recipient_name: c.recipient_name || c.recipient_role || 'Assigned Officer',
-        recipient_role: c.recipient_role || 'Field Desk',
-        recipient_department: c.recipient_department || `${c.recipient_role || 'Operations'} Team`
-      }));
+        record_source: 'beneficiary_complaints',
+        source_type: /inventory|logistics|warehouse|supply chain/i.test(
+          `${c.recipient_role || ''} ${c.recipient_name || ''}`
+        )
+          ? 'Inventory Feedback'
+          : c.category?.toLowerCase().includes('supplier')
+            ? 'Supplier Feedback'
+            : 'Community Grievance',
+        sender_name: c.sender_name || c.beneficiary_name,
+        sender_role: c.sender_role || (c.category?.toLowerCase().includes('supplier') ? 'Supplier' : undefined),
+      })).filter(c => {
+        if (scope !== 'supplier-ledger') return true;
+        const financeRole = value => String(value || '').toLowerCase().includes('finance');
+        const financeEmail = String(currentUser?.email || '').trim().toLowerCase();
+        const financeId = String(currentUser?.id || '');
+        return financeRole(c.sender_role) ||
+          financeRole(c.recipient_role) ||
+          Boolean(financeEmail && (
+            String(c.sender_email || '').trim().toLowerCase() === financeEmail ||
+            String(c.recipient_email || '').trim().toLowerCase() === financeEmail
+          )) ||
+          Boolean(financeId && (
+            String(c.beneficiary_id || '') === financeId ||
+            String(c.recipient_id || '') === financeId
+          ));
+      });
 
       const mappedDonorQueries = (donorData || []).map(q => ({
+        ...q,
+        record_source: 'donor_queries',
         id: q.id,
-        ticket_code: q.ticket_code || `DNR-${String(q.id).replace('qry-', '').slice(-4)}`,
+        ticket_code: q.ticket_code || q.id,
         source_type: 'Donor Inquiry',
-        sender_name: q.sender_name || (q.sender ? q.sender.split('(')[0].trim() : 'Sarah Jenkins'),
-        sender_role: q.sender_role || 'Donor (USAID BHA)',
-        sender_location: 'Institutional Donor Mission',
-        recipient_name: q.recipient_name || (q.responded_by ? q.responded_by.split('(')[0].trim() : 'Grace Ochieng'),
-        recipient_role: q.recipient_role || (q.responded_by && q.responded_by.includes('Finance') ? 'Finance Officer' : 'Program Manager'),
-        recipient_department: q.recipient_dept || (q.recipient_role === 'Finance Officer' ? 'Financial Control & Grants' : 'Emergency Response & Programs'),
-        category: 'Grant Accountability',
-        severity: 'High',
-        priority: 'High',
+        sender_name: q.sender_name || q.sender,
         is_anonymous: false,
-        subject: q.subject,
         description: q.message,
-        status: q.status === 'Clarified' ? 'Resolved' : (q.status || 'Under Review'),
-        created_at: q.date ? `${q.date}T10:00:00Z` : new Date().toISOString(),
         resolution_notes: q.response || null,
         resolved_by: q.responded_by || null,
-        resolved_at: q.responded_at ? `${q.responded_at}T14:00:00Z` : null,
+        resolved_at: q.responded_at || null,
         responses: [
-          {
-            sender: q.sender_name || 'Sarah Jenkins (Donor)',
-            role: 'Institutional Donor',
+          ...(q.message ? [{
+            sender: q.sender_name || q.sender || 'Sender',
+            role: q.sender_role,
             message: q.message,
-            timestamp: q.date ? `${q.date}T10:00:00Z` : new Date().toISOString()
-          },
+            timestamp: q.created_at
+          }] : []),
           ...(q.response ? [{
-            sender: q.responded_by || q.recipient_name || 'ADRA Officer',
-            role: q.recipient_role || 'Program Manager',
+            sender: q.responded_by,
+            role: q.recipient_role,
             message: q.response,
-            timestamp: q.responded_at ? `${q.responded_at}T14:00:00Z` : new Date().toISOString()
+            timestamp: q.responded_at
           }] : [])
         ]
       }));
 
       const mappedUserFeedbacks = (userFbData || []).map(fb => ({
+        ...fb,
+        record_source: 'user_feedbacks',
         id: fb.id,
-        ticket_code: fb.ticket_code || `FB-${String(fb.id).replace('fb-', '').slice(-4)}`,
-        source_type: 'Module Review',
-        sender_name: fb.user_name || 'Staff Member',
-        sender_role: fb.user_role || 'Internal User',
-        sender_location: fb.module || 'System Module',
-        recipient_name: fb.responded_by || 'Dr. Elizabeth Warren (Administrator)',
-        recipient_role: 'Administrator',
-        recipient_department: 'System Architecture & HQ Governance',
-        category: `${fb.module} • ${fb.category}`,
-        severity: fb.priority === 'Urgent' ? 'Urgent' : 'Medium',
-        priority: fb.priority || 'Normal',
+        ticket_code: fb.ticket_code || fb.id,
+        source_type: /inventory|logistics|warehouse|supply chain/i.test(
+          `${fb.module || ''} ${fb.module_id || ''}`
+        )
+          ? 'Inventory Feedback'
+          : 'Module Review',
+        sender_name: fb.user_name,
+        sender_role: fb.user_role,
+        sender_location: fb.module,
+        recipient_name: fb.responded_by,
+        severity: fb.priority,
         is_anonymous: false,
-        subject: fb.subject,
         description: fb.message,
-        status: fb.status || 'Under Review',
-        created_at: fb.created_at || new Date().toISOString(),
         resolution_notes: fb.admin_response || null,
         resolved_by: fb.responded_by || null,
         resolved_at: fb.responded_at || null,
         responses: [
-          {
-            sender: fb.user_name || 'Staff User',
-            role: fb.user_role || 'User',
+          ...(fb.message ? [{
+            sender: fb.user_name || 'Sender',
+            role: fb.user_role,
             message: fb.message,
             timestamp: fb.created_at
-          },
+          }] : []),
           ...(fb.admin_response ? [{
-            sender: fb.responded_by || 'Administrator',
-            role: 'Administrator',
+            sender: fb.responded_by,
             message: fb.admin_response,
             timestamp: fb.responded_at
           }] : [])
@@ -158,7 +179,7 @@ export function AdminFeedbackComplaintsOversightView() {
       setComplaints(combined);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load complaints and feedback registry.');
+      toast.error(`Failed to load complaints and feedback registry: ${err.message || 'Unknown database error.'}`);
     } finally {
       setLoading(false);
     }
@@ -166,7 +187,7 @@ export function AdminFeedbackComplaintsOversightView() {
 
   useEffect(() => {
     loadComplaints();
-  }, []);
+  }, [scope]);
 
   // Filtered dataset
   const filtered = useMemo(() => {
@@ -197,6 +218,7 @@ export function AdminFeedbackComplaintsOversightView() {
         if (recipientFilter === 'Program Manager' && !rRole.includes('program')) return false;
         if (recipientFilter === 'Compliance Officer' && !rRole.includes('compliance') && !rRole.includes('safeguard')) return false;
         if (recipientFilter === 'Finance' && !rRole.includes('finance') && !rRole.includes('procurement')) return false;
+        if (recipientFilter === 'Inventory Manager' && !rRole.includes('inventory') && !rRole.includes('logistics')) return false;
         if (recipientFilter === 'Administrator' && !rRole.includes('admin') && !rRole.includes('director')) return false;
       }
 
@@ -228,33 +250,33 @@ export function AdminFeedbackComplaintsOversightView() {
     });
   }, [complaints, sourceFilter, senderFilter, recipientFilter, statusFilter, categoryFilter, searchQuery]);
 
-  // Telemetry KPIs
-  const totalCount = complaints.length;
   const pendingCount = complaints.filter(c => c.status === 'Submitted' || c.status === 'Under Review').length;
-  const escalatedCount = complaints.filter(c => c.status === 'Escalated' || c.severity === 'Urgent' || c.priority === 'Urgent').length;
   const resolvedCount = complaints.filter(c => c.status === 'Resolved').length;
-  const resolutionRate = totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 100;
 
   // Handle Inspection
   const handleOpenInspect = (complaint) => {
     setActiveComplaint(complaint);
-    setAdminNote(complaint.resolution_notes || '');
+    setReplyText('');
     setNewStatus(complaint.status || 'Under Review');
   };
 
-  // Handle Save Administrative Decision
+  // Save a reply and/or update the ticket status.
   const handleSaveDecision = async () => {
     if (!activeComplaint) return;
     try {
       setIsUpdating(true);
+      const reply = replyText.trim();
+      const timestamp = new Date().toISOString();
       const updates = {
         status: newStatus,
-        resolution_notes: adminNote.trim() || activeComplaint.resolution_notes,
-        resolved_by: newStatus === 'Resolved' ? (currentUser?.full_name ? `${currentUser.full_name} (Administrator)` : 'Administrator') : activeComplaint.resolved_by,
-        resolved_at: newStatus === 'Resolved' ? new Date().toISOString() : activeComplaint.resolved_at
+        resolution_notes: reply || activeComplaint.resolution_notes,
+        resolved_by: newStatus === 'Resolved'
+          ? `${currentUser?.full_name || currentUser?.name || 'ADRA Staff'} (${currentUser?.role || 'Staff'})`
+          : activeComplaint.resolved_by,
+        resolved_at: newStatus === 'Resolved' ? timestamp : activeComplaint.resolved_at
       };
 
-      if (activeComplaint.source_type === 'Donor Inquiry') {
+      if (activeComplaint.record_source === 'donor_queries' || activeComplaint.source_type === 'Donor Inquiry') {
         if (db.updateDonorQuery) {
           await db.updateDonorQuery(activeComplaint.id, {
             status: newStatus,
@@ -263,7 +285,7 @@ export function AdminFeedbackComplaintsOversightView() {
             responded_at: updates.resolved_at ? updates.resolved_at.split('T')[0] : new Date().toISOString().split('T')[0]
           });
         }
-      } else if (activeComplaint.source_type === 'Module Review') {
+      } else if (activeComplaint.record_source === 'user_feedbacks' || activeComplaint.source_type === 'Module Review') {
         if (db.updateUserFeedbackStatus) {
           await db.updateUserFeedbackStatus(activeComplaint.id, {
             status: newStatus,
@@ -273,18 +295,53 @@ export function AdminFeedbackComplaintsOversightView() {
           });
         }
       } else {
-        if (db.updateComplaintStatus) {
-          await db.updateComplaintStatus(activeComplaint.id || activeComplaint.ticket_code, updates);
-        } else if (db.updateComplaint) {
-          await db.updateComplaint(activeComplaint.id || activeComplaint.ticket_code, updates);
+        const complaintId = activeComplaint.id || activeComplaint.ticket_code;
+        if (reply) {
+          const senderName = currentUser?.full_name || currentUser?.name || 'ADRA Staff';
+          await db.createComplaint({
+            ticket_code: `RE-${Date.now()}`,
+            beneficiary_id: currentUser?.id,
+            beneficiary_name: senderName,
+            sender_email: currentUser?.email || null,
+            sender_name: senderName,
+            sender_role: currentUser?.role || 'Staff',
+            recipient_id: activeComplaint.beneficiary_id,
+            recipient_email: activeComplaint.sender_email || null,
+            recipient_name: activeComplaint.sender_name || activeComplaint.beneficiary_name,
+            recipient_role: activeComplaint.sender_role,
+            category: activeComplaint.category || 'Feedback & Accountability',
+            severity: activeComplaint.severity || activeComplaint.priority || 'Normal',
+            is_anonymous: false,
+            subject: activeComplaint.subject ? `Re: ${activeComplaint.subject}` : 'Feedback reply',
+            description: reply,
+            status: newStatus
+          });
+        }
+
+        if (newStatus !== activeComplaint.status) {
+          try {
+            if (db.updateComplaintStatus) {
+              await db.updateComplaintStatus(complaintId, { status: newStatus });
+            } else if (db.updateComplaint) {
+              await db.updateComplaint(complaintId, { status: newStatus });
+            }
+          } catch (statusError) {
+            if (!reply) throw statusError;
+            console.error(statusError);
+            setReplyText('');
+            setActiveComplaint(null);
+            await loadComplaints();
+            toast.error(`Reply sent, but ticket status could not be updated: ${statusError.message || 'Unknown database error.'}`);
+            return;
+          }
         }
       }
-      toast.success(`Ticket ${activeComplaint.ticket_code} updated to "${newStatus}"`);
+      toast.success(reply ? 'Reply sent.' : `Ticket status updated to "${newStatus}".`);
       setActiveComplaint(null);
       await loadComplaints();
     } catch (err) {
       console.error(err);
-      toast.error('Failed to update ticket.');
+      toast.error(`Failed to update ticket: ${err.message || 'Unknown database error.'}`);
     } finally {
       setIsUpdating(false);
     }
@@ -295,17 +352,17 @@ export function AdminFeedbackComplaintsOversightView() {
     const filename = `ADRA_INTER_PARTY_FEEDBACK_${new Date().toISOString().split('T')[0]}.csv`;
     const exportData = filtered.map(c => ({
       Ticket_ID: c.ticket_code,
-      Sender_Name: c.sender_name || c.beneficiary_name || 'Anonymous',
-      Sender_Role: c.sender_role || 'Beneficiary',
-      Sender_Location: c.sender_location || 'General Zone',
+      Sender_Name: c.sender_name || c.beneficiary_name || '',
+      Sender_Role: c.sender_role || '',
+      Sender_Location: c.sender_location || '',
       Recipient_Role: c.recipient_role,
       Recipient_Name: c.recipient_name,
       Category: c.category,
-      Severity: c.severity || c.priority || 'Normal',
+      Severity: c.severity || c.priority,
       Subject: c.subject,
       Status: c.status,
-      Submitted_Date: c.created_at ? new Date(c.created_at).toLocaleDateString() : '—',
-      Resolution_Notes: c.resolution_notes || 'Pending resolution'
+      Submitted_Date: c.created_at ? new Date(c.created_at).toLocaleDateString() : '',
+      Resolution_Notes: c.resolution_notes || ''
     }));
     exportToCSV(exportData, filename);
     toast.success(`Exported ${filtered.length} inter-party records to CSV.`);
@@ -325,8 +382,8 @@ export function AdminFeedbackComplaintsOversightView() {
       ],
       data: filtered.map(c => ({
         ...c,
-        sender_name: `${c.sender_name || c.beneficiary_name} (${c.sender_role || 'Beneficiary'})`,
-        recipient_role: `${c.recipient_role} - ${c.recipient_name}`
+        sender_name: [c.sender_name || c.beneficiary_name, c.sender_role].filter(Boolean).join(' '),
+        recipient_role: [c.recipient_role, c.recipient_name].filter(Boolean).join(' - ')
       })),
       fileName: 'ADRA_InterParty_Complaints_Report.pdf',
       summary: [
@@ -338,563 +395,388 @@ export function AdminFeedbackComplaintsOversightView() {
     toast.success('Downloaded PDF compliance report.');
   };
 
-  // Helper for sender role icon
-  const getRoleIcon = (role = '') => {
-    const r = role.toLowerCase();
-    if (r.includes('donor')) return <Building className="w-3.5 h-3.5 text-blue-600" />;
-    if (r.includes('beneficiary')) return <Users className="w-3.5 h-3.5 text-emerald-600" />;
-    if (r.includes('field')) return <HardHat className="w-3.5 h-3.5 text-indigo-600" />;
-    if (r.includes('supervisor')) return <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />;
-    if (r.includes('supplier')) return <Truck className="w-3.5 h-3.5 text-amber-600" />;
-    if (r.includes('compliance') || r.includes('safeguard')) return <Scale className="w-3.5 h-3.5 text-rose-600" />;
-    if (r.includes('program')) return <ClipboardList className="w-3.5 h-3.5 text-purple-600" />;
-    if (r.includes('finance')) return <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />;
-    if (r.includes('admin') || r.includes('director')) return <ShieldCheck className="w-3.5 h-3.5 text-rose-600" />;
-    return <UserCheck className="w-3.5 h-3.5 text-slate-600" />;
+  const activeFilterCount = [
+    sourceFilter !== 'ALL',
+    senderFilter !== 'ALL',
+    recipientFilter !== 'ALL',
+    categoryFilter !== 'ALL',
+  ].filter(Boolean).length;
+  const hasActiveFilters = activeFilterCount > 0 || statusFilter !== 'ALL' || searchQuery.trim() !== '';
+
+  const conversationMessages = activeComplaint ? (() => {
+    const storedMessages = Array.isArray(activeComplaint.responses) ? activeComplaint.responses : [];
+    const firstMessage = storedMessages[0] || {
+      sender: activeComplaint.sender_name || activeComplaint.beneficiary_name,
+      role: activeComplaint.sender_role,
+      message: activeComplaint.description,
+      timestamp: activeComplaint.created_at
+    };
+    const messages = firstMessage.message ? [firstMessage] : [];
+    const replies = storedMessages.length > 1 ? storedMessages.slice(1) : [];
+    const conversation = [...messages, ...replies];
+    const lastMessage = conversation[conversation.length - 1];
+
+    if (activeComplaint.resolution_notes && activeComplaint.resolution_notes !== lastMessage?.message) {
+      conversation.push({
+        sender: activeComplaint.resolved_by || activeComplaint.recipient_name,
+        role: activeComplaint.recipient_role,
+        message: activeComplaint.resolution_notes,
+        timestamp: activeComplaint.resolved_at
+      });
+    }
+    return conversation;
+  })() : [];
+
+  const clearFilters = () => {
+    setSourceFilter('ALL');
+    setSenderFilter('ALL');
+    setRecipientFilter('ALL');
+    setCategoryFilter('ALL');
+    setStatusFilter('ALL');
+    setSearchQuery('');
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <MessageSquare className="w-6 h-6 text-emerald-600" />
-              Inter-Party Complaints & Feedback Oversight
-            </h2>
-            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-500/30">
-              Audit & Oversight Mode
-            </span>
+    <div className="space-y-3 animate-in fade-in duration-200">
+      {/* Header and export actions */}
+      {!hideHeader ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-emerald-600" />
+                Inter-Party Complaints & Feedback Oversight
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Review and manage feedback from across ADRA.
+            </p>
           </div>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Centralized administrative monitoring of all grievances, service quality reviews, and inquiries exchanged between beneficiaries, field staff, supervisors, donors, and programme management.
-          </p>
+
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="secondary"
+              onClick={handleExportCSV}
+              icon={FileSpreadsheet}
+              className="text-xs px-2.5 py-1.5"
+            >
+              CSV
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportPDF}
+              icon={Download}
+              className="text-xs px-2.5 py-1.5"
+            >
+              PDF
+            </Button>
+            <button
+              onClick={loadComplaints}
+              title="Refresh feedback"
+              aria-label="Refresh feedback"
+              className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition border border-slate-200 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="secondary"
-            onClick={handleExportCSV}
-            icon={FileSpreadsheet}
-            className="text-xs"
-          >
-            Export CSV
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleExportPDF}
-            icon={Download}
-            className="text-xs"
-          >
-            Download PDF
-          </Button>
-          <button
-            onClick={loadComplaints}
-            title="Refresh Feed"
-            className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition border border-slate-200 cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
+      ) : (
+        <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="secondary"
+              onClick={handleExportCSV}
+              icon={FileSpreadsheet}
+              className="text-xs px-2.5 py-1.5"
+            >
+              CSV
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportPDF}
+              icon={Download}
+              className="text-xs px-2.5 py-1.5"
+            >
+              PDF
+            </Button>
+            <button
+              onClick={loadComplaints}
+              title="Refresh feedback"
+              aria-label="Refresh feedback"
+              className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition border border-slate-200 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* KPI Telemetry Tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="p-4 bg-white border border-slate-200 shadow-2xs">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Feedbacks & Grievances</p>
-          <div className="flex items-center justify-between mt-1.5">
-            <span className="text-2xl font-black text-slate-900">{totalCount}</span>
-            <span className="p-2 rounded-xl bg-slate-100 text-slate-700">
-              <Layers className="w-4 h-4" />
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Logged across all operational tiers</p>
-        </Card>
-
-        <Card className="p-4 bg-white border border-slate-200 shadow-2xs">
-          <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Awaiting Recipient Action</p>
-          <div className="flex items-center justify-between mt-1.5">
-            <span className="text-2xl font-black text-amber-700">{pendingCount}</span>
-            <span className="p-2 rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
-              <Clock className="w-4 h-4" />
-            </span>
-          </div>
-          <p className="text-[11px] text-amber-800/80 mt-0.5 font-medium">Submitted or currently under review</p>
-        </Card>
-
-        <Card className="p-4 bg-white border border-slate-200 shadow-2xs">
-          <p className="text-[11px] font-bold text-rose-800 uppercase tracking-wider">Safeguarding & Urgent</p>
-          <div className="flex items-center justify-between mt-1.5">
-            <span className="text-2xl font-black text-rose-700">{escalatedCount}</span>
-            <span className="p-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200">
-              <AlertTriangle className="w-4 h-4" />
-            </span>
-          </div>
-          <p className="text-[11px] text-rose-800/80 mt-0.5 font-medium">High priority protection/PSEA cases</p>
-        </Card>
-
-        <Card className="p-4 bg-white border border-slate-200 shadow-2xs">
-          <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Resolved & Closed</p>
-          <div className="flex items-center justify-between mt-1.5">
-            <span className="text-2xl font-black text-emerald-700">{resolvedCount}</span>
-            <span className="p-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-500/30">
-              <CheckCircle2 className="w-4 h-4" />
-            </span>
-          </div>
-          <p className="text-[11px] text-emerald-800/80 mt-0.5 font-medium">{resolutionRate}% compliance resolution rate</p>
-        </Card>
-      </div>
-
-      {/* Multi-Party Filtering Strip */}
-      <Card className="p-3.5 bg-slate-50/70 border border-slate-200 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-          {/* Search */}
-          <div className="relative lg:col-span-1">
+      <Card className="p-3 bg-white border border-slate-200 shadow-2xs space-y-2.5">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search sender, recipient, ticket..."
+              placeholder="Search feedback..."
+              aria-label="Search feedback"
               className="adra-input pl-9 text-xs"
             />
           </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            aria-label="Filter by status"
+            className="adra-select text-xs font-medium sm:w-44"
+          >
+            <option value="ALL">All statuses</option>
+            <option value="Submitted">Submitted</option>
+            <option value="Under Review">Under review</option>
+            <option value="In Progress">In progress</option>
+            <option value="Resolved">Resolved</option>
+          </select>
+        </div>
 
-          {/* Feedback Source Channel Filter */}
-          <div>
-            <select
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-              className="adra-select text-xs font-medium"
-            >
-              <option value="ALL">All Feedback Channels</option>
-              <option value="Community Grievance">Community & Beneficiary Grievances</option>
-              <option value="Donor Inquiry">Donor Accountability Inquiries</option>
-              <option value="Module Review">Platform Module Feedback</option>
-            </select>
-          </div>
-
-          {/* Sender Party Filter */}
-          <div>
-            <select
-              value={senderFilter}
-              onChange={(e) => setSenderFilter(e.target.value)}
-              className="adra-select text-xs font-medium"
-            >
-              <option value="ALL">All Senders (From)</option>
-              <option value="Beneficiary">Beneficiaries & Households</option>
-              <option value="Donor">Institutional Donors (USAID, etc.)</option>
-              <option value="Field Worker">Field Staff & Enumerators</option>
-              <option value="Supervisor">Zonal Supervisors</option>
-              <option value="Supplier">Vendors & Suppliers</option>
-              <option value="Program Manager">Program Management</option>
-              <option value="Finance">Finance Team</option>
-              <option value="Community">Community (Anonymous)</option>
-            </select>
-          </div>
-
-          {/* Recipient Party Filter */}
-          <div>
-            <select
-              value={recipientFilter}
-              onChange={(e) => setRecipientFilter(e.target.value)}
-              className="adra-select text-xs font-medium"
-            >
-              <option value="ALL">All Recipients (To)</option>
-              <option value="Program Manager">To: Programme Manager (Grace Ochieng)</option>
-              <option value="Finance">To: Finance Officer (Alex Morgan)</option>
-              <option value="Compliance Officer">To: Safeguarding / Compliance (David Ochieng)</option>
-              <option value="Supervisor">To: Zonal Supervisor (Mary Akech)</option>
-              <option value="Field Worker">To: Field Worker Desk (Rose Poni)</option>
-              <option value="Administrator">To: Country Director / Admin Desk</option>
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="adra-select text-xs font-medium"
-            >
-              <option value="ALL">All Statuses ({totalCount})</option>
-              <option value="Submitted">Submitted (Pending Initial Action)</option>
-              <option value="Under Review">Under Review</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Resolved">Resolved & Closed</option>
-            </select>
-          </div>
-
-          {/* Category Filter */}
-          <div>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="adra-select text-xs font-medium"
-            >
-              <option value="ALL">All Categories / Topics</option>
-              <option value="Distribution Logistics">Distribution Logistics</option>
-              <option value="Token & QR Verification">Token & QR Verification</option>
-              <option value="Relief Item Quality">Relief Item Quality</option>
-              <option value="Grant Accountability">Grant Accountability</option>
-              <option value="Field Resource Depletion">Field Resource Depletion</option>
-              <option value="Safeguarding / Protection (PSEA)">Safeguarding / PSEA</option>
-              <option value="Procurement & Invoicing">Procurement & Invoicing</option>
-              <option value="Access & Security">Access & Security</option>
-            </select>
+        <div className="flex items-center justify-between gap-2">
+          <details className="group">
+            <summary className="list-none inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 cursor-pointer">
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              More filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+              <span className="text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+            </summary>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-3">
+              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} aria-label="Filter by channel" className="adra-select text-xs font-medium">
+                <option value="ALL">All channels</option>
+                <option value="Inventory Feedback">Inventory feedback</option>
+                <option value="Supplier Feedback">Supplier feedback</option>
+                <option value="Community Grievance">Community grievance</option>
+                <option value="Donor Inquiry">Donor inquiry</option>
+                <option value="Module Review">Module review</option>
+              </select>
+              <select value={senderFilter} onChange={(e) => setSenderFilter(e.target.value)} aria-label="Filter by sender" className="adra-select text-xs font-medium">
+                <option value="ALL">All senders</option>
+                <option value="Beneficiary">Beneficiaries</option>
+                <option value="Donor">Donors</option>
+                <option value="Field Worker">Field workers</option>
+                <option value="Supervisor">Supervisors</option>
+                <option value="Supplier">Suppliers</option>
+                <option value="Program Manager">Program managers</option>
+                <option value="Finance">Finance</option>
+                <option value="Inventory Manager">Inventory managers</option>
+                <option value="Community">Community</option>
+              </select>
+              <select value={recipientFilter} onChange={(e) => setRecipientFilter(e.target.value)} aria-label="Filter by recipient" className="adra-select text-xs font-medium">
+                <option value="ALL">All recipients</option>
+                <option value="Program Manager">Program managers</option>
+                <option value="Finance">Finance</option>
+                <option value="Compliance Officer">Compliance</option>
+                <option value="Supervisor">Supervisors</option>
+                <option value="Field Worker">Field workers</option>
+                <option value="Administrator">Administrators</option>
+              </select>
+              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} aria-label="Filter by category" className="adra-select text-xs font-medium">
+                <option value="ALL">All categories</option>
+                <option value="Distribution Logistics">Distribution logistics</option>
+                <option value="Token & QR Verification">Token & QR verification</option>
+                <option value="Relief Item Quality">Relief item quality</option>
+                <option value="Grant Accountability">Grant accountability</option>
+                <option value="Field Resource Depletion">Field resource depletion</option>
+                <option value="Safeguarding / Protection (PSEA)">Safeguarding / PSEA</option>
+                <option value="Procurement & Invoicing">Procurement & invoicing</option>
+                <option value="Access & Security">Access & security</option>
+              </select>
+            </div>
+          </details>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-500 whitespace-nowrap">
+              {filtered.length} {filtered.length === 1 ? 'record' : 'records'}
+            </span>
+            {hasActiveFilters && (
+              <button type="button" onClick={clearFilters} className="text-xs font-medium text-emerald-700 hover:text-emerald-900 cursor-pointer">
+                Clear
+              </button>
+            )}
           </div>
         </div>
       </Card>
 
-      {/* Main Inter-Party Registry Table */}
+      {/* Feedback table */}
       {loading ? (
         <LoadingSpinner text="Compiling inter-party grievance telemetry..." />
       ) : (
         <Card className="p-0 overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-3.5">Ticket ID</th>
-                  <th className="py-3 px-3.5">Channel</th>
-                  <th className="py-3 px-3.5">Sender Party (From)</th>
-                  <th className="py-3 px-3.5">Recipient Party (To)</th>
-                  <th className="py-3 px-3.5">Subject & Feedback Excerpt</th>
-                  <th className="py-3 px-3.5">Priority</th>
-                  <th className="py-3 px-3.5">Status</th>
-                  <th className="py-3 px-3.5">Date Sent</th>
-                  <th className="py-3 px-3.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-slate-800">
-                {filtered.length === 0 ? (
+          {filtered.length === 0 ? (
+            <div className="py-12 px-4 text-center text-slate-500">
+              <MessageSquare className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+              <p className="font-semibold text-xs">No feedback or complaints match the selected filter criteria</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Try resetting the sender, recipient, or category filters.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[400px] text-left text-xs">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-slate-500">
-                      <MessageSquare className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                      <p className="font-semibold text-xs">No feedback or complaints match the selected filter criteria</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Try resetting the sender, recipient, or category filters.</p>
-                    </td>
+                    <th className="px-3 py-2.5 font-semibold">Sender / role</th>
+                    <th className="px-3 py-2.5 font-semibold">Feedback</th>
+                    <th className="px-3 py-2.5 text-right font-semibold"> </th>
                   </tr>
-                ) : (
-                  filtered.map((item) => {
-                    const isUrgent = item.severity === 'Urgent' || item.priority === 'Urgent';
-                    const isHigh = item.severity === 'High' || item.priority === 'High';
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filtered.map((item) => {
                     const isResolved = item.status === 'Resolved';
-                    const senderDisplay = item.sender_name || item.beneficiary_name || 'Community Member';
-
+                    const senderDisplay = item.sender_name || item.beneficiary_name || '—';
                     return (
-                      <tr key={item.id || item.ticket_code} className="hover:bg-slate-50/80 transition">
-                        {/* Ticket Code */}
-                        <td className="py-3.5 px-3.5">
-                          <span className="font-mono text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-500/20 px-2 py-0.5 rounded">
-                            {item.ticket_code || item.id}
-                          </span>
+                      <tr key={item.id || item.ticket_code} className="hover:bg-slate-50/70">
+                        <td className="px-3 py-3 align-top sm:w-1/3">
+                          <p className="font-medium text-slate-900">{senderDisplay}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">{item.sender_role || '—'}</p>
                         </td>
-
-                        {/* Channel Badge */}
-                        <td className="py-3.5 px-3.5">
-                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${
-                            item.source_type === 'Donor Inquiry'
-                              ? 'bg-blue-50 text-blue-800 border-blue-200'
-                              : item.source_type === 'Module Review'
-                              ? 'bg-purple-50 text-purple-800 border-purple-200'
-                              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          }`}>
-                            {item.source_type || 'Grievance'}
-                          </span>
-                        </td>
-
-                        {/* SENDER PARTY (FROM) */}
-                        <td className="py-3.5 px-3.5">
-                          <div className="flex items-start gap-2">
-                            <div className="mt-0.5 p-1 rounded-md bg-slate-100">
-                              {getRoleIcon(item.sender_role)}
-                            </div>
-                            <div>
-                              <span className="font-bold text-slate-900 block truncate max-w-[140px]" title={senderDisplay}>
-                                {senderDisplay}
-                              </span>
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-semibold">
-                                  {item.sender_role || 'Beneficiary'}
-                                </span>
-                              </div>
-                              <span className="text-[10px] text-slate-500 block truncate max-w-[140px] mt-0.5" title={item.sender_location}>
-                                {item.sender_location || 'Field Zone'}
-                              </span>
-                            </div>
+                        <td className="px-3 py-3 align-top">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                              {item.source_type}
+                            </span>
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                                isResolved
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                  : 'border-amber-200 bg-amber-50 text-amber-800'
+                              }`}
+                            >
+                              {item.status || '—'}
+                            </span>
+                            <span className="text-[10px] text-slate-400">{item.ticket_code || item.id}</span>
                           </div>
+                          <p className="mt-1 font-medium text-slate-800">{item.subject || '—'}</p>
                         </td>
-
-                        {/* RECIPIENT PARTY (TO) */}
-                        <td className="py-3.5 px-3.5">
-                          <div className="flex items-start gap-2">
-                            <CornerDownRight className="w-3.5 h-3.5 text-emerald-600 mt-1 shrink-0" />
-                            <div>
-                              <span className="font-bold text-slate-900 block truncate max-w-[140px]" title={item.recipient_name}>
-                                {item.recipient_name || item.recipient_role}
-                              </span>
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
-                                  {item.recipient_role}
-                                </span>
-                              </div>
-                              <span className="text-[10px] text-slate-500 block truncate max-w-[140px] mt-0.5">
-                                {item.recipient_department || `${item.recipient_role} Desk`}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Subject & Excerpt */}
-                        <td className="py-3.5 px-3.5 max-w-[220px]">
-                          <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 mb-0.5">
-                            {item.category}
-                          </span>
-                          <span className="font-bold text-slate-900 block truncate text-xs" title={item.subject}>
-                            {item.subject}
-                          </span>
-                          <span className="text-[11px] text-slate-500 line-clamp-1 truncate block mt-0.5" title={item.description}>
-                            {item.description}
-                          </span>
-                        </td>
-
-                        {/* Priority */}
-                        <td className="py-3.5 px-3.5">
-                          <span
-                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                              isUrgent
-                                ? 'bg-rose-50 text-rose-800 border-rose-300'
-                                : isHigh
-                                ? 'bg-amber-50 text-amber-800 border-amber-300'
-                                : 'bg-slate-100 text-slate-700 border-slate-200'
-                            }`}
-                          >
-                            {isUrgent && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />}
-                            {item.severity || item.priority || 'Normal'}
-                          </span>
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-3.5 px-3.5">
-                          <span
-                            className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
-                              isResolved
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-500/30'
-                                : item.status === 'In Progress'
-                                ? 'bg-purple-50 text-purple-800 border-purple-200'
-                                : item.status === 'Under Review'
-                                ? 'bg-blue-50 text-blue-800 border-blue-200'
-                                : 'bg-amber-50 text-amber-800 border-amber-300'
-                            }`}
-                          >
-                            {isResolved ? (
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            ) : (
-                              <Clock className="w-3 h-3 text-amber-600" />
-                            )}
-                            {item.status}
-                          </span>
-                        </td>
-
-                        {/* Date */}
-                        <td className="py-3.5 px-3.5 text-slate-500 whitespace-nowrap text-[11px]">
-                          {item.created_at ? formatDate(item.created_at) : '—'}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="py-3.5 px-3.5 text-right">
+                        <td className="px-3 py-3 text-right align-middle">
                           <button
                             type="button"
                             onClick={() => handleOpenInspect(item)}
-                            title="Inspect Feedback & Direct Parties"
-                            className="p-1.5 rounded-lg text-slate-600 hover:text-emerald-700 hover:bg-slate-100 transition border border-slate-200 inline-flex items-center gap-1 text-[11px] font-semibold cursor-pointer"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-[#006B56] hover:bg-emerald-50 cursor-pointer"
                           >
-                            <Eye className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Inspect</span>
+                            <Eye className="h-3.5 w-3.5" />
+                            View
                           </button>
                         </td>
                       </tr>
                     );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       )}
 
-      {/* Inspect Inter-Party Exchange Modal */}
+      {/* Feedback details and reply */}
       {activeComplaint && (
         <Modal
           isOpen={Boolean(activeComplaint)}
           onClose={() => setActiveComplaint(null)}
-          size="lg"
-          title={`Feedback & Grievance Dossier: ${activeComplaint.ticket_code}`}
+          maxWidth="max-w-2xl"
+          title={activeComplaint.ticket_code ? `Feedback · ${activeComplaint.ticket_code}` : 'Feedback details'}
         >
-          <div className="space-y-4 text-xs">
-            {/* Top Overview Banner */}
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  {activeComplaint.source_type}
-                </span>
-                <span className="text-[11px] text-slate-500">
-                  Logged: {activeComplaint.created_at ? formatDate(activeComplaint.created_at) : '—'}
-                </span>
-              </div>
-
-              {/* Crystal Clear Sender -> Receiver Route */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
-                {/* SENDER BOX */}
-                <div className="p-3 bg-white rounded-lg border border-slate-200 shadow-2xs">
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    <Users className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Sender (From)</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-black text-sm text-slate-900">{activeComplaint.sender_name}</span>
-                    <span className="text-[10px] px-2 py-0.2 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
-                      {activeComplaint.sender_role}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    <span className="text-slate-400">Origin / Entity:</span>{' '}
-                    <span className="font-semibold text-slate-700">{activeComplaint.sender_location || 'Field Zone'}</span>
-                  </p>
-                </div>
-
-                {/* RECEIVER BOX */}
-                <div className="p-3 bg-white rounded-lg border border-slate-200 shadow-2xs">
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    <CornerDownRight className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Receiver (Sent To)</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-black text-sm text-slate-900">{activeComplaint.recipient_name}</span>
-                    <span className="text-[10px] px-2 py-0.2 rounded bg-blue-50 text-blue-800 font-bold border border-blue-200">
-                      {activeComplaint.recipient_role}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    <span className="text-slate-400">Assigned Desk:</span>{' '}
-                    <span className="font-semibold text-slate-700">{activeComplaint.recipient_department || `${activeComplaint.recipient_role} Desk`}</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Parties Info Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sender Party Origin</p>
-                <p className="font-bold text-slate-900 text-sm">{activeComplaint.sender_name || activeComplaint.beneficiary_name}</p>
-                <p className="text-slate-600">Location: {activeComplaint.sender_location || 'General Operational Zone'}</p>
-                <p className="text-slate-500 text-[11px]">Identity ID: {activeComplaint.beneficiary_id || 'N/A'}</p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Assigned Recipient Party</p>
-                <p className="font-bold text-slate-900 text-sm">{activeComplaint.recipient_name}</p>
-                <p className="text-slate-600">Designation: {activeComplaint.recipient_role}</p>
-                <p className="text-slate-500 text-[11px]">Department: {activeComplaint.recipient_department || 'Humanitarian Field Hub'}</p>
-              </div>
-            </div>
-
-            {/* Original Grievance Message */}
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <span className="font-bold text-slate-900 text-sm">{activeComplaint.subject}</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
-                  {activeComplaint.category}
-                </span>
-              </div>
-              <p className="text-slate-700 leading-relaxed text-xs">
-                {activeComplaint.description}
-              </p>
-            </div>
-
-            {/* Dialogue / Communication Exchange Thread */}
-            {activeComplaint.responses && activeComplaint.responses.length > 0 && (
-              <div className="space-y-2.5">
-                <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                  Exchange History Between Parties ({activeComplaint.responses.length} messages)
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h4 className="truncate text-sm font-semibold text-slate-900">{activeComplaint.subject || 'Feedback'}</h4>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  {activeComplaint.category || activeComplaint.source_type}
+                  {activeComplaint.created_at ? ` · ${formatDate(activeComplaint.created_at)}` : ''}
                 </p>
-                <div className="space-y-2 max-h-48 overflow-y-auto p-3 rounded-xl bg-slate-100 border border-slate-200">
-                  {activeComplaint.responses.map((r, i) => (
-                    <div key={i} className="p-2.5 rounded-lg bg-white border border-slate-200 space-y-1 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                          {r.sender}
-                          <span className="text-[10px] text-slate-500 font-normal">({r.role})</span>
-                        </span>
-                        <span className="text-[10px] text-slate-400">
-                          {r.timestamp ? formatDate(r.timestamp) : ''}
-                        </span>
-                      </div>
-                      <p className="text-slate-700">{r.message}</p>
-                    </div>
-                  ))}
+              </div>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                {activeComplaint.status || '—'}
+              </span>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-slate-800">
+                    {activeComplaint.sender_name || activeComplaint.beneficiary_name || '—'}
+                  </p>
+                  <p className="text-[10px] text-slate-500">{activeComplaint.sender_role || 'Sender'}</p>
+                </div>
+                <span className="shrink-0 text-[10px] text-slate-400">to</span>
+                <div className="min-w-0 text-right">
+                  <p className="truncate text-xs font-semibold text-slate-800">{activeComplaint.recipient_name || '—'}</p>
+                  <p className="text-[10px] text-slate-500">{activeComplaint.recipient_role || 'Recipient'}</p>
                 </div>
               </div>
-            )}
 
-            {/* Administrative Oversight Action Form */}
-            <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-500/30 space-y-3">
-              <p className="font-bold text-emerald-900 flex items-center gap-1.5 text-xs">
-                <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                Administrative Compliance Oversight & Case Resolution
-              </p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-800 mb-1">Update Status</label>
-                  <select
-                    value={newStatus}
-                    onChange={(e) => setNewStatus(e.target.value)}
-                    className="adra-select text-xs font-semibold"
+              <div className="max-h-[38vh] min-h-48 space-y-3 overflow-y-auto p-3 sm:p-4">
+                {conversationMessages.length ? conversationMessages.map((message, index) => {
+                  const isReply = index > 0;
+                  return (
+                    <div key={`${message.timestamp || index}-${index}`} className={`flex ${isReply ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] rounded-2xl px-3 py-2 shadow-sm ${
+                        isReply
+                          ? 'rounded-br-md bg-emerald-100 text-emerald-950'
+                          : 'rounded-bl-md border border-slate-200 bg-white text-slate-800'
+                      }`}>
+                        <p className={`text-[10px] font-semibold ${isReply ? 'text-emerald-800' : 'text-slate-500'}`}>
+                          {[message.sender, message.role].filter(Boolean).join(' · ') || (isReply ? 'Reply' : 'Sender')}
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{message.message}</p>
+                        {message.timestamp && (
+                          <p className={`mt-1 text-right text-[9px] ${isReply ? 'text-emerald-700/70' : 'text-slate-400'}`}>
+                            {formatDate(message.timestamp)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <p className="py-8 text-center text-xs text-slate-400">No messages in this conversation yet.</p>
+                )}
+              </div>
+
+              <div className="border-t border-slate-200 bg-white p-3">
+                <label htmlFor="feedback-reply" className="sr-only">Reply</label>
+                <textarea
+                  id="feedback-reply"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Write a reply..."
+                  rows={2}
+                  className="adra-input min-h-16 resize-y text-sm"
+                  disabled={isUpdating}
+                />
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="feedback-status" className="text-[11px] font-medium text-slate-500">Status</label>
+                    <select
+                      id="feedback-status"
+                      value={newStatus}
+                      onChange={(e) => setNewStatus(e.target.value)}
+                      className="adra-select py-1.5 text-xs"
+                      disabled={isUpdating}
+                    >
+                      <option value="Under Review">Under review</option>
+                      <option value="In Progress">In progress</option>
+                      <option value="Escalated">Escalated</option>
+                      <option value="Resolved">Resolved</option>
+                    </select>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleSaveDecision}
+                    disabled={isUpdating || (!replyText.trim() && newStatus === activeComplaint.status)}
+                    className="bg-emerald-600 hover:bg-emerald-700"
                   >
-                    <option value="Under Review">Under Review</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Escalated">Escalate to Executive Directorate</option>
-                    <option value="Resolved">Mark as Resolved & Closed</option>
-                  </select>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block font-semibold text-slate-800 mb-1">
-                    Administrative Compliance Notes / Regulatory Decision:
-                  </label>
-                  <input
-                    type="text"
-                    value={adminNote}
-                    onChange={(e) => setAdminNote(e.target.value)}
-                    placeholder="e.g. Audit review passed; verified priority queue established with Lodwar depot team."
-                    className="adra-input text-xs"
-                  />
+                    {isUpdating ? 'Sending...' : replyText.trim() ? 'Send reply' : 'Update status'}
+                  </Button>
                 </div>
               </div>
             </div>
 
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setActiveComplaint(null)}
-                disabled={isUpdating}
-              >
-                Close Dossier
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleSaveDecision}
-                disabled={isUpdating}
-                className="bg-emerald-600 hover:bg-emerald-700"
-              >
-                {isUpdating ? 'Saving...' : 'Save Oversight Decision'}
+            <div className="flex justify-end">
+              <Button variant="secondary" size="sm" onClick={() => setActiveComplaint(null)} disabled={isUpdating}>
+                Close
               </Button>
             </div>
           </div>

@@ -40,6 +40,7 @@ import { SupervisorBeneficiariesView } from './components/SupervisorBeneficiarie
 import { SupervisorNotificationsView } from './components/SupervisorNotificationsView';
 import { SupervisorActivityHistoryView } from './components/SupervisorActivityHistoryView';
 import { SupervisorFacilitationsView } from './components/SupervisorFacilitationsView';
+import { SupervisorProfileView } from './components/SupervisorProfileView';
 import { WaybillDetailModal } from '../inventory/components/WaybillDetailModal';
 import { HandoverModal } from './components/HandoverModal';
 import { AdraLogo } from '../../components/common/AdraLogo';
@@ -51,7 +52,7 @@ export function SupervisorMobileApp({
   onSwitchRole,
   onBackToFieldApp
 }) {
-  const { logout, quickSwitchRole } = useAuth();
+  const { logout, quickSwitchRole, updateCurrentUser } = useAuth();
   const toast = useToast();
 
   // Navigation states: 'dashboard' | 'assignments' | 'dispatches' | 'team' | 'facilitations' | 'reports' | 'beneficiaries' | 'activities' | 'profile'
@@ -345,10 +346,34 @@ export function SupervisorMobileApp({
     }
   };
 
-  // Handler: Update Profile
+  // Handler: Update Profile & Settings
   const handleUpdateProfile = async (id, data) => {
-    await db.updateUser(id, data);
-    await loadData(activeSupervisor);
+    const effectiveId = id || activeSupervisor?.id || currentUser?.id;
+    if (db.updateSupervisorProfile) {
+      await db.updateSupervisorProfile(effectiveId, data);
+    }
+    if (db.updateUser) {
+      await db.updateUser(effectiveId, data);
+    }
+    // Update local activeSupervisor state immediately
+    setActiveSupervisor(prev => ({
+      ...prev,
+      ...data,
+      name: data.full_name || prev?.name,
+      assigned_area: data.operational_area || data.department || prev?.assigned_area,
+      state: data.state || prev?.state
+    }));
+    // Synchronize global current user in AuthContext
+    if (updateCurrentUser) {
+      updateCurrentUser({
+        full_name: data.full_name,
+        phone: data.phone,
+        email: data.email,
+        department: data.department || data.operational_area,
+        state: data.state
+      });
+    }
+    await loadData(activeSupervisor, true);
   };
 
   // Unread notifications count
@@ -570,8 +595,13 @@ export function SupervisorMobileApp({
         <div className="p-4">
           <SupervisorProfileView
             currentUser={currentUser}
+            activeSupervisor={activeSupervisor}
+            allSupervisors={allSupervisors}
+            onSelectStateSupervisor={handleSelectStateSupervisor}
             onUpdateProfile={handleUpdateProfile}
             onBack={() => setActiveSubview(null)}
+            onLogout={onLogout || logout}
+            onSwitchRole={onSwitchRole}
           />
         </div>
       );
@@ -727,7 +757,16 @@ export function SupervisorMobileApp({
           <div className="p-4">
             <SupervisorProfileView
               currentUser={currentUser}
+              activeSupervisor={activeSupervisor}
+              allSupervisors={allSupervisors}
+              onSelectStateSupervisor={handleSelectStateSupervisor}
               onUpdateProfile={handleUpdateProfile}
+              onBack={() => {
+                setActiveSubview(null);
+                setActiveTab('dashboard');
+              }}
+              onLogout={onLogout || logout}
+              onSwitchRole={onSwitchRole}
             />
           </div>
         );
@@ -1402,7 +1441,15 @@ export function SupervisorMobileApp({
 
           {/* Drawer Footer Profile & Actions */}
           <div className="p-3 border-t border-slate-100 bg-slate-50/70 space-y-2">
-            <div className="p-2 rounded-xl bg-white border border-slate-200/80 flex items-center justify-between">
+            <div
+              onClick={() => {
+                setActiveSubview(null);
+                setActiveTab('profile');
+                setIsSidebarOpen(false);
+              }}
+              className="p-2 rounded-xl bg-white border border-slate-200/80 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition active:scale-98"
+              title="Open Profile & Settings"
+            >
               <div className="flex items-center space-x-2 min-w-0">
                 <div className="w-7 h-7 rounded-full bg-[#004D3F] flex items-center justify-center text-white ring-1 ring-slate-200 shrink-0">
                   <User className="w-3.5 h-3.5" />
@@ -1416,6 +1463,7 @@ export function SupervisorMobileApp({
                   </span>
                 </div>
               </div>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             </div>
 
             {/* Quick Role Switcher */}
@@ -1475,11 +1523,18 @@ export function SupervisorMobileApp({
         <div className="min-h-14 py-2 flex items-center justify-between gap-3">
           {/* Left: Menu button + ADRA South Sudan Brand */}
         <div className="flex items-center gap-2.5 min-w-0">
-          {activeSubview ? (
+          {(activeSubview || activeTab === 'profile') ? (
             <button
               type="button"
-              onClick={() => setActiveSubview(null)}
+              onClick={() => {
+                if (activeSubview) {
+                  setActiveSubview(null);
+                } else if (activeTab === 'profile') {
+                  setActiveTab('dashboard');
+                }
+              }}
               className="p-1.5 -ml-1 text-white hover:bg-white/15 rounded-xl transition cursor-pointer flex items-center space-x-1 text-xs font-bold"
+              title="Back"
             >
               <ArrowLeft className="w-4 h-4 text-white" />
               <span>Back</span>
@@ -1495,13 +1550,22 @@ export function SupervisorMobileApp({
             </button>
           )}
 
-          {!activeSubview && (
+          {(!activeSubview && activeTab !== 'profile') ? (
             <div className="min-w-0 flex flex-col justify-center">
               <span className="text-base font-black text-white tracking-wider leading-tight">
                 ADRA
               </span>
               <span className="text-[10px] text-emerald-200 font-medium leading-none">
                 {currentUser?.role || 'Supervisor'}
+              </span>
+            </div>
+          ) : (
+            <div className="min-w-0 flex flex-col justify-center">
+              <span className="text-sm font-bold text-white tracking-wide leading-tight">
+                Profile & Settings
+              </span>
+              <span className="text-[10px] text-emerald-200 font-medium leading-none">
+                {activeSupervisor?.name || currentUser?.full_name || 'Supervisor'}
               </span>
             </div>
           )}
@@ -1531,12 +1595,21 @@ export function SupervisorMobileApp({
           <button
             type="button"
             onClick={() => {
-              setActiveSubview(activeSubview === 'profile' ? null : 'profile');
+              if (activeTab === 'profile' || activeSubview === 'profile') {
+                setActiveSubview(null);
+                setActiveTab('dashboard');
+              } else {
+                setActiveSubview('profile');
+              }
             }}
-            className="flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95 cursor-pointer shadow-2xs border border-white/20"
-            title="Supervisor Profile"
+            className={`flex items-center justify-center p-2 rounded-xl transition active:scale-95 cursor-pointer shadow-2xs border ${
+              (activeTab === 'profile' || activeSubview === 'profile')
+                ? 'bg-white text-[#004D3F] border-white'
+                : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+            }`}
+            title="Supervisor Profile & Settings"
           >
-            <User className="w-4 h-4 text-white" />
+            <User className="w-4 h-4" />
           </button>
 
           {/* Supervisor Logout Button */}

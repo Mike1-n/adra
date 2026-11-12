@@ -26,7 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
-  const { login, signup, demoAccounts, loading } = useAuth();
+  const { login, signup, loading } = useAuth();
   const toast = useToast();
 
   // Mode: 'login' | 'signup'
@@ -86,6 +86,8 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
   // Modals
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
+  const [pendingAccountInfo, setPendingAccountInfo] = useState(null);
+  const [pendingNotice, setPendingNotice] = useState(null);
 
   // Submit Login
   const handleLoginSubmit = async (e) => {
@@ -98,9 +100,13 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
     }
 
     try {
+      setPendingNotice(null);
       const user = await login(cleanIdent, cleanPass);
       if (onLoginSuccess) onLoginSuccess(user);
     } catch (err) {
+      if (err.message && (err.message.includes('pending') || err.message.includes('approval') || err.message.includes('verification'))) {
+        setPendingNotice(err.message);
+      }
       // Error handled in AuthContext
     }
   };
@@ -133,6 +139,11 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
       return;
     }
 
+    if (signupForm.password.length < 6) {
+      toast.warning('Password must be at least 6 characters long.');
+      return;
+    }
+
     if (signupForm.password !== signupForm.confirm_password) {
       toast.warning('Passwords do not match. Please verify your confirm password.');
       return;
@@ -145,6 +156,7 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
     const fullPhone = `+211 ${phoneDigits}`;
 
     try {
+      setPendingNotice(null);
       await signup({
         accountType: signupType,
         ...signupForm,
@@ -156,18 +168,10 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
       });
       setIdentifier(signupForm.email.trim());
       setIsSignUp(false);
-    } catch (err) {
-      // Error handled in AuthContext
-    }
-  };
-
-  // Quick 1-Click login helper for defense / evaluation
-  const handleQuickLogin = async (acc) => {
-    setIdentifier(acc.email);
-    setPassword('Password123!');
-    try {
-      const user = await login(acc.email, 'Password123!');
-      if (onLoginSuccess) onLoginSuccess(user);
+      setPendingAccountInfo({
+        fullName,
+        email: signupForm.email.trim()
+      });
     } catch (err) {
       // Error handled in AuthContext
     }
@@ -215,6 +219,31 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                 {/* A. LOGIN FORM (100% Mockup Match) */}
                 {!isSignUp ? (
                   <form onSubmit={handleLoginSubmit} className="space-y-3.5 mt-4">
+
+                    {/* Verification Notice Banners */}
+                    {pendingAccountInfo && !pendingNotice && (
+                      <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+                        <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <span className="font-bold text-amber-950 block">Account Verification Pending</span>
+                          <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                            Profile for <strong className="font-bold text-amber-950">{pendingAccountInfo.fullName}</strong> is awaiting administrator approval before you can log in.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {pendingNotice && (
+                      <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+                        <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <span className="font-bold text-amber-950 block">Administrator Approval Required</span>
+                          <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                            {pendingNotice}
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Email Address input */}
                     <div>
@@ -279,27 +308,19 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                       </button>
                     </div>
 
-                    {/* OR Divider */}
-                    <div className="relative my-4 flex items-center justify-center">
-                      <div className="w-full border-t border-slate-200" />
-                      <span className="absolute bg-white px-3 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        OR
-                      </span>
-                    </div>
-
-                    {/* Create Account Link */}
-                    <div className="text-center">
+                    {/* Switch to Sign Up */}
+                    <div className="text-center pt-2">
                       <button
                         type="button"
                         onClick={() => setIsSignUp(true)}
-                        className="text-xs font-bold text-[#006B56] hover:underline cursor-pointer"
+                        className="text-xs text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
                       >
-                        Create Account
+                        Don't have an account? <span className="text-[#006B56] font-bold hover:underline">Create Account</span>
                       </button>
                     </div>
 
                     {/* Quick Role Fill for Development & Testing */}
-                    <div className="pt-3 border-t border-slate-100 mt-2">
+                    <div className="hidden">
                       <p className="text-[10px] uppercase font-bold text-slate-400 text-center tracking-wider mb-2">
                         Quick Demo Accounts (1-Click Fill)
                       </p>
@@ -530,7 +551,7 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                       type={showSignupPassword ? 'text' : 'password'}
                       value={signupForm.password}
                       onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                      placeholder="Enter a secure password"
+                      placeholder="Enter password (min. 6 characters)"
                       className="w-full pl-9 pr-10 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 bg-transparent outline-none"
                       required
                     />
@@ -571,6 +592,12 @@ export function Login({ onLoginSuccess, onSwitchToAdminLogin }) {
                   </div>
                 </div>
 
+
+                {/* Safeguarding & Verification Notice */}
+                <div className="p-2.5 my-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-[11px] flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#006B56] shrink-0" />
+                  <span className="leading-snug">New account registrations require ADRA administrator approval before you can log in.</span>
+                </div>
 
                 {/* Submit Sign Up */}
                 <button

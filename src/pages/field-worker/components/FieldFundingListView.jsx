@@ -27,11 +27,13 @@ import {
   ArrowRight,
   AlertTriangle,
   XCircle,
-  RotateCcw
+  RotateCcw,
+  Lock
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 import { db } from '../../../lib/supabase';
 import { exportVoucherPDF } from '../../../lib/reportGenerator';
+import { getTaskFacilitationStatus } from '../../../lib/utils';
 
 const FUNDING_CATEGORIES = [
   { id: 'Transport & Vehicle Fuel', label: 'Transport & Fuel' },
@@ -153,6 +155,20 @@ export function FieldFundingListView({
       return;
     }
 
+    if (!revisingReq) {
+      const facStatus = getTaskFacilitationStatus(task, requests);
+      if (facStatus.isLocked) {
+        if (facStatus.isPaid) {
+          toast.warning(`Facilitation for ${task?.beneficiary_name} has already been approved and paid. You cannot request facilitation again.`);
+        } else if (facStatus.isApproved) {
+          toast.warning(`Facilitation for ${task?.beneficiary_name} has already been approved. You cannot request facilitation again.`);
+        } else {
+          toast.warning(`A facilitation request for ${task?.beneficiary_name} is already under review (${facStatus.req?.status || 'Pending'}).`);
+        }
+        return;
+      }
+    }
+
     try {
       setSubmitting(true);
       const validBreakdown = breakdown
@@ -168,6 +184,7 @@ export function FieldFundingListView({
       const payload = {
         id: revisingReq?.id,
         request_code: revisingReq?.request_code,
+        linked_task_id: task?.id || task?.request_code || revisingReq?.linked_task_id,
         field_worker_id: worker?.id || revisingReq?.field_worker_id || 'fw-1',
         field_worker_name: worker?.name || revisingReq?.field_worker_name || 'John Deng',
         field_worker_email: worker?.email || revisingReq?.field_worker_email || 'john.deng@adra.org',
@@ -350,15 +367,11 @@ export function FieldFundingListView({
                 const isFormOpen = activeFormTaskId === taskId;
 
                 // Find any funding requests already made for this specific task
-                const taskRequests = requests.filter(r => 
-                  (r.linked_task_id && r.linked_task_id === taskId) ||
-                  (r.linked_request_code && r.linked_request_code === task.request_code) ||
-                  (r.linked_beneficiary_name && r.linked_beneficiary_name === task.beneficiary_name)
-                );
-
-                const activeDisbursedReq = taskRequests.find(r => r.status === 'Disbursed' || r.stage === 4 || r.status === 'Disbursed / Paid');
-                const activePendingReq = taskRequests.find(r => !r.status?.includes('Rejected') && r.stage !== -1 && r.status !== 'Disbursed' && r.stage !== 4);
-                const activeRejectedReq = taskRequests.find(r => r.status?.includes('Rejected') || r.stage === -1 || r.returned_to_worker);
+                const facStatus = getTaskFacilitationStatus(task, requests);
+                const activeDisbursedReq = facStatus.isPaid ? facStatus.req : null;
+                const activeApprovedReq = (!facStatus.isPaid && facStatus.isApproved) ? facStatus.req : null;
+                const activePendingReq = facStatus.isPending ? facStatus.req : null;
+                const activeRejectedReq = facStatus.isRejected ? facStatus.req : null;
 
                 return (
                   <div
@@ -384,16 +397,22 @@ export function FieldFundingListView({
                             {activeDisbursedReq && (
                               <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-300 flex items-center gap-1">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                <span>Disbursed ({Number(activeDisbursedReq.amount).toLocaleString()} SSP)</span>
+                                <span>Paid ({Number(activeDisbursedReq.amount).toLocaleString()} SSP)</span>
                               </span>
                             )}
-                            {activePendingReq && !activeDisbursedReq && (
+                            {activeApprovedReq && (
+                              <span className="text-[10px] font-black bg-emerald-100 text-[#006B56] px-2 py-0.5 rounded-md border border-emerald-300 flex items-center gap-1">
+                                <Lock className="w-3 h-3 text-[#006B56]" />
+                                <span>Approved ({Number(activeApprovedReq.amount).toLocaleString()} SSP)</span>
+                              </span>
+                            )}
+                            {activePendingReq && !activeDisbursedReq && !activeApprovedReq && (
                               <span className="text-[10px] font-black bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1">
                                 <Clock className="w-3 h-3 text-amber-600" />
                                 <span>Under Review ({Number(activePendingReq.amount).toLocaleString()} SSP)</span>
                               </span>
                             )}
-                            {activeRejectedReq && !activeDisbursedReq && !activePendingReq && (
+                            {activeRejectedReq && !facStatus.isLocked && (
                               <span className="text-[10px] font-black bg-rose-100 text-rose-900 px-2 py-0.5 rounded-md border border-rose-300 flex items-center gap-1">
                                 <AlertTriangle className="w-3 h-3 text-rose-600" />
                                 <span>Returned</span>
@@ -416,14 +435,22 @@ export function FieldFundingListView({
                           {activeDisbursedReq ? (
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedVoucher(activeDisbursedReq);
-                              }}
-                              className="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-emerald-50 text-[#006B56] hover:bg-emerald-100 border border-emerald-300 shadow-2xs cursor-pointer"
+                              disabled
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-emerald-100 text-emerald-800 border border-emerald-300 opacity-90 cursor-not-allowed shadow-2xs"
+                              title="Facilitation has been approved and paid for this case. You cannot request facilitation again."
                             >
-                              <Receipt className="w-3.5 h-3.5" />
-                              <span>View Receipt</span>
+                              <Lock className="w-3.5 h-3.5 text-emerald-700" />
+                              <span>Facilitation Paid</span>
+                            </button>
+                          ) : activeApprovedReq ? (
+                            <button
+                              type="button"
+                              disabled
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-emerald-100 text-[#006B56] border border-emerald-300 opacity-90 cursor-not-allowed shadow-2xs"
+                              title="Facilitation has already been approved for this case. You cannot request facilitation again."
+                            >
+                              <Lock className="w-3.5 h-3.5 text-[#006B56]" />
+                              <span>Facilitation Approved</span>
                             </button>
                           ) : activePendingReq ? (
                             <button
@@ -433,6 +460,7 @@ export function FieldFundingListView({
                                 setView('pending');
                               }}
                               className="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300 shadow-2xs cursor-pointer"
+                              title="Requisition under review. Click to track."
                             >
                               <Clock className="w-3.5 h-3.5 text-amber-700" />
                               <span>Under Review</span>
@@ -479,15 +507,15 @@ export function FieldFundingListView({
                       return (
                         <div className="p-3.5 bg-emerald-50/70 border-t border-emerald-100 space-y-3 text-xs animate-in fade-in duration-150">
                           <div className="flex items-start gap-2.5">
-                            <CheckCircle2 className="w-5 h-5 text-[#006B56] shrink-0 mt-0.5" />
+                            <Lock className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
                             <div className="space-y-1">
-                              <h4 className="font-bold text-emerald-950">
-                                Facilitation Disbursed ({Number(activeDisbursedReq.amount).toLocaleString()} SSP)
+                              <h4 className="font-bold text-emerald-950 flex items-center gap-1.5">
+                                <span>Facilitation Approved & Paid ({Number(activeDisbursedReq.amount).toLocaleString()} SSP)</span>
                               </h4>
                               <p className="text-[11px] text-emerald-900 leading-relaxed">
                                 {isAuditDone
-                                  ? `Funds have already been disbursed via ${activeDisbursedReq.finance_disbursement?.payment_method || activeDisbursedReq.preferred_payout}. Field vulnerability audit for ${task.beneficiary_name} has already been submitted to the supervisor.`
-                                  : `Funds have already been disbursed via ${activeDisbursedReq.finance_disbursement?.payment_method || activeDisbursedReq.preferred_payout}. You are fully funded to conduct the on-ground vulnerability assessment for ${task.beneficiary_name}.`}
+                                  ? `Facilitation has already been approved and paid via ${activeDisbursedReq.finance_disbursement?.payment_method || activeDisbursedReq.preferred_payout}. You cannot request facilitation again for this assignment. Field vulnerability audit for ${task.beneficiary_name} has already been submitted.`
+                                  : `Facilitation has already been approved and paid via ${activeDisbursedReq.finance_disbursement?.payment_method || activeDisbursedReq.preferred_payout}. You cannot request facilitation again. You are fully funded to conduct the vulnerability assessment for ${task.beneficiary_name}.`}
                               </p>
                             </div>
                           </div>
@@ -521,8 +549,36 @@ export function FieldFundingListView({
                       );
                     })()}
 
+                    {/* ALREADY APPROVED STATE BANNER (LOCKED) */}
+                    {isFormOpen && activeApprovedReq && (
+                      <div className="p-3.5 bg-emerald-50/70 border-t border-emerald-100 space-y-3 text-xs animate-in fade-in duration-150">
+                        <div className="flex items-start gap-2.5">
+                          <Lock className="w-5 h-5 text-[#006B56] shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <h4 className="font-bold text-emerald-950 flex items-center gap-1.5">
+                              <span>Facilitation Approved ({Number(activeApprovedReq.amount).toLocaleString()} SSP)</span>
+                            </h4>
+                            <p className="text-[11px] text-emerald-900 leading-relaxed">
+                              Facilitation for {task.beneficiary_name} has been approved ({activeApprovedReq.status}) and is queued for finance disbursement. This assignment is locked—you cannot request facilitation again for this case.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="pt-1 border-t border-emerald-200/60">
+                          <button
+                            type="button"
+                            onClick={() => setView('pending')}
+                            className="w-full py-2 px-3 bg-[#006B56] hover:bg-[#005a48] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                          >
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Track in Facilitations Workflow</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* ALREADY PENDING STATE BANNER */}
-                    {isFormOpen && activePendingReq && !activeDisbursedReq && (
+                    {isFormOpen && activePendingReq && !activeDisbursedReq && !activeApprovedReq && (
                       <div className="p-3.5 bg-amber-50/70 border-t border-amber-100 space-y-3 text-xs animate-in fade-in duration-150">
                         <div className="flex items-start gap-2.5">
                           <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
@@ -549,8 +605,8 @@ export function FieldFundingListView({
                       </div>
                     )}
 
-                    {/* INLINE FACILITATION REQUISITION FORM (ONLY WHEN NOT ALREADY DISBURSED/PENDING) */}
-                    {isFormOpen && !activeDisbursedReq && !activePendingReq && (
+                    {/* INLINE FACILITATION REQUISITION FORM (ONLY WHEN NOT ALREADY DISBURSED/APPROVED/PENDING) */}
+                    {isFormOpen && !activeDisbursedReq && !activeApprovedReq && !activePendingReq && (
                       <div className="p-3.5 bg-slate-50/90 border-t border-slate-100 space-y-3 text-xs animate-in fade-in duration-150">
                         
                         {/* 1. Itemized Breakdown (SSP) */}

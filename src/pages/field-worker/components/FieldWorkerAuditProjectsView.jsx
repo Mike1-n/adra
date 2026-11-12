@@ -25,14 +25,17 @@ import {
   FileText,
   UserCheck,
   AlertCircle,
-  RotateCcw
+  RotateCcw,
+  Lock
 } from 'lucide-react';
+import { getTaskFacilitationStatus } from '../../../lib/utils';
 
 export function FieldWorkerAuditProjectsView({
   projects = [],
   tasks = [],
   assessments = [],
   beneficiaries = [],
+  fundingRequests = [],
   worker = {},
   selectedProject = null,
   onSelectProject,
@@ -578,15 +581,60 @@ export function FieldWorkerAuditProjectsView({
                     </span>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {onRequestFacilitation && (
-                        <button
-                          type="button"
-                          onClick={() => onRequestFacilitation(task)}
-                          className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[10px] font-bold rounded-lg border border-amber-200 transition cursor-pointer"
-                        >
-                          Facilitation
-                        </button>
-                      )}
+                      {(() => {
+                        const facStatus = getTaskFacilitationStatus(task, fundingRequests);
+                        if (facStatus.isPaid) {
+                          return (
+                            <button
+                              type="button"
+                              disabled
+                              className="px-2 py-1 bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-not-allowed opacity-90"
+                              title="Facilitation approved and paid. Cannot request again."
+                            >
+                              <Lock className="w-3 h-3 text-emerald-700" />
+                              <span>Paid</span>
+                            </button>
+                          );
+                        }
+                        if (facStatus.isApproved) {
+                          return (
+                            <button
+                              type="button"
+                              disabled
+                              className="px-2 py-1 bg-emerald-100 text-[#006B56] border border-emerald-300 text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-not-allowed opacity-90"
+                              title="Facilitation approved. Cannot request again."
+                            >
+                              <Lock className="w-3 h-3 text-[#006B56]" />
+                              <span>Approved</span>
+                            </button>
+                          );
+                        }
+                        if (facStatus.isPending) {
+                          return (
+                            <button
+                              type="button"
+                              disabled
+                              className="px-2 py-1 bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold rounded-lg flex items-center gap-1 cursor-not-allowed opacity-90"
+                              title="Facilitation request under review."
+                            >
+                              <Lock className="w-3 h-3 text-amber-600" />
+                              <span>Pending</span>
+                            </button>
+                          );
+                        }
+                        if (onRequestFacilitation) {
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => onRequestFacilitation(task)}
+                              className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[10px] font-bold rounded-lg border border-amber-200 transition cursor-pointer"
+                            >
+                              Facilitation
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
 
                       {isRejected && (
                         <button

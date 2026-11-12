@@ -77,3 +77,123 @@ export function calculatePercentage(part, total) {
   if (!total || total === 0) return 0;
   return Math.min(100, Math.round((part / total) * 100));
 }
+
+/**
+ * Resolves facilitation status for a field case/task.
+ * Returns { req, status, isPaid, isApproved, isPending, isRejected, isLocked, label, badgeClass }
+ * If isPaid or isApproved, isLocked = true, locking any further facilitation requests.
+ */
+export function getTaskFacilitationStatus(task, requests = []) {
+  if (!task || !Array.isArray(requests) || requests.length === 0) {
+    return { req: null, status: 'none', isPaid: false, isApproved: false, isPending: false, isRejected: false, isLocked: false, label: 'None', badgeClass: 'bg-slate-100 text-slate-700' };
+  }
+
+  const taskId = String(task.id || '').toLowerCase().trim();
+  const requestCode = String(task.request_code || '').toLowerCase().trim();
+  const benName = String(task.beneficiary_name || '').toLowerCase().trim();
+
+  // Find all funding requests matching this task
+  const matching = requests.filter(r => {
+    if (!r) return false;
+    const rTaskId = String(r.linked_task_id || '').toLowerCase().trim();
+    const rCode = String(r.linked_request_code || '').toLowerCase().trim();
+    const rBen = String(r.linked_beneficiary_name || '').toLowerCase().trim();
+
+    return (
+      (taskId && rTaskId && taskId === rTaskId) ||
+      (requestCode && rCode && requestCode === rCode) ||
+      (benName && rBen && benName === rBen) ||
+      (task.id && r.linked_task_id === task.id) ||
+      (task.request_code && r.linked_request_code === task.request_code)
+    );
+  });
+
+  if (!matching.length) {
+    return { req: null, status: 'none', isPaid: false, isApproved: false, isPending: false, isRejected: false, isLocked: false, label: 'None', badgeClass: 'bg-slate-100 text-slate-700' };
+  }
+
+  // 1. Paid / Disbursed: Locked
+  const disbursedReq = matching.find(r => 
+    r.status === 'Disbursed' || 
+    r.status === 'Disbursed / Paid' || 
+    r.status === 'Paid' || 
+    r.stage === 4 || 
+    Boolean(r.disbursed_at) || 
+    r.finance_disbursement?.status === 'Disbursed'
+  );
+
+  if (disbursedReq) {
+    return {
+      req: disbursedReq,
+      status: 'paid',
+      isPaid: true,
+      isApproved: true,
+      isPending: false,
+      isRejected: false,
+      isLocked: true,
+      label: 'Facilitation Paid',
+      badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300'
+    };
+  }
+
+  // 2. Approved (Supervisor / PM): Locked
+  const approvedReq = matching.find(r => 
+    r.status?.toLowerCase().includes('approved') || 
+    r.stage === 2 || 
+    r.stage === 3
+  );
+
+  if (approvedReq) {
+    return {
+      req: approvedReq,
+      status: 'approved',
+      isPaid: false,
+      isApproved: true,
+      isPending: false,
+      isRejected: false,
+      isLocked: true,
+      label: 'Facilitation Approved',
+      badgeClass: 'bg-emerald-100 text-[#006B56] border-emerald-300'
+    };
+  }
+
+  // 3. Pending Review: Locked
+  const pendingReq = matching.find(r => 
+    !r.status?.toLowerCase().includes('reject') && 
+    r.stage !== -1 && 
+    !r.returned_to_worker
+  );
+
+  if (pendingReq) {
+    return {
+      req: pendingReq,
+      status: 'pending',
+      isPaid: false,
+      isApproved: false,
+      isPending: true,
+      isRejected: false,
+      isLocked: true,
+      label: 'Facilitation Pending',
+      badgeClass: 'bg-amber-100 text-amber-900 border-amber-300'
+    };
+  }
+
+  // 4. Rejected: Unlocked (can be revised or requested again)
+  const rejectedReq = matching.find(r => 
+    r.status?.toLowerCase().includes('reject') || 
+    r.stage === -1 || 
+    r.returned_to_worker
+  );
+
+  return {
+    req: rejectedReq,
+    status: rejectedReq ? 'rejected' : 'none',
+    isPaid: false,
+    isApproved: false,
+    isPending: false,
+    isRejected: Boolean(rejectedReq),
+    isLocked: false,
+    label: rejectedReq ? 'Returned' : 'None',
+    badgeClass: 'bg-rose-100 text-rose-900 border-rose-300'
+  };
+}

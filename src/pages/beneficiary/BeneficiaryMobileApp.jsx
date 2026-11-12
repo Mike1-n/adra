@@ -100,12 +100,26 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
         found.location = currentUser.location;
       }
 
-      setBeneficiary(found);
-      setDistributions(allDistributions);
-
       if (found) {
         const userReqs = await db.getAssistanceRequests(found.id || found.beneficiary_code);
         setRequests(userReqs);
+
+        // Find any active assignment metadata from requests
+        const reqWithSup = (userReqs || []).find(r => r.assigned_supervisor_name || r.assigned_supervisor_id || r.supervisor_name || r.supervisor_id);
+        const reqWithFw = (userReqs || []).find(r => r.assigned_field_worker_name || r.field_worker_name || r.assigned_field_worker_id || r.field_worker_id);
+
+        if (reqWithSup || reqWithFw) {
+          const enriched = {
+            ...found,
+            assigned_supervisor_id: found.assigned_supervisor_id || found.supervisor_id || reqWithSup?.assigned_supervisor_id || reqWithSup?.supervisor_id,
+            assigned_supervisor_name: found.assigned_supervisor_name || found.supervisor_name || reqWithSup?.assigned_supervisor_name || reqWithSup?.supervisor_name,
+            assigned_field_worker_id: found.assigned_field_worker_id || found.field_worker_id || reqWithFw?.assigned_field_worker_id || reqWithFw?.field_worker_id,
+            assigned_field_worker_name: found.assigned_field_worker_name || found.field_worker_name || reqWithFw?.assigned_field_worker_name || reqWithFw?.field_worker_name,
+          };
+          setBeneficiary(enriched);
+        } else {
+          setBeneficiary(found);
+        }
 
         // Generate dynamic notifications based on real requests and status
         const notifs = [];
@@ -355,11 +369,18 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
                         </span>
                       )}
                       {item.id === 'my_requests' ? (
-                        <button
-                          type="button"
+                        <span
+                          role="button"
+                          tabIndex={0}
                           onClick={(e) => {
                             e.stopPropagation();
                             setIsRequestsMenuOpen(prev => !prev);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.stopPropagation();
+                              setIsRequestsMenuOpen(prev => !prev);
+                            }
                           }}
                           className={`p-1 rounded-md transition cursor-pointer flex items-center justify-center ${
                             isActive
@@ -374,7 +395,7 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
                           ) : (
                             <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
                           )}
-                        </button>
+                        </span>
                       ) : (
                         isActive && (
                           <ChevronRight className="w-3.5 h-3.5 text-[#006B56] shrink-0" />

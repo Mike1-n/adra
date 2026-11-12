@@ -1,10 +1,9 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ShieldAlert } from 'lucide-react';
-import { Button } from '../common/Button';
 
 export function ProtectedRoute({ allowedRoles = [], children }) {
-  const { currentUser, hasPermission, quickSwitchRole } = useAuth();
+  const { currentUser, hasPermission } = useAuth();
 
   if (!currentUser) {
     return (
@@ -28,11 +27,6 @@ export function ProtectedRoute({ allowedRoles = [], children }) {
         <p className="text-sm text-slate-400 max-w-md mt-2 mb-6">
           Your current role (<span className="text-emerald-400 font-semibold">{currentUser.role}</span>) does not have authorization to view this module.
         </p>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => quickSwitchRole('Administrator')}>
-            Switch to Administrator
-          </Button>
-        </div>
       </div>
     );
   }

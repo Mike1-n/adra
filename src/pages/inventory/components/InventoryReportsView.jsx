@@ -8,7 +8,6 @@ import {
   Calendar,
   DollarSign,
   PackageCheck,
-  SlidersHorizontal,
   ShieldCheck,
   CheckCircle2
 } from 'lucide-react';
@@ -18,11 +17,10 @@ export function InventoryReportsView({
   inventory = [],
   dispatches = [],
   purchaseOrders = [],
-  transactions = [],
   warehouses = []
 }) {
   const toast = useToast();
-  const [reportType, setReportType] = useState('stock_balance'); // 'stock_balance' | 'grn_ledger' | 'waybill_log' | 'transactions_audit'
+  const [reportType, setReportType] = useState('stock_balance');
   const [selectedWarehouse, setSelectedWarehouse] = useState('ALL');
 
   const handleExportCSV = () => {
@@ -46,20 +44,6 @@ export function InventoryReportsView({
         `"${i.batch_number || 'N/A'}"`,
         `"${i.expiry_date || 'N/A'}"`,
         `"${i.status}"`
-      ]);
-    } else if (reportType === 'transactions_audit') {
-      headers = ['Transaction ID', 'Type', 'Reference Code', 'Item Name', 'Quantity Change', 'Unit', 'Warehouse', 'Date', 'Performed By', 'Notes'];
-      rows = transactions.map(t => [
-        `"${t.id}"`,
-        `"${t.transaction_type}"`,
-        `"${t.reference_code}"`,
-        `"${t.item_name}"`,
-        t.quantity,
-        `"${t.unit || 'Units'}"`,
-        `"${t.warehouse}"`,
-        `"${t.date}"`,
-        `"${t.performed_by}"`,
-        `"${t.notes?.replace(/"/g, '""') || ''}"`
       ]);
     } else {
       headers = ['PO Number', 'Supplier', 'Category', 'Items Summary', 'Total Amount ($)', 'Destination Warehouse', 'Order Date', 'Expected Delivery', 'Status'];
@@ -166,18 +150,6 @@ export function InventoryReportsView({
               <span>Purchase Orders</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setReportType('transactions_audit')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                reportType === 'transactions_audit'
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span>Stock Ledger</span>
-            </button>
           </div>
 
           {reportType === 'stock_balance' && (
@@ -342,60 +314,6 @@ export function InventoryReportsView({
                           {p.status}
                         </span>
                       </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* REPORT 4: TRANSACTIONS AUDIT */}
-        {reportType === 'transactions_audit' && (
-          <div className="space-y-3">
-            <span className="font-bold text-slate-900 text-xs sm:text-sm block">
-              Immutable Stock Movement Ledger (GRNs, Dispatches & Adjustments)
-            </span>
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-600 text-[11px] font-bold border-b border-slate-200">
-                    <th className="py-2 px-2.5 sm:py-2.5 sm:px-3 hidden sm:table-cell print:table-cell">Ref Code</th>
-                    <th className="py-2 px-2.5 sm:py-2.5 sm:px-3">Type</th>
-                    <th className="py-2 px-2.5 sm:py-2.5 sm:px-3">Item Description</th>
-                    <th className="py-2 px-2.5 sm:py-2.5 sm:px-3 text-right">Qty</th>
-                    <th className="py-2 px-2.5 sm:py-2.5 sm:px-3 hidden md:table-cell print:table-cell">Warehouse</th>
-                    <th className="py-2 px-2.5 sm:py-2.5 sm:px-3 hidden sm:table-cell print:table-cell">Date</th>
-                    <th className="py-2 px-2.5 sm:py-2.5 sm:px-3 hidden lg:table-cell print:table-cell">Performed By</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {transactions.map((t, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50">
-                      <td className="py-2 px-2.5 sm:px-3 font-mono font-bold text-slate-900 hidden sm:table-cell print:table-cell">
-                        {t.reference_code}
-                      </td>
-                      <td className="py-2 px-2.5 sm:px-3">
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 whitespace-nowrap">
-                          {t.transaction_type}
-                        </span>
-                      </td>
-                      <td className="py-2 px-2.5 sm:px-3">
-                        <span className="font-semibold text-slate-900 block leading-snug">{t.item_name}</span>
-                        <span className="sm:hidden text-[10px] text-slate-500 font-mono block mt-0.5 truncate max-w-[180px]">
-                          {t.reference_code} • {t.warehouse}
-                        </span>
-                      </td>
-                      <td className="py-2 px-2.5 sm:px-3 text-right font-mono font-extrabold whitespace-nowrap">
-                        <span className={Number(t.quantity) < 0 ? 'text-rose-600' : 'text-emerald-700'}>
-                          {Number(t.quantity) > 0 ? `+${t.quantity}` : t.quantity} {t.unit || 'Units'}
-                        </span>
-                      </td>
-                      <td className="py-2 px-2.5 sm:px-3 text-slate-700 hidden md:table-cell print:table-cell">{t.warehouse}</td>
-                      <td className="py-2 px-2.5 sm:px-3 text-slate-500 font-mono text-[11px] hidden sm:table-cell print:table-cell">
-                        {new Date(t.date).toISOString().split('T')[0]}
-                      </td>
-                      <td className="py-2 px-2.5 sm:px-3 text-slate-700 hidden lg:table-cell print:table-cell">{t.performed_by}</td>
                     </tr>
                   ))}
                 </tbody>

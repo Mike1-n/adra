@@ -24,8 +24,10 @@ import {
   PackageCheck,
   Package,
   MessageSquare,
-  UserCheck
+  UserCheck,
+  Lock
 } from 'lucide-react';
+import { getTaskFacilitationStatus } from '../../../lib/utils';
 
 export function FieldWorkerDashboardView({
   worker = {},
@@ -376,20 +378,65 @@ export function FieldWorkerDashboardView({
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {onRequestFacilitation && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRequestFacilitation(task);
-                        }}
-                        className="px-2 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300/80 text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1 transition cursor-pointer active:scale-95"
-                        title="Request facilitation cash for this assignment"
-                      >
-                        <DollarSign className="w-3 h-3 text-amber-700" />
-                        <span>Facilitation</span>
-                      </button>
-                    )}
+                    {(() => {
+                      const facStatus = getTaskFacilitationStatus(task, fundingRequests);
+                      if (facStatus.isPaid) {
+                        return (
+                          <button
+                            type="button"
+                            disabled
+                            className="px-2 py-1.5 bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1 cursor-not-allowed opacity-90"
+                            title="Facilitation approved and paid. Cannot request again."
+                          >
+                            <Lock className="w-3 h-3 text-emerald-700" />
+                            <span>Paid</span>
+                          </button>
+                        );
+                      }
+                      if (facStatus.isApproved) {
+                        return (
+                          <button
+                            type="button"
+                            disabled
+                            className="px-2 py-1.5 bg-emerald-100 text-[#006B56] border border-emerald-300 text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1 cursor-not-allowed opacity-90"
+                            title="Facilitation approved. Cannot request again."
+                          >
+                            <Lock className="w-3 h-3 text-[#006B56]" />
+                            <span>Approved</span>
+                          </button>
+                        );
+                      }
+                      if (facStatus.isPending) {
+                        return (
+                          <button
+                            type="button"
+                            disabled
+                            className="px-2 py-1.5 bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1 cursor-not-allowed opacity-90"
+                            title="Facilitation request is currently under review."
+                          >
+                            <Lock className="w-3 h-3 text-amber-600" />
+                            <span>Pending</span>
+                          </button>
+                        );
+                      }
+                      if (onRequestFacilitation) {
+                        return (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRequestFacilitation(task);
+                            }}
+                            className="px-2 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300/80 text-xs font-bold rounded-lg shadow-2xs flex items-center gap-1 transition cursor-pointer active:scale-95"
+                            title="Request facilitation cash for this assignment"
+                          >
+                            <DollarSign className="w-3 h-3 text-amber-700" />
+                            <span>Facilitation</span>
+                          </button>
+                        );
+                      }
+                      return null;
+                    })()}
 
                     <button
                       type="button"

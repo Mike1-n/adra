@@ -59,22 +59,36 @@ export function BeneficiaryPortalPage({ onSwitchToFieldApp }) {
         db.getBeneficiaries(),
         db.getDistributions()
       ]);
-      // Match by email, id, or default to Mary Nyambura (b7)
+      // Accurately match current user by email, beneficiary_id, beneficiary_code, phone, or id
       const found = beneficiaries.find(
         b =>
-          b.email?.toLowerCase() === currentUser?.email?.toLowerCase() ||
-          b.id === currentUser?.beneficiary_id ||
-          b.beneficiary_code === currentUser?.beneficiary_code ||
-          b.id === 'b7'
-      );
-      const targetBen = found || beneficiaries[0];
-      setBeneficiary(targetBen);
+          (currentUser?.email && b.email?.toLowerCase() === currentUser?.email?.toLowerCase()) ||
+          (currentUser?.beneficiary_id && b.id === currentUser?.beneficiary_id) ||
+          (currentUser?.beneficiary_code && b.beneficiary_code === currentUser?.beneficiary_code) ||
+          (currentUser?.phone_number && b.phone_number === currentUser?.phone_number) ||
+          (currentUser?.id && b.id === currentUser?.id)
+      ) || beneficiaries.find(b => b.id === 'b7') || beneficiaries[0];
+
+      let targetBen = found;
       setDistributions(allDistributions || []);
 
       if (targetBen) {
         const userReqs = await db.getAssistanceRequests(targetBen.id || targetBen.beneficiary_code);
         setRequests(userReqs || []);
+
+        // Find any active assignment metadata from requests
+        const reqWithSup = (userReqs || []).find(r => r.assigned_supervisor_name || r.assigned_supervisor_id || r.supervisor_name || r.supervisor_id);
+        const reqWithFw = (userReqs || []).find(r => r.assigned_field_worker_name || r.field_worker_name || r.assigned_field_worker_id || r.field_worker_id);
+
+        targetBen = {
+          ...targetBen,
+          assigned_supervisor_id: targetBen.assigned_supervisor_id || targetBen.supervisor_id || reqWithSup?.assigned_supervisor_id || reqWithSup?.supervisor_id,
+          assigned_supervisor_name: targetBen.assigned_supervisor_name || targetBen.supervisor_name || reqWithSup?.assigned_supervisor_name || reqWithSup?.supervisor_name,
+          assigned_field_worker_id: targetBen.assigned_field_worker_id || targetBen.field_worker_id || reqWithFw?.assigned_field_worker_id || reqWithFw?.field_worker_id,
+          assigned_field_worker_name: targetBen.assigned_field_worker_name || targetBen.field_worker_name || reqWithFw?.assigned_field_worker_name || reqWithFw?.field_worker_name,
+        };
       }
+      setBeneficiary(targetBen);
     } catch (e) {
       console.error(e);
       toast.error('Failed to load profile');

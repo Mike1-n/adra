@@ -28,7 +28,7 @@ export function Header({
   onSwitchToAdminWeb,
   onOpenMobileSidebar
 }) {
-  const { currentUser, quickSwitchRole, logout } = useAuth();
+  const { currentUser, logout } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -103,7 +103,6 @@ export function Header({
         onClose={() => setIsProfileModalOpen(false)}
         currentUser={currentUser}
         onLogout={logout}
-        onSwitchRole={quickSwitchRole}
       />
 
       {/* Universal Module Feedback Modal */}
