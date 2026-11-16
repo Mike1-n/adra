@@ -89,7 +89,20 @@ function resolveLocationDetails(raw) {
   };
 }
 
-export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmitted }) {
+function inferCategoryFromOperation(op) {
+  if (!op) return 'Food';
+  const text = `${op.project_name || ''} ${op.description || ''}`.toLowerCase();
+  if (text.includes('education') || text.includes('school') || text.includes('tuition') || text.includes('learning')) return 'Education';
+  if (text.includes('water') || text.includes('wash') || text.includes('hygiene') || text.includes('sanitation')) return 'Water';
+  if (text.includes('medical') || text.includes('health') || text.includes('clinic')) return 'Medical assistance';
+  if (text.includes('shelter') || text.includes('tent') || text.includes('housing')) return 'Shelter';
+  if (text.includes('agricult') || text.includes('seed') || text.includes('farm') || text.includes('crop') || text.includes('climate-smart')) return 'Agricultural support';
+  if (text.includes('cash') || text.includes('livelihood') || text.includes('stipend')) return 'Cash/livelihood support';
+  if (text.includes('food') || text.includes('nutrition') || text.includes('drought')) return 'Food';
+  return 'Other available assistance';
+}
+
+export function AssistanceRequestWizard({ beneficiary, preselectedOperation = null, onCancel, onRequestSubmitted }) {
   const toast = useToast();
 
   const [step, setStep] = useState(1); // 1: Select Type, 2: Form Details, 3: Review Request, 4: Confirmed
@@ -98,11 +111,12 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
   const [submittedResult, setSubmittedResult] = useState(null);
 
   const initialLoc = resolveLocationDetails(beneficiary?.location);
+  const initialOpCategory = inferCategoryFromOperation(preselectedOperation);
 
   // Form State matching all required fields (uncluttered, beneficiary-centric structure)
   const [formData, setFormData] = useState({
-    categories: ['Food'],
-    category: 'Food',
+    categories: preselectedOperation ? [initialOpCategory] : ['Food'],
+    category: preselectedOperation ? initialOpCategory : 'Food',
     // 1. Household information
     household_members: beneficiary?.household_size || 8,
     // 2. Current situation (supports selecting more than one)
@@ -119,11 +133,25 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
     // 4. Additional information
     reason: '',
     // Fallbacks for database
-    project_id: 'pr1',
-    project_name: 'Emergency Relief & Humanitarian Response',
+    project_id: preselectedOperation?.id || 'pr1',
+    project_name: preselectedOperation?.project_name || 'Emergency Relief & Humanitarian Response',
     urgency: 'High',
     preferred_depot: `${initialLoc.county || 'Central'} Distribution Depot`
   });
+
+  // Sync preselected active operation if provided
+  useEffect(() => {
+    if (preselectedOperation) {
+      const matchedCat = inferCategoryFromOperation(preselectedOperation);
+      setFormData(prev => ({
+        ...prev,
+        categories: [matchedCat],
+        category: matchedCat,
+        project_id: preselectedOperation.id || prev.project_id,
+        project_name: preselectedOperation.project_name || prev.project_name
+      }));
+    }
+  }, [preselectedOperation]);
 
   // Keep form location synced with beneficiary profile if loaded asynchronously
   useEffect(() => {
@@ -436,6 +464,24 @@ export function AssistanceRequestWizard({ beneficiary, onCancel, onRequestSubmit
                 }`}
               />
             ))}
+          </div>
+        )}
+
+        {/* Active Field Operation Banner */}
+        {preselectedOperation && step <= 3 && (
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-2.5">
+            <MapPin className="w-4 h-4 text-[#006B56] shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-[#006B56] uppercase tracking-wider">
+                Applying for Active Field Operation
+              </p>
+              <p className="text-xs font-bold text-slate-900">
+                {preselectedOperation.project_name} ({preselectedOperation.project_code || 'Active'})
+              </p>
+              <p className="text-[11px] text-slate-600">
+                Location: {preselectedOperation.location}
+              </p>
+            </div>
           </div>
         )}
       </div>

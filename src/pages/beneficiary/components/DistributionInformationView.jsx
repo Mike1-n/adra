@@ -33,8 +33,72 @@ export function DistributionInformationView({ beneficiary }) {
     const loadDistributions = async () => {
       try {
         setLoading(true);
-        const data = await db.getDistributions();
-        setDistributions(data);
+        const benId = beneficiary?.id || beneficiary?.beneficiary_code;
+        const benCode = beneficiary?.beneficiary_code;
+        const benName = beneficiary?.full_name;
+
+        const [customDist, reqs, dispatches] = await Promise.all([
+          db.getDistributions ? db.getDistributions() : Promise.resolve([]),
+          db.getAssistanceRequests ? db.getAssistanceRequests(benId || benCode || benName) : Promise.resolve([]),
+          db.getDispatches ? db.getDispatches() : Promise.resolve([])
+        ]);
+
+        const liveSchedules = [];
+        const seen = new Set();
+
+        // 1. Live distributions from approved / dispatched beneficiary assistance requests
+        (reqs || []).forEach(req => {
+          const st = (req.status || '').toLowerCase();
+          const isRejected = st.includes('reject') || Boolean(req.returned_to_worker) || Number(req.status_stage) === -1;
+          const isCompleted = st === 'distributed' || st === 'completed' || Boolean(req.beneficiary_confirmed);
+          const isScheduledOrActive = !isRejected && !isCompleted && (
+            st.includes('approved') ||
+            st.includes('dispatch') ||
+            st.includes('transit') ||
+            st.includes('arrived') ||
+            st.includes('collected') ||
+            st.includes('handed over') ||
+            Number(req.status_stage) >= 3
+          );
+          if (!isScheduledOrActive) return;
+
+          const matchedDisp = (dispatches || []).find(d =>
+            (req.waybill_number && d.waybill_number === req.waybill_number) ||
+            (req.id && (d.linked_request_id === req.id || d.id === req.id)) ||
+            (req.request_code && (d.request_code === req.request_code || d.linked_request_id === req.request_code))
+          );
+
+          const code = req.waybill_number || matchedDisp?.waybill_number || req.request_code;
+          if (code) seen.add(code.toLowerCase());
+
+          const rawItems = Array.isArray(matchedDisp?.items) && matchedDisp.items.length > 0
+            ? matchedDisp.items.map(i => `${i.quantity || 1} ${i.unit || ''} ${i.item_name || i.name || ''}`.trim())
+            : [`${req.category || 'Humanitarian Relief'} Package`];
+
+          liveSchedules.push({
+            id: req.id || code,
+            distribution_code: code || 'ADRA-DIST',
+            status: matchedDisp?.status || req.status_label || req.status || 'Scheduled',
+            title: `${req.category || 'Humanitarian Relief'} Distribution`,
+            project_name: req.program_name || req.programme_name || req.project_name || 'Emergency Relief & Humanitarian Response',
+            centre_name: matchedDisp?.destination || req.destination_hub || req.preferred_depot || 'ADRA State Humanitarian Hub',
+            location: req.location || [req.state, req.county, req.payam].filter(Boolean).join(', ') || 'South Sudan Field Hub',
+            date: matchedDisp?.dispatch_date || req.expected_dispatch_date || (req.dispatch_date ? String(req.dispatch_date).split('T')[0] : 'Scheduled'),
+            time_window: '08:30 AM - 04:00 PM',
+            collection_token: req.qr_token || matchedDisp?.dispatch_token || req.request_code,
+            allocated_items: rawItems,
+            officer_in_charge: req.assigned_field_worker_name || req.assigned_supervisor_name || 'ADRA Field Operations Team'
+          });
+        });
+
+        // 2. Include any non-hardcoded custom distributions
+        (customDist || []).forEach(d => {
+          if (d.distribution_code === 'DST-2025-08' || d.distribution_code === 'DST-2025-09') return;
+          if (d.distribution_code && seen.has(d.distribution_code.toLowerCase())) return;
+          liveSchedules.push(d);
+        });
+
+        setDistributions(liveSchedules);
       } catch (e) {
         console.error(e);
         toast.error('Failed to load distribution schedules');
@@ -43,7 +107,7 @@ export function DistributionInformationView({ beneficiary }) {
       }
     };
     loadDistributions();
-  }, []);
+  }, [beneficiary?.id, beneficiary?.beneficiary_code, beneficiary?.full_name]);
 
   const handleCopyToken = (token) => {
     navigator.clipboard.writeText(token);

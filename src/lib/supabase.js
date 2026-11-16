@@ -327,20 +327,46 @@ export const db = {
   },
 
   async createProject(project) {
+    const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const nextYearStr = new Date(Date.now() + 365 * 24 * 3600000).toISOString().split('T')[0];
+
     const newProj = {
       id: isSupabaseConfigured ? undefined : `pr_${Date.now()}`,
       created_at: new Date().toISOString(),
       ...project
     };
+
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('projects').insert([newProj]).select().single();
+      const dbPayload = {
+        project_code: newProj.project_code,
+        project_name: newProj.project_name,
+        description: newProj.description || '',
+        start_date: newProj.start_date || todayStr,
+        end_date: newProj.end_date || nextYearStr,
+        location: newProj.location || 'Central Equatoria',
+        budget: Number(newProj.budget) || 0,
+        status: ['Planned', 'Active', 'Completed', 'Suspended'].includes(newProj.status) ? newProj.status : 'Active',
+        project_officer_id: isUUID(newProj.project_officer_id) ? newProj.project_officer_id : null,
+        donor_id: isUUID(newProj.donor_id) ? newProj.donor_id : null,
+        partner_id: isUUID(newProj.partner_id) ? newProj.partner_id : null,
+        created_at: newProj.created_at
+      };
+      const { data, error } = await supabase.from('projects').insert([dbPayload]).select().single();
       if (error) throw error;
-      return data;
+      await this.logAudit({
+        action: 'CREATE',
+        module: 'Projects',
+        record_id: data.project_code || data.id,
+        details: `Created programme: ${data.project_name} (${data.location})`
+      });
+      return { ...data, manager_name: newProj.manager_name || '' };
     }
+
     const current = getLocalData(STORAGE_KEYS.PROJECTS, mock.initialProjects);
     const updated = [newProj, ...current];
     saveLocalData(STORAGE_KEYS.PROJECTS, updated);
-    db.logAudit({
+    await this.logAudit({
       action: 'CREATE',
       module: 'Projects',
       record_id: newProj.project_code || newProj.id,
@@ -350,15 +376,31 @@ export const db = {
   },
 
   async updateProject(id, updates) {
+    const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('projects').update(updates).eq('id', id).select().single();
+      const allowedKeys = [
+        'project_code', 'project_name', 'description', 'start_date', 'end_date',
+        'location', 'budget', 'status', 'project_officer_id', 'donor_id', 'partner_id'
+      ];
+      const dbUpdates = { updated_at: new Date().toISOString() };
+      allowedKeys.forEach(k => {
+        if (updates[k] !== undefined) {
+          if (k === 'budget') dbUpdates[k] = Number(updates[k]) || 0;
+          else if ((k === 'project_officer_id' || k === 'donor_id' || k === 'partner_id')) {
+            dbUpdates[k] = isUUID(updates[k]) ? updates[k] : null;
+          } else {
+            dbUpdates[k] = updates[k];
+          }
+        }
+      });
+      const { data, error } = await supabase.from('projects').update(dbUpdates).eq('id', id).select().single();
       if (error) throw error;
-      return data;
+      return { ...data, manager_name: updates.manager_name || '' };
     }
     const current = getLocalData(STORAGE_KEYS.PROJECTS, mock.initialProjects);
     const updated = current.map(p => p.id === id ? { ...p, ...updates } : p);
     saveLocalData(STORAGE_KEYS.PROJECTS, updated);
-    db.logAudit({
+    await this.logAudit({
       action: 'UPDATE',
       module: 'Projects',
       record_id: updates.project_code || id,
@@ -3978,11 +4020,14 @@ export const db = {
     });
 
     // Audit Log
+    const bdSummary = Array.isArray(targetRequest.breakdown) && targetRequest.breakdown.length > 0
+      ? ` Breakdown: ${targetRequest.breakdown.map(b => `${b.item || b.label || 'Item'}: ${Number(b.amount || 0).toLocaleString()} ${targetRequest.currency || 'SSP'}`).join(' | ')}`
+      : '';
     await this.logAudit({
       action: 'CREATE_FACILITATION_REQUEST',
       module: 'Field Finance Requisitions',
       record_id: targetRequest.request_code,
-      details: `Field Worker ${targetRequest.field_worker_name} requested ${Number(targetRequest.amount).toLocaleString()} ${targetRequest.currency} (${targetRequest.category}) for ${targetRequest.payam}. Requiring Supervisor endorsement & PM approval.`
+      details: `Field Worker ${targetRequest.field_worker_name} requested ${Number(targetRequest.amount).toLocaleString()} ${targetRequest.currency} (${targetRequest.category}) for ${targetRequest.payam}. Requiring Supervisor endorsement & PM approval.${bdSummary}`
     });
 
     return targetRequest;
@@ -4279,6 +4324,9 @@ export const db = {
     const target = updated.find(r => r.id === requestId || r.request_code === requestId);
 
     // Also record in expenditures ledger
+    const bdSummary = (target && Array.isArray(target.breakdown) && target.breakdown.length > 0)
+      ? ` Breakdown: ${target.breakdown.map(b => `${b.item || b.label || 'Item'}: ${Number(b.amount || 0).toLocaleString()} ${target.currency || 'SSP'}`).join(' | ')}`
+      : '';
     if (target) {
       try {
         await this.createExpenditure({
@@ -4286,7 +4334,7 @@ export const db = {
           project_id: target.project_id || 'prg1',
           project_name: target.project_name || 'Emergency Food Security & Livelihoods (EFSLR)',
           category: 'Travel & Transport',
-          description: `Field Cash Facilitation (${target.category}) for ${target.field_worker_name} (${target.request_code}) - Voucher ${voucherRef}`,
+          description: `Field Cash Facilitation (${target.category}) for ${target.field_worker_name} (${target.request_code}) - Voucher ${voucherRef}.${bdSummary}`,
           amount: target.amount,
           expenditure_date: now.split('T')[0],
           receipt_url: `https://adra-docs.internal/vouchers/${voucherRef}.pdf`
@@ -4564,10 +4612,15 @@ export const db = {
   // --- AID DISTRIBUTIONS ---
   async getDistributions() {
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('aid_distributions').select('*').order('date', { ascending: true });
-      if (!error && data) return data;
+      try {
+        const { data, error } = await supabase.from('aid_distributions').select('*').order('date', { ascending: true });
+        if (!error && data) return data;
+      } catch (_) {}
     }
-    return getLocalData(STORAGE_KEYS.AID_DISTRIBUTIONS, mock.initialAidDistributions);
+    const local = getLocalData(STORAGE_KEYS.AID_DISTRIBUTIONS, []);
+    return (Array.isArray(local) ? local : []).filter(
+      d => d.distribution_code !== 'DST-2025-08' && d.distribution_code !== 'DST-2025-09'
+    );
   },
 
   // --- BENEFICIARY FAQS & APPROVED CONTACTS ---
@@ -4650,11 +4703,30 @@ export const db = {
 
   // --- INTERVENTIONS ---
   async getInterventions() {
+    const localData = getLocalData(STORAGE_KEYS.INTERVENTIONS, mock.initialInterventions || []);
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('interventions').select('*, beneficiaries(full_name), projects(project_name)').order('intervention_date', { ascending: false });
-      if (!error && data) return data;
+      try {
+        const { data, error } = await supabase
+          .from('interventions')
+          .select('*, beneficiaries(full_name), projects(project_name)')
+          .order('intervention_date', { ascending: false });
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const merged = [...data];
+          const seen = new Set(data.map(d => d.intervention_code || d.id));
+          localData.forEach(loc => {
+            const key = loc.intervention_code || loc.id;
+            if (!seen.has(key)) {
+              merged.push(loc);
+              seen.add(key);
+            }
+          });
+          return merged;
+        }
+      } catch (err) {
+        console.warn('Supabase getInterventions fallback:', err?.message);
+      }
     }
-    return getLocalData(STORAGE_KEYS.INTERVENTIONS, mock.initialInterventions);
+    return localData;
   },
 
   async getDistributions() {
@@ -8524,7 +8596,10 @@ export const db = {
 
   // --- BENEFICIARY PORTAL: DISTRIBUTIONS ---
   async getDistributions() {
-    return getLocalData(STORAGE_KEYS.AID_DISTRIBUTIONS, mock.initialAidDistributions || []);
+    const local = getLocalData(STORAGE_KEYS.AID_DISTRIBUTIONS, []);
+    return (Array.isArray(local) ? local : []).filter(
+      d => d.distribution_code !== 'DST-2025-08' && d.distribution_code !== 'DST-2025-09'
+    );
   },
 
   // --- BENEFICIARY PORTAL: FAQS & CONTACTS ---

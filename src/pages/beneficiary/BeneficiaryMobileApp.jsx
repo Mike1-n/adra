@@ -67,15 +67,19 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
   const [isRequestsMenuOpen, setIsRequestsMenuOpen] = useState(false);
   const [selectedRequestForConfirm, setSelectedRequestForConfirm] = useState(null);
   const [showReceiptConfirmModal, setShowReceiptConfirmModal] = useState(false);
+  const [activeProgrammes, setActiveProgrammes] = useState([]);
+  const [selectedOperation, setSelectedOperation] = useState(null);
 
   // Load beneficiary profile, requests, and schedules
   const loadData = async () => {
     try {
       setLoading(true);
-      const [allBeneficiaries, allDistributions] = await Promise.all([
+      const [allBeneficiaries, allDistributions, allProjects] = await Promise.all([
         db.getBeneficiaries(),
-        db.getDistributions()
+        db.getDistributions(),
+        db.getProjects()
       ]);
+      setActiveProgrammes((allProjects || []).filter(p => !p.status || p.status.toLowerCase() === 'active'));
 
       // Accurately match current user without falling back to hardcoded b7
       const found = allBeneficiaries.find(
@@ -604,8 +608,13 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
                 <AssistanceRequestWizard
                   beneficiary={beneficiary}
-                  onCancel={() => setCurrentView('dashboard')}
+                  preselectedOperation={selectedOperation}
+                  onCancel={() => {
+                    setSelectedOperation(null);
+                    setCurrentView('dashboard');
+                  }}
                   onRequestSubmitted={(newReq) => {
+                    setSelectedOperation(null);
                     setRequests(prev => [newReq, ...prev.filter(r => r.id !== newReq.id && r.request_code !== newReq.request_code)]);
                     const newNotif = {
                       id: `notif_${Date.now()}`,
@@ -628,9 +637,17 @@ export function BeneficiaryMobileApp({ onSwitchToFieldApp }) {
                 beneficiary={beneficiary}
                 requests={requests}
                 distributions={distributions}
+                activeProgrammes={activeProgrammes}
                 notifications={notifications}
                 unreadCount={unreadCount}
-                onRequestAssistance={() => setCurrentView('request_wizard')}
+                onRequestAssistance={() => {
+                  setSelectedOperation(null);
+                  setCurrentView('request_wizard');
+                }}
+                onApplyForProgramme={(prog) => {
+                  setSelectedOperation(prog);
+                  setCurrentView('request_wizard');
+                }}
                 onNavigateTab={(tab) => setCurrentView(tab)}
                 onConfirmReceipt={(req) => {
                   setSelectedRequestForConfirm(req);

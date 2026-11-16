@@ -167,12 +167,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
   const loadComplaints = async () => {
     try {
       setLoading(true);
-      let data = [];
-      if (isFinanceOfficer) {
-        data = await db.getConversationComplaints(effectiveUser, contacts);
-      } else {
-        data = await db.getComplaints('all');
-      }
+      const data = await db.getComplaints('all');
       setComplaints(data || []);
     } catch (e) {
       console.error(e);
@@ -261,6 +256,17 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     }
     if (isFinanceOfficer) {
       return [
+        {
+          id: 'beneficiaries',
+          role: 'Household Inquiries',
+          name: 'Registered Households',
+          title: 'Direct Beneficiary Inquiries',
+          status: 'Live',
+          badge: 'Incoming from Community',
+          avatarColor: 'bg-emerald-600',
+          icon: Users,
+          welcomeNote: 'Incoming messages and questions from registered households appear here. Reply to continue a conversation.'
+        },
         ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600'),
         ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]')
       ];
@@ -317,8 +323,19 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     }
     if (role.includes('inventory') || role.includes('logistics')) {
       return [
-        ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]'),
-        ...roleContacts('finance', 'Finance Manager', DollarSign, 'bg-blue-700')
+        {
+          id: 'beneficiaries',
+          role: 'Household Inquiries',
+          name: 'Registered Households',
+          title: 'Direct Beneficiary Inquiries',
+          status: 'Live',
+          badge: 'Incoming from Community',
+          avatarColor: 'bg-emerald-600',
+          icon: Users,
+          welcomeNote: 'Incoming messages and questions from registered households appear here. Reply to continue a conversation.'
+        },
+        ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600'),
+        ...roleContacts('finance', 'Finance Officer', DollarSign, 'bg-blue-700')
       ];
     }
     if (isBeneficiary) {
@@ -404,19 +421,37 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
         return [
           supervisorContactObj,
-          ...(workerContactObj ? [workerContactObj] : [])
+          ...(workerContactObj ? [workerContactObj] : []),
+          ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600'),
+          ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]'),
+          ...roleContacts('finance', 'Finance Officer', DollarSign, 'bg-blue-700')
         ];
       }
 
-      // No supervisor assigned — show only the Programme Manager
+      // No supervisor assigned — show Programme Manager, Inventory Manager, and Finance Officer
       return [
-        ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600')
+        ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600'),
+        ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]'),
+        ...roleContacts('finance', 'Finance Officer', DollarSign, 'bg-blue-700')
       ];
     }
     return [
+      {
+        id: 'beneficiaries',
+        role: 'Household Inquiries',
+        name: 'Registered Households',
+        title: 'Direct Beneficiary Inquiries',
+        status: 'Live',
+        badge: 'Incoming from Community',
+        avatarColor: 'bg-emerald-600',
+        icon: Users,
+        welcomeNote: 'Incoming messages and questions from registered households appear here. Reply to continue a conversation.'
+      },
       ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600'),
       ...roleContacts('supervisor', 'Supervisor', ShieldCheck, 'bg-blue-600'),
-      ...roleContacts('field', 'Field Worker', HardHat, 'bg-emerald-600')
+      ...roleContacts('field', 'Field Worker', HardHat, 'bg-emerald-600'),
+      ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]'),
+      ...roleContacts('finance', 'Finance Officer', DollarSign, 'bg-blue-700')
     ];
   })();
 
@@ -456,6 +491,25 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
           (currentName && recipientName.includes(currentName)) ||
           recipientId === currentId ||
           message.category === 'Supervisor Response';
+      }
+      if (isFinanceOfficer) {
+        return recipientRole.includes('finance') ||
+          (currentName && recipientName.includes(currentName)) ||
+          recipientId === currentId ||
+          message.category === 'Finance Officer Response';
+      }
+      if (isInventoryManager) {
+        return recipientRole.includes('inventory') ||
+          recipientRole.includes('logistics') ||
+          (currentName && recipientName.includes(currentName)) ||
+          recipientId === currentId ||
+          message.category === 'Inventory Manager Response';
+      }
+      if (role.includes('program')) {
+        return recipientRole.includes('program') ||
+          (currentName && recipientName.includes(currentName)) ||
+          recipientId === currentId ||
+          message.category === 'Programme Manager Response';
       }
       return recipientRole.includes('field') ||
         (currentName && recipientName.includes(currentName)) ||

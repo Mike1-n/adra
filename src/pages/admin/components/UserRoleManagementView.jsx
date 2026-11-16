@@ -49,10 +49,6 @@ export function UserRoleManagementView() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isPrinting, setIsPrinting] = useState(false);
-  const [isSyncingAuth, setIsSyncingAuth] = useState(false);
-  const [authSyncProgress, setAuthSyncProgress] = useState(null);
-  const [isMigratingBrowserData, setIsMigratingBrowserData] = useState(false);
-  const [browserMigrationProgress, setBrowserMigrationProgress] = useState(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -130,82 +126,6 @@ export function UserRoleManagementView() {
       toast.error('Failed to load user accounts.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSyncAllToAuth = async () => {
-    if (!window.confirm(`Sync all ${users.length} visible accounts—including demo accounts—to Supabase Auth? Existing Auth accounts will not have their passwords changed.`)) {
-      return;
-    }
-
-    try {
-      setIsSyncingAuth(true);
-      setAuthSyncProgress({ completed: 0, total: users.length });
-      const results = await db.migrateUsersToAuth(users, (completed, total) => {
-        setAuthSyncProgress({ completed, total });
-      });
-      const created = results.filter(result => result.status === 'created').length;
-      const linked = results.filter(result => result.status === 'profile_linked').length;
-      const alreadyLinked = results.filter(result => result.status === 'already_linked').length;
-      const failures = results.filter(result => result.status === 'failed');
-
-      await loadData();
-      if (failures.length) {
-        const firstFailure = failures[0];
-        toast.error(`Synced ${created} new, linked ${linked}, already linked ${alreadyLinked}; ${failures.length} failed. ${firstFailure.email}: ${firstFailure.error}`);
-      } else {
-        toast.success(`Supabase Auth sync complete: ${created} created, ${linked} linked, ${alreadyLinked} already linked.`);
-      }
-    } catch (err) {
-      console.error('Failed to sync user accounts to Supabase Auth:', err);
-      toast.error(err.message || 'Failed to sync user accounts to Supabase Auth.');
-    } finally {
-      setIsSyncingAuth(false);
-      setAuthSyncProgress(null);
-    }
-  };
-
-  const handleMigrateBrowserData = async () => {
-    if (!window.confirm(
-      'Import this browser’s saved beneficiaries, assistance requests, suppliers, warehouses, purchase orders, fleet vehicles, dispatches, and user accounts into Supabase? Existing matching records will be left unchanged. This will not delete the browser copy.'
-    )) {
-      return;
-    }
-
-    try {
-      setIsMigratingBrowserData(true);
-      setBrowserMigrationProgress({ category: 'Starting', completed: 0, total: 0 });
-      const result = await db.migrateBrowserDataToSupabase(setBrowserMigrationProgress);
-      const recordResults = Object.entries(result.records);
-      const processed = recordResults.reduce((sum, [, value]) => sum + value.processed, 0);
-      const failures = recordResults.filter(([, value]) => value.failed > 0);
-      const failureCount = result.users.failed + failures.reduce((sum, [, value]) => sum + value.failed, 0);
-      await loadData();
-
-      if (failureCount) {
-        const firstFailure = failures.find(([, value]) => value.error);
-        toast.error(
-          `Migration partially completed: ${result.users.migrated} accounts linked or created, ${processed} records processed, ${failureCount} failed.` +
-          (firstFailure ? ` ${firstFailure[0]}: ${firstFailure[1].error}` : '')
-        );
-      } else if (result.notMigrated.length) {
-        const pending = result.notMigrated
-          .map(item => `${item.count} ${item.category} record(s) still need migration: ${item.reason}`)
-          .join(' ');
-        toast.info(
-          `Imported ${result.users.migrated} accounts and processed ${processed} records. Local copies remain untouched. ${pending}`
-        );
-      } else {
-        toast.success(
-          `Migration complete: ${result.users.migrated} accounts linked or created, ${processed} records processed. Existing matching records were left unchanged.`
-        );
-      }
-    } catch (err) {
-      console.error('Browser data migration failed:', err);
-      toast.error(err.message || 'Failed to migrate browser data to Supabase.');
-    } finally {
-      setIsMigratingBrowserData(false);
-      setBrowserMigrationProgress(null);
     }
   };
 
@@ -574,36 +494,10 @@ export function UserRoleManagementView() {
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
             Create, view, edit, deactivate, and assign role-based access for system stakeholders.
-            {authSyncProgress && ` Syncing ${authSyncProgress.completed} of ${authSyncProgress.total} accounts...`}
-            {browserMigrationProgress && ` Migrating ${browserMigrationProgress.category}: ${browserMigrationProgress.completed} of ${browserMigrationProgress.total}...`}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSyncAllToAuth}
-            icon={RefreshCw}
-            loading={isSyncingAuth}
-            disabled={isSyncingAuth || isMigratingBrowserData || loading || users.length === 0}
-            className="text-xs"
-            title="Create or link all visible accounts in Supabase Auth"
-          >
-            Sync All to Supabase Auth
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleMigrateBrowserData}
-            icon={RefreshCw}
-            loading={isMigratingBrowserData}
-            disabled={isSyncingAuth || isMigratingBrowserData || loading}
-            className="text-xs"
-            title="Import saved browser records into Supabase without overwriting existing matching records"
-          >
-            Migrate Browser Data
-          </Button>
           <Button
             variant="outline"
             size="sm"

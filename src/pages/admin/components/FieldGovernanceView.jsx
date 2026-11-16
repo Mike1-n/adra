@@ -38,6 +38,7 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
   const [programmes, setProgrammes] = useState([]);
   const [locations, setLocations] = useState([]);
   const [managers, setManagers] = useState([]);
+  const [donors, setDonors] = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
@@ -64,7 +65,18 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
     end_date: new Date(Date.now() + 365 * 24 * 3600000).toISOString().split('T')[0],
     location: '',
     status: 'Planned',
-    manager_name: ''
+    manager_name: '',
+    donor_id: ''
+  });
+
+  const [showAddDonor, setShowAddDonor] = useState(false);
+  const [savingDonor, setSavingDonor] = useState(false);
+  const [newDonorForm, setNewDonorForm] = useState({
+    donor_name: '',
+    donor_code: '',
+    donor_type: 'Bilateral Government Agency',
+    contact_person: '',
+    email: ''
   });
 
   const [locForm, setLocForm] = useState({
@@ -80,14 +92,16 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [pList, lList, uList] = await Promise.all([
+      const [pList, lList, uList, dList] = await Promise.all([
         db.getProjects(),
         db.getLocations(),
-        db.getUsers()
+        db.getUsers(),
+        db.getDonors ? db.getDonors() : Promise.resolve([])
       ]);
       setProgrammes(pList);
       setLocations(lList);
       setManagers(uList.filter(u => u.role === 'Program Manager' || u.role === 'Project Officer' || u.role === 'Administrator'));
+      setDonors(dList || []);
     } catch (err) {
       toast.error('Failed to load field governance data.');
     } finally {
@@ -110,23 +124,85 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
       end_date: new Date(Date.now() + 365 * 24 * 3600000).toISOString().split('T')[0],
       location: locations[0]?.name || '',
       status: 'Active',
-      manager_name: managers[0]?.full_name || ''
+      manager_name: managers[0]?.full_name || '',
+      donor_id: ''
     });
+    setShowAddDonor(false);
     setIsCreateProgOpen(true);
+  };
+
+  const handleQuickAddDonor = async () => {
+    if (!newDonorForm.donor_name.trim()) {
+      toast.warning('Please enter the donor name.');
+      return;
+    }
+    try {
+      setSavingDonor(true);
+      const code = newDonorForm.donor_code.trim() || `DNR-${Math.floor(1000 + Math.random() * 9000)}`;
+      const created = await db.createDonor({
+        donor_name: newDonorForm.donor_name.trim(),
+        donor_code: code,
+        donor_type: newDonorForm.donor_type || 'Bilateral Government Agency',
+        contact_person: newDonorForm.contact_person.trim() || '',
+        email: newDonorForm.email.trim() || '',
+        compliance_status: 'Fully Compliant'
+      });
+      setDonors(prev => [created, ...prev]);
+      setProgForm(prev => ({ ...prev, donor_id: created.id }));
+      setNewDonorForm({
+        donor_name: '',
+        donor_code: '',
+        donor_type: 'Bilateral Government Agency',
+        contact_person: '',
+        email: ''
+      });
+      setShowAddDonor(false);
+      toast.success(`Donor "${created.donor_name}" added and selected.`);
+    } catch (err) {
+      console.error('Quick add donor error:', err);
+      toast.error(err?.message || 'Failed to add donor.');
+    } finally {
+      setSavingDonor(false);
+    }
   };
 
   const handleCreateProg = async (e) => {
     e.preventDefault();
     try {
-      await db.createProject({
+      const matchedManager = managers.find(m => m.full_name === progForm.manager_name);
+      const createdProj = await db.createProject({
         ...progForm,
-        budget: Number(progForm.budget)
+        budget: Number(progForm.budget) || 0,
+        project_officer_id: matchedManager?.id || null,
+        donor_id: progForm.donor_id || null
       });
+      if (progForm.donor_id && createdProj?.id && db.createDonorGrant) {
+        try {
+          const matchedDonor = donors.find(d => d.id === progForm.donor_id);
+          const dPrefix = (matchedDonor?.donor_code || 'GRT').split('-')[0].toUpperCase();
+          await db.createDonorGrant({
+            grant_code: `GRT-${dPrefix}-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+            donor_id: progForm.donor_id,
+            project_id: createdProj.id,
+            grant_title: `${progForm.project_name} Grant`,
+            total_committed: Number(progForm.budget) || 0,
+            disbursed_amount: 0,
+            expended_amount: 0,
+            currency: 'SSP',
+            status: progForm.status === 'Completed' ? 'Completed' : 'Active',
+            start_date: progForm.start_date || new Date().toISOString().split('T')[0],
+            end_date: progForm.end_date || new Date(Date.now() + 365 * 24 * 3600000).toISOString().split('T')[0]
+          });
+        } catch (grantErr) {
+          console.warn('Could not auto-create donor_grants row:', grantErr);
+        }
+      }
       toast.success(`Programme ${progForm.project_name} configured successfully!`);
       setIsCreateProgOpen(false);
       loadData();
     } catch (err) {
-      toast.error('Failed to create programme.');
+      console.error('Create programme error:', err);
+      toast.error(err?.message || 'Failed to create programme.');
     }
   };
 
@@ -141,8 +217,10 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
       end_date: p.end_date || '',
       location: p.location || '',
       status: p.status || 'Active',
-      manager_name: p.manager_name || (managers[0]?.full_name || '')
+      manager_name: p.manager_name || (managers[0]?.full_name || ''),
+      donor_id: p.donor_id || ''
     });
+    setShowAddDonor(false);
     setIsEditProgOpen(true);
   };
 
@@ -150,15 +228,44 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
     e.preventDefault();
     if (!selectedProg) return;
     try {
+      const matchedManager = managers.find(m => m.full_name === progForm.manager_name);
       await db.updateProject(selectedProg.id, {
         ...progForm,
-        budget: Number(progForm.budget)
+        budget: Number(progForm.budget) || 0,
+        project_officer_id: matchedManager?.id || null,
+        donor_id: progForm.donor_id || null
       });
+      if (progForm.donor_id && db.getDonorGrants && db.createDonorGrant) {
+        try {
+          const existingGrants = await db.getDonorGrants(progForm.donor_id);
+          const alreadyLinked = (existingGrants || []).some(g => g.project_id === selectedProg.id);
+          if (!alreadyLinked) {
+            const matchedDonor = donors.find(d => d.id === progForm.donor_id);
+            const dPrefix = (matchedDonor?.donor_code || 'GRT').split('-')[0].toUpperCase();
+            await db.createDonorGrant({
+              grant_code: `GRT-${dPrefix}-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+              donor_id: progForm.donor_id,
+              project_id: selectedProg.id,
+              grant_title: `${progForm.project_name} Grant`,
+              total_committed: Number(progForm.budget) || 0,
+              disbursed_amount: 0,
+              expended_amount: 0,
+              currency: 'SSP',
+              status: progForm.status === 'Completed' ? 'Completed' : 'Active',
+              start_date: progForm.start_date || new Date().toISOString().split('T')[0],
+              end_date: progForm.end_date || new Date(Date.now() + 365 * 24 * 3600000).toISOString().split('T')[0]
+            });
+          }
+        } catch (grantErr) {
+          console.warn('Could not auto-sync donor_grants row:', grantErr);
+        }
+      }
       toast.success(`Updated programme ${progForm.project_code}`);
       setIsEditProgOpen(false);
       loadData();
     } catch (err) {
-      toast.error('Failed to update programme.');
+      console.error('Update programme error:', err);
+      toast.error(err?.message || 'Failed to update programme.');
     }
   };
 
@@ -730,14 +837,146 @@ export function FieldGovernanceView({ initialTab = 'programmes' }) {
 
           <div>
             <label className="block font-semibold text-slate-800 mb-1">Operational Location</label>
-            <input
-              type="text"
+            <select
               required
               value={progForm.location}
               onChange={(e) => setProgForm({ ...progForm, location: e.target.value })}
-              placeholder="e.g. Turkana & Marsabit Counties"
-              className="adra-input text-xs sm:text-sm"
-            />
+              className="adra-input text-xs sm:text-sm cursor-pointer"
+            >
+              <option value="">-- Select Operational Location --</option>
+              {(() => {
+                const isKenyanLocation = (str = '') => {
+                  const s = str.toLowerCase();
+                  return [
+                    'turkana', 'marsabit', 'garissa', 'nairobi', 'mandera',
+                    'lodwar', 'kisumu', 'tana river', 'kajiado', 'kilifi',
+                    'kenya', 'dadaab', 'kakuma', 'wajir', 'isiolo', 'mombasa', 'eldoret'
+                  ].some(k => s.includes(k));
+                };
+                const seen = new Set();
+                const opts = [];
+                const addOpt = (val, label = val) => {
+                  if (!val || isKenyanLocation(val) || isKenyanLocation(label)) return;
+                  const key = val.trim().toLowerCase();
+                  if (!seen.has(key)) {
+                    seen.add(key);
+                    opts.push({ value: val, label });
+                  }
+                };
+                // 1. Registered South Sudan Operational Locations
+                (locations || []).forEach(l => {
+                  const label = l.state ? `${l.name} (${l.county ? `${l.county}, ` : ''}${l.state})` : l.name;
+                  addOpt(l.name, label);
+                });
+                // 2. All 10 South Sudan States
+                [
+                  'Central Equatoria (Juba)',
+                  'Eastern Equatoria (Torit / Kapoeta)',
+                  'Western Equatoria (Yambio)',
+                  'Jonglei (Bor)',
+                  'Unity (Bentiu)',
+                  'Upper Nile (Malakal)',
+                  'Lakes (Rumbek)',
+                  'Warrap (Kuajok)',
+                  'Northern Bahr el Ghazal (Aweil)',
+                  'Western Bahr el Ghazal (Wau)'
+                ].forEach(st => addOpt(st));
+                // 3. South Sudan locations from existing programmes
+                (programmes || []).forEach(p => addOpt(p.location));
+                // 4. Preserve current value if editing a South Sudan location
+                if (progForm.location) addOpt(progForm.location);
+
+                return opts.map(o => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ));
+              })()}
+            </select>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-semibold text-slate-800">
+                Donor Agency <span className="text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowAddDonor(prev => !prev)}
+                className="text-[11px] font-bold text-[#006B56] hover:text-[#005443] flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                {showAddDonor ? 'Close New Donor' : 'Add New Donor'}
+              </button>
+            </div>
+            <select
+              value={progForm.donor_id || ''}
+              onChange={(e) => setProgForm({ ...progForm, donor_id: e.target.value })}
+              className="adra-select text-xs sm:text-sm font-medium cursor-pointer"
+            >
+              <option value="">-- No Donor / Internal ADRA Funding --</option>
+              {donors.map(d => (
+                <option key={d.id} value={d.id}>
+                  {d.donor_name}{d.donor_code ? ` (${d.donor_code})` : ''}
+                </option>
+              ))}
+            </select>
+
+            {showAddDonor && (
+              <div className="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                <p className="text-[11px] font-bold text-slate-700">Register New Donor</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Donor Name *"
+                    value={newDonorForm.donor_name}
+                    onChange={(e) => setNewDonorForm({ ...newDonorForm, donor_name: e.target.value })}
+                    className="adra-input text-xs"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Donor Code (optional)"
+                    value={newDonorForm.donor_code}
+                    onChange={(e) => setNewDonorForm({ ...newDonorForm, donor_code: e.target.value })}
+                    className="adra-input text-xs font-mono"
+                  />
+                  <select
+                    value={newDonorForm.donor_type}
+                    onChange={(e) => setNewDonorForm({ ...newDonorForm, donor_type: e.target.value })}
+                    className="adra-select text-xs"
+                  >
+                    <option value="Bilateral Government Agency">Bilateral Government Agency</option>
+                    <option value="Multilateral / UN Agency">Multilateral / UN Agency</option>
+                    <option value="Private Foundation">Private Foundation</option>
+                    <option value="Corporate / NGO Partner">Corporate / NGO Partner</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Contact Person (optional)"
+                    value={newDonorForm.contact_person}
+                    onChange={(e) => setNewDonorForm({ ...newDonorForm, contact_person: e.target.value })}
+                    className="adra-input text-xs"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddDonor(false)}
+                    className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-200/60 rounded-lg cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingDonor}
+                    onClick={handleQuickAddDonor}
+                    className="px-3 py-1.5 text-[11px] font-bold bg-[#006B56] hover:bg-[#005443] text-white rounded-lg cursor-pointer disabled:opacity-50"
+                  >
+                    {savingDonor ? 'Saving...' : 'Save & Select Donor'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
