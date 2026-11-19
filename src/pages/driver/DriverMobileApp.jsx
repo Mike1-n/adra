@@ -220,10 +220,7 @@ export function DriverMobileApp({ onSwitchRole, onLogout }) {
         </button>
 
         {/* Waybills & Custody Group */}
-        <div className="pt-2">
-          <p className="px-3 pb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
-            Cargo & Waybills
-          </p>
+        <div className="pt-1">
           <div className="space-y-1">
             <button
               type="button"
