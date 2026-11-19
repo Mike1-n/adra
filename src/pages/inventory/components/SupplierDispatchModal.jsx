@@ -28,7 +28,7 @@ export function SupplierDispatchModal({
       setUnitPrice(existingUnitPrice);
       setInvoiceNumber(purchaseOrder.supplier_invoice_number || `INV-SUP-${Date.now().toString().slice(-4)}`);
     }
-  }, [purchaseOrder, isOpen]);
+  }, [purchaseOrder?.id, isOpen]);
 
   if (!isOpen || !purchaseOrder) return null;
 
@@ -107,15 +107,15 @@ export function SupplierDispatchModal({
                 Price per 1 {unit.replace(/s$/, '')} (SSP) *
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">SSP</span>
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">SSP</span>
                 <input
                   type="number"
-                  min="0.01"
+                  inputMode="decimal"
+                  min="0"
                   step="any"
                   value={unitPrice}
                   onChange={(e) => setUnitPrice(e.target.value)}
                   required
-                  autoFocus
                   placeholder="0.00"
                   className="w-full pl-11 pr-3 py-2 text-xs font-bold text-slate-900 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none"
                 />
