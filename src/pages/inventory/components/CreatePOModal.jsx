@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, ShoppingCart, Send, Building2, MapPin, Package, Mail, Phone, User, Info, CheckCircle2, Sparkles } from 'lucide-react';
+import { X, ShoppingCart, Send, Building2, MapPin, Package, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
 
 const STANDARD_COMMODITIES = [
@@ -30,7 +30,6 @@ export function CreatePOModal({
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
-  const [isCustomCommodity, setIsCustomCommodity] = useState(false);
 
   // Compile combined commodities list from live inventory and standard humanitarian catalog
   const commodityList = useMemo(() => {
@@ -59,9 +58,9 @@ export function CreatePOModal({
     supplier_email: '',
     supplier_phone: '',
     category: 'General Humanitarian Supplies',
-    item_name: '',
-    quantity: '',
-    unit: 'Bags',
+    items: [
+      { item_name: '', quantity: '', unit: 'Bags', category: 'Food Assistance', isCustom: false }
+    ],
     warehouse_destination: 'Central Equatoria State Depot',
     expected_delivery: '',
     notes: ''
@@ -82,15 +81,21 @@ export function CreatePOModal({
         }));
       }
 
-      if (!form.item_name && commodityList.length > 0) {
+      if (commodityList.length > 0 && form.items.length === 1 && !form.items[0].item_name && !form.items[0].isCustom) {
         const firstComm = commodityList[0];
         setForm(prev => ({
           ...prev,
-          item_name: firstComm.item_name,
-          unit: firstComm.unit || prev.unit,
-          category: firstComm.category || prev.category
+          category: firstComm.category || prev.category,
+          items: [
+            {
+              item_name: firstComm.item_name,
+              quantity: prev.items[0]?.quantity || '',
+              unit: firstComm.unit || 'Bags',
+              category: firstComm.category || 'General Supplies',
+              isCustom: false
+            }
+          ]
         }));
-        setIsCustomCommodity(false);
       }
     }
   }, [isOpen, suppliers, commodityList]);
@@ -101,23 +106,70 @@ export function CreatePOModal({
     }
   }, [warehouses]);
 
-  const handleCommoditySelect = (e) => {
-    const val = e.target.value;
+  const isCommoditySelected = (name, excludeIdx = -1) => {
+    if (!name) return false;
+    const key = name.toLowerCase().trim();
+    return form.items.some((it, i) => i !== excludeIdx && (it.item_name || '').toLowerCase().trim() === key);
+  };
+
+  const handleAddItemLine = () => {
+    const nextComm = commodityList.find(c => !isCommoditySelected(c.item_name));
+    setForm(prev => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        {
+          item_name: nextComm ? nextComm.item_name : '',
+          quantity: '',
+          unit: nextComm?.unit || 'Bags',
+          category: nextComm?.category || 'General Supplies',
+          isCustom: !nextComm
+        }
+      ]
+    }));
+  };
+
+  const handleRemoveItemLine = (idx) => {
+    if (form.items.length <= 1) return;
+    setForm(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== idx)
+    }));
+  };
+
+  const handleItemCommoditySelect = (idx, val) => {
     if (val === '__custom__') {
-      setIsCustomCommodity(true);
-      setForm(prev => ({ ...prev, item_name: '' }));
+      setForm(prev => {
+        const updated = [...prev.items];
+        updated[idx] = { ...updated[idx], item_name: '', isCustom: true };
+        return { ...prev, items: updated };
+      });
+      return;
+    }
+    if (isCommoditySelected(val, idx)) {
+      toast.warning(`"${val}" is already added to this request. Update its quantity on the existing line.`);
       return;
     }
     const found = commodityList.find(c => c.item_name === val);
-    if (found) {
-      setIsCustomCommodity(false);
-      setForm(prev => ({
-        ...prev,
-        item_name: found.item_name,
-        unit: found.unit || prev.unit,
-        category: found.category || prev.category
-      }));
-    }
+    setForm(prev => {
+      const updated = [...prev.items];
+      updated[idx] = {
+        ...updated[idx],
+        item_name: found ? found.item_name : val,
+        unit: found?.unit || updated[idx].unit || 'Bags',
+        category: found?.category || updated[idx].category || 'General Supplies',
+        isCustom: false
+      };
+      return { ...prev, items: updated };
+    });
+  };
+
+  const handleItemFieldChange = (idx, field, val) => {
+    setForm(prev => {
+      const updated = [...prev.items];
+      updated[idx] = { ...updated[idx], [field]: val };
+      return { ...prev, items: updated };
+    });
   };
 
   if (!isOpen) return null;
@@ -144,30 +196,58 @@ export function CreatePOModal({
       toast.warning('Please select a supplier.');
       return;
     }
-    if (!form.item_name.trim()) {
-      toast.warning('Please enter the commodity or item name.');
-      return;
-    }
-    if (!form.quantity || Number(form.quantity) <= 0) {
-      toast.warning('Please enter a valid quantity.');
+    if (!form.items.length || form.items.some(it => !it.item_name.trim() || !it.quantity || Number(it.quantity) <= 0)) {
+      toast.warning('Please specify a valid product name and quantity for every item line.');
       return;
     }
 
-    const summary = `${form.quantity}x ${form.unit || 'Units'} ${form.item_name}`;
+    const cleanItems = form.items.map(it => ({
+      item_name: it.item_name.trim(),
+      quantity: Number(it.quantity),
+      unit: it.unit || 'Units',
+      category: it.category || form.category || 'General Supplies'
+    }));
+
+    const summary = cleanItems.map(i => `${i.quantity}x ${i.unit} ${i.item_name}`).join(' • ');
+    const primaryItemName = cleanItems.length === 1
+      ? cleanItems[0].item_name
+      : `${cleanItems[0].item_name} (+${cleanItems.length - 1} more)`;
+    const totalQty = cleanItems.reduce((s, i) => s + i.quantity, 0);
+    const combinedNotes = cleanItems.length > 1
+      ? `${form.notes ? `${form.notes.trim()} | ` : ''}Items: ${summary}`
+      : form.notes;
 
     setLoading(true);
     try {
       if (onPOSuccess) {
         await onPOSuccess({
           ...form,
-          quantity: Number(form.quantity),
+          item_name: primaryItemName,
+          category: cleanItems[0].category,
+          quantity: totalQty,
+          unit: cleanItems.length === 1 ? cleanItems[0].unit : 'Mixed',
+          items: cleanItems,
           items_summary: summary,
+          notes: combinedNotes,
           total_amount: 0,
           stage: 1,
-          status: 'Pending Supplier Supply'
+          status: 'Pending Quotation'
         });
       }
-      toast.success(`Supply request sent to ${form.supplier_name}`);
+      toast.success(`Supply request (${cleanItems.length} ${cleanItems.length === 1 ? 'product' : 'products'}) sent to ${form.supplier_name}`);
+      setForm(prev => ({
+        ...prev,
+        items: [
+          {
+            item_name: commodityList[0]?.item_name || '',
+            quantity: '',
+            unit: commodityList[0]?.unit || 'Bags',
+            category: commodityList[0]?.category || 'General Supplies',
+            isCustom: false
+          }
+        ],
+        notes: ''
+      }));
       onClose();
     } catch (err) {
       toast.error(err.message || 'Failed to create purchase order.');
@@ -246,136 +326,123 @@ export function CreatePOModal({
             )}
           </div>
 
-          {/* 2. Commodity / Item Name */}
-          <div className="min-w-0">
-            <div className="flex items-center justify-between mb-1 gap-2 min-w-0">
+          {/* 2. Commodities / Products Requested (Multi-Item) */}
+          <div className="min-w-0 space-y-2">
+            <div className="flex items-center justify-between gap-2 min-w-0">
               <label className="block text-slate-700 font-bold shrink-0">
-                Commodity / Supplies Requested *
+                Products Requested ({form.items.length}) *
               </label>
-              {isCustomCommodity ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCustomCommodity(false);
-                    if (commodityList.length > 0) {
-                      const first = commodityList[0];
-                      setForm(prev => ({
-                        ...prev,
-                        item_name: first.item_name,
-                        unit: first.unit || prev.unit,
-                        category: first.category || prev.category
-                      }));
-                    }
-                  }}
-                  className="text-[11px] font-bold text-[#006B56] hover:underline cursor-pointer flex items-center gap-1 shrink-0"
-                >
-                  ← Select from standard catalog
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCustomCommodity(true);
-                    setForm(prev => ({ ...prev, item_name: '' }));
-                  }}
-                  className="text-[11px] font-bold text-[#006B56] hover:underline cursor-pointer flex items-center gap-1 shrink-0"
-                >
-                  + Add custom product
-                </button>
-              )}
-            </div>
-
-            {!isCustomCommodity ? (
-              <div className="space-y-1.5 min-w-0">
-                <select
-                  value={form.item_name || ''}
-                  onChange={handleCommoditySelect}
-                  className="w-full max-w-full min-w-0 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#006B56] focus:bg-white outline-none font-bold text-slate-900 cursor-pointer truncate text-ellipsis"
-                  style={{ maxWidth: '100%' }}
-                  required
-                >
-                  <option value="" disabled>-- Select a Commodity / Product --</option>
-                  {commodityList.map(c => (
-                    <option key={c.item_name} value={c.item_name}>
-                      {c.item_name}
-                    </option>
-                  ))}
-                  <option value="__custom__" className="font-extrabold text-[#006B56]">
-                    + Add Custom Commodity / Product...
-                  </option>
-                </select>
-
-                {form.item_name && (
-                  <div className="px-3 py-1.5 rounded-xl bg-emerald-50/70 border border-emerald-200/70 text-[11px] text-emerald-900 flex items-center justify-between min-w-0 gap-2">
-                    <span className="font-semibold flex items-center gap-1.5 min-w-0 truncate">
-                      <Package className="w-3.5 h-3.5 text-[#006B56] shrink-0" />
-                      <span className="truncate">{form.item_name}</span>
-                    </span>
-                    <span className="text-[10px] bg-white px-2 py-0.5 rounded-md font-bold text-emerald-800 border border-emerald-200 shrink-0">
-                      Sector: {form.category}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-1.5 animate-in fade-in duration-150 min-w-0">
-                <input
-                  type="text"
-                  value={form.item_name}
-                  onChange={(e) => setForm({ ...form, item_name: e.target.value })}
-                  placeholder="e.g. Solar Vaccine Refrigerators, Micro-Drip Irrigation, Tents"
-                  className="w-full max-w-full min-w-0 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#006B56] focus:bg-white outline-none font-bold text-slate-900"
-                  required
-                  autoFocus
-                />
-                <p className="text-[10px] text-slate-500">
-                  Type custom product name above. Specify desired quantity, packaging unit, and destination depot below.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* 3. Quantity & Unit */}
-          <div className="grid grid-cols-2 gap-3 min-w-0">
-            <div className="min-w-0">
-              <label className="block text-slate-700 font-bold mb-1">
-                Quantity *
-              </label>
-              <input
-                type="number"
-                min="1"
-                step="any"
-                value={form.quantity}
-                onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-                placeholder="e.g. 400"
-                className="w-full max-w-full min-w-0 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#006B56] focus:bg-white outline-none font-bold text-slate-900"
-                required
-              />
-            </div>
-
-            <div className="min-w-0">
-              <label className="block text-slate-700 font-bold mb-1">
-                Unit
-              </label>
-              <select
-                value={form.unit}
-                onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                className="w-full max-w-full min-w-0 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#006B56] focus:bg-white outline-none font-medium text-slate-900 cursor-pointer truncate text-ellipsis"
-                style={{ maxWidth: '100%' }}
+              <button
+                type="button"
+                onClick={handleAddItemLine}
+                className="text-[11px] font-bold text-[#006B56] hover:text-[#005443] bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 cursor-pointer flex items-center gap-1 shrink-0 transition"
               >
-                <option value="Bags">Bags</option>
-                <option value="Boxes">Boxes</option>
-                <option value="Cartons">Cartons</option>
-                <option value="Jerrycans">Jerrycans</option>
-                <option value="Kits">Kits</option>
-                <option value="Pieces">Pieces</option>
-                <option value="Baskets">Baskets</option>
-                <option value="Bundles">Bundles</option>
-                <option value="Sets">Sets</option>
-                <option value="Metric Tons (MT)">Metric Tons (MT)</option>
-                <option value="Litres">Litres</option>
-                <option value="Units">Units</option>
-              </select>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Product</span>
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-0.5">
+              {form.items.map((line, idx) => (
+                <div key={idx} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      Product #{idx + 1}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {line.isCustom ? (
+                        <button
+                          type="button"
+                          onClick={() => handleItemCommoditySelect(idx, commodityList[0]?.item_name || '')}
+                          className="text-[10px] font-bold text-[#006B56] hover:underline cursor-pointer"
+                        >
+                          ← Catalog
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleItemCommoditySelect(idx, '__custom__')}
+                          className="text-[10px] font-bold text-[#006B56] hover:underline cursor-pointer"
+                        >
+                          + Custom name
+                        </button>
+                      )}
+                      {form.items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItemLine(idx)}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                          title="Remove product"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {!line.isCustom ? (
+                    <select
+                      value={line.item_name || ''}
+                      onChange={(e) => handleItemCommoditySelect(idx, e.target.value)}
+                      className="w-full max-w-full min-w-0 px-2.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-[#006B56] outline-none font-bold text-slate-900 cursor-pointer truncate text-xs"
+                      required
+                    >
+                      <option value="" disabled>-- Select a Commodity / Product --</option>
+                      {commodityList.map(c => {
+                        const taken = isCommoditySelected(c.item_name, idx);
+                        return (
+                          <option key={c.item_name} value={c.item_name} disabled={taken}>
+                            {c.item_name}{taken ? ' — Already added' : ''}
+                          </option>
+                        );
+                      })}
+                      <option value="__custom__" className="font-extrabold text-[#006B56]">
+                        + Add Custom Commodity / Product...
+                      </option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={line.item_name}
+                      onChange={(e) => handleItemFieldChange(idx, 'item_name', e.target.value)}
+                      placeholder="Type product name (e.g. Solar Refrigerators, Tents)"
+                      className="w-full px-2.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-[#006B56] outline-none font-bold text-slate-900 text-xs"
+                      required
+                    />
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      step="any"
+                      value={line.quantity}
+                      onChange={(e) => handleItemFieldChange(idx, 'quantity', e.target.value)}
+                      placeholder="Quantity *"
+                      className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 focus:border-[#006B56] outline-none font-bold text-slate-900 text-xs"
+                      required
+                    />
+                    <select
+                      value={line.unit}
+                      onChange={(e) => handleItemFieldChange(idx, 'unit', e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 focus:border-[#006B56] outline-none font-medium text-slate-900 cursor-pointer text-xs"
+                    >
+                      <option value="Bags">Bags</option>
+                      <option value="Boxes">Boxes</option>
+                      <option value="Cartons">Cartons</option>
+                      <option value="Jerrycans">Jerrycans</option>
+                      <option value="Kits">Kits</option>
+                      <option value="Pieces">Pieces</option>
+                      <option value="Baskets">Baskets</option>
+                      <option value="Bundles">Bundles</option>
+                      <option value="Sets">Sets</option>
+                      <option value="Metric Tons (MT)">Metric Tons (MT)</option>
+                      <option value="Litres">Litres</option>
+                      <option value="Units">Units</option>
+                    </select>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

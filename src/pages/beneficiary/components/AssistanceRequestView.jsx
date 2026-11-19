@@ -146,7 +146,7 @@ export function AssistanceRequestView({
 
   const getStageNum = (req) => {
     if (req.beneficiary_confirmed || req.recipient_confirmed || (req.status || '').toLowerCase().includes('delivered & confirmed')) return 5;
-    if ((req.status || '').toLowerCase().includes('handed over') || req.distributed_at) return 4;
+    if ((req.status || '').toLowerCase().includes('handed over') || req.status === 'goods_collected_by_beneficiary' || req.dispatch_status === 'Collected by Beneficiary' || req.distributed_at || req.goods_collected_at) return 4;
     if (req.status_stage) return Math.min(req.status_stage, 5);
     const st = (req.status || '').toLowerCase();
     if (st.includes('fulfill') || st.includes('disburs') || st.includes('distribut')) return 4;
@@ -166,7 +166,7 @@ export function AssistanceRequestView({
         </span>
       );
     }
-    if (st.includes('handed over') || st.includes('awaiting beneficiary') || (req?.distributed_at && !req?.beneficiary_confirmed)) {
+    if (st.includes('handed over') || st.includes('awaiting beneficiary') || req?.status === 'goods_collected_by_beneficiary' || req?.dispatch_status === 'Collected by Beneficiary' || ((req?.distributed_at || req?.goods_collected_at) && !req?.beneficiary_confirmed)) {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs animate-pulse">
           <Clock className="w-3.5 h-3.5 stroke-[2.5]" /> Awaiting Confirmation
@@ -259,10 +259,14 @@ export function AssistanceRequestView({
           {filteredRequests.map(req => {
             const stageNum = getStageNum(req);
             const stages = ['Submitted', 'Assessed', 'Approved', 'Handed Over', 'Confirmed'];
-            const isAwaitingConfirm = req.status === 'Handed Over' || 
+            const isAwaitingConfirm = (
+              req.status === 'Handed Over' || 
               req.status === 'Awaiting Beneficiary Confirmation' || 
+              req.status === 'goods_collected_by_beneficiary' ||
               req.dispatch_status === 'Handed Over' || 
-              (req.distributed_at && !req.beneficiary_confirmed && !req.recipient_confirmed);
+              req.dispatch_status === 'Collected by Beneficiary' ||
+              ((req.distributed_at || req.goods_collected_at) && !req.beneficiary_confirmed && !req.recipient_confirmed)
+            ) && !req.beneficiary_confirmed && !req.recipient_confirmed;
 
             return (
               <div
@@ -369,7 +373,7 @@ export function AssistanceRequestView({
                             Relief Supplies Handed Over to Your Household
                           </h5>
                           <p className="text-[11px] text-amber-800 font-medium leading-tight">
-                            Delivered by {req.distributed_by || req.assigned_field_worker_name || 'ADRA Field Worker'}. Please confirm you physically received your aid supplies.
+                            Handed over by {req.handed_over_by || req.goods_handed_over_by || req.distributed_by || 'ADRA Supervisor'}. Please confirm you received your aid supplies.
                           </p>
                         </div>
                       </div>
@@ -381,7 +385,7 @@ export function AssistanceRequestView({
                       className="w-full py-2.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-black text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98 transition"
                     >
                       <CheckCircle className="w-4 h-4" />
-                      <span>Confirm Physical Receipt of Aid</span>
+                      <span>Confirm Received</span>
                     </button>
                   </div>
                 )}

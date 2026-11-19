@@ -29,7 +29,8 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
   const isSupplier = userType === 'supplier' || role.includes('supplier');
   const isFieldWorker = !isSupplier && role.includes('field');
   const isSupervisor = !isSupplier && role.includes('supervisor');
-  const isBeneficiary = !isSupplier && !isSupervisor && !isFieldWorker && (!effectiveUser?.role || role.includes('beneficiary'));
+  const isDriver = !isSupplier && role.includes('driver');
+  const isBeneficiary = !isSupplier && !isSupervisor && !isFieldWorker && !isDriver && (!effectiveUser?.role || role.includes('beneficiary'));
   const isFinanceOfficer = role.includes('finance');
   const isInventoryManager = role.includes('inventory') || role.includes('logistics');
   const isAdmin = role.includes('admin') || role.includes('director');
@@ -433,6 +434,12 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600'),
         ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]'),
         ...roleContacts('finance', 'Finance Officer', DollarSign, 'bg-blue-700')
+      ];
+    }
+    if (isDriver) {
+      return [
+        ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]'),
+        ...roleContacts('supervisor', 'Supervisor', ShieldCheck, 'bg-blue-600')
       ];
     }
     return [

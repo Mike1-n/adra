@@ -707,6 +707,7 @@ export function InventoryManagerDashboard({
                 onPaySupplier={handlePaySupplier}
                 onRejectAndReturnPO={handleRejectAndReturnPO}
                 onCreateSupplier={handleCreateSupplier}
+                onRefresh={loadData}
                 onDeletePO={async (id) => {
                   await db.deletePurchaseOrder(id);
                   toast.success('Purchase Order deleted');

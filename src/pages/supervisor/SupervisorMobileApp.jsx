@@ -453,8 +453,8 @@ export function SupervisorMobileApp({
       const st = (d.status || '').toLowerCase().trim();
       const dst = (d.dispatch_status || '').toLowerCase().trim();
       const isCol = st.includes('collect') || dst.includes('collect');
-      const isArr = !isCol && (st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
-      const isTrans = !isCol && !isArr && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit' || Boolean(d.waybill_number));
+      const isArr = !isCol && (st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
+      const isTrans = !isCol && !isArr && (st.includes('deliver') || st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || st.includes('pending driver') || dst === 'in transit' || Boolean(d.waybill_number));
 
       if (isCol) {
         collected++;

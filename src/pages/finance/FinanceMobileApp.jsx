@@ -229,21 +229,98 @@ export function FinanceMobileApp({
     setVoucherModalOpen(true);
   };
 
+  // Merge fieldFundingRequests with historical disbursed facilitation vouchers from expenditures
+  const mergedFieldFundingRequests = useMemo(() => {
+    const seenReqCodes = new Set();
+    const merged = (fieldFundingRequests || []).map(req => {
+      const reqCode = req.request_code || req.id;
+      if (reqCode) seenReqCodes.add(String(reqCode).toLowerCase());
+
+      const matchedExp = (expenditures || []).find(e =>
+        e.description && reqCode && e.description.toLowerCase().includes(String(reqCode).toLowerCase())
+      );
+
+      if (matchedExp && req.status !== 'Disbursed' && req.stage !== 4) {
+        const voucherMatch = matchedExp.description?.match(/PV-\d{4}-\d+/i);
+        return {
+          ...req,
+          stage: 4,
+          status: 'Disbursed',
+          finance_disbursement: {
+            ...(req.finance_disbursement || {}),
+            voucher_reference: req.finance_disbursement?.voucher_reference || (voucherMatch ? voucherMatch[0] : matchedExp.expenditure_code),
+            disbursed_at: req.finance_disbursement?.disbursed_at || matchedExp.expenditure_date || matchedExp.created_at,
+            payment_method: req.finance_disbursement?.payment_method || req.preferred_payout || 'm-Gurush / Finance Voucher'
+          }
+        };
+      }
+      return req;
+    });
+
+    (expenditures || []).forEach(exp => {
+      const desc = exp.description || '';
+      const isFacilitationExp =
+        desc.toLowerCase().includes('facilitation') ||
+        desc.includes('REQ-FND-') ||
+        (exp.category || '').toLowerCase().includes('facilitation');
+      if (!isFacilitationExp) return;
+
+      const reqCodeMatch = desc.match(/REQ-FND-\d{4}-\d+/i);
+      const reqCode = reqCodeMatch ? reqCodeMatch[0].toUpperCase() : (exp.expenditure_code || exp.id);
+      if (reqCode && seenReqCodes.has(String(reqCode).toLowerCase())) return;
+      if (reqCode) seenReqCodes.add(String(reqCode).toLowerCase());
+
+      const workerMatch =
+        desc.match(/Facilitation:\s*([^(]+?)(?:\s*\(|$)/i) ||
+        desc.match(/\)\s*for\s+([^(]+?)\s*\(/i) ||
+        desc.match(/\bfor\s+([^(]+?)\s*\(REQ-FND-/i);
+      const workerName = workerMatch ? workerMatch[1].trim() : 'Field Worker';
+      const voucherMatch = desc.match(/PV-\d{4}-\d+/i);
+      const voucherRef = voucherMatch ? voucherMatch[0].toUpperCase() : (exp.expenditure_code || 'PV-DISB');
+
+      merged.push({
+        id: `exp_fac_${exp.id || reqCode}`,
+        request_code: reqCode,
+        field_worker_name: workerName,
+        location: exp.project_name || 'Field Operation',
+        category: exp.category || 'Field Operational Facilitation',
+        purpose: desc,
+        amount: Number(exp.amount) || 0,
+        preferred_payout: 'm-Gurush / Finance Voucher',
+        created_at: exp.expenditure_date || exp.created_at,
+        stage: 4,
+        status: 'Disbursed',
+        finance_disbursement: {
+          status: 'Disbursed',
+          voucher_reference: voucherRef,
+          disbursed_at: exp.expenditure_date || exp.created_at,
+          payment_method: 'm-Gurush / Finance Voucher'
+        }
+      });
+    });
+
+    return merged.sort((a, b) => {
+      const da = new Date(a.finance_disbursement?.disbursed_at || a.updated_at || a.created_at || 0).getTime();
+      const dbTime = new Date(b.finance_disbursement?.disbursed_at || b.updated_at || b.created_at || 0).getTime();
+      return dbTime - da;
+    });
+  }, [fieldFundingRequests, expenditures]);
+
   // Count pending PM-approved requisitions awaiting Finance payout
   const pendingDisbursements = useMemo(() => {
-    return fieldFundingRequests.filter(
+    return mergedFieldFundingRequests.filter(
       r => r.status === 'Approved (Pending Finance Disbursement)' ||
            r.stage === 3 ||
            r.status === 'Approved by Program Manager' ||
            r.status === 'Pending Finance Disbursement'
     );
-  }, [fieldFundingRequests]);
+  }, [mergedFieldFundingRequests]);
 
   const disbursedRequisitions = useMemo(() => {
-    return fieldFundingRequests.filter(
-      r => r.stage === 4 || r.status === 'Disbursed' || r.status === 'Disbursed / Paid'
+    return mergedFieldFundingRequests.filter(
+      r => r.stage === 4 || r.status === 'Disbursed' || r.status === 'Disbursed / Paid' || Boolean(r.finance_disbursement?.disbursed_at)
     );
-  }, [fieldFundingRequests]);
+  }, [mergedFieldFundingRequests]);
 
   const pendingSupplierPayments = useMemo(() => {
     return purchaseOrders.filter(po => {
@@ -397,7 +474,7 @@ export function FinanceMobileApp({
 
               {activeTab === 'disbursements' && (
                 <FinanceDisbursementsView
-                  requests={fieldFundingRequests}
+                  requests={mergedFieldFundingRequests}
                   activeFilter={disbursementsFilter}
                   onFilterChange={setDisbursementsFilter}
                   onOpenSidebar={() => setIsSidebarOpen(true)}

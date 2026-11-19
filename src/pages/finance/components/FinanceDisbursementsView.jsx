@@ -50,7 +50,8 @@ export function FinanceDisbursementsView({
       const isDisbursed =
         req.stage === 4 ||
         req.status === 'Disbursed' ||
-        req.status === 'Disbursed / Paid';
+        req.status === 'Disbursed / Paid' ||
+        Boolean(req.finance_disbursement?.disbursed_at);
 
       if (activeFilter === 'pending_finance') return isPending;
       if (activeFilter === 'disbursed') return isDisbursed;

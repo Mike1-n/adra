@@ -122,6 +122,18 @@ export function FieldFundingListView({
   // Sync when initialTask changes
   useEffect(() => {
     if (initialTask) {
+      const facStatus = getTaskFacilitationStatus(initialTask, requests);
+      if (facStatus.isLocked && !revisingReq) {
+        setActiveFormTaskId(null);
+        toast.warning(
+          facStatus.isPaid
+            ? `Facilitation for ${initialTask?.beneficiary_name || initialTask?.request_code} is already completed and paid. It cannot be requested again.`
+            : facStatus.isApproved
+            ? `Facilitation for ${initialTask?.beneficiary_name || initialTask?.request_code} is already approved. It cannot be requested again.`
+            : `A facilitation request for ${initialTask?.beneficiary_name || initialTask?.request_code} is already under review.`
+        );
+        return;
+      }
       const taskId = initialTask.id || initialTask.request_code;
       setActiveFormTaskId(taskId);
       setView('request');
@@ -130,7 +142,7 @@ export function FieldFundingListView({
         setJustificationNote('');
       }
     }
-  }, [initialTask]);
+  }, [initialTask, requests]);
 
   const handleSelectTaskForForm = (task) => {
     const tId = task.id || task.request_code;
@@ -139,12 +151,25 @@ export function FieldFundingListView({
       setRevisingReq(null);
       setBreakdown([{ item: '', amount: '' }]);
       setJustificationNote('');
-    } else {
-      setActiveFormTaskId(tId);
-      if (!revisingReq) {
-        setBreakdown([{ item: '', amount: '' }]);
-        setJustificationNote('');
-      }
+      return;
+    }
+
+    const facStatus = getTaskFacilitationStatus(task, requests);
+    if (facStatus.isLocked && !revisingReq) {
+      toast.warning(
+        facStatus.isPaid
+          ? `Facilitation for ${task?.beneficiary_name || task?.request_code} is already completed and paid. You cannot request facilitation again.`
+          : facStatus.isApproved
+          ? `Facilitation for ${task?.beneficiary_name || task?.request_code} is already approved. You cannot request facilitation again.`
+          : `A facilitation request for ${task?.beneficiary_name || task?.request_code} is already under review (${facStatus.req?.status || 'Pending'}).`
+      );
+      return;
+    }
+
+    setActiveFormTaskId(tId);
+    if (!revisingReq) {
+      setBreakdown([{ item: '', amount: '' }]);
+      setJustificationNote('');
     }
   };
 
@@ -254,7 +279,7 @@ export function FieldFundingListView({
   }, [requests]);
 
   const approvedRequests = useMemo(() => {
-    return requests.filter(r => r.status === 'Disbursed' || r.stage === 4);
+    return requests.filter(r => r.status === 'Disbursed' || r.stage === 4 || Boolean(r.finance_disbursement?.disbursed_at));
   }, [requests]);
 
   const rejectedRequests = useMemo(() => {
@@ -435,12 +460,15 @@ export function FieldFundingListView({
                           {activeDisbursedReq ? (
                             <button
                               type="button"
-                              disabled
-                              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-emerald-100 text-emerald-800 border border-emerald-300 opacity-90 cursor-not-allowed shadow-2xs"
-                              title="Facilitation has been approved and paid for this case. You cannot request facilitation again."
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedVoucher(activeDisbursedReq);
+                              }}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition active:scale-95 cursor-pointer"
+                              title="View disbursement receipt & voucher"
                             >
-                              <Lock className="w-3.5 h-3.5 text-emerald-700" />
-                              <span>Facilitation Paid</span>
+                              <Receipt className="w-3.5 h-3.5" />
+                              <span>View Receipt</span>
                             </button>
                           ) : activeApprovedReq ? (
                             <button

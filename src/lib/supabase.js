@@ -12,8 +12,84 @@ export const isSupabaseConfigured = Boolean(
   !supabaseUrl.includes('your-project-ref')
 );
 
+const memoryAuthStorage = new Map();
+
+function pruneLocalAppCaches() {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const preserve = new Set([STORAGE_KEYS.FIELD_FUNDING_REQUESTS]);
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('adra_') && !preserve.has(k)) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch (e) {
+    console.warn('Could not prune local caches:', e);
+  }
+}
+
+const safeAuthStorage = {
+  getItem(key) {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const val = localStorage.getItem(key);
+        if (val !== null) return val;
+      }
+    } catch (_) {}
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        const val = sessionStorage.getItem(key);
+        if (val !== null) return val;
+      }
+    } catch (_) {}
+    return memoryAuthStorage.get(key) ?? null;
+  },
+  setItem(key, value) {
+    memoryAuthStorage.set(key, value);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(key, value);
+        return;
+      } catch (e) {
+        // Free space by clearing non-auth app caches and retry
+        pruneLocalAppCaches();
+        try {
+          localStorage.setItem(key, value);
+          return;
+        } catch (retryErr) {
+          console.warn('localStorage full for auth token, falling back to sessionStorage:', retryErr);
+        }
+      }
+    }
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(key, value);
+      }
+    } catch (_) {}
+  },
+  removeItem(key) {
+    memoryAuthStorage.delete(key);
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+    } catch (_) {}
+    try {
+      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(key);
+    } catch (_) {}
+  }
+};
+
 export const supabase = isSupabaseConfigured 
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        storage: safeAuthStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    })
   : null;
 
 // Local persistent mock store for demo / offline presentation mode
@@ -82,15 +158,14 @@ function saveLocalData(key, data) {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e) {
-    console.error('Error writing to localStorage for key:', key, e);
+    console.warn('localStorage quota reached for key:', key, e);
     try {
-      // If quota exceeded, clean non-critical keys and retry
-      localStorage.removeItem('adra_audit_logs');
-      localStorage.removeItem('adra_field_worker_notifications');
-      localStorage.removeItem('adra_supervisor_notifications');
+      // Clear non-auth adra_* caches so Supabase auth token never runs out of quota
+      pruneLocalAppCaches();
       localStorage.setItem(key, JSON.stringify(data));
     } catch (retryErr) {
-      console.error('Retry save to localStorage failed:', retryErr);
+      // If still over quota (e.g. mobile 5MB limit), skip local cache write
+      console.warn('Skipping localStorage cache write (quota exceeded):', key);
     }
   }
 }
@@ -3863,6 +3938,27 @@ export const db = {
         )
       : -1;
 
+    // Prevent duplicate facilitation requests for the same task/case once submitted, approved, or disbursed
+    if (existingIndex === -1 && !fundingData.id && (fundingData.linked_task_id || fundingData.linked_request_code)) {
+      const existingAll = await this.getFieldFundingRequests();
+      const targetTaskId = String(fundingData.linked_task_id || '').toLowerCase().trim();
+      const targetReqCode = String(fundingData.linked_request_code || '').toLowerCase().trim();
+      const duplicate = (existingAll || []).find(r => {
+        if (!r) return false;
+        const st = String(r.status || '').toLowerCase();
+        if (st.includes('reject') || r.stage === -1) return false;
+        const rTaskId = String(r.linked_task_id || '').toLowerCase().trim();
+        const rReqCode = String(r.linked_request_code || '').toLowerCase().trim();
+        return (
+          (targetTaskId && rTaskId && targetTaskId === rTaskId) ||
+          (targetReqCode && rReqCode && targetReqCode === rReqCode)
+        );
+      });
+      if (duplicate) {
+        throw new Error('Facilitation for this case has already been submitted or completed and cannot be requested again.');
+      }
+    }
+
     // Compute accurate amount from itemized breakdown if present
     const computedAmount = fundingData.breakdown && fundingData.breakdown.length > 0
       ? fundingData.breakdown.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
@@ -4324,6 +4420,11 @@ export const db = {
     const target = updated.find(r => r.id === requestId || r.request_code === requestId);
 
     // Also record in expenditures ledger
+    const caseMeta = [
+      target?.linked_request_code ? `Case: ${target.linked_request_code}` : (target?.linked_task_id ? `Case: ${target.linked_task_id}` : ''),
+      target?.linked_beneficiary_name ? `Beneficiary: ${target.linked_beneficiary_name}` : ''
+    ].filter(Boolean).join(' | ');
+    const caseMetaSuffix = caseMeta ? ` [${caseMeta}]` : '';
     const bdSummary = (target && Array.isArray(target.breakdown) && target.breakdown.length > 0)
       ? ` Breakdown: ${target.breakdown.map(b => `${b.item || b.label || 'Item'}: ${Number(b.amount || 0).toLocaleString()} ${target.currency || 'SSP'}`).join(' | ')}`
       : '';
@@ -4334,7 +4435,7 @@ export const db = {
           project_id: target.project_id || 'prg1',
           project_name: target.project_name || 'Emergency Food Security & Livelihoods (EFSLR)',
           category: 'Travel & Transport',
-          description: `Field Cash Facilitation (${target.category}) for ${target.field_worker_name} (${target.request_code}) - Voucher ${voucherRef}.${bdSummary}`,
+          description: `Field Cash Facilitation (${target.category}) for ${target.field_worker_name} (${target.request_code}) - Voucher ${voucherRef}.${caseMetaSuffix}${bdSummary}`,
           amount: target.amount,
           expenditure_date: now.split('T')[0],
           receipt_url: `https://adra-docs.internal/vouchers/${voucherRef}.pdf`
@@ -7238,7 +7339,7 @@ export const db = {
       id,
       po_number: poNumber,
       order_date: poData.order_date || new Date().toISOString().split('T')[0],
-      status: 'Pending Supplier Supply',
+      status: 'Pending Quotation',
       stage: 1,
       requested_by: poData.requested_by || 'Gabriel Majok (Inventory Manager)',
       requested_at: new Date().toISOString(),
@@ -7309,7 +7410,7 @@ export const db = {
         order_date: newPO.order_date,
         expected_delivery: deliveryDate,
         expected_delivery_date: deliveryDate,
-        status: newPO.status || 'Pending Supplier Supply',
+        status: newPO.status || 'Pending Quotation',
         stage: newPO.stage || 1,
         issued_by: newPO.requested_by,
         created_by: newPO.requested_by,
@@ -7342,6 +7443,118 @@ export const db = {
       details: `[Stage 1: Requested] Issued purchase order ${newPO.po_number} for ${newPO.quantity} ${newPO.unit} ${newPO.item_name} to ${newPO.supplier_name} for destination ${newPO.warehouse_destination}`
     });
     return newPO;
+  },
+
+  async submitSupplierQuotation(id, quoteData = {}) {
+    const {
+      total_amount = 0,
+      unit_cost = 0,
+      notes = '',
+      quoted_by = 'Supplier'
+    } = quoteData;
+
+    const all = await this.getPurchaseOrders();
+    const existing = all.find(p => p.id === id || p.po_number === id);
+    const qty = Number(existing?.quantity) || 1;
+    const finalTotal = Number(total_amount) || (Number(unit_cost) * qty) || 0;
+    const finalUnitCost = Number(unit_cost) || (qty > 0 ? Math.round((finalTotal / qty) * 100) / 100 : 0);
+    const quoteNote = notes ? `Quotation (${quoted_by}): ${notes}` : `Quotation submitted by ${quoted_by}`;
+    const mergedNotes = existing?.notes ? `${existing.notes} | ${quoteNote}` : quoteNote;
+
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.from('purchase_orders').update({
+        status: 'Quotation Submitted',
+        stage: 1,
+        total_amount: finalTotal,
+        unit_cost: finalUnitCost,
+        notes: mergedNotes
+      }).eq('id', existing?.id || id);
+      if (error) {
+        console.warn('Supabase submitSupplierQuotation error:', error);
+      }
+    }
+
+    const updated = all.map(po => (po.id === id || po.po_number === id) ? {
+      ...po,
+      status: 'Quotation Submitted',
+      stage: 1,
+      total_amount: finalTotal,
+      unit_cost: finalUnitCost,
+      quotation_notes: notes,
+      quoted_at: new Date().toISOString(),
+      notes: mergedNotes
+    } : po);
+    saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
+
+    await this.logAudit({
+      action: 'SUPPLIER_SUBMIT_QUOTATION',
+      module: 'Procurement & Suppliers',
+      record_id: existing?.po_number || id,
+      details: `Supplier ${existing?.supplier_name || quoted_by} submitted quotation of SSP ${finalTotal.toLocaleString()} for ${existing?.po_number || id}`
+    });
+
+    return updated.find(po => po.id === id || po.po_number === id);
+  },
+
+  async approveSupplierQuotation(id, approverName = 'Gabriel Majok (Inventory Manager)') {
+    const all = await this.getPurchaseOrders();
+    const existing = all.find(p => p.id === id || p.po_number === id);
+    const approvalNote = `Quotation approved by ${approverName}`;
+    const mergedNotes = existing?.notes ? `${existing.notes} | ${approvalNote}` : approvalNote;
+
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.from('purchase_orders').update({
+        status: 'Approved for Supply',
+        stage: 1,
+        notes: mergedNotes
+      }).eq('id', existing?.id || id);
+      if (error) {
+        console.warn('Supabase approveSupplierQuotation error:', error);
+      }
+    }
+
+    const updated = all.map(po => (po.id === id || po.po_number === id) ? {
+      ...po,
+      status: 'Approved for Supply',
+      stage: 1,
+      quotation_approved_by: approverName,
+      quotation_approved_at: new Date().toISOString(),
+      notes: mergedNotes
+    } : po);
+    saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
+
+    await this.logAudit({
+      action: 'INVENTORY_APPROVE_QUOTATION',
+      module: 'Procurement & Suppliers',
+      record_id: existing?.po_number || id,
+      details: `${approverName} approved quotation (SSP ${Number(existing?.total_amount || 0).toLocaleString()}) for ${existing?.po_number || id}. Supplier cleared to supply.`
+    });
+
+    return updated.find(po => po.id === id || po.po_number === id);
+  },
+
+  async rejectSupplierQuotation(id, reason = '', reviewerName = 'Gabriel Majok (Inventory Manager)') {
+    const all = await this.getPurchaseOrders();
+    const existing = all.find(p => p.id === id || p.po_number === id);
+    const revNote = `Quotation revision requested by ${reviewerName}${reason ? `: ${reason}` : ''}`;
+    const mergedNotes = existing?.notes ? `${existing.notes} | ${revNote}` : revNote;
+
+    if (isSupabaseConfigured) {
+      await supabase.from('purchase_orders').update({
+        status: 'Pending Quotation',
+        stage: 1,
+        notes: mergedNotes
+      }).eq('id', existing?.id || id);
+    }
+
+    const updated = all.map(po => (po.id === id || po.po_number === id) ? {
+      ...po,
+      status: 'Pending Quotation',
+      stage: 1,
+      notes: mergedNotes
+    } : po);
+    saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
+    return updated.find(po => po.id === id || po.po_number === id);
   },
 
   // Stage 2: Supplier supplies the goods (Supplier Dispatch & Invoicing)
@@ -7683,7 +7896,7 @@ export const db = {
         if (existingIdx === -1) {
           combined.push(rem);
         } else {
-          combined[existingIdx] = { ...rem, ...combined[existingIdx] };
+          combined[existingIdx] = { ...combined[existingIdx], ...rem };
         }
       });
     }
@@ -7723,6 +7936,7 @@ export const db = {
       assigned_field_worker_name = '',
       transport_mode = 'ADRA Logistics Fleet Truck',
       vehicle_reg = 'SSD-481-LOG',
+      driver_id = '',
       driver_name = 'Deng Bol',
       driver_phone = '+211-921-889911',
       items = [],
@@ -7759,6 +7973,42 @@ export const db = {
       ? targetReq.assigned_field_worker_name
       : (targetReq?.assigned_field_worker_name || 'John Deng');
 
+    // Validate stock availability BEFORE issuing the waybill
+    const currentInventory = await this.getInventory();
+    const requestedTotals = new Map();
+    for (const itm of items) {
+      const reqQty = Number(itm.quantity) || 0;
+      if (reqQty <= 0) continue;
+      const matched =
+        currentInventory.find(i => itm.item_id && i.id === itm.item_id) ||
+        currentInventory.find(i =>
+          i.item_name && itm.item_name &&
+          i.item_name.toLowerCase() === itm.item_name.toLowerCase() &&
+          (!origin_warehouse || i.warehouse === origin_warehouse)
+        ) ||
+        currentInventory.find(i =>
+          i.item_name && itm.item_name &&
+          i.item_name.toLowerCase() === itm.item_name.toLowerCase()
+        );
+
+      const key = matched ? matched.id : `name:${(itm.item_name || '').toLowerCase()}`;
+      const prev = requestedTotals.get(key) || { matched, item: itm, totalQty: 0 };
+      prev.totalQty += reqQty;
+      requestedTotals.set(key, prev);
+    }
+
+    for (const { matched, item, totalQty } of requestedTotals.values()) {
+      const availableQty = Number(matched?.quantity) || 0;
+      const label = matched?.item_name || item.item_name || 'Commodity';
+      const unit = matched?.unit || item.unit || 'units';
+      if (!matched || availableQty <= 0) {
+        throw new Error(`Out of stock: "${label}" has 0 ${unit} available in stock.`);
+      }
+      if (totalQty > availableQty) {
+        throw new Error(`Out of stock: Requested ${totalQty} ${unit} of "${label}", but only ${availableQty} ${unit} available in stock.`);
+      }
+    }
+
     const waybillNumber = `WAYBILL-SS-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
     const dispatchToken = `WB-${(destination || 'DISP').slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -7779,11 +8029,14 @@ export const db = {
       assigned_field_worker_name: effectiveWorkerName,
       transport_mode,
       vehicle_reg,
+      driver_id,
       driver_name,
       driver_phone,
       dispatch_date: new Date().toISOString().split('T')[0],
       items,
-      status: 'In Transit',
+      status: 'Pending Driver Acceptance',
+      driver_accepted: false,
+      driver_delivered: false,
       released_by,
       received_by: `Pending Arrival Verification (${effectiveSupervisorName})`,
       qr_token_verified: false,
@@ -7804,7 +8057,6 @@ export const db = {
     }
 
     // Deduct stock from origin warehouse
-    const currentInventory = await this.getInventory();
     let updatedInventory = [...currentInventory];
     const currentTx = await this.getStockTransactions();
     let newTxList = [...currentTx];
@@ -7859,8 +8111,8 @@ export const db = {
       try {
         await this.updateAssistanceRequest(targetReq.id, {
           status: 'warehouse_dispatched',
-          dispatch_status: 'In Transit',
-          status_label: 'Cargo In Transit from Warehouse',
+          dispatch_status: 'Pending Driver Acceptance',
+          status_label: 'Assigned to Driver - Awaiting Pickup',
           qr_token: dispatchToken,
           waybill_number: waybillNumber,
           origin_warehouse: origin_warehouse,
@@ -7923,6 +8175,169 @@ export const db = {
     });
 
     return newDispatch;
+  },
+
+  async acceptDispatchByDriver(requestIdOrWaybill, driverName = 'ADRA Driver', driverNotes = '') {
+    const allDispatches = await this.getDispatches();
+    const reqs = await this.getAssistanceRequests();
+
+    const targetDispatch = allDispatches.find(d =>
+      d.id === requestIdOrWaybill ||
+      d.waybill_number === requestIdOrWaybill ||
+      d.linked_request_id === requestIdOrWaybill ||
+      d.request_code === requestIdOrWaybill
+    );
+
+    const targetReq = reqs.find(r =>
+      r.id === requestIdOrWaybill ||
+      r.request_code === requestIdOrWaybill ||
+      (targetDispatch && (r.id === targetDispatch.linked_request_id || r.request_code === targetDispatch.request_code || r.waybill_number === targetDispatch.waybill_number)) ||
+      (r.waybill_number && r.waybill_number === requestIdOrWaybill)
+    );
+
+    const now = new Date().toISOString();
+    const cleanDriver = driverName || targetDispatch?.driver_name || 'ADRA Driver';
+
+    if (targetDispatch) {
+      const updatedDispatches = allDispatches.map(d => {
+        if (d.id === targetDispatch.id || d.waybill_number === targetDispatch.waybill_number) {
+          return {
+            ...d,
+            status: 'In Transit',
+            driver_accepted: true,
+            driver_accepted_at: now,
+            driver_accepted_by: cleanDriver,
+            notes: driverNotes ? `${d.notes ? d.notes + ' | ' : ''}Accepted by Driver ${cleanDriver}: ${driverNotes}` : d.notes
+          };
+        }
+        return d;
+      });
+      saveLocalData(STORAGE_KEYS.DISPATCHES, updatedDispatches);
+
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from('dispatches').update({
+            status: 'In Transit',
+            driver_accepted: true,
+            driver_accepted_at: now,
+            driver_accepted_by: cleanDriver
+          }).or(`id.eq.${targetDispatch.id},waybill_number.eq.${targetDispatch.waybill_number}`);
+        } catch (err) {
+          console.warn('Supabase driver accept update warning:', err);
+        }
+      }
+    }
+
+    if (targetReq) {
+      try {
+        await this.updateAssistanceRequest(targetReq.id, {
+          status: 'warehouse_dispatched',
+          dispatch_status: 'In Transit',
+          status_label: `In Transit with Driver ${cleanDriver}`,
+          driver_accepted_at: now,
+          driver_accepted_by: cleanDriver
+        });
+      } catch (err) {
+        console.warn('Could not update request on driver accept:', err);
+      }
+    }
+
+    await this.logAudit({
+      action: 'DRIVER_ACCEPT_GOODS',
+      module: 'Logistics & Driver',
+      record_id: targetDispatch?.waybill_number || requestIdOrWaybill,
+      details: `Driver ${cleanDriver} accepted goods from Inventory Manager for delivery to Supervisor ${targetDispatch?.assigned_supervisor_name || 'Hub'}.`
+    });
+
+    return { success: true, waybill_number: targetDispatch?.waybill_number || requestIdOrWaybill };
+  },
+
+  async deliverDispatchByDriver(requestIdOrWaybill, driverName = 'ADRA Driver', deliveryNotes = '') {
+    const allDispatches = await this.getDispatches();
+    const reqs = await this.getAssistanceRequests();
+
+    const targetDispatch = allDispatches.find(d =>
+      d.id === requestIdOrWaybill ||
+      d.waybill_number === requestIdOrWaybill ||
+      d.linked_request_id === requestIdOrWaybill ||
+      d.request_code === requestIdOrWaybill
+    );
+
+    const targetReq = reqs.find(r =>
+      r.id === requestIdOrWaybill ||
+      r.request_code === requestIdOrWaybill ||
+      (targetDispatch && (r.id === targetDispatch.linked_request_id || r.request_code === targetDispatch.request_code || r.waybill_number === targetDispatch.waybill_number)) ||
+      (r.waybill_number && r.waybill_number === requestIdOrWaybill)
+    );
+
+    const now = new Date().toISOString();
+    const cleanDriver = driverName || targetDispatch?.driver_name || 'ADRA Driver';
+
+    if (targetDispatch) {
+      const updatedDispatches = allDispatches.map(d => {
+        if (d.id === targetDispatch.id || d.waybill_number === targetDispatch.waybill_number) {
+          return {
+            ...d,
+            status: 'Delivered to Supervisor',
+            driver_delivered: true,
+            driver_delivered_at: now,
+            driver_delivered_by: cleanDriver,
+            notes: deliveryNotes ? `${d.notes ? d.notes + ' | ' : ''}Delivered to Supervisor by ${cleanDriver}: ${deliveryNotes}` : `${d.notes ? d.notes + ' | ' : ''}Delivered to Supervisor by ${cleanDriver}`
+          };
+        }
+        return d;
+      });
+      saveLocalData(STORAGE_KEYS.DISPATCHES, updatedDispatches);
+
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from('dispatches').update({
+            status: 'Delivered to Supervisor',
+            driver_delivered: true,
+            driver_delivered_at: now,
+            driver_delivered_by: cleanDriver
+          }).or(`id.eq.${targetDispatch.id},waybill_number.eq.${targetDispatch.waybill_number}`);
+        } catch (err) {
+          console.warn('Supabase driver deliver update warning:', err);
+        }
+      }
+    }
+
+    if (targetReq) {
+      try {
+        await this.updateAssistanceRequest(targetReq.id, {
+          status: 'goods_arrived_at_hub',
+          dispatch_status: 'Delivered to Supervisor',
+          status_label: 'Delivered by Driver - Ready for Supervisor Handover',
+          driver_delivered_at: now,
+          driver_delivered_by: cleanDriver
+        });
+      } catch (err) {
+        console.warn('Could not update request on driver delivery:', err);
+      }
+    }
+
+    if (targetDispatch?.assigned_supervisor_id || targetDispatch?.assigned_supervisor_name) {
+      try {
+        await this.createSupervisorNotification({
+          supervisor_id: targetDispatch.assigned_supervisor_id || 'sup-1',
+          supervisor_name: targetDispatch.assigned_supervisor_name || 'Supervisor',
+          title: `Waybill ${targetDispatch.waybill_number} Delivered by Driver`,
+          message: `Driver ${cleanDriver} has delivered ${targetDispatch.waybill_number} to your hub. Ready for beneficiary/field handover.`,
+          type: 'dispatch_delivery',
+          waybill_number: targetDispatch.waybill_number
+        });
+      } catch (_) {}
+    }
+
+    await this.logAudit({
+      action: 'DRIVER_DELIVER_TO_SUPERVISOR',
+      module: 'Logistics & Driver',
+      record_id: targetDispatch?.waybill_number || requestIdOrWaybill,
+      details: `Driver ${cleanDriver} delivered goods (${targetDispatch?.waybill_number}) to Supervisor ${targetDispatch?.assigned_supervisor_name || 'Hub'}.`
+    });
+
+    return { success: true, waybill_number: targetDispatch?.waybill_number || requestIdOrWaybill };
   },
 
   async confirmDispatchArrival(requestIdOrWaybill, supervisorName = 'Emmanuel Adeyemi (Supervisor)', arrivalNotes = '') {
@@ -8146,9 +8561,10 @@ export const db = {
     // Update assistance request
     if (targetReq) {
       const updatedReq = await this.updateAssistanceRequest(targetReq.id, {
-        status: isBeneficiaryRecipient ? 'goods_collected_by_beneficiary' : 'goods_collected_by_field_worker',
-        dispatch_status: statusTitle,
-        status_label: isBeneficiaryRecipient ? 'Goods Collected Directly by Beneficiary' : 'Goods Collected - Out for Distribution',
+        status: isBeneficiaryRecipient ? 'Handed Over' : 'goods_collected_by_field_worker',
+        dispatch_status: isBeneficiaryRecipient ? 'Handed Over' : statusTitle,
+        status_label: isBeneficiaryRecipient ? 'Handed Over to Beneficiary - Awaiting Confirmation' : 'Goods Collected - Out for Distribution',
+        distributed_at: isBeneficiaryRecipient ? now : targetReq.distributed_at,
         goods_collected_at: now,
         goods_collected_by: workerCleanName,
         collected_by: workerCleanName,

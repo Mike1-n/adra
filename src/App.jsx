@@ -43,6 +43,9 @@ import { FinanceMobileApp } from './pages/finance/FinanceMobileApp';
 // Dedicated Inventory & Logistics Manager Portal (Section 1.5.10 & 1.5.11)
 import { InventoryManagerDashboard } from './pages/inventory/InventoryManagerDashboard';
 
+// Specialized Driver & Transit Mobile Application
+import { DriverMobileApp } from './pages/driver/DriverMobileApp';
+
 // Specialized Supplier Portal
 import { SupplierPortalApp } from './pages/supplier/SupplierPortalApp';
 
@@ -230,6 +233,10 @@ export function App() {
       setCurrentTab('inventory');
       setAppMode('inventory_manager');
       return;
+    } else if (currentUser.role === 'Driver') {
+      setCurrentTab('driver');
+      setAppMode('driver_mobile');
+      return;
     } else if (currentUser.role === 'Supplier') {
       setCurrentTab('supplier');
       setAppMode('supplier_portal');
@@ -378,6 +385,17 @@ export function App() {
           setAppMode('field_app');
           navigateTo('/');
         }}
+      />
+    );
+  }
+
+  // If Driver logs in or switches to Driver mode:
+  if (currentUser.role === 'Driver' || appMode === 'driver_mobile' || currentTab === 'driver') {
+    return (
+      <DriverMobileApp
+        currentUser={currentUser}
+        onLogout={logout}
+        onSwitchRole={quickSwitchRole}
       />
     );
   }

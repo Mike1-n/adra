@@ -845,6 +845,7 @@ export const initialRoles = [
   'Field Worker',
   'Finance Officer',
   'Inventory Manager',
+  'Driver',
   'Supplier',
   'Donor',
   'Beneficiary'
@@ -854,6 +855,7 @@ export const initialPermissions = [
   { role: 'Administrator', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: true, can_export: true },
   { role: 'Program Manager', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: false, can_export: true },
   { role: 'Supervisor', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: false, can_export: true },
+  { role: 'Driver', can_view: true, can_create: false, can_edit: true, can_approve: false, can_delete: false, can_export: false },
   { role: 'Inventory Manager', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: false, can_export: true },
   { role: 'Project Officer', can_view: true, can_create: true, can_edit: true, can_approve: false, can_delete: false, can_export: true },
   { role: 'Finance Officer', can_view: true, can_create: true, can_edit: true, can_approve: true, can_delete: false, can_export: true },

@@ -124,14 +124,15 @@ export function FieldWorkerApp({
       setWorker(current);
       setDutyStatus(current.current_status || 'Available');
 
-      const [assignedTasks, assData, actData, benData, fundData, projData, compData] = await Promise.all([
+      const [assignedTasks, assData, actData, benData, fundData, projData, compData, expData] = await Promise.all([
         db.getFieldWorkerAssignedRequests ? db.getFieldWorkerAssignedRequests(current.id, current.name) : db.getAssistanceRequests(),
         db.getFieldAssessments ? db.getFieldAssessments(null, current.id, current.name) : [],
         db.getFieldWorkerActivities ? db.getFieldWorkerActivities(current.id, current.name) : [],
         db.getBeneficiaries ? db.getBeneficiaries() : [],
         db.getFieldFundingRequests ? db.getFieldFundingRequests(current.id, null, current.name, current.email) : [],
         db.getProjects ? db.getProjects() : [],
-        db.getComplaints ? db.getComplaints('all') : []
+        db.getComplaints ? db.getComplaints('all') : [],
+        db.getExpenditures ? db.getExpenditures() : []
       ]);
 
       setTasks(Array.isArray(assignedTasks) ? assignedTasks : []);
@@ -171,7 +172,94 @@ export function FieldWorkerApp({
         return false;
       });
       setBeneficiaries(territoryBens);
-      setFundingRequests(fundData || []);
+
+      // Merge fundData with historical disbursed facilitation vouchers from expenditures for this worker
+      const workerNameLower = (current.name || '').toLowerCase().trim();
+      const seenReqCodes = new Set();
+      const mergedFunding = (fundData || []).map(req => {
+        const reqCode = req.request_code || req.id;
+        if (reqCode) seenReqCodes.add(String(reqCode).toLowerCase());
+        const matchedExp = (expData || []).find(e =>
+          e.description && reqCode && e.description.toLowerCase().includes(String(reqCode).toLowerCase())
+        );
+        if (matchedExp && req.status !== 'Disbursed' && req.stage !== 4) {
+          const voucherMatch = matchedExp.description?.match(/PV-\d{4}-\d+/i);
+          return {
+            ...req,
+            stage: 4,
+            status: 'Disbursed',
+            finance_disbursement: {
+              ...(req.finance_disbursement || {}),
+              voucher_reference: req.finance_disbursement?.voucher_reference || (voucherMatch ? voucherMatch[0] : matchedExp.expenditure_code),
+              disbursed_at: req.finance_disbursement?.disbursed_at || matchedExp.expenditure_date || matchedExp.created_at,
+              payment_method: req.finance_disbursement?.payment_method || req.preferred_payout || 'm-Gurush / Finance Voucher'
+            }
+          };
+        }
+        return req;
+      });
+
+      (expData || []).forEach(exp => {
+        const desc = exp.description || '';
+        const isFacilitationExp =
+          desc.toLowerCase().includes('facilitation') ||
+          desc.includes('REQ-FND-') ||
+          (exp.category || '').toLowerCase().includes('facilitation');
+        if (!isFacilitationExp) return;
+
+        const workerMatch =
+          desc.match(/Facilitation:\s*([^(]+?)(?:\s*\(|$)/i) ||
+          desc.match(/\)\s*for\s+([^(]+?)\s*\(/i) ||
+          desc.match(/\bfor\s+([^(]+?)\s*\(REQ-FND-/i);
+        const extractedWorker = workerMatch ? workerMatch[1].trim() : '';
+        if (workerNameLower && extractedWorker.toLowerCase() !== workerNameLower && !desc.toLowerCase().includes(workerNameLower)) {
+          return;
+        }
+
+        const reqCodeMatch = desc.match(/REQ-FND-\d{4}-\d+/i);
+        const reqCode = reqCodeMatch ? reqCodeMatch[0].toUpperCase() : (exp.expenditure_code || exp.id);
+        if (reqCode && seenReqCodes.has(String(reqCode).toLowerCase())) return;
+        if (reqCode) seenReqCodes.add(String(reqCode).toLowerCase());
+
+        const voucherMatch = desc.match(/PV-\d{4}-\d+/i);
+        const voucherRef = voucherMatch ? voucherMatch[0].toUpperCase() : (exp.expenditure_code || 'PV-DISB');
+        const caseMatch = desc.match(/Case:\s*([^|\]]+)/i);
+        const benMatch = desc.match(/Beneficiary:\s*([^|\]]+)/i);
+        const linkedCaseCode = caseMatch ? caseMatch[1].trim() : '';
+        const linkedBenName = benMatch ? benMatch[1].trim() : '';
+
+        mergedFunding.push({
+          id: `exp_fac_${exp.id || reqCode}`,
+          request_code: reqCode,
+          linked_task_id: linkedCaseCode,
+          linked_request_code: linkedCaseCode,
+          linked_beneficiary_name: linkedBenName,
+          field_worker_id: current.id,
+          field_worker_name: extractedWorker || current.name,
+          location: exp.project_name || 'Field Operation',
+          category: exp.category || 'Field Operational Facilitation',
+          purpose: desc,
+          amount: Number(exp.amount) || 0,
+          preferred_payout: 'm-Gurush / Finance Voucher',
+          created_at: exp.expenditure_date || exp.created_at,
+          stage: 4,
+          status: 'Disbursed',
+          finance_disbursement: {
+            status: 'Disbursed',
+            voucher_reference: voucherRef,
+            disbursed_at: exp.expenditure_date || exp.created_at,
+            payment_method: 'm-Gurush / Finance Voucher'
+          }
+        });
+      });
+
+      mergedFunding.sort((a, b) => {
+        const da = new Date(a.finance_disbursement?.disbursed_at || a.updated_at || a.created_at || 0).getTime();
+        const dbTime = new Date(b.finance_disbursement?.disbursed_at || b.updated_at || b.created_at || 0).getTime();
+        return dbTime - da;
+      });
+
+      setFundingRequests(mergedFunding);
     } catch (err) {
       console.error('Failed to load field worker data:', err);
       toast.error('Error loading field worker profile and tasks');
@@ -343,7 +431,7 @@ export function FieldWorkerApp({
   }, [fundingRequests]);
 
   const approvedFundingCount = useMemo(() => {
-    return fundingRequests.filter(r => r.status === 'Disbursed').length;
+    return fundingRequests.filter(r => r.status === 'Disbursed' || r.stage === 4 || Boolean(r.finance_disbursement?.disbursed_at)).length;
   }, [fundingRequests]);
 
   const rejectedFundingCount = useMemo(() => {

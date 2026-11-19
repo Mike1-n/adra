@@ -256,11 +256,19 @@ export function CreateDispatchModal({
     beneficiary_name: '',
     transport_mode: 'ADRA Logistics Fleet Truck',
     vehicle_reg: '',
+    driver_id: '',
     driver_name: '',
     driver_phone: '',
     notes: '',
     items: []
   });
+  const [driverUsers, setDriverUsers] = useState([]);
+
+  useEffect(() => {
+    db.getUsers?.().then(uList => {
+      setDriverUsers((uList || []).filter(u => u.role === 'Driver'));
+    }).catch(() => {});
+  }, []);
 
   // Available inventory items for selected warehouse
   const depotInventory = useMemo(() => {
@@ -419,17 +427,31 @@ export function CreateDispatchModal({
     }));
   };
 
+  const isItemAlreadySelected = (inv, excludeIdx = -1) => {
+    if (!inv) return false;
+    const invName = (inv.item_name || '').toLowerCase().trim();
+    return form.items.some((it, i) => {
+      if (i === excludeIdx) return false;
+      return (inv.id && it.item_id === inv.id) || (invName && (it.item_name || '').toLowerCase().trim() === invName);
+    });
+  };
+
   const handleAddItemLine = () => {
-    const defaultItem = depotInventory[0] || inventoryItems[0];
+    const pool = [...depotInventory, ...inventoryItems.filter(i => !depotInventory.some(d => d.id === i.id))];
+    const nextItem = pool.find(inv => !isItemAlreadySelected(inv));
+    if (!nextItem) {
+      toast.warning('All available commodities have already been added to this waybill.');
+      return;
+    }
     setForm(prev => ({
       ...prev,
       items: [
         ...prev.items,
         {
-          item_id: defaultItem?.id || '',
-          item_name: defaultItem?.item_name || '',
+          item_id: nextItem.id || '',
+          item_name: nextItem.item_name || '',
           quantity: 1,
-          unit: defaultItem?.unit || 'Units'
+          unit: nextItem.unit || 'Units'
         }
       ]
     }));
@@ -451,6 +473,10 @@ export function CreateDispatchModal({
     if (field === 'item_id') {
       const match = inventoryItems.find(i => i.id === val);
       if (match) {
+        if (isItemAlreadySelected(match, idx)) {
+          toast.warning(`"${match.item_name}" is already selected on another line. Update its quantity there.`);
+          return;
+        }
         updated[idx] = {
           ...updated[idx],
           item_id: match.id,
@@ -477,6 +503,41 @@ export function CreateDispatchModal({
     if (form.items.length === 0 || form.items.some(i => !i.item_name || !i.quantity || Number(i.quantity) <= 0)) {
       toast.error('Please specify valid commodity items and quantities.');
       return;
+    }
+
+    // Validate requested quantities against available stock
+    const requestedTotals = new Map();
+    for (const item of form.items) {
+      const qty = Number(item.quantity) || 0;
+      const matched =
+        inventoryItems.find(i => item.item_id && i.id === item.item_id) ||
+        inventoryItems.find(i =>
+          i.item_name && item.item_name &&
+          i.item_name.toLowerCase() === item.item_name.toLowerCase() &&
+          (!form.origin_warehouse || i.warehouse === form.origin_warehouse)
+        ) ||
+        inventoryItems.find(i =>
+          i.item_name && item.item_name &&
+          i.item_name.toLowerCase() === item.item_name.toLowerCase()
+        );
+      const key = matched ? matched.id : `name:${(item.item_name || '').toLowerCase()}`;
+      const prev = requestedTotals.get(key) || { matched, item, totalQty: 0 };
+      prev.totalQty += qty;
+      requestedTotals.set(key, prev);
+    }
+
+    for (const { matched, item, totalQty } of requestedTotals.values()) {
+      const availableQty = Number(matched?.quantity) || 0;
+      const label = matched?.item_name || item.item_name;
+      const unit = matched?.unit || item.unit || 'units';
+      if (!matched || availableQty <= 0) {
+        toast.error(`Out of stock: "${label}" has 0 ${unit} available in stock.`);
+        return;
+      }
+      if (totalQty > availableQty) {
+        toast.error(`Out of stock: Requested ${totalQty} ${unit} of "${label}", but only ${availableQty} ${unit} available in stock.`);
+        return;
+      }
     }
 
     setLoading(true);
@@ -628,11 +689,23 @@ export function CreateDispatchModal({
 
             <div className="space-y-2">
               {form.items.map((item, idx) => {
-                const matched = inventoryItems.find(i => i.id === item.item_id || i.item_name === item.item_name);
-                const stock = matched ? matched.quantity : null;
+                const matched =
+                  inventoryItems.find(i => item.item_id && i.id === item.item_id) ||
+                  inventoryItems.find(i =>
+                    i.item_name && item.item_name &&
+                    i.item_name.toLowerCase() === item.item_name.toLowerCase() &&
+                    (!form.origin_warehouse || i.warehouse === form.origin_warehouse)
+                  ) ||
+                  inventoryItems.find(i =>
+                    i.item_name && item.item_name &&
+                    i.item_name.toLowerCase() === item.item_name.toLowerCase()
+                  );
+                const stock = matched ? Number(matched.quantity) || 0 : null;
+                const isOverStock = stock !== null && (stock <= 0 || Number(item.quantity) > stock);
 
                 return (
-                  <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                  <div key={idx} className="space-y-1">
+                  <div className={`flex items-center gap-2 p-2 rounded-xl border ${isOverStock ? 'bg-rose-50/70 border-rose-300' : 'bg-slate-50 border-slate-200'}`}>
                     <div className="flex-1 min-w-0">
                       <select
                         value={item.item_id || depotInventory.find(i => i.item_name === item.item_name)?.id || ''}
@@ -641,21 +714,27 @@ export function CreateDispatchModal({
                       >
                         <option value="">Select item...</option>
                         <optgroup label={`── ${form.origin_warehouse || 'Depot'} Stock ──`}>
-                          {depotInventory.map(inv => (
-                            <option key={inv.id} value={inv.id}>
-                              {inv.item_name} ({Number(inv.quantity).toLocaleString()} {inv.unit})
-                            </option>
-                          ))}
+                          {depotInventory.map(inv => {
+                            const taken = isItemAlreadySelected(inv, idx);
+                            return (
+                              <option key={inv.id} value={inv.id} disabled={taken}>
+                                {inv.item_name} ({Number(inv.quantity).toLocaleString()} {inv.unit}){taken ? ' — Already selected' : ''}
+                              </option>
+                            );
+                          })}
                         </optgroup>
                         {inventoryItems.filter(i => !depotInventory.some(d => d.id === i.id)).length > 0 && (
                           <optgroup label="── Inter-Depot Stock Transfer ──">
                             {inventoryItems
                               .filter(i => !depotInventory.some(d => d.id === i.id))
-                              .map(inv => (
-                                <option key={inv.id} value={inv.id}>
-                                  {inv.item_name} ({inv.warehouse || 'Other Depot'} — {inv.quantity} {inv.unit})
-                                </option>
-                              ))}
+                              .map(inv => {
+                                const taken = isItemAlreadySelected(inv, idx);
+                                return (
+                                  <option key={inv.id} value={inv.id} disabled={taken}>
+                                    {inv.item_name} ({inv.warehouse || 'Other Depot'} — {inv.quantity} {inv.unit}){taken ? ' — Already selected' : ''}
+                                  </option>
+                                );
+                              })}
                           </optgroup>
                         )}
                       </select>
@@ -669,7 +748,11 @@ export function CreateDispatchModal({
                         onChange={(e) => handleItemLineChange(idx, 'quantity', e.target.value)}
                         placeholder="Qty"
                         required
-                        className="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-200 bg-white font-mono font-bold text-slate-900 text-right outline-none focus:border-[#006B56]"
+                        className={`w-full px-2 py-1.5 text-xs rounded-lg border font-mono font-bold text-right outline-none ${
+                          isOverStock
+                            ? 'border-rose-500 bg-white text-rose-700 focus:border-rose-600'
+                            : 'border-slate-200 bg-white text-slate-900 focus:border-[#006B56]'
+                        }`}
                       />
                     </div>
 
@@ -685,63 +768,61 @@ export function CreateDispatchModal({
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+                  {isOverStock && (
+                    <p className="text-[11px] font-semibold text-rose-600 pl-2">
+                      Out of stock: {stock <= 0 ? '0 available in stock' : `Only ${stock} ${item.unit || 'units'} available in stock`}.
+                    </p>
+                  )}
+                  </div>
                 );
               })}
             </div>
           </div>
 
-          {/* 4. Transport & Driver */}
+          {/* 4. Driver Assignment */}
           <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
                 <Truck className="w-3.5 h-3.5 text-slate-400" />
-                <span>Transport & Driver</span>
+                <span>Driver Assignment</span>
               </label>
-              <span className="text-[11px] text-slate-400">Select fleet or enter manually</span>
+              <span className="text-[11px] text-slate-400">Select registered driver</span>
             </div>
 
-            {/* Vehicle & Driver Dropdown */}
+            {/* Driver Dropdown */}
             <div>
               <select
-                value={selectedFleetId}
-                onChange={handleFleetChange}
+                value={form.driver_id || ''}
+                onChange={(e) => {
+                  const dId = e.target.value;
+                  const dUser = driverUsers.find(u => u.id === dId);
+                  if (dUser) {
+                    const matchedFleet = fleetList.find(f =>
+                      (f.driver_name || f.driver || '').toLowerCase().includes((dUser.full_name || '').toLowerCase())
+                    );
+                    setForm(prev => ({
+                      ...prev,
+                      driver_id: dUser.id,
+                      driver_name: dUser.full_name || prev.driver_name,
+                      driver_phone: dUser.phone || dUser.phone_number || prev.driver_phone,
+                      vehicle_reg: prev.vehicle_reg || matchedFleet?.vehicle_plate || matchedFleet?.plate || 'SSD-481-LOG'
+                    }));
+                  } else {
+                    setForm(prev => ({ ...prev, driver_id: '' }));
+                  }
+                }}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-900 focus:border-[#006B56] outline-none cursor-pointer"
               >
-                <option value="">-- Select Registered Fleet Vehicle & Driver --</option>
-                {fleetList.length > 0 && (
-                  <optgroup label="── ADRA Dedicated Fleet (Database Registered) ──">
-                    {fleetList.map(f => {
-                      const plate = f.vehicle_plate || f.plate;
-                      const driver = f.driver_name || f.driver;
-                      const phone = f.driver_phone || f.phone;
-                      const type = f.vehicle_type || f.type;
-                      const val = f.id || plate;
-                      return (
-                        <option key={val} value={val}>
-                          {plate} — {driver} ({phone}) • {type}
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                )}
-                <option value="custom">── Custom / Other Contracted Carrier (Manual Entry) ──</option>
+                <option value="">-- Select Registered Driver ({driverUsers.length}) --</option>
+                {driverUsers.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.full_name} {u.phone ? `(${u.phone})` : ''}
+                  </option>
+                ))}
               </select>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 mb-0.5">
-                  Vehicle Plate *
-                </label>
-                <input
-                  type="text"
-                  value={form.vehicle_reg}
-                  onChange={(e) => setForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
-                  placeholder="e.g. SSD-481-LOG"
-                  required
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white font-mono text-slate-800 focus:border-[#006B56] outline-none"
-                />
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
                 <label className="block text-[11px] font-bold text-slate-500 mb-0.5">
                   Driver Full Name *

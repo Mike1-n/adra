@@ -69,6 +69,89 @@ export function SupplierPortalApp({
   const [selectedPOForDetail, setSelectedPOForDetail] = useState(null);
   const [selectedPOForReceipt, setSelectedPOForReceipt] = useState(null);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [quoteModalPO, setQuoteModalPO] = useState(null);
+  const [quoteLineItems, setQuoteLineItems] = useState([]);
+  const [quoteNotes, setQuoteNotes] = useState('');
+  const [submittingQuote, setSubmittingQuote] = useState(false);
+
+  const parsePOItemsForQuote = (po) => {
+    if (Array.isArray(po?.items) && po.items.length > 0) {
+      return po.items.map(it => ({
+        item_name: it.item_name || 'Supplies',
+        quantity: Number(it.quantity) || 1,
+        unit: it.unit || 'Units',
+        unit_price: it.unit_price ? String(it.unit_price) : ''
+      }));
+    }
+    const itemsMatch = (po?.notes || '').match(/Items:\s*([^\n]+)/i);
+    const rawSummary = itemsMatch ? itemsMatch[1] : (po?.items_summary || '');
+    if (rawSummary && rawSummary.includes('•')) {
+      const parsed = rawSummary.split('•').map(part => part.trim()).filter(Boolean).map(part => {
+        const m = part.match(/^(\d+(?:\.\d+)?)\s*x?\s+(\S+)\s+(.+)$/i);
+        if (m) {
+          return {
+            quantity: Number(m[1]) || 1,
+            unit: m[2],
+            item_name: m[3].trim(),
+            unit_price: ''
+          };
+        }
+        return { quantity: 1, unit: 'Units', item_name: part, unit_price: '' };
+      });
+      if (parsed.length > 0) return parsed;
+    }
+    return [{
+      item_name: po?.item_name || 'Humanitarian Supplies',
+      quantity: Number(po?.quantity) || 1,
+      unit: po?.unit || 'Units',
+      unit_price: ''
+    }];
+  };
+
+  const handleOpenQuoteModal = (po) => {
+    setQuoteModalPO(po);
+    setQuoteLineItems(parsePOItemsForQuote(po));
+    setQuoteNotes('');
+  };
+
+  const quoteGrandTotal = useMemo(() => {
+    return quoteLineItems.reduce((sum, it) => {
+      const qty = Number(it.quantity) || 0;
+      const price = Number(it.unit_price) || 0;
+      return sum + qty * price;
+    }, 0);
+  }, [quoteLineItems]);
+
+  const handleSubmitQuotation = async (e) => {
+    e.preventDefault();
+    if (!quoteModalPO) return;
+    if (quoteLineItems.length === 0 || quoteLineItems.some(it => !it.unit_price || Number(it.unit_price) <= 0)) {
+      toast.warning('Please enter a valid unit price (SSP) for every commodity.');
+      return;
+    }
+    const breakdownText = quoteLineItems
+      .map(it => `${it.item_name} (${it.quantity} ${it.unit} × SSP ${Number(it.unit_price).toLocaleString()} = SSP ${(Number(it.quantity) * Number(it.unit_price)).toLocaleString()})`)
+      .join(' | ');
+    const fullNotes = [quoteNotes.trim(), `Quote Breakdown: ${breakdownText}`].filter(Boolean).join(' • ');
+    const totalQty = quoteLineItems.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+
+    try {
+      setSubmittingQuote(true);
+      await db.submitSupplierQuotation(quoteModalPO.id, {
+        total_amount: quoteGrandTotal,
+        unit_cost: totalQty > 0 ? Math.round((quoteGrandTotal / totalQty) * 100) / 100 : 0,
+        notes: fullNotes,
+        quoted_by: currentSupplier?.company_name || currentUser?.full_name || 'Supplier'
+      });
+      toast.success(`Quotation (SSP ${quoteGrandTotal.toLocaleString()}) sent for ${quoteModalPO.po_number}. Awaiting Inventory Manager approval.`);
+      setQuoteModalPO(null);
+      await loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to submit quotation.');
+    } finally {
+      setSubmittingQuote(false);
+    }
+  };
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -115,7 +198,7 @@ export function SupplierPortalApp({
     if (po.status === 'Paid & Settled' || po.payment_status === 'Paid' || po.status === 'Paid' || Number(po.stage) === 4) return 4;
     if (po.grn_number || po.status?.includes('Received') || po.status?.includes('Confirmed') || Number(po.stage) === 3) return 3;
     if (po.waybill_number || po.supplier_invoice_number || po.status?.includes('Transit') || po.status?.includes('Supplied') || Number(po.stage) === 2) return 2;
-    if (po.status === 'Pending Supplier Supply' || po.status === 'Pending Delivery' || Number(po.stage) === 1) return 1;
+    if (po.status === 'Pending Quotation' || po.status === 'Quotation Submitted' || po.status === 'Approved for Supply' || po.status === 'Pending Supplier Supply' || po.status === 'Pending Delivery' || Number(po.stage) === 1) return 1;
     return Number(po.stage) || 1;
   };
 
@@ -1099,14 +1182,29 @@ export function SupplierPortalApp({
                                 <span>Details</span>
                               </button>
 
-                              {stage === 1 && (
+                              {stage === 1 && po.status === 'Approved for Supply' && (
                                 <button
                                   type="button"
                                   onClick={() => setSelectedPOForDispatch(po)}
                                   className="flex-1 py-1.5 px-3 rounded-xl bg-[#006B56] hover:bg-[#005443] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer"
                                 >
                                   <Truck className="w-3.5 h-3.5" />
-                                  <span>Dispatch</span>
+                                  <span>Supply / Dispatch</span>
+                                </button>
+                              )}
+                              {stage === 1 && po.status === 'Quotation Submitted' && (
+                                <span className="flex-1 py-1.5 px-2.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 font-bold text-[11px] text-center">
+                                  Quote Sent • Awaiting Approval
+                                </span>
+                              )}
+                              {stage === 1 && po.status !== 'Approved for Supply' && po.status !== 'Quotation Submitted' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenQuoteModal(po)}
+                                  className="flex-1 py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                  <span>Send Quotation</span>
                                 </button>
                               )}
                               {stage === 4 && (
@@ -1259,14 +1357,29 @@ export function SupplierPortalApp({
                                       <span className="sm:hidden">View</span>
                                     </button>
 
-                                    {stage === 1 && (
+                                    {stage === 1 && po.status === 'Approved for Supply' && (
                                       <button
                                         type="button"
                                         onClick={() => setSelectedPOForDispatch(po)}
                                         className="px-2.5 py-1 rounded-lg bg-[#006B56] hover:bg-[#005443] text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition active:scale-[0.99] cursor-pointer"
                                       >
                                         <Truck className="w-3.5 h-3.5" />
-                                        <span className="hidden sm:inline">Dispatch</span>
+                                        <span className="hidden sm:inline">Supply / Dispatch</span>
+                                      </button>
+                                    )}
+                                    {stage === 1 && po.status === 'Quotation Submitted' && (
+                                      <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-bold text-[10px]">
+                                        Awaiting Quote Approval
+                                      </span>
+                                    )}
+                                    {stage === 1 && po.status !== 'Approved for Supply' && po.status !== 'Quotation Submitted' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenQuoteModal(po)}
+                                        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition active:scale-[0.99] cursor-pointer"
+                                      >
+                                        <FileText className="w-3.5 h-3.5" />
+                                        <span className="hidden sm:inline">Send Quotation</span>
                                       </button>
                                     )}
                                     {stage === 4 && (
@@ -1546,6 +1659,118 @@ export function SupplierPortalApp({
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>Save Profile</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SEND QUOTATION MODAL */}
+      {quoteModalPO && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[94vh] flex flex-col">
+            <div className="bg-[#006B56] px-4 py-3 text-white flex items-center justify-between shrink-0">
+              <div className="min-w-0">
+                <span className="font-mono text-[11px] bg-white/20 px-2 py-0.5 rounded font-bold">
+                  {quoteModalPO.po_number}
+                </span>
+                <h3 className="font-black text-sm mt-1">Submit Price Quotation</h3>
+                <p className="text-[11px] text-emerald-100 truncate">Destination: {quoteModalPO.warehouse_destination}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuoteModalPO(null)}
+                className="p-1 rounded-lg hover:bg-white/20 text-white cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmitQuotation} className="p-3.5 sm:p-5 space-y-3 text-xs overflow-y-auto">
+              {/* Itemized Quotation Table (Zero Horizontal Scroll on Mobile) */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full table-fixed text-left border-collapse text-[11px] sm:text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-600">
+                      <th className="py-2 px-2 sm:px-3 w-[32%]">Commodity</th>
+                      <th className="py-2 px-1.5 sm:px-3 text-center w-[20%]">Qty</th>
+                      <th className="py-2 px-1.5 sm:px-3 text-right w-[26%]">Unit (SSP) *</th>
+                      <th className="py-2 px-2 sm:px-3 text-right w-[22%]">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {quoteLineItems.map((line, idx) => {
+                      const lineTotal = (Number(line.quantity) || 0) * (Number(line.unit_price) || 0);
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/50">
+                          <td className="py-2 px-2 sm:px-3 font-bold text-slate-900 break-words">
+                            {line.item_name}
+                          </td>
+                          <td className="py-2 px-1.5 sm:px-3 text-center text-slate-700 font-semibold break-words">
+                            {Number(line.quantity).toLocaleString()} {line.unit}
+                          </td>
+                          <td className="py-1.5 px-1.5 sm:px-3 text-right">
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="any"
+                              required
+                              value={line.unit_price}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setQuoteLineItems(prev => prev.map((it, i) => i === idx ? { ...it, unit_price: val } : it));
+                              }}
+                              placeholder="0"
+                              className="w-full px-1.5 sm:px-2.5 py-1.5 rounded-lg border border-slate-300 focus:border-[#006B56] outline-none font-mono font-bold text-right text-slate-900 bg-white text-[11px] sm:text-xs"
+                            />
+                          </td>
+                          <td className="py-2 px-2 sm:px-3 text-right font-mono font-bold text-[#006B56] break-words">
+                            {lineTotal.toLocaleString()}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-emerald-50/80 border-t-2 border-emerald-200">
+                      <td colSpan={3} className="py-2 px-2 sm:px-3 text-right font-black uppercase tracking-wider text-emerald-950 text-[10px] sm:text-[11px]">
+                        Grand Total (SSP)
+                      </td>
+                      <td className="py-2 px-2 sm:px-3 text-right font-mono font-black text-xs sm:text-sm text-[#006B56] break-words">
+                        {quoteGrandTotal.toLocaleString()}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Quotation Notes / Lead Time (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={quoteNotes}
+                  onChange={(e) => setQuoteNotes(e.target.value)}
+                  placeholder="e.g. Delivery within 48 hours; includes transport to depot."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-[#006B56] outline-none text-slate-800"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setQuoteModalPO(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingQuote}
+                  className="px-4 py-2 rounded-xl bg-[#006B56] hover:bg-[#005443] text-white font-bold cursor-pointer disabled:opacity-50"
+                >
+                  {submittingQuote ? 'Sending...' : 'Send Quotation'}
                 </button>
               </div>
             </form>

@@ -363,6 +363,8 @@ export function UserRoleManagementView() {
         return 'bg-blue-100 text-blue-950 border-blue-400 font-bold';
       case 'Supervisor':
         return 'bg-indigo-100 text-indigo-950 border-indigo-400 font-bold';
+      case 'Driver':
+        return 'bg-sky-100 text-sky-950 border-sky-400 font-bold';
       case 'Finance Officer':
         return 'bg-amber-100 text-amber-950 border-amber-400 font-bold';
       case 'Project Officer':

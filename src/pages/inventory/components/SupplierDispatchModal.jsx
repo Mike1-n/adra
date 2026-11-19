@@ -13,8 +13,6 @@ export function SupplierDispatchModal({
 
   const [unitPrice, setUnitPrice] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
-  const [carrierName, setCarrierName] = useState('Nile Express Logistics Ltd');
-  const [vehiclePlate, setVehiclePlate] = useState('SSD-204B');
 
   const qty = purchaseOrder ? (Number(purchaseOrder.quantity) || (parseInt(purchaseOrder.items_summary) || 1)) : 1;
   const unit = purchaseOrder?.unit || 'Units';
@@ -29,8 +27,6 @@ export function SupplierDispatchModal({
 
       setUnitPrice(existingUnitPrice);
       setInvoiceNumber(purchaseOrder.supplier_invoice_number || `INV-SUP-${Date.now().toString().slice(-4)}`);
-      setCarrierName(purchaseOrder.carrier_name || 'Nile Express Logistics Ltd');
-      setVehiclePlate(purchaseOrder.vehicle_plate || 'SSD-204B');
     }
   }, [purchaseOrder, isOpen]);
 
@@ -54,8 +50,6 @@ export function SupplierDispatchModal({
       if (onDispatchSuccess) {
         await onDispatchSuccess(purchaseOrder.id, {
           supplier_invoice_number: invoiceNumber.trim(),
-          carrier_name: carrierName.trim(),
-          vehicle_plate: vehiclePlate.trim(),
           unit_cost: Number(unitPrice) || 0,
           total_amount: totalBilled,
           dispatched_at: new Date().toISOString()
@@ -138,34 +132,6 @@ export function SupplierDispatchModal({
                 onChange={(e) => setInvoiceNumber(e.target.value)}
                 required
                 placeholder="INV-SUP-001"
-                className="w-full px-3 py-2 text-xs font-medium text-slate-900 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Carrier / Transport
-              </label>
-              <input
-                type="text"
-                value={carrierName}
-                onChange={(e) => setCarrierName(e.target.value)}
-                placeholder="e.g. Nile Express"
-                className="w-full px-3 py-2 text-xs font-medium text-slate-900 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Truck / Plate #
-              </label>
-              <input
-                type="text"
-                value={vehiclePlate}
-                onChange={(e) => setVehiclePlate(e.target.value)}
-                placeholder="SSD-204B"
                 className="w-full px-3 py-2 text-xs font-medium text-slate-900 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#006B56] outline-none"
               />
             </div>

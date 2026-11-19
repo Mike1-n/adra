@@ -300,7 +300,7 @@ export function BeneficiaryMobileDashboard({
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
                   currentReq.beneficiary_confirmed || currentReq.recipient_confirmed
                     ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                    : currentReq.status === 'Handed Over' || (currentReq.distributed_at && !currentReq.beneficiary_confirmed)
+                    : (currentReq.status === 'Handed Over' || currentReq.status === 'goods_collected_by_beneficiary' || currentReq.dispatch_status === 'Collected by Beneficiary' || ((currentReq.distributed_at || currentReq.goods_collected_at) && !currentReq.beneficiary_confirmed))
                     ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
                     : currentReq.status === 'Approved'
                     ? 'bg-emerald-100 text-emerald-800'
@@ -312,7 +312,7 @@ export function BeneficiaryMobileDashboard({
                 }`}>
                   {currentReq.beneficiary_confirmed || currentReq.recipient_confirmed
                     ? '✓ Delivered & Confirmed'
-                    : currentReq.status === 'Handed Over' || (currentReq.distributed_at && !currentReq.beneficiary_confirmed)
+                    : (currentReq.status === 'Handed Over' || currentReq.status === 'goods_collected_by_beneficiary' || currentReq.dispatch_status === 'Collected by Beneficiary' || ((currentReq.distributed_at || currentReq.goods_collected_at) && !currentReq.beneficiary_confirmed))
                     ? 'Awaiting Your Confirmation'
                     : (currentReq.status_label || currentReq.status || 'Under Review')}
                 </span>
@@ -349,7 +349,7 @@ export function BeneficiaryMobileDashboard({
               </div>
 
               {/* Quick Confirm Button if awaiting confirmation */}
-              {(currentReq.status === 'Handed Over' || (currentReq.distributed_at && !currentReq.beneficiary_confirmed)) && (
+              {((currentReq.status === 'Handed Over' || currentReq.status === 'goods_collected_by_beneficiary' || currentReq.dispatch_status === 'Collected by Beneficiary' || currentReq.distributed_at || currentReq.goods_collected_at) && !currentReq.beneficiary_confirmed && !currentReq.recipient_confirmed) && (
                 <div className="pt-1">
                   <button
                     type="button"
@@ -360,7 +360,7 @@ export function BeneficiaryMobileDashboard({
                     className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-98 shadow-xs cursor-pointer"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Confirm You Received This Aid</span>
+                    <span>Confirm Received</span>
                   </button>
                 </div>
               )}

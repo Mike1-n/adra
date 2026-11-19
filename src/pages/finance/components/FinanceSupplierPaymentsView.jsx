@@ -146,7 +146,7 @@ export function FinanceSupplierPaymentsView({
                           {po.po_number}
                         </span>
                         <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 truncate">
-                          {po.supplier_name}
+                          {sup?.contact_person || po.contact_person || po.supplier_name}
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
@@ -235,6 +235,9 @@ export function FinanceSupplierPaymentsView({
 
                       <div>
                         <span className="text-slate-400 block text-[10px] uppercase font-bold">Settlement Account</span>
+                        <p className="font-bold text-slate-900 mt-0.5">
+                          Supplier: {sup?.contact_person || po.contact_person || po.supplier_name}
+                        </p>
                         <p className="font-medium text-slate-800 mt-0.5">
                           Bank: <strong className="text-slate-900">{sup?.bank_name || 'Designated Bank'}</strong>
                         </p>

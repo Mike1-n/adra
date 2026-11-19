@@ -95,9 +95,9 @@ export function getTaskFacilitationStatus(task, requests = []) {
   // Find all funding requests matching this task
   const matching = requests.filter(r => {
     if (!r) return false;
-    const rTaskId = String(r.linked_task_id || '').toLowerCase().trim();
+    const rTaskId = String(r.linked_task_id || r.request_id || '').toLowerCase().trim();
     const rCode = String(r.linked_request_code || '').toLowerCase().trim();
-    const rBen = String(r.linked_beneficiary_name || '').toLowerCase().trim();
+    const rBen = String(r.linked_beneficiary_name || r.beneficiary_name || '').toLowerCase().trim();
 
     return (
       (taskId && rTaskId && taskId === rTaskId) ||
@@ -119,6 +119,7 @@ export function getTaskFacilitationStatus(task, requests = []) {
     r.status === 'Paid' || 
     r.stage === 4 || 
     Boolean(r.disbursed_at) || 
+    Boolean(r.finance_disbursement?.disbursed_at) ||
     r.finance_disbursement?.status === 'Disbursed'
   );
 

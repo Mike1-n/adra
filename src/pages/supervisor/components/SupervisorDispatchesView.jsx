@@ -68,8 +68,8 @@ export function SupervisorDispatchesView({
       const st = (d.status || '').toLowerCase().trim();
       const dst = (d.dispatch_status || '').toLowerCase().trim();
       const isCol = st.includes('collect') || dst.includes('collect');
-      const isArr = !isCol && (st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
-      const isTrans = !isCol && !isArr && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit' || Boolean(d.waybill_number));
+      const isArr = !isCol && (st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
+      const isTrans = !isCol && !isArr && (st.includes('deliver') || st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || st.includes('pending driver') || dst === 'in transit' || Boolean(d.waybill_number));
 
       if (activeFilter === 'IN_TRANSIT' && !isTrans) return false;
       if (activeFilter === 'ARRIVED' && !isArr) return false;
@@ -89,8 +89,8 @@ export function SupervisorDispatchesView({
       const st = (d.status || '').toLowerCase().trim();
       const dst = (d.dispatch_status || '').toLowerCase().trim();
       const isCol = st.includes('collect') || dst.includes('collect');
-      const isArr = !isCol && (st.includes('deliver') || st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
-      const isTrans = !isCol && !isArr && (st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || dst === 'in transit' || Boolean(d.waybill_number));
+      const isArr = !isCol && (st.includes('arrived') || st.includes('confirmed') || st === 'goods_arrived_at_hub' || dst.includes('arrived'));
+      const isTrans = !isCol && !isArr && (st.includes('deliver') || st === 'in transit' || st === 'warehouse_dispatched' || st.includes('transit') || st.includes('pending driver') || dst === 'in transit' || Boolean(d.waybill_number));
 
       if (isCol) {
         collected++;
@@ -272,12 +272,12 @@ export function SupervisorDispatchesView({
                 const isCollected = st.includes('collect') || dst.includes('collect');
                 const isDelivered =
                   !isCollected && (
-                    st.includes('deliver') ||
                     st.includes('arrived') ||
                     st.includes('confirmed') ||
                     st === 'goods_arrived_at_hub' ||
                     dst.includes('arrived')
                   );
+                const isDriverDelivered = !isCollected && !isDelivered && (st.includes('deliver') || Boolean(d.driver_delivered));
                 const isInTransit = !isCollected && !isDelivered;
 
                 const totalQty = d.items?.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0) || 0;
@@ -347,7 +347,7 @@ export function SupervisorDispatchesView({
                         {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />}
                         {isDelivered && <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />}
                         {isCollected && (isBeneficiaryCollector ? <User className="w-3 h-3 text-emerald-600 shrink-0" /> : <UserCheck className="w-3 h-3 text-blue-600 shrink-0" />)}
-                        <span>{isCollected ? (isBeneficiaryCollector ? 'Collected (Direct)' : 'Collected') : isDelivered ? 'Arrived' : 'In Transit'}</span>
+                        <span>{isCollected ? (isBeneficiaryCollector ? 'Collected (Direct)' : 'Collected') : isDelivered ? 'Received' : isDriverDelivered ? 'Delivered by Driver' : 'In Transit'}</span>
                       </span>
                     </div>
 
@@ -449,7 +449,7 @@ export function SupervisorDispatchesView({
                           className="flex-1 py-2 bg-[#006B56] hover:bg-[#005544] text-white text-xs font-bold rounded-lg shadow-2xs inline-flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
                         >
                           <PackageCheck className="w-4 h-4" />
-                          <span>Confirm Arrived</span>
+                          <span>{isDriverDelivered ? 'Confirm Received' : 'Confirm Arrived'}</span>
                         </button>
                       )}
 
@@ -515,12 +515,12 @@ export function SupervisorDispatchesView({
                     const isCollected = st.includes('collect') || dst.includes('collect');
                     const isDelivered =
                       !isCollected && (
-                        st.includes('deliver') ||
                         st.includes('arrived') ||
                         st.includes('confirmed') ||
                         st === 'goods_arrived_at_hub' ||
                         dst.includes('arrived')
                       );
+                    const isDriverDelivered = !isCollected && !isDelivered && (st.includes('deliver') || Boolean(d.driver_delivered));
                     const isInTransit = !isCollected && !isDelivered;
 
                     const totalQty = d.items?.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0) || 0;
@@ -601,7 +601,7 @@ export function SupervisorDispatchesView({
                             {isInTransit && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />}
                             {isDelivered && <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />}
                             {isCollected && (isBeneficiaryCollector ? <User className="w-2.5 h-2.5 text-emerald-600 shrink-0" /> : <UserCheck className="w-2.5 h-2.5 text-blue-600 shrink-0" />)}
-                            <span className="truncate">{isCollected ? (isBeneficiaryCollector ? 'Collected (Direct)' : 'Collected') : isDelivered ? 'Arrived' : 'In Transit'}</span>
+                            <span className="truncate">{isCollected ? (isBeneficiaryCollector ? 'Collected (Direct)' : 'Collected') : isDelivered ? 'Received' : isDriverDelivered ? 'Delivered by Driver' : 'In Transit'}</span>
                           </span>
 
                           {isCollected && (
@@ -622,7 +622,7 @@ export function SupervisorDispatchesView({
                                 title="Confirm Goods Arrived at Hub"
                               >
                                 <PackageCheck className="w-3 h-3 shrink-0" />
-                                <span>Arrived</span>
+                                <span>{isDriverDelivered ? 'Confirm Received' : 'Arrived'}</span>
                               </button>
                             )}
 
@@ -640,7 +640,7 @@ export function SupervisorDispatchesView({
                                   onHandoverToWorker(enriched);
                                 }}
                                 className="w-full py-1 px-2 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg shadow-2xs inline-flex items-center justify-center gap-1 transition cursor-pointer active:scale-95"
-                                title="Handover to Assigned Field Worker or Beneficiary"
+                                title="Handover Directly to Beneficiary"
                               >
                                 <UserCheck className="w-3 h-3 shrink-0" />
                                 <span>Handover</span>

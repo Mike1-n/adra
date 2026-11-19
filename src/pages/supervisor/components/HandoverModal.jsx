@@ -25,9 +25,8 @@ export function HandoverModal({
   onConfirmHandover
 }) {
   const toast = useToast();
-  const [recipientType, setRecipientType] = useState('assigned_worker'); // 'assigned_worker' | 'beneficiary' | 'other_worker' | 'custom'
+  const [recipientType, setRecipientType] = useState('beneficiary');
   const [selectedRecipientName, setSelectedRecipientName] = useState('');
-  const [customWorkerName, setCustomWorkerName] = useState('');
   const [handoverNotes, setHandoverNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -72,23 +71,11 @@ export function HandoverModal({
 
   useEffect(() => {
     if (isOpen && item) {
-      if (assignedWorker) {
-        setRecipientType('assigned_worker');
-        setSelectedRecipientName(assignedWorker);
-      } else if (beneficiaryName) {
-        setRecipientType('beneficiary');
-        setSelectedRecipientName(beneficiaryName);
-      } else if (fieldWorkers.length > 0) {
-        setRecipientType('other_worker');
-        setSelectedRecipientName(fieldWorkers[0].name || fieldWorkers[0].full_name || 'Field Officer');
-      } else {
-        setRecipientType('other_worker');
-        setSelectedRecipientName('Field Officer');
-      }
-      setCustomWorkerName('');
+      setRecipientType('beneficiary');
+      setSelectedRecipientName(beneficiaryName || 'Beneficiary');
       setHandoverNotes('');
     }
-  }, [isOpen, item, assignedWorker, beneficiaryName, fieldWorkers]);
+  }, [isOpen, item, beneficiaryName]);
 
   if (!isOpen || !item) return null;
 
@@ -104,29 +91,18 @@ export function HandoverModal({
   const primaryItemName = items[0]?.item_name || 'Emergency Relief Supplies';
   const primaryUnit = items[0]?.unit || 'Units';
 
-  const finalRecipientName = (
-    recipientType === 'assigned_worker'
-      ? (assignedWorker || selectedRecipientName || 'Assigned Field Worker')
-      : recipientType === 'beneficiary'
-      ? (beneficiaryName || selectedRecipientName || 'Beneficiary')
-      : recipientType === 'custom'
-      ? customWorkerName.trim()
-      : selectedRecipientName.trim()
-  ) || 'Field Officer';
+  const finalRecipientName = (beneficiaryName || selectedRecipientName || 'Beneficiary').trim();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!finalRecipientName) {
-      toast.error('Please select the receiving field worker or beneficiary.');
+      toast.error('Beneficiary name is required for direct handover.');
       return;
     }
 
     try {
       setIsSubmitting(true);
-      const isBeneficiaryRecipient = recipientType === 'beneficiary';
-      const formattedRecipient = isBeneficiaryRecipient
-        ? `${finalRecipientName} (Beneficiary - Direct Collection)`
-        : finalRecipientName;
+      const formattedRecipient = `${finalRecipientName} (Beneficiary - Direct Collection)`;
 
       await onConfirmHandover(item, formattedRecipient, handoverNotes);
       toast.success(`Relief supplies handed over to ${finalRecipientName}!`);
@@ -164,7 +140,7 @@ export function HandoverModal({
                 Handover Cargo Custody
               </h2>
               <p className="text-[11px] text-blue-200 mt-0.5">
-                Release to Assigned Field Worker or Direct to Beneficiary
+                Direct Handover to Beneficiary
               </p>
             </div>
           </div>
@@ -198,15 +174,6 @@ export function HandoverModal({
               </span>
             </div>
 
-            {beneficiaryName && (
-              <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[11px]">
-                <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Beneficiary:</span>
-                <span className="font-black text-slate-900 truncate max-w-[220px]">
-                  {beneficiaryName}
-                </span>
-              </div>
-            )}
-
             {item.driver_name && (
               <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[11px] text-slate-500">
                 <span>Transported by:</span>
@@ -217,180 +184,30 @@ export function HandoverModal({
             )}
           </div>
 
-          {/* Primary Recipient Selection: Assigned Field Worker vs Beneficiary */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <UserCheck className="w-4 h-4 text-blue-600" />
-                <span>Receiving Recipient *</span>
-              </label>
-
-              {recipientType !== 'other_worker' && recipientType !== 'custom' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRecipientType('other_worker');
-                    if (fieldWorkers.length > 0) {
-                      setSelectedRecipientName(fieldWorkers[0].name || fieldWorkers[0].full_name || 'Agnes Dawa');
-                    }
-                  }}
-                  className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 underline cursor-pointer"
-                >
-                  Other field worker
-                </button>
-              )}
-            </div>
-
-            {/* Quick-Select Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {/* Card 1: Assigned Field Worker */}
-              <button
-                type="button"
-                onClick={() => {
-                  setRecipientType('assigned_worker');
-                  setSelectedRecipientName(assignedWorker || 'Assigned Field Worker');
-                }}
-                className={`p-3 rounded-xl border text-left transition cursor-pointer relative overflow-hidden ${
-                  recipientType === 'assigned_worker'
-                    ? 'bg-blue-50/90 border-blue-500 ring-2 ring-blue-500/25 shadow-xs'
-                    : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 flex items-center gap-1">
-                    <User className="w-3.5 h-3.5 text-blue-600" />
-                    Assigned Field Worker
-                  </span>
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    recipientType === 'assigned_worker' ? 'border-blue-600 bg-blue-600' : 'border-slate-300'
-                  }`}>
-                    {recipientType === 'assigned_worker' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </div>
-                </div>
-                <p className="font-black text-slate-900 text-sm mt-1.5 truncate">
-                  {assignedWorker || 'Simon Kiden (Field Officer)'}
-                </p>
-                <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                  Takes custody for field distribution
-                </p>
-              </button>
-
-              {/* Card 2: Beneficiary Direct Collection */}
-              <button
-                type="button"
-                onClick={() => {
-                  setRecipientType('beneficiary');
-                  setSelectedRecipientName(beneficiaryName || 'Beneficiary');
-                }}
-                className={`p-3 rounded-xl border text-left transition cursor-pointer relative overflow-hidden ${
-                  recipientType === 'beneficiary'
-                    ? 'bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-500/25 shadow-xs'
-                    : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-[#006B56] flex items-center gap-1">
-                    <UserCheck className="w-3.5 h-3.5 text-[#006B56]" />
-                    Beneficiary (Direct)
-                  </span>
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    recipientType === 'beneficiary' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
-                  }`}>
-                    {recipientType === 'beneficiary' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </div>
-                </div>
-                <p className="font-black text-slate-900 text-sm mt-1.5 truncate">
-                  {beneficiaryName || 'DAVID KAJE (Beneficiary)'}
-                </p>
-                <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                  Beneficiary collects directly at Hub
-                </p>
-              </button>
-            </div>
-
-            {/* Other Team Member Dropdown or Custom Input */}
-            {(recipientType === 'other_worker' || recipientType === 'custom') && (
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 animate-in fade-in">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                    Select Other Field Worker:
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRecipientType(recipientType === 'custom' ? 'other_worker' : 'custom')}
-                      className="text-[10px] font-bold text-blue-600 hover:underline cursor-pointer"
-                    >
-                      {recipientType === 'custom' ? 'Pick from list' : 'Type custom name'}
-                    </button>
-                    <span>•</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (assignedWorker) {
-                          setRecipientType('assigned_worker');
-                          setSelectedRecipientName(assignedWorker);
-                        } else if (beneficiaryName) {
-                          setRecipientType('beneficiary');
-                          setSelectedRecipientName(beneficiaryName);
-                        }
-                      }}
-                      className="text-[10px] font-bold text-slate-600 hover:underline cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-
-                {recipientType === 'custom' ? (
-                  <input
-                    type="text"
-                    value={customWorkerName}
-                    onChange={(e) => setCustomWorkerName(e.target.value)}
-                    placeholder="Enter full name of field worker collecting cargo..."
-                    className="w-full px-3 py-2 rounded-xl border border-blue-300 focus:border-blue-600 outline-hidden font-bold text-slate-900 text-xs bg-white"
-                    autoFocus
-                    required
-                  />
-                ) : (
-                  <select
-                    value={selectedRecipientName}
-                    onChange={(e) => setSelectedRecipientName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-blue-600 outline-hidden font-bold text-slate-900 text-xs bg-white cursor-pointer"
-                  >
-                    {fieldWorkers.map(w => {
-                      const name = w.name || w.full_name;
-                      return (
-                        <option key={w.id || name} value={name}>
-                          {name} {w.county ? `(${w.county})` : ''} {w.phone ? `— ${w.phone}` : ''}
-                        </option>
-                      );
-                    })}
-                    {fieldWorkers.length === 0 && (
-                      <>
-                        <option value="Agnes Dawa">Agnes Dawa (Juba Field Officer)</option>
-                        <option value="John Garang">John Garang (Juba Field Worker)</option>
-                        <option value="Peter Taban">Peter Taban (Relief Officer)</option>
-                        <option value="Mary Achol">Mary Achol (Distribution Agent)</option>
-                      </>
-                    )}
-                  </select>
-                )}
-              </div>
-            )}
+          {/* Direct Beneficiary Recipient */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <UserCheck className="w-4 h-4 text-[#006B56]" />
+              <span>Receiving Beneficiary *</span>
+            </label>
+            <input
+              type="text"
+              value={selectedRecipientName}
+              onChange={(e) => setSelectedRecipientName(e.target.value)}
+              placeholder="Beneficiary Full Name"
+              required
+              className="w-full px-3 py-2.5 text-sm font-black text-slate-900 bg-emerald-50/60 border border-emerald-300 rounded-xl outline-none focus:border-[#006B56]"
+            />
           </div>
 
           {/* Supervisor Authorization Box */}
           <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200/80 flex items-center justify-between text-xs">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block">
-                Authorized Handover By (Supervisor):
+                Authorized By (Supervisor):
               </span>
               <span className="font-extrabold text-blue-950 text-xs block mt-0.5">
                 {supervisorName}
-              </span>
-              <span className="text-[10px] text-blue-800 font-semibold block mt-0.5">
-                Recipient: <span className="font-black text-slate-900">{finalRecipientName}</span> {recipientType === 'beneficiary' ? '(Beneficiary)' : '(Field Worker)'}
               </span>
             </div>
             <div className="text-right shrink-0">
@@ -404,13 +221,13 @@ export function HandoverModal({
           {/* Handover Verification Notes */}
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-700 block">
-              Handover Remarks / Verification Notes (Optional)
+              Handover Notes (Optional)
             </label>
             <textarea
               rows={2}
               value={handoverNotes}
               onChange={(e) => setHandoverNotes(e.target.value)}
-              placeholder="e.g. Inspected packages; verified identity; loaded into field vehicle or handed directly to beneficiary in good condition."
+              placeholder="e.g. Inspected packages; verified beneficiary identity; handed over in good condition."
               className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-hidden text-xs text-slate-800 transition"
             />
           </div>
