@@ -73,6 +73,21 @@ export function SupplierPortalApp({
   const [quoteLineItems, setQuoteLineItems] = useState([]);
   const [quoteNotes, setQuoteNotes] = useState('');
   const [submittingQuote, setSubmittingQuote] = useState(false);
+  const [confirmingFundsId, setConfirmingFundsId] = useState(null);
+
+  const handleConfirmFundsReceived = async (po) => {
+    try {
+      setConfirmingFundsId(po.id);
+      const supName = currentSupplier?.contact_person || currentSupplier?.company_name || currentUser?.full_name || 'Supplier';
+      await db.confirmSupplierPaymentReceived(po.id, supName);
+      toast.success(`Payment receipt confirmed for ${po.po_number}!`);
+      await loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to confirm funds received.');
+    } finally {
+      setConfirmingFundsId(null);
+    }
+  };
 
   const parsePOItemsForQuote = (po) => {
     if (Array.isArray(po?.items) && po.items.length > 0) {
@@ -195,7 +210,7 @@ export function SupplierPortalApp({
   // Helper for stage determination
   const getPOStage = (po) => {
     if (po.stage === -1 || Number(po.stage) === -1 || po.status === 'Returned & Rejected' || po.status?.includes('Returned') || po.status?.includes('Rejected')) return -1;
-    if (po.status === 'Paid & Settled' || po.payment_status === 'Paid' || po.status === 'Paid' || Number(po.stage) === 4) return 4;
+    if (po.status === 'Paid & Settled' || po.status === 'Paid & Confirmed' || po.payment_status === 'Paid' || po.status === 'Paid' || Number(po.stage) === 4) return 4;
     if (po.grn_number || po.status?.includes('Received') || po.status?.includes('Confirmed') || Number(po.stage) === 3) return 3;
     if (po.waybill_number || po.supplier_invoice_number || po.status?.includes('Transit') || po.status?.includes('Supplied') || Number(po.stage) === 2) return 2;
     if (po.status === 'Pending Quotation' || po.status === 'Quotation Submitted' || po.status === 'Approved for Supply' || po.status === 'Pending Supplier Supply' || po.status === 'Pending Delivery' || Number(po.stage) === 1) return 1;
@@ -1208,14 +1223,32 @@ export function SupplierPortalApp({
                                 </button>
                               )}
                               {stage === 4 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedPOForReceipt(po)}
-                                  className="flex-1 py-1.5 px-3 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer"
-                                >
-                                  <Receipt className="w-3.5 h-3.5" />
-                                  <span>Receipt</span>
-                                </button>
+                                <>
+                                  {!po.supplier_confirmed ? (
+                                    <button
+                                      type="button"
+                                      disabled={confirmingFundsId === po.id}
+                                      onClick={() => handleConfirmFundsReceived(po)}
+                                      className="flex-1 py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer disabled:opacity-50"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>{confirmingFundsId === po.id ? 'Confirming...' : 'Confirm Funds Received'}</span>
+                                    </button>
+                                  ) : (
+                                    <span className="flex-1 py-1.5 px-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px] flex items-center justify-center gap-1">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>Funds Confirmed</span>
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedPOForReceipt(po)}
+                                    className="py-1.5 px-3 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer"
+                                  >
+                                    <Receipt className="w-3.5 h-3.5" />
+                                    <span>Receipt</span>
+                                  </button>
+                                </>
                               )}
                             </div>
                           </div>
@@ -1383,15 +1416,34 @@ export function SupplierPortalApp({
                                       </button>
                                     )}
                                     {stage === 4 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setSelectedPOForReceipt(po)}
-                                        className="px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition cursor-pointer"
-                                        title="Print or download payment receipt"
-                                      >
-                                        <Receipt className="w-3.5 h-3.5" />
-                                        <span>Receipt</span>
-                                      </button>
+                                      <>
+                                        {!po.supplier_confirmed ? (
+                                          <button
+                                            type="button"
+                                            disabled={confirmingFundsId === po.id}
+                                            onClick={() => handleConfirmFundsReceived(po)}
+                                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition cursor-pointer disabled:opacity-50"
+                                            title="Confirm you received the funds from Finance"
+                                          >
+                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                            <span>{confirmingFundsId === po.id ? 'Confirming...' : 'Confirm Funds'}</span>
+                                          </button>
+                                        ) : (
+                                          <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[10px] inline-flex items-center gap-1">
+                                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                            <span>Confirmed</span>
+                                          </span>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => setSelectedPOForReceipt(po)}
+                                          className="px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                                          title="Print or download payment receipt"
+                                        >
+                                          <Receipt className="w-3.5 h-3.5" />
+                                          <span>Receipt</span>
+                                        </button>
+                                      </>
                                     )}
                                   </div>
                                 </td>

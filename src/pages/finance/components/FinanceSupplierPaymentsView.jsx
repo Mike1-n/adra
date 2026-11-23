@@ -88,7 +88,7 @@ export function FinanceSupplierPaymentsView({
 
   return (
     <div className="space-y-4">
-      
+
       {/* Search Bar */}
       <div className="relative w-full">
         <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -111,8 +111,8 @@ export function FinanceSupplierPaymentsView({
               {filter === 'pending_payment'
                 ? 'No supplier consignments are currently waiting for payment disbursement.'
                 : filter === 'paid'
-                ? 'No disbursed vendor vouchers found in this filter.'
-                : 'No purchase orders matching your search query.'}
+                  ? 'No disbursed vendor vouchers found in this filter.'
+                  : 'No purchase orders matching your search query.'}
             </p>
           </div>
         ) : (
@@ -128,9 +128,8 @@ export function FinanceSupplierPaymentsView({
             return (
               <div
                 key={po.id}
-                className={`bg-white rounded-2xl border transition shadow-2xs overflow-hidden ${
-                  isReturned ? 'border-rose-200' : isReadyForPayment ? 'border-amber-200' : 'border-slate-200/80'
-                }`}
+                className={`bg-white rounded-2xl border transition shadow-2xs overflow-hidden ${isReturned ? 'border-rose-200' : isReadyForPayment ? 'border-amber-200' : 'border-slate-200/80'
+                  }`}
               >
                 {/* Main Visible Card Row: Number + PO/Vendor + Amount + Action */}
                 <div className="p-3.5 flex items-center justify-between gap-3">
@@ -161,13 +160,12 @@ export function FinanceSupplierPaymentsView({
                       <span className="font-mono font-black text-xs sm:text-sm text-slate-900 block leading-tight">
                         SSP {Number(po.total_amount).toLocaleString()}
                       </span>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block mt-0.5 uppercase tracking-wide ${
-                        isReturned ? 'bg-rose-50 text-rose-800' :
+                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block mt-0.5 uppercase tracking-wide ${isReturned ? 'bg-rose-50 text-rose-800' :
                         isPaid ? 'bg-emerald-50 text-emerald-800' :
-                        isReadyForPayment ? 'bg-amber-100 text-amber-900' :
-                        'bg-blue-50 text-blue-800'
-                      }`}>
-                        {isReturned ? 'Returned' : isPaid ? 'Paid' : isReadyForPayment ? 'Ready' : po.status}
+                          isReadyForPayment ? 'bg-amber-100 text-amber-900' :
+                            'bg-blue-50 text-blue-800'
+                        }`}>
+                        {isReturned ? 'Returned' : isPaid ? (po.supplier_confirmed ? 'Paid & Confirmed' : 'Paid') : isReadyForPayment ? 'Ready' : po.status}
                       </span>
                     </div>
 

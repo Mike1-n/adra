@@ -529,6 +529,12 @@ export function FieldAssessmentFormModal({
       return;
     }
 
+    if (evidencePhotos.length === 0 && evidenceDocs.length === 0) {
+      toast?.showToast?.('Evidence is mandatory. Please attach at least one field photo or verification document before submitting.', 'error');
+      setCurrentStep(3);
+      return;
+    }
+
     if (!truthCertifiedAgreed) {
       toast?.showToast?.('You must certify the on-ground assessment declaration before submitting.', 'warning');
       setCurrentStep(3);
@@ -1131,12 +1137,18 @@ export function FieldAssessmentFormModal({
           {/* ================= STEP 3: EVIDENCE & OATH ================= */}
           {currentStep === 3 && (
             <div className="space-y-3 animate-in fade-in duration-100 text-xs">
+              {!isSubmittedMode && evidencePhotos.length === 0 && evidenceDocs.length === 0 && (
+                <div className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-bold">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Evidence is mandatory: please attach at least one field photo or verification document before submitting.</span>
+                </div>
+              )}
               {/* Photo Evidence Gallery */}
               <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-[11px] font-black text-slate-900 flex items-center gap-1">
                     <Camera className="w-3.5 h-3.5 text-[#006B56]" />
-                    Photos ({evidencePhotos.length})
+                    Photos ({evidencePhotos.length}) <span className="text-red-500">*</span>
                   </label>
                   {!isSubmittedMode && (
                     <button
@@ -1389,8 +1401,8 @@ export function FieldAssessmentFormModal({
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={isSubmitting || !truthCertifiedAgreed}
-                className="px-4 py-1.5 rounded-xl text-xs font-black bg-[#006B56] hover:bg-[#005544] text-white shadow-xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                disabled={isSubmitting || !truthCertifiedAgreed || (evidencePhotos.length === 0 && evidenceDocs.length === 0)}
+                className="px-4 py-1.5 rounded-xl text-xs font-black bg-[#006B56] hover:bg-[#005544] text-white shadow-xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>

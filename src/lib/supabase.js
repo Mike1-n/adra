@@ -1175,12 +1175,24 @@ export const db = {
               ? (isAnySupervisorRej ? -1 : 6) 
               : (isRemNewer ? (normRem.status_stage ?? normLoc.status_stage) : (normLoc.status_stage ?? normRem.status_stage)));
 
+          const remPhotos = Array.isArray(normRem.evidence_photos) && normRem.evidence_photos.length > 0 ? normRem.evidence_photos : (Array.isArray(normRem.field_worker_assessment?.evidence_photos) ? normRem.field_worker_assessment.evidence_photos : []);
+          const locPhotos = Array.isArray(normLoc.evidence_photos) && normLoc.evidence_photos.length > 0 ? normLoc.evidence_photos : (Array.isArray(normLoc.field_worker_assessment?.evidence_photos) ? normLoc.field_worker_assessment.evidence_photos : []);
+          const remDocs = Array.isArray(normRem.evidence_documents) && normRem.evidence_documents.length > 0 ? normRem.evidence_documents : (Array.isArray(normRem.field_worker_assessment?.evidence_documents) ? normRem.field_worker_assessment.evidence_documents : []);
+          const locDocs = Array.isArray(normLoc.evidence_documents) && normLoc.evidence_documents.length > 0 ? normLoc.evidence_documents : (Array.isArray(normLoc.field_worker_assessment?.evidence_documents) ? normLoc.field_worker_assessment.evidence_documents : []);
+
           return {
             ...normRem,
             ...normLoc,
             status: finalStatus,
             status_label: finalLabel,
             status_stage: finalStage,
+            evidence_photos: (isRemNewer && remPhotos.length > 0) ? remPhotos : (locPhotos.length > 0 ? locPhotos : remPhotos),
+            evidence_documents: (isRemNewer && remDocs.length > 0) ? remDocs : (locDocs.length > 0 ? locDocs : remDocs),
+            ground_situation_report: (isRemNewer ? (normRem.ground_situation_report || normLoc.ground_situation_report) : (normLoc.ground_situation_report || normRem.ground_situation_report)) || '',
+            field_justification: (isRemNewer ? (normRem.field_justification || normLoc.field_justification) : (normLoc.field_justification || normRem.field_justification)) || '',
+            assessment_code: (isRemNewer ? (normRem.assessment_code || normLoc.assessment_code) : (normLoc.assessment_code || normRem.assessment_code)) || null,
+            vulnerability_score: normRem.vulnerability_score ?? normLoc.vulnerability_score ?? null,
+            field_worker_assessment: (isRemNewer && normRem.field_worker_assessment) ? normRem.field_worker_assessment : (normLoc.field_worker_assessment || normRem.field_worker_assessment || null),
             rejection_reason: isAnyRejected ? (normLoc.rejection_reason || normRem.rejection_reason) : null,
             review_notes: normRem.review_notes || normLoc.review_notes,
             returned_to_worker: isAnyRejected ? true : (normRem.returned_to_worker ?? normLoc.returned_to_worker)
@@ -2383,9 +2395,25 @@ export const db = {
         const hasAssessment = r.field_worker_assessment || r.status === 'Assessment Submitted' || r.status === 'Awaiting Program Manager Decision' || r.status === 'Approved' || r.status === 'Completed';
         if (hasAssessment) {
           const reqCode = r.request_code || r.id;
-          const alreadyExists = merged.some(a => a.request_code === reqCode || a.request_id === r.id || (r.assessment_code && a.assessment_code === r.assessment_code));
-          if (!alreadyExists) {
-            const fwa = r.field_worker_assessment || {};
+          const fwa = r.field_worker_assessment || {};
+          const rPhotos = (Array.isArray(fwa.evidence_photos) && fwa.evidence_photos.length > 0)
+            ? fwa.evidence_photos
+            : (Array.isArray(r.evidence_photos) ? r.evidence_photos : []);
+          const rDocs = (Array.isArray(fwa.evidence_documents) && fwa.evidence_documents.length > 0)
+            ? fwa.evidence_documents
+            : (Array.isArray(r.evidence_documents) ? r.evidence_documents : []);
+
+          const existingIdx = merged.findIndex(a => a.request_code === reqCode || a.request_id === r.id || (r.assessment_code && a.assessment_code === r.assessment_code));
+          if (existingIdx !== -1) {
+            const existing = merged[existingIdx];
+            merged[existingIdx] = {
+              ...existing,
+              evidence_photos: (Array.isArray(existing.evidence_photos) && existing.evidence_photos.length > 0) ? existing.evidence_photos : rPhotos,
+              evidence_documents: (Array.isArray(existing.evidence_documents) && existing.evidence_documents.length > 0) ? existing.evidence_documents : rDocs,
+              ground_situation_report: existing.ground_situation_report || fwa.ground_situation_report || r.ground_situation_report || '',
+              field_justification: existing.field_justification || fwa.field_justification || r.field_justification || ''
+            };
+          } else {
             merged.unshift({
               id: fwa.id || `ass-${reqCode}`,
               assessment_code: fwa.assessment_code || r.assessment_code || `FA-${String(reqCode).replace(/[^0-9]/g, '').slice(-5) || '00895'}`,
@@ -2412,8 +2440,8 @@ export const db = {
               ground_situation_report: fwa.ground_situation_report || fwa.audit_findings || r.ground_situation_report || r.review_notes || 'Household visited in-person. Severe need confirmed on-ground.',
               field_justification: fwa.field_justification || r.field_justification || 'Official Field Verification confirms acute humanitarian requirement.',
               audit_findings: fwa.audit_findings || fwa.ground_situation_report || r.ground_situation_report || 'Household verified in-person.',
-              evidence_photos: fwa.evidence_photos || r.evidence_photos || [],
-              evidence_documents: fwa.evidence_documents || r.evidence_documents || []
+              evidence_photos: rPhotos,
+              evidence_documents: rDocs
             });
           }
         }
@@ -3228,13 +3256,26 @@ export const db = {
               status: 'Assessment Submitted',
               status_label: 'Assessment Submitted',
               status_stage: 4,
+              assessment_code: newAssessment.assessment_code || null,
+              vulnerability_score: typeof newAssessment.vulnerability_score === 'number'
+                ? newAssessment.vulnerability_score
+                : (parseInt(newAssessment.vulnerability_score, 10) || null),
+              evidence_photos: Array.isArray(newAssessment.evidence_photos) ? newAssessment.evidence_photos : [],
+              evidence_documents: Array.isArray(newAssessment.evidence_documents) ? newAssessment.evidence_documents : [],
+              ground_situation_report: newAssessment.ground_situation_report || newAssessment.audit_findings || '',
+              field_justification: newAssessment.field_justification || '',
+              field_worker_assessment: newAssessment,
               review_notes: `Field assessment submitted by ${newAssessment.field_worker_name || 'Field Worker'}.`,
               updated_at: now
             };
+            let updateRes = null;
             if (isUUID(reqTarget.id)) {
-              await supabase.from('assistance_requests').update(updates).eq('id', reqTarget.id);
+              updateRes = await supabase.from('assistance_requests').update(updates).eq('id', reqTarget.id);
             } else if (reqTarget.request_code) {
-              await supabase.from('assistance_requests').update(updates).eq('request_code', reqTarget.request_code);
+              updateRes = await supabase.from('assistance_requests').update(updates).eq('request_code', reqTarget.request_code);
+            }
+            if (updateRes?.error) {
+              console.warn('Supabase assessment update error:', updateRes.error.message);
             }
           }
         } catch (err) {
@@ -7794,6 +7835,62 @@ export const db = {
       module: 'Finance & Grants',
       record_id: voucherNo,
       details: `[Stage 4: Paid] Finance disbursed $${paymentAmount.toLocaleString()} to ${targetPO.supplier_name} for PO ${targetPO.po_number} (Ref: ${paymentRef}, Voucher: ${voucherNo})`
+    });
+
+    return updated.find(po => po.id === id || po.po_number === id);
+  },
+
+  async confirmSupplierPaymentReceived(id, supplierName = 'Supplier') {
+    const currentPOs = await this.getPurchaseOrders();
+    const targetPO = currentPOs.find(po => po.id === id || po.po_number === id);
+    if (!targetPO) throw new Error('Purchase order not found.');
+
+    const now = new Date().toISOString();
+    const patch = {
+      status: 'Paid & Confirmed',
+      stage: 4,
+      payment_status: 'Paid',
+      supplier_confirmed: true,
+      supplier_confirmed_at: now,
+      supplier_confirmed_by: supplierName
+    };
+
+    if (isSupabaseConfigured) {
+      const paymentReceipt = {
+        payment_status: 'Paid',
+        payment_method: targetPO.payment_method || 'Bank Wire Transfer',
+        payment_reference: targetPO.payment_reference || '',
+        payment_voucher_number: targetPO.payment_voucher_number || '',
+        paid_amount: Number(targetPO.paid_amount || targetPO.total_amount) || 0,
+        paid_by: targetPO.paid_by || 'Finance Officer',
+        paid_date: targetPO.paid_date || now.split('T')[0],
+        payment_notes: targetPO.payment_notes || '',
+        supplier_confirmed: true,
+        supplier_confirmed_at: now,
+        supplier_confirmed_by: supplierName
+      };
+      const baseNotes = String(targetPO.notes || '').replace(/\n\[ADRA_PAYMENT_RECEIPT\][\s\S]*$/, '');
+      const persistedNotes = `${baseNotes}\n[ADRA_PAYMENT_RECEIPT]${JSON.stringify(paymentReceipt)}`;
+      const { error } = await supabase
+        .from('purchase_orders')
+        .update({
+          status: 'Paid & Confirmed',
+          notes: persistedNotes
+        })
+        .or(`id.eq.${targetPO.id},po_number.eq.${targetPO.po_number}`);
+      if (error) {
+        console.warn('Supabase confirmSupplierPaymentReceived warning:', error.message);
+      }
+    }
+
+    const updated = currentPOs.map(po => (po.id === id || po.po_number === id) ? { ...po, ...patch } : po);
+    saveLocalData(STORAGE_KEYS.PURCHASE_ORDERS, updated);
+
+    await this.logAudit({
+      action: 'SUPPLIER_CONFIRM_FUNDS_RECEIVED',
+      module: 'Procurement & Suppliers',
+      record_id: targetPO.po_number || id,
+      details: `Supplier ${supplierName} confirmed receipt of funds (SSP ${Number(targetPO.paid_amount || targetPO.total_amount || 0).toLocaleString()}, Voucher ${targetPO.payment_voucher_number || 'N/A'}) for ${targetPO.po_number}.`
     });
 
     return updated.find(po => po.id === id || po.po_number === id);
