@@ -36,7 +36,7 @@ import {
   FileCheck,
   Download
 } from 'lucide-react';
-import { formatDate } from '../../../lib/utils';
+import { formatDate, openEvidenceDocument } from '../../../lib/utils';
 import { exportToPDF } from '../../../lib/reportGenerator';
 
 export function PMAssistanceRequestsView({
@@ -1125,17 +1125,15 @@ export function PMAssistanceRequestsView({
                         </div>
                       </div>
 
-                      {doc.url && (
-                        <a
-                          href={doc.url}
-                          download={doc.name}
-                          target="_blank"
-                          rel="noreferrer"
+                      {(doc.url || doc.data_url) && (
+                        <button
+                          type="button"
+                          onClick={() => openEvidenceDocument(doc)}
                           className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-blue-700 font-bold rounded-lg text-[11px] flex items-center gap-1 transition cursor-pointer shadow-2xs shrink-0"
                         >
                           <Eye className="w-3 h-3 text-blue-600" />
                           <span>View Doc</span>
-                        </a>
+                        </button>
                       )}
                     </div>
                   ))}

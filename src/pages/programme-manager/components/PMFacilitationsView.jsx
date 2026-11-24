@@ -21,6 +21,7 @@ import {
 import { db } from '../../../lib/supabase';
 import { useToast } from '../../../context/ToastContext';
 import { exportToPDF, exportVoucherPDF } from '../../../lib/reportGenerator';
+import { openEvidenceDocument } from '../../../lib/utils';
 
 export function PMFacilitationsView({
   requests = [],
@@ -826,17 +827,15 @@ export function PMFacilitationsView({
                           <span className="text-[9px] text-slate-400">{doc.category || 'Verification Document'} • {doc.size || 'Attached'}</span>
                         </div>
                       </div>
-                      {doc.url && (
-                        <a
-                          href={doc.url}
-                          download={doc.name}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 border border-slate-200 text-blue-700 font-bold text-[10px] flex items-center gap-1 shrink-0 transition"
+                      {(doc.url || doc.data_url) && (
+                        <button
+                          type="button"
+                          onClick={() => openEvidenceDocument(doc)}
+                          className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 border border-slate-200 text-blue-700 font-bold text-[10px] flex items-center gap-1 shrink-0 transition cursor-pointer"
                         >
                           <Eye className="w-3 h-3 text-blue-600" />
                           <span>View</span>
-                        </a>
+                        </button>
                       )}
                     </div>
                   ))}

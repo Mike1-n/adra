@@ -445,19 +445,10 @@ export function InventorySuppliersView({
                     )}
 
                     {stage === 1 && po.status !== 'Quotation Submitted' && po.status !== 'Pending Quotation' && (
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px]">
-                          Approved for Supply
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPOForDispatch(po)}
-                          className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition active:scale-[0.99] cursor-pointer"
-                        >
-                          <Truck className="w-3.5 h-3.5" />
-                          <span>Dispatch Shipment (Vendor)</span>
-                        </button>
-                      </div>
+                      <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-xs inline-flex items-center gap-1.5">
+                        <Truck className="w-3.5 h-3.5" />
+                        <span>Approved — Awaiting Supplier Dispatch</span>
+                      </span>
                     )}
 
                     {stage === 2 && (
@@ -574,17 +565,9 @@ export function InventorySuppliersView({
         onClose={() => setSelectedPOForDetail(null)}
         purchaseOrder={selectedPOForDetail}
         supplier={suppliers.find(s => s.id === selectedPOForDetail?.supplier_id || s.company_name === selectedPOForDetail?.supplier_name)}
-        onOpenSupplierDispatch={(po) => setSelectedPOForDispatch(po)}
         onOpenConfirmReceipt={(po) => setSelectedPOForGRN(po)}
         onOpenRejectAndReturn={(po) => setSelectedPOForReturn(po)}
         onDeletePO={onDeletePO}
-      />
-
-      <SupplierDispatchModal
-        isOpen={Boolean(selectedPOForDispatch)}
-        onClose={() => setSelectedPOForDispatch(null)}
-        purchaseOrder={selectedPOForDispatch}
-        onDispatchSuccess={onSupplierDispatch}
       />
 
       <ConfirmPOReceiptModal

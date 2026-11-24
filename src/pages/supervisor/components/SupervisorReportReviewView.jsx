@@ -28,6 +28,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { useToast } from '../../../context/ToastContext';
+import { openEvidenceDocument } from '../../../lib/utils';
 
 export function SupervisorReportReviewView({
   assessments = [],
@@ -682,17 +683,15 @@ export function SupervisorReportReviewView({
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {doc.url && (
-                      <a
-                        href={doc.url}
-                        download={doc.name}
-                        target="_blank"
-                        rel="noreferrer"
+                    {(doc.url || doc.data_url) && (
+                      <button
+                        type="button"
+                        onClick={() => openEvidenceDocument(doc)}
                         className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-blue-700 font-bold rounded-lg text-[11px] flex items-center gap-1 transition cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5 text-blue-600" />
                         <span>View</span>
-                      </a>
+                      </button>
                     )}
                   </div>
                 </div>

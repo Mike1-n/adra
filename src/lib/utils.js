@@ -198,3 +198,72 @@ export function getTaskFacilitationStatus(task, requests = []) {
     badgeClass: 'bg-rose-100 text-rose-900 border-rose-300'
   };
 }
+
+/**
+ * Safely opens an attached evidence document (supports https, blob, and base64 data URLs).
+ * Browsers block top-level navigation to data: URLs, so data: URLs are converted to Blob URLs first.
+ */
+export function openEvidenceDocument(doc) {
+  const rawUrl = typeof doc === 'string' ? doc : (doc?.url || doc?.data_url || '');
+  if (!rawUrl) return false;
+
+  const fileName = (typeof doc === 'object' && doc?.name) ? doc.name : 'document';
+
+  const openTargetUrl = (targetUrl, revokeAfter = false) => {
+    const win = window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = targetUrl;
+      a.download = fileName;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+    if (revokeAfter) {
+      setTimeout(() => {
+        try { URL.revokeObjectURL(targetUrl); } catch {}
+      }, 60000);
+    }
+    return true;
+  };
+
+  if (rawUrl.startsWith('data:')) {
+    try {
+      const commaIdx = rawUrl.indexOf(',');
+      if (commaIdx === -1) return false;
+      const meta = rawUrl.slice(5, commaIdx);
+      const dataPart = rawUrl.slice(commaIdx + 1);
+      const mimeType = meta.split(';')[0] || 'application/octet-stream';
+      const isBase64 = meta.includes(';base64');
+
+      let byteArray;
+      if (isBase64) {
+        const binaryStr = atob(dataPart);
+        byteArray = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          byteArray[i] = binaryStr.charCodeAt(i);
+        }
+      } else {
+        const decoded = decodeURIComponent(dataPart);
+        byteArray = new TextEncoder().encode(decoded);
+      }
+
+      const blob = new Blob([byteArray], { type: mimeType });
+      const blobUrl = URL.createObjectURL(blob);
+      return openTargetUrl(blobUrl, true);
+    } catch (err) {
+      console.warn('Failed to open data URL document:', err);
+      const a = document.createElement('a');
+      a.href = rawUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return true;
+    }
+  }
+
+  return openTargetUrl(rawUrl, false);
+}
