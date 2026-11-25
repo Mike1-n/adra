@@ -95,6 +95,7 @@ export function SupplierPortalApp({
         item_name: it.item_name || 'Supplies',
         quantity: Number(it.quantity) || 1,
         unit: it.unit || 'Units',
+        max_unit_price: it.max_unit_price != null ? Number(it.max_unit_price) : (po?.max_unit_price != null ? Number(po.max_unit_price) : null),
         unit_price: it.unit_price ? String(it.unit_price) : ''
       }));
     }
@@ -108,10 +109,11 @@ export function SupplierPortalApp({
             quantity: Number(m[1]) || 1,
             unit: m[2],
             item_name: m[3].trim(),
+            max_unit_price: po?.max_unit_price != null ? Number(po.max_unit_price) : null,
             unit_price: ''
           };
         }
-        return { quantity: 1, unit: 'Units', item_name: part, unit_price: '' };
+        return { quantity: 1, unit: 'Units', item_name: part, max_unit_price: po?.max_unit_price != null ? Number(po.max_unit_price) : null, unit_price: '' };
       });
       if (parsed.length > 0) return parsed;
     }
@@ -119,6 +121,7 @@ export function SupplierPortalApp({
       item_name: po?.item_name || 'Humanitarian Supplies',
       quantity: Number(po?.quantity) || 1,
       unit: po?.unit || 'Units',
+      max_unit_price: po?.max_unit_price != null ? Number(po.max_unit_price) : null,
       unit_price: ''
     }];
   };
@@ -137,11 +140,26 @@ export function SupplierPortalApp({
     }, 0);
   }, [quoteLineItems]);
 
+  const hasQuoteOverMax = useMemo(() => {
+    return quoteLineItems.some(
+      it => it.max_unit_price != null && Number(it.max_unit_price) > 0 && Number(it.unit_price) > Number(it.max_unit_price)
+    );
+  }, [quoteLineItems]);
+
   const handleSubmitQuotation = async (e) => {
     e.preventDefault();
     if (!quoteModalPO) return;
     if (quoteLineItems.length === 0 || quoteLineItems.some(it => !it.unit_price || Number(it.unit_price) <= 0)) {
       toast.warning('Please enter a valid unit price (SSP) for every commodity.');
+      return;
+    }
+    const overPriced = quoteLineItems.find(
+      it => it.max_unit_price != null && Number(it.max_unit_price) > 0 && Number(it.unit_price) > Number(it.max_unit_price)
+    );
+    if (overPriced) {
+      toast.error(
+        `Quotation rejected: Unit price for ${overPriced.item_name} (SSP ${Number(overPriced.unit_price).toLocaleString()}) exceeds the maximum market price of SSP ${Number(overPriced.max_unit_price).toLocaleString()} set by Inventory.`
+      );
       return;
     }
     const breakdownText = quoteLineItems
@@ -155,6 +173,7 @@ export function SupplierPortalApp({
       await db.submitSupplierQuotation(quoteModalPO.id, {
         total_amount: quoteGrandTotal,
         unit_cost: totalQty > 0 ? Math.round((quoteGrandTotal / totalQty) * 100) / 100 : 0,
+        items: quoteLineItems,
         notes: fullNotes,
         quoted_by: currentSupplier?.company_name || currentUser?.full_name || 'Supplier'
       });
@@ -1753,10 +1772,17 @@ export function SupplierPortalApp({
                   <tbody className="divide-y divide-slate-100">
                     {quoteLineItems.map((line, idx) => {
                       const lineTotal = (Number(line.quantity) || 0) * (Number(line.unit_price) || 0);
+                      const hasMax = line.max_unit_price != null && Number(line.max_unit_price) > 0;
+                      const isOverMax = hasMax && Number(line.unit_price) > Number(line.max_unit_price);
                       return (
                         <tr key={idx} className="hover:bg-slate-50/50">
                           <td className="py-2 px-2 sm:px-3 font-bold text-slate-900 break-words">
-                            {line.item_name}
+                            <span>{line.item_name}</span>
+                            {hasMax && (
+                              <span className="block text-[9px] font-semibold text-slate-500 mt-0.5">
+                                Max: SSP {Number(line.max_unit_price).toLocaleString()}
+                              </span>
+                            )}
                           </td>
                           <td className="py-2 px-1.5 sm:px-3 text-center text-slate-700 font-semibold break-words">
                             {Number(line.quantity).toLocaleString()} {line.unit}
@@ -1773,8 +1799,17 @@ export function SupplierPortalApp({
                                 setQuoteLineItems(prev => prev.map((it, i) => i === idx ? { ...it, unit_price: val } : it));
                               }}
                               placeholder="0"
-                              className="w-full px-1.5 sm:px-2.5 py-1.5 rounded-lg border border-slate-300 focus:border-[#006B56] outline-none font-mono font-bold text-right text-slate-900 bg-white text-[11px] sm:text-xs"
+                              className={`w-full px-1.5 sm:px-2.5 py-1.5 rounded-lg border outline-none font-mono font-bold text-right text-[11px] sm:text-xs ${
+                                isOverMax
+                                  ? 'border-rose-500 bg-rose-50 text-rose-700 focus:border-rose-600'
+                                  : 'border-slate-300 bg-white text-slate-900 focus:border-[#006B56]'
+                              }`}
                             />
+                            {isOverMax && (
+                              <span className="block text-[9px] font-bold text-rose-600 mt-0.5 leading-tight">
+                                Above max SSP {Number(line.max_unit_price).toLocaleString()}
+                              </span>
+                            )}
                           </td>
                           <td className="py-2 px-2 sm:px-3 text-right font-mono font-bold text-[#006B56] break-words">
                             {lineTotal.toLocaleString()}
@@ -1819,8 +1854,8 @@ export function SupplierPortalApp({
                 </button>
                 <button
                   type="submit"
-                  disabled={submittingQuote}
-                  className="px-4 py-2 rounded-xl bg-[#006B56] hover:bg-[#005443] text-white font-bold cursor-pointer disabled:opacity-50"
+                  disabled={submittingQuote || hasQuoteOverMax}
+                  className="px-4 py-2 rounded-xl bg-[#006B56] hover:bg-[#005443] text-white font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submittingQuote ? 'Sending...' : 'Send Quotation'}
                 </button>

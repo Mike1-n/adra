@@ -21,7 +21,9 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
-  CheckCircle2
+  CheckCircle2,
+  Search,
+  X
 } from 'lucide-react';
 import { Button } from '../../../components/common/Button';
 import { db } from '../../../lib/supabase';
@@ -109,6 +111,7 @@ export function AssistanceRequestWizard({ beneficiary, preselectedOperation = nu
   const [submitting, setSubmitting] = useState(false);
   const [programmes, setProgrammes] = useState([]);
   const [submittedResult, setSubmittedResult] = useState(null);
+  const [typeSearchQuery, setTypeSearchQuery] = useState('');
 
   const initialLoc = resolveLocationDetails(beneficiary?.location);
   const initialOpCategory = inferCategoryFromOperation(preselectedOperation);
@@ -422,9 +425,9 @@ export function AssistanceRequestWizard({ beneficiary, preselectedOperation = nu
   };
 
   return (
-    <div className="min-h-full flex flex-col justify-between p-4 sm:p-6 bg-white text-slate-900">
+    <div className="min-h-full flex flex-col justify-between p-3 sm:p-6 bg-white text-slate-900 overflow-x-hidden">
       {/* Top Header */}
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         <div className="flex items-center justify-between">
           {step > 1 && step <= 3 ? (
             <button
@@ -487,109 +490,147 @@ export function AssistanceRequestWizard({ beneficiary, preselectedOperation = nu
       </div>
 
       {/* Main Content Area */}
-      <div className="my-auto py-4">
+      <div className="my-auto py-2.5 sm:py-4">
         {/* STEP 1: Select Assistance Type */}
         {step === 1 && (
-          <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="space-y-3 sm:space-y-4 animate-in fade-in duration-200">
             {/* Eye-Pleasing Header */}
-            <div className="space-y-1.5">
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
+            <div className="space-y-1">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-snug">
                 What type of assistance do you need?
               </h2>
             </div>
 
-            {/* Quick Status Bar */}
-            <div className="flex items-center justify-between pt-0.5 px-0.5">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Available Relief Packages ({assistanceTypes.length})
-              </span>
-              <span
-                className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full transition-all ${
-                  formData.categories?.length > 0
-                    ? 'bg-[#006B56] text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                {formData.categories?.length || 0} selected
-              </span>
+            {/* Full-Width Inline Search Bar */}
+            <div className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus-within:border-[#006B56] focus-within:bg-white flex items-center gap-2 shadow-2xs transition">
+              <Search className="w-4 h-4 text-[#006B56] shrink-0" />
+              <input
+                type="text"
+                value={typeSearchQuery}
+                onChange={(e) => setTypeSearchQuery(e.target.value)}
+                placeholder="Search relief packages..."
+                className="flex-1 min-w-0 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 bg-transparent focus:outline-none"
+              />
+              {typeSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setTypeSearchQuery('')}
+                  className="p-0.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {formData.categories?.length > 0 && (
+                <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-[#006B56] text-white shrink-0">
+                  {formData.categories.length} selected
+                </span>
+              )}
             </div>
 
             {/* Eye-Pleasing Category Cards */}
-            <div className="space-y-2.5 pt-1">
-              {assistanceTypes.map((item) => {
-                const Icon = item.icon;
-                const isSelected = formData.categories?.includes(item.id);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleToggleCategory(item.id)}
-                    className={`w-full group p-3.5 rounded-2xl border-2 text-left transition-all duration-200 flex items-center justify-between gap-3 cursor-pointer ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-emerald-50/80 via-white to-teal-50/40 border-[#006B56] shadow-sm ring-2 ring-[#006B56]/15'
-                        : 'bg-white border-slate-200/80 hover:border-emerald-300 hover:bg-slate-50/70 shadow-2xs'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      {/* Icon with harmonious category palette */}
-                      <div
-                        className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 ${
-                          isSelected
-                            ? 'bg-[#006B56] text-white shadow-sm shadow-[#006B56]/30'
-                            : `${item.bgLight} ${item.textColor} border ${item.borderColor} group-hover:scale-105`
-                        }`}
-                      >
-                        <Icon className="w-5 h-5 stroke-[2.2]" />
-                      </div>
+            <div className="space-y-2 sm:space-y-2.5 pt-0.5">
+              {(() => {
+                const q = typeSearchQuery.trim().toLowerCase();
+                const visibleTypes = !q
+                  ? assistanceTypes
+                  : assistanceTypes.filter(
+                      (item) =>
+                        item.name.toLowerCase().includes(q) ||
+                        item.desc.toLowerCase().includes(q)
+                    );
 
-                      {/* Title & Description */}
-                      <div className="space-y-0.5 min-w-0">
-                        <span
-                          className={`text-xs block leading-tight transition-colors ${
+                if (visibleTypes.length === 0) {
+                  return (
+                    <div className="py-8 text-center space-y-2 bg-slate-50 rounded-xl border border-slate-200/80">
+                      <Search className="w-6 h-6 text-slate-300 mx-auto" />
+                      <p className="text-xs font-bold text-slate-700">No matching relief packages</p>
+                      <button
+                        type="button"
+                        onClick={() => setTypeSearchQuery('')}
+                        className="text-[11px] font-bold text-[#006B56] hover:underline cursor-pointer"
+                      >
+                        Clear search
+                      </button>
+                    </div>
+                  );
+                }
+
+                return visibleTypes.map((item) => {
+                  const Icon = item.icon;
+                  const isSelected = formData.categories?.includes(item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleToggleCategory(item.id)}
+                      className={`w-full group p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 text-left transition-all duration-200 flex items-center justify-between gap-2.5 sm:gap-3 cursor-pointer ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-emerald-50/80 via-white to-teal-50/40 border-[#006B56] shadow-sm ring-2 ring-[#006B56]/15'
+                          : 'bg-white border-slate-200/80 hover:border-emerald-300 hover:bg-slate-50/70 shadow-2xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+                        {/* Icon with harmonious category palette */}
+                        <div
+                          className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 ${
                             isSelected
-                              ? 'font-black text-[#006B56] text-sm'
-                              : 'font-bold text-slate-900 group-hover:text-[#006B56]'
+                              ? 'bg-[#006B56] text-white shadow-sm shadow-[#006B56]/30'
+                              : `${item.bgLight} ${item.textColor} border ${item.borderColor} group-hover:scale-105`
                           }`}
                         >
-                          {item.name}
-                        </span>
-                        <p className="text-[11px] leading-snug text-slate-500">
-                          {item.desc}
-                        </p>
-                      </div>
-                    </div>
+                          <Icon className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2]" />
+                        </div>
 
-                    {/* Checkbox Indicator */}
-                    <div className="shrink-0 pl-1">
-                      <div
-                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200 ${
-                          isSelected
-                            ? 'bg-[#006B56] text-white shadow-xs'
-                            : 'border-2 border-slate-300 bg-white group-hover:border-slate-400'
-                        }`}
-                      >
-                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3] text-white" />}
+                        {/* Title & Description */}
+                        <div className="space-y-0.5 min-w-0">
+                          <span
+                            className={`block leading-tight transition-colors ${
+                              isSelected
+                                ? 'font-black text-[#006B56] text-[13px] sm:text-sm'
+                                : 'font-bold text-slate-900 text-xs sm:text-[13px] group-hover:text-[#006B56]'
+                            }`}
+                          >
+                            {item.name}
+                          </span>
+                          <p className="text-[11px] leading-snug text-slate-500">
+                            {item.desc}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                );
-              })}
+
+                      {/* Checkbox Indicator */}
+                      <div className="shrink-0 pl-0.5 sm:pl-1">
+                        <div
+                          className={`w-5 h-5 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                            isSelected
+                              ? 'bg-[#006B56] text-white shadow-xs'
+                              : 'border-2 border-slate-300 bg-white group-hover:border-slate-400'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3] text-white" />}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                });
+              })()}
             </div>
 
             {/* Continue Action Button */}
-            <div className="sticky bottom-0 pt-3 pb-1 bg-gradient-to-t from-white via-white/95 to-transparent z-10">
+            <div className="sticky bottom-0 pt-2.5 pb-1 bg-gradient-to-t from-white via-white/95 to-transparent z-10">
               <button
                 type="button"
                 onClick={handleProceedFromStep1}
                 disabled={!formData.categories || formData.categories.length === 0}
-                className={`w-full py-3.5 px-5 rounded-2xl font-extrabold text-sm flex items-center justify-between shadow-md transition-all duration-200 active:scale-[0.99] ${
+                className={`w-full py-3 sm:py-3.5 px-4 sm:px-5 rounded-xl sm:rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-between gap-2 shadow-md transition-all duration-200 active:scale-[0.99] ${
                   formData.categories?.length > 0
                     ? 'bg-[#006B56] hover:bg-[#005544] text-white shadow-emerald-700/25 cursor-pointer'
                     : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <span className="tracking-wide">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="tracking-wide truncate">
                     {!formData.categories || formData.categories.length === 0
                       ? 'Select at least 1 assistance type'
                       : formData.categories.length === 1

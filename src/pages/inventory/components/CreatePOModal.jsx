@@ -59,7 +59,7 @@ export function CreatePOModal({
     supplier_phone: '',
     category: 'General Humanitarian Supplies',
     items: [
-      { item_name: '', quantity: '', unit: 'Bags', category: 'Food Assistance', isCustom: false }
+      { item_name: '', quantity: '', unit: 'Bags', max_unit_price: '', category: 'Food Assistance', isCustom: false }
     ],
     warehouse_destination: 'Central Equatoria State Depot',
     expected_delivery: '',
@@ -91,6 +91,7 @@ export function CreatePOModal({
               item_name: firstComm.item_name,
               quantity: prev.items[0]?.quantity || '',
               unit: firstComm.unit || 'Bags',
+              max_unit_price: prev.items[0]?.max_unit_price || '',
               category: firstComm.category || 'General Supplies',
               isCustom: false
             }
@@ -122,6 +123,7 @@ export function CreatePOModal({
           item_name: nextComm ? nextComm.item_name : '',
           quantity: '',
           unit: nextComm?.unit || 'Bags',
+          max_unit_price: '',
           category: nextComm?.category || 'General Supplies',
           isCustom: !nextComm
         }
@@ -200,11 +202,16 @@ export function CreatePOModal({
       toast.warning('Please specify a valid product name and quantity for every item line.');
       return;
     }
+    if (form.items.some(it => !it.max_unit_price || Number(it.max_unit_price) <= 0)) {
+      toast.warning('Please set the maximum allowed unit price (SSP) for every item line.');
+      return;
+    }
 
     const cleanItems = form.items.map(it => ({
       item_name: it.item_name.trim(),
       quantity: Number(it.quantity),
       unit: it.unit || 'Units',
+      max_unit_price: Number(it.max_unit_price),
       category: it.category || form.category || 'General Supplies'
     }));
 
@@ -227,6 +234,7 @@ export function CreatePOModal({
           quantity: totalQty,
           unit: cleanItems.length === 1 ? cleanItems[0].unit : 'Mixed',
           items: cleanItems,
+          max_unit_price: cleanItems.length === 1 ? cleanItems[0].max_unit_price : null,
           items_summary: summary,
           notes: combinedNotes,
           total_amount: 0,
@@ -242,6 +250,7 @@ export function CreatePOModal({
             item_name: commodityList[0]?.item_name || '',
             quantity: '',
             unit: commodityList[0]?.unit || 'Bags',
+            max_unit_price: '',
             category: commodityList[0]?.category || 'General Supplies',
             isCustom: false
           }
@@ -411,7 +420,7 @@ export function CreatePOModal({
                     />
                   )}
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <input
                       type="number"
                       min="1"
@@ -440,6 +449,19 @@ export function CreatePOModal({
                       <option value="Litres">Litres</option>
                       <option value="Units">Units</option>
                     </select>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="any"
+                        value={line.max_unit_price}
+                        onChange={(e) => handleItemFieldChange(idx, 'max_unit_price', e.target.value)}
+                        placeholder="Max Price / Unit (SSP) *"
+                        title="Maximum allowed market price per unit (SSP)"
+                        className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 focus:border-[#006B56] outline-none font-bold text-slate-900 text-xs"
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
               ))}

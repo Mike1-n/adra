@@ -7445,6 +7445,8 @@ export const db = {
         quantity: Number(newPO.quantity) || 1,
         unit: newPO.unit || 'Units',
         unit_cost: Number(newPO.unit_cost) || 0,
+        max_unit_price: newPO.max_unit_price != null ? Number(newPO.max_unit_price) : null,
+        items: Array.isArray(newPO.items) ? newPO.items : [],
         total_amount: Number(newPO.total_amount) || 0,
         destination_warehouse: destination,
         warehouse_destination: destination,
@@ -7499,6 +7501,28 @@ export const db = {
     const qty = Number(existing?.quantity) || 1;
     const finalTotal = Number(total_amount) || (Number(unit_cost) * qty) || 0;
     const finalUnitCost = Number(unit_cost) || (qty > 0 ? Math.round((finalTotal / qty) * 100) / 100 : 0);
+
+    // Enforce Inventory Manager's maximum allowed market unit price
+    const quoteItems = Array.isArray(quoteData.items) ? quoteData.items : [];
+    const existingItems = Array.isArray(existing?.items) ? existing.items : [];
+    if (quoteItems.length > 0) {
+      for (let i = 0; i < quoteItems.length; i++) {
+        const qItem = quoteItems[i];
+        const matchedExisting = existingItems.find(
+          it => (it.item_name || '').toLowerCase().trim() === (qItem.item_name || '').toLowerCase().trim()
+        ) || existingItems[i];
+        const maxPrice = matchedExisting?.max_unit_price ?? existing?.max_unit_price;
+        if (maxPrice != null && Number(maxPrice) > 0 && Number(qItem.unit_price) > Number(maxPrice)) {
+          throw new Error(
+            `Quotation rejected: Unit price for ${qItem.item_name} (SSP ${Number(qItem.unit_price).toLocaleString()}) exceeds the maximum market price of SSP ${Number(maxPrice).toLocaleString()}.`
+          );
+        }
+      }
+    } else if (existing?.max_unit_price != null && Number(existing.max_unit_price) > 0 && finalUnitCost > Number(existing.max_unit_price)) {
+      throw new Error(
+        `Quotation rejected: Unit price (SSP ${finalUnitCost.toLocaleString()}) exceeds the maximum market price of SSP ${Number(existing.max_unit_price).toLocaleString()}.`
+      );
+    }
     const quoteNote = notes ? `Quotation (${quoted_by}): ${notes}` : `Quotation submitted by ${quoted_by}`;
     const mergedNotes = existing?.notes ? `${existing.notes} | ${quoteNote}` : quoteNote;
 

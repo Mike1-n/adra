@@ -249,6 +249,91 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         : [makeRoleContact(title, title, icon, color)];
     };
 
+    const currentNameLower = (effectiveUser?.full_name || effectiveUser?.name || '').toLowerCase().trim();
+    const isStaffResponseCategory = (cat) => [
+      'Field Worker Response',
+      'Supervisor Response',
+      'Inventory Manager Response',
+      'Finance Officer Response',
+      'Programme Manager Response'
+    ].includes(cat);
+
+    const isMessageRelevantToMyInbox = (msg) => {
+      const rRole = (msg.recipient_role || '').toLowerCase().trim();
+      const rName = (msg.recipient_name || '').toLowerCase().trim();
+      const rId = String(msg.recipient_id || '');
+      if (isSupervisor) {
+        return rRole.includes('supervisor') || (currentNameLower && rName.includes(currentNameLower)) || rId === currentId || msg.category === 'Supervisor Response';
+      }
+      if (isFinanceOfficer) {
+        return rRole.includes('finance') || (currentNameLower && rName.includes(currentNameLower)) || rId === currentId || msg.category === 'Finance Officer Response';
+      }
+      if (isInventoryManager) {
+        return rRole.includes('inventory') || rRole.includes('logistics') || (currentNameLower && rName.includes(currentNameLower)) || rId === currentId || msg.category === 'Inventory Manager Response';
+      }
+      if (isFieldWorker) {
+        return rRole.includes('field') || (currentNameLower && rName.includes(currentNameLower)) || rId === currentId || msg.category === 'Field Worker Response';
+      }
+      return false;
+    };
+
+    const buildBeneficiaryThreadContacts = () => {
+      const threadMap = new Map();
+      (complaints || []).forEach(msg => {
+        if (!isMessageRelevantToMyInbox(msg)) return;
+        const isOutgoingReply = isStaffResponseCategory(msg.category) || String(msg.beneficiary_id || '') === currentId;
+        const rawId = isOutgoingReply ? String(msg.recipient_id || '') : String(msg.beneficiary_id || '');
+        const rawEmail = isOutgoingReply ? (msg.recipient_email || '') : (msg.sender_email || '');
+        const rawName = isOutgoingReply
+          ? (msg.recipient_name || 'Household Member')
+          : (msg.sender_name || msg.beneficiary_name || 'Household Member');
+        const rawRole = isOutgoingReply ? (msg.recipient_role || 'Beneficiary') : (msg.sender_role || 'Beneficiary');
+
+        // Skip internal staff-to-staff messages here (they have their own directory contacts)
+        const roleLower = rawRole.toLowerCase();
+        if (roleLower.includes('inventory') || roleLower.includes('finance') || roleLower.includes('supervisor') || roleLower.includes('program') || roleLower.includes('field')) {
+          if (!isOutgoingReply) return;
+        }
+
+        const key = (rawId && rawId !== 'b7' ? rawId : '') || rawEmail.toLowerCase().trim() || rawName.toLowerCase().trim();
+        if (!key) return;
+        if (!threadMap.has(key)) {
+          threadMap.set(key, {
+            id: `thread:${key}`,
+            isBeneficiaryThread: true,
+            threadKey: key,
+            threadBeneficiaryId: rawId,
+            threadBeneficiaryName: rawName,
+            threadBeneficiaryEmail: rawEmail,
+            recipientId: rawId || `name:${rawName}`,
+            role: rawRole || 'Beneficiary',
+            name: rawName,
+            title: `Direct inquiry • ${rawRole || 'Household'}`,
+            email: rawEmail,
+            status: 'Live',
+            badge: rawRole || 'Beneficiary',
+            avatarColor: 'bg-emerald-600',
+            icon: Users,
+            welcomeNote: `Independent conversation with ${rawName}.`
+          });
+        }
+      });
+
+      const list = Array.from(threadMap.values());
+      if (list.length > 0) return list;
+      return [{
+        id: 'beneficiaries',
+        role: 'Household Inquiries',
+        name: 'Registered Households',
+        title: 'Direct Beneficiary Inquiries',
+        status: 'Live',
+        badge: 'Incoming from Community',
+        avatarColor: 'bg-emerald-600',
+        icon: Users,
+        welcomeNote: 'Incoming messages and questions from registered households appear here. Reply to continue a conversation.'
+      }];
+    };
+
     if (isSupplier) {
       return [
         ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]'),
@@ -257,17 +342,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     }
     if (isFinanceOfficer) {
       return [
-        {
-          id: 'beneficiaries',
-          role: 'Household Inquiries',
-          name: 'Registered Households',
-          title: 'Direct Beneficiary Inquiries',
-          status: 'Live',
-          badge: 'Incoming from Community',
-          avatarColor: 'bg-emerald-600',
-          icon: Users,
-          welcomeNote: 'Incoming messages and questions from registered households appear here. Reply to continue a conversation.'
-        },
+        ...buildBeneficiaryThreadContacts(),
         ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600'),
         ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]')
       ];
@@ -281,17 +356,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
       );
       const supervisors = assignedSupervisors.length ? assignedSupervisors : directories.supervisors;
       return [
-        {
-          id: 'beneficiaries',
-          role: 'Household Inquiries',
-          name: 'Registered Households',
-          title: 'Direct Beneficiary Inquiries',
-          status: 'Live',
-          badge: 'Incoming from Community',
-          avatarColor: 'bg-emerald-600',
-          icon: Users,
-          welcomeNote: 'Incoming messages and questions from registered households appear here. Reply to continue a conversation.'
-        },
+        ...buildBeneficiaryThreadContacts(),
         ...supervisors
           .filter(person => String(person.id) !== currentId)
           .map(person => makeUserContact(person, 'Supervisor', ShieldCheck, 'bg-blue-600')),
@@ -305,17 +370,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
       );
       const workers = assignedWorkers.length ? assignedWorkers : directories.fieldWorkers;
       return [
-        {
-          id: 'beneficiaries',
-          role: 'Household Inquiries',
-          name: 'Registered Households',
-          title: 'Direct Beneficiary Inquiries',
-          status: 'Live',
-          badge: 'Incoming from Community',
-          avatarColor: 'bg-emerald-600',
-          icon: Users,
-          welcomeNote: 'Incoming messages and questions from registered households appear here. Reply to continue a conversation.'
-        },
+        ...buildBeneficiaryThreadContacts(),
         ...workers
           .filter(person => String(person.id) !== currentId)
           .map(person => makeUserContact(person, 'Field Worker', HardHat, 'bg-emerald-600')),
@@ -324,17 +379,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     }
     if (role.includes('inventory') || role.includes('logistics')) {
       return [
-        {
-          id: 'beneficiaries',
-          role: 'Household Inquiries',
-          name: 'Registered Households',
-          title: 'Direct Beneficiary Inquiries',
-          status: 'Live',
-          badge: 'Incoming from Community',
-          avatarColor: 'bg-emerald-600',
-          icon: Users,
-          welcomeNote: 'Incoming messages and questions from registered households appear here. Reply to continue a conversation.'
-        },
+        ...buildBeneficiaryThreadContacts(),
         ...roleContacts('program', 'Programme Manager', ClipboardList, 'bg-purple-600'),
         ...roleContacts('finance', 'Finance Officer', DollarSign, 'bg-blue-700')
       ];
@@ -492,6 +537,57 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     const currentRole = (effectiveUser?.role || (isSupplier ? 'Supplier' : (isBeneficiary ? 'Beneficiary' : ''))).toLowerCase().trim();
     const currentName = (effectiveUser?.name || effectiveUser?.full_name || '').toLowerCase().trim();
 
+    if (contact.isBeneficiaryThread) {
+      const isOutgoingReply = [
+        'Field Worker Response',
+        'Supervisor Response',
+        'Inventory Manager Response',
+        'Finance Officer Response',
+        'Programme Manager Response'
+      ].includes(message.category) || (currentId && senderId === currentId);
+
+      const targetId = String(contact.threadBeneficiaryId || '');
+      const targetEmail = (contact.threadBeneficiaryEmail || '').toLowerCase().trim();
+      const targetName = (contact.threadBeneficiaryName || '').toLowerCase().trim();
+
+      const matchesPerson = isOutgoingReply
+        ? ((targetId && recipientId === targetId) ||
+           (targetEmail && recipientEmail === targetEmail) ||
+           (targetName && recipientName === targetName))
+        : ((targetId && targetId !== 'b7' && senderId === targetId) ||
+           (targetEmail && senderEmail === targetEmail) ||
+           (targetName && senderName === targetName));
+
+      if (!matchesPerson) return false;
+
+      if (isSupervisor) {
+        return recipientRole.includes('supervisor') ||
+          (currentName && recipientName.includes(currentName)) ||
+          recipientId === currentId ||
+          message.category === 'Supervisor Response';
+      }
+      if (isFinanceOfficer) {
+        return recipientRole.includes('finance') ||
+          (currentName && recipientName.includes(currentName)) ||
+          recipientId === currentId ||
+          message.category === 'Finance Officer Response';
+      }
+      if (isInventoryManager) {
+        return recipientRole.includes('inventory') ||
+          recipientRole.includes('logistics') ||
+          (currentName && recipientName.includes(currentName)) ||
+          recipientId === currentId ||
+          message.category === 'Inventory Manager Response';
+      }
+      if (isFieldWorker) {
+        return recipientRole.includes('field') ||
+          (currentName && recipientName.includes(currentName)) ||
+          recipientId === currentId ||
+          message.category === 'Field Worker Response';
+      }
+      return false;
+    }
+
     if (contact.id === 'beneficiaries') {
       if (isSupervisor) {
         return recipientRole.includes('supervisor') ||
@@ -638,13 +734,26 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
     try {
       setIsSubmitting(true);
-      const workerName = effectiveUser?.full_name || effectiveUser?.name || (isSupervisor ? 'Supervisor' : 'Field Worker');
+      const staffRoleLabel = isSupervisor
+        ? 'Field Supervisor'
+        : isInventoryManager
+          ? 'Inventory Manager'
+          : isFinanceOfficer
+            ? 'Finance Officer'
+            : 'Field Officer';
+      const workerName = effectiveUser?.full_name || effectiveUser?.name || staffRoleLabel;
 
-      if ((isFieldWorker || isSupervisor) && activeTab === 'beneficiaries') {
+      if (currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer) && activeTab === 'beneficiaries')) {
         // Staff replying to beneficiary inquiry
-        const responderRole = isSupervisor ? 'Supervisor' : 'Field Worker';
-        const responderTitle = isSupervisor ? 'Field Supervisor' : 'Field Officer';
-        const responseCategory = isSupervisor ? 'Supervisor Response' : 'Field Worker Response';
+        const responderRole = isSupervisor
+          ? 'Supervisor'
+          : isInventoryManager
+            ? 'Inventory Manager'
+            : isFinanceOfficer
+              ? 'Finance Officer'
+              : 'Field Worker';
+        const responderTitle = staffRoleLabel;
+        const responseCategory = `${responderRole} Response`;
 
         const targetComplaint = replyingTo || activeChatMessages.find(m => (!m.resolution_notes || m.status !== 'Resolved') && m.category !== responseCategory) || activeChatMessages[activeChatMessages.length - 1];
 
@@ -664,10 +773,10 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
           sender_email: effectiveUser?.email || null,
           sender_name: workerName,
           sender_role: effectiveUser?.role || responderRole,
-          recipient_id: targetComplaint?.beneficiary_id || 'b7',
+          recipient_id: targetComplaint?.beneficiary_id || currentContact?.threadBeneficiaryId || 'b7',
           recipient_role: 'Beneficiary',
-          recipient_name: targetComplaint?.beneficiary_name || 'Household Member',
-          recipient_email: targetComplaint?.sender_email || null,
+          recipient_name: targetComplaint?.beneficiary_name || currentContact?.threadBeneficiaryName || 'Household Member',
+          recipient_email: targetComplaint?.sender_email || currentContact?.threadBeneficiaryEmail || null,
           category: responseCategory,
           severity: 'Low',
           is_anonymous: false,
@@ -947,25 +1056,37 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         {activeChatMessages.length === 0 ? (
           <div className="text-center py-6">
             <span className="text-xs text-slate-400 bg-white/80 px-3 py-1.5 rounded-full border border-slate-200">
-              {isFieldWorker && activeTab === 'beneficiaries'
-                ? 'No messages from registered households yet.'
+              {(currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer) && activeTab === 'beneficiaries'))
+                ? 'No messages from this household yet.'
                 : `No messages sent to ${currentContact.role} yet. Type below to start!`}
             </span>
           </div>
         ) : (
           activeChatMessages.map(msg => {
-            const isFieldWorkerBeneficiaryTab = isFieldWorker && activeTab === 'beneficiaries';
-            const isStaffReply = msg.category === 'Field Worker Response';
+            const isStaffBeneficiaryTab = currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer) && activeTab === 'beneficiaries');
+            const staffTitle = isSupervisor
+              ? 'Field Supervisor'
+              : isInventoryManager
+                ? 'Inventory Manager'
+                : isFinanceOfficer
+                  ? 'Finance Officer'
+                  : 'Field Officer';
+            const isStaffReply = [
+              'Field Worker Response',
+              'Supervisor Response',
+              'Inventory Manager Response',
+              'Finance Officer Response'
+            ].includes(msg.category) || String(msg.beneficiary_id || '') === currentId;
 
-            // When viewed by Field Worker on Household Inquiries tab:
-            if (isFieldWorkerBeneficiaryTab) {
-              // Outgoing Field Worker Reply
+            // When viewed by Staff on Household Inquiries tab:
+            if (isStaffBeneficiaryTab) {
+              // Outgoing Staff Reply
               if (isStaffReply) {
                 return (
                   <div key={msg.id || msg.ticket_code} className="flex justify-end">
                     <div className="max-w-[85%] sm:max-w-[75%] bg-[#d9fdd3] text-slate-900 rounded-2xl rounded-tr-xs p-3 shadow-xs border border-[#b8f5b0]">
                       <div className="text-[11px] font-bold text-emerald-800 mb-0.5">
-                        You (Field Officer)
+                        You ({staffTitle})
                       </div>
                       <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap py-0.5">
                         {msg.description || msg.resolution_notes}
@@ -1031,7 +1152,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
                     <div className="flex justify-end">
                       <div className="max-w-[85%] sm:max-w-[75%] bg-[#d9fdd3] text-slate-900 rounded-2xl rounded-tr-xs p-3 shadow-xs border border-[#b8f5b0]">
                         <div className="text-[11px] font-bold text-emerald-800 mb-0.5">
-                          You (Field Officer)
+                          You ({staffTitle})
                         </div>
                         <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap py-0.5">
                           {msg.resolution_notes}
@@ -1144,7 +1265,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
             placeholder={
               replyingTo
                 ? `Reply to ${replyingTo.beneficiary_name || 'household'}...`
-                : (isFieldWorker && activeTab === 'beneficiaries' ? 'Type a reply to household...' : `Message ${currentContact.role}...`)
+                : ((currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer) && activeTab === 'beneficiaries')) ? `Reply to ${currentContact?.name || 'household'}...` : `Message ${currentContact.role}...`)
             }
             className="flex-1 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden bg-transparent"
             disabled={isSubmitting}
