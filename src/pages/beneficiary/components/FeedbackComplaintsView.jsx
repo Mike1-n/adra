@@ -33,9 +33,10 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
   const isBeneficiary = !isSupplier && !isSupervisor && !isFieldWorker && !isDriver && (!effectiveUser?.role || role.includes('beneficiary'));
   const isFinanceOfficer = role.includes('finance');
   const isInventoryManager = role.includes('inventory') || role.includes('logistics');
+  const isProgrammeManager = role.includes('program');
   const isAdmin = role.includes('admin') || role.includes('director');
-  const canViewOversight = isAdmin || isInventoryManager || isFinanceOfficer;
-  const [showAdminOversight, setShowAdminOversight] = useState(isAdmin);
+  const canViewOversight = isAdmin || isInventoryManager || isFinanceOfficer || isProgrammeManager || isSupervisor || isFieldWorker;
+  const [showAdminOversight, setShowAdminOversight] = useState(canViewOversight);
 
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -271,6 +272,9 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
       if (isInventoryManager) {
         return rRole.includes('inventory') || rRole.includes('logistics') || (currentNameLower && rName.includes(currentNameLower)) || rId === currentId || msg.category === 'Inventory Manager Response';
       }
+      if (isProgrammeManager) {
+        return rRole.includes('program') || (currentNameLower && rName.includes(currentNameLower)) || rId === currentId || msg.category === 'Programme Manager Response';
+      }
       if (isFieldWorker) {
         return rRole.includes('field') || (currentNameLower && rName.includes(currentNameLower)) || rId === currentId || msg.category === 'Field Worker Response';
       }
@@ -384,6 +388,14 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         ...roleContacts('finance', 'Finance Officer', DollarSign, 'bg-blue-700')
       ];
     }
+    if (isProgrammeManager) {
+      return [
+        ...buildBeneficiaryThreadContacts(),
+        ...roleContacts('supervisor', 'Supervisor', ShieldCheck, 'bg-blue-600'),
+        ...roleContacts('inventory', 'Inventory Manager', Package, 'bg-[#006B56]'),
+        ...roleContacts('finance', 'Finance Officer', DollarSign, 'bg-blue-700')
+      ];
+    }
     if (isBeneficiary) {
       // 1. Resolve assigned supervisor from assignedInfo or beneficiary record
       const assignedSupervisorId = assignedInfo.supervisorId || beneficiary?.assigned_supervisor_id || beneficiary?.supervisor_id;
@@ -396,12 +408,12 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
       const matchedSupervisor = (cleanSupId || cleanSupName)
         ? directories.supervisors.find(sup =>
-            (cleanSupId && (String(sup.id).toLowerCase() === cleanSupId || String(sup.email || '').toLowerCase() === cleanSupId)) ||
-            (cleanSupName && (
-              (sup.full_name || sup.name || '').toLowerCase().includes(cleanSupName) ||
-              cleanSupName.includes((sup.full_name || sup.name || '').toLowerCase())
-            ))
-          )
+          (cleanSupId && (String(sup.id).toLowerCase() === cleanSupId || String(sup.email || '').toLowerCase() === cleanSupId)) ||
+          (cleanSupName && (
+            (sup.full_name || sup.name || '').toLowerCase().includes(cleanSupName) ||
+            cleanSupName.includes((sup.full_name || sup.name || '').toLowerCase())
+          ))
+        )
         : null;
 
       const hasAssignedSupervisor = Boolean(matchedSupervisor || cleanSupName || cleanSupId);
@@ -411,18 +423,18 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         const supervisorContactObj = matchedSupervisor
           ? makeUserContact(matchedSupervisor, 'Supervisor', ShieldCheck, 'bg-blue-600')
           : {
-              id: cleanSupId ? `user:${cleanSupId}` : 'assigned:supervisor',
-              recipientId: cleanSupId || 'assigned-supervisor',
-              role: 'Supervisor',
-              name: assignedSupervisorName || 'Assigned Supervisor',
-              title: 'Field Operations & Supervisory',
-              email: '',
-              status: 'Online',
-              badge: 'Supervisor',
-              avatarColor: 'bg-blue-600',
-              icon: ShieldCheck,
-              welcomeNote: `Direct conversation with your assigned Supervisor ${assignedSupervisorName || ''}.`
-            };
+            id: cleanSupId ? `user:${cleanSupId}` : 'assigned:supervisor',
+            recipientId: cleanSupId || 'assigned-supervisor',
+            role: 'Supervisor',
+            name: assignedSupervisorName || 'Assigned Supervisor',
+            title: 'Field Operations & Supervisory',
+            email: '',
+            status: 'Online',
+            badge: 'Supervisor',
+            avatarColor: 'bg-blue-600',
+            icon: ShieldCheck,
+            welcomeNote: `Direct conversation with your assigned Supervisor ${assignedSupervisorName || ''}.`
+          };
 
         // Find assigned field worker
         const cleanFwId = assignedFwId ? String(assignedFwId).toLowerCase().trim() : '';
@@ -430,12 +442,12 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
         let matchedWorker = (cleanFwId || cleanFwName)
           ? directories.fieldWorkers.find(w =>
-              (cleanFwId && String(w.id).toLowerCase() === cleanFwId) ||
-              (cleanFwName && (
-                (w.full_name || w.name || '').toLowerCase().includes(cleanFwName) ||
-                cleanFwName.includes((w.full_name || w.name || '').toLowerCase())
-              ))
-            )
+            (cleanFwId && String(w.id).toLowerCase() === cleanFwId) ||
+            (cleanFwName && (
+              (w.full_name || w.name || '').toLowerCase().includes(cleanFwName) ||
+              cleanFwName.includes((w.full_name || w.name || '').toLowerCase())
+            ))
+          )
           : null;
 
         // If no direct worker by name, find workers belonging to this supervisor
@@ -443,14 +455,14 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
           matchedWorker = directories.fieldWorkers.find(w =>
             String(w.supervisor_id || '') === String(matchedSupervisor.id) ||
             (w.supervisor_name && (matchedSupervisor.name || matchedSupervisor.full_name) &&
-             w.supervisor_name.toLowerCase() === (matchedSupervisor.name || matchedSupervisor.full_name || '').toLowerCase())
+              w.supervisor_name.toLowerCase() === (matchedSupervisor.name || matchedSupervisor.full_name || '').toLowerCase())
           );
         }
 
         const workerContactObj = matchedWorker
           ? makeUserContact(matchedWorker, 'Field Worker', HardHat, 'bg-emerald-600')
           : (cleanFwName || cleanFwId)
-          ? {
+            ? {
               id: cleanFwId ? `user:${cleanFwId}` : 'assigned:field_worker',
               recipientId: cleanFwId || 'assigned-field-worker',
               role: 'Field Worker',
@@ -463,7 +475,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
               icon: HardHat,
               welcomeNote: `Direct conversation with your assigned Field Worker ${assignedFwName || ''}.`
             }
-          : null;
+            : null;
 
         return [
           supervisorContactObj,
@@ -552,11 +564,11 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
       const matchesPerson = isOutgoingReply
         ? ((targetId && recipientId === targetId) ||
-           (targetEmail && recipientEmail === targetEmail) ||
-           (targetName && recipientName === targetName))
+          (targetEmail && recipientEmail === targetEmail) ||
+          (targetName && recipientName === targetName))
         : ((targetId && targetId !== 'b7' && senderId === targetId) ||
-           (targetEmail && senderEmail === targetEmail) ||
-           (targetName && senderName === targetName));
+          (targetEmail && senderEmail === targetEmail) ||
+          (targetName && senderName === targetName));
 
       if (!matchesPerson) return false;
 
@@ -578,6 +590,12 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
           (currentName && recipientName.includes(currentName)) ||
           recipientId === currentId ||
           message.category === 'Inventory Manager Response';
+      }
+      if (isProgrammeManager) {
+        return recipientRole.includes('program') ||
+          (currentName && recipientName.includes(currentName)) ||
+          recipientId === currentId ||
+          message.category === 'Programme Manager Response';
       }
       if (isFieldWorker) {
         return recipientRole.includes('field') ||
@@ -650,10 +668,11 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
     const isFromMe = myIds.has(senderId) || (senderEmail && myEmails.has(senderEmail));
 
     // Check if this message was sent to current user
+    const hasSpecificRecipientId = Boolean(recipientId && !recipientId.startsWith('role:'));
     const isToMe = myIds.has(recipientId) ||
       (recipientEmail && myEmails.has(recipientEmail)) ||
       recipientId === `role:${currentRole}` ||
-      (currentRole && recipientRole === currentRole);
+      (!hasSpecificRecipientId && currentRole && recipientRole === currentRole);
 
     // Is the contact the recipient of this message?
     const toContact = contactIds.has(recipientId) ||
@@ -693,11 +712,11 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
       if ((isFieldWorker || isSupervisor) && activeTab === 'beneficiaries') {
         const isTargeted = isSupervisor
           ? ((c.recipient_role || '').toLowerCase().includes('supervisor') ||
-             (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
-             c.category === 'Supervisor Response')
+            (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
+            c.category === 'Supervisor Response')
           : ((c.recipient_role || '').toLowerCase().includes('field') ||
-             (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
-             c.category === 'Field Worker Response');
+            (effectiveUser?.name && (c.recipient_name || '').toLowerCase().includes(effectiveUser.name.toLowerCase())) ||
+            c.category === 'Field Worker Response');
         return isTargeted;
       }
       return isMessageForContact(c, currentContact);
@@ -740,10 +759,12 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
           ? 'Inventory Manager'
           : isFinanceOfficer
             ? 'Finance Officer'
-            : 'Field Officer';
+            : isProgrammeManager
+              ? 'Programme Manager'
+              : 'Field Officer';
       const workerName = effectiveUser?.full_name || effectiveUser?.name || staffRoleLabel;
 
-      if (currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer) && activeTab === 'beneficiaries')) {
+      if (currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer || isProgrammeManager) && activeTab === 'beneficiaries')) {
         // Staff replying to beneficiary inquiry
         const responderRole = isSupervisor
           ? 'Supervisor'
@@ -751,7 +772,9 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
             ? 'Inventory Manager'
             : isFinanceOfficer
               ? 'Finance Officer'
-              : 'Field Worker';
+              : isProgrammeManager
+                ? 'Programme Manager'
+                : 'Field Worker';
         const responderTitle = staffRoleLabel;
         const responseCategory = `${responderRole} Response`;
 
@@ -835,7 +858,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
               <ClipboardList className="w-3.5 h-3.5" />
             </div>
             <h2 className="text-sm font-semibold text-slate-900 tracking-tight">
-              {isFinanceOfficer ? 'Supplier feedback ledger' : 'Feedback ledger'}
+              Feedback ledger
             </h2>
           </div>
 
@@ -852,7 +875,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-50">
           <AdminFeedbackComplaintsOversightView
             hideHeader={true}
-            scope={isFinanceOfficer ? 'supplier-ledger' : 'all'}
+            scope="all"
             currentUser={effectiveUser}
           />
         </div>
@@ -862,10 +885,10 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
 
   return (
     <div className="w-full flex-1 flex flex-col h-full min-h-[calc(100vh-120px)] bg-white border-0 shadow-none rounded-none overflow-hidden font-sans">
-      
+
       {/* CLEAN LIGHT WHATSAPP HEADER BAR */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 text-slate-900 shrink-0 flex items-center justify-between gap-3 shadow-2xs relative z-30" ref={dropdownRef}>
-        
+
         {/* Left: Officer Role & Switch Button (or static info if single contact like Supplier) */}
         <div className="relative">
           {contacts.length > 1 ? (
@@ -961,11 +984,10 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
                       setIsDropdownOpen(false);
                       setContactSearch('');
                     }}
-                    className={`w-full p-3 text-left flex items-center justify-between transition cursor-pointer ${
-                      isSelected
-                        ? 'bg-emerald-50 border-l-4 border-emerald-600'
-                        : 'hover:bg-slate-50 bg-white'
-                    }`}
+                    className={`w-full p-3 text-left flex items-center justify-between transition cursor-pointer ${isSelected
+                      ? 'bg-emerald-50 border-l-4 border-emerald-600'
+                      : 'hover:bg-slate-50 bg-white'
+                      }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-8 h-8 rounded-lg ${c.avatarColor} text-white flex items-center justify-center shrink-0 shadow-xs`}>
@@ -1017,7 +1039,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
       </div>
 
       {/* CHAT MESSAGES BODY (WhatsApp Wallpaper & Clean Bubbles) */}
-      <div 
+      <div
         className="flex-1 p-4 overflow-y-auto space-y-3 bg-[#efeae2]/40"
         style={{
           backgroundImage: `radial-gradient(#cbd5e1 1px, transparent 1px)`,
@@ -1056,21 +1078,23 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         {activeChatMessages.length === 0 ? (
           <div className="text-center py-6">
             <span className="text-xs text-slate-400 bg-white/80 px-3 py-1.5 rounded-full border border-slate-200">
-              {(currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer) && activeTab === 'beneficiaries'))
+              {(currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer || isProgrammeManager) && activeTab === 'beneficiaries'))
                 ? 'No messages from this household yet.'
                 : `No messages sent to ${currentContact.role} yet. Type below to start!`}
             </span>
           </div>
         ) : (
           activeChatMessages.map(msg => {
-            const isStaffBeneficiaryTab = currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer) && activeTab === 'beneficiaries');
+            const isStaffBeneficiaryTab = currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer || isProgrammeManager) && activeTab === 'beneficiaries');
             const staffTitle = isSupervisor
               ? 'Field Supervisor'
               : isInventoryManager
                 ? 'Inventory Manager'
                 : isFinanceOfficer
                   ? 'Finance Officer'
-                  : 'Field Officer';
+                  : isProgrammeManager
+                    ? 'Programme Manager'
+                    : 'Field Officer';
             const isStaffReply = [
               'Field Worker Response',
               'Supervisor Response',
@@ -1105,7 +1129,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
                 <div key={msg.id || msg.ticket_code} className="space-y-1.5">
                   <div className="flex justify-start">
                     <div className="max-w-[85%] sm:max-w-[75%] bg-white rounded-2xl rounded-tl-xs p-3 shadow-xs border border-slate-200/90 text-slate-800">
-                      
+
                       {/* Clean Header: Sender Name & Reply Icon Button */}
                       <div className="flex items-center justify-between gap-3 mb-1.5 pb-1 border-b border-slate-100">
                         <span className="text-xs font-bold text-emerald-800 tracking-tight">
@@ -1145,25 +1169,25 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
                   </div>
 
                   {/* If Field Worker already recorded a resolution reply */}
-                  {msg.resolution_notes && 
-                   msg.status === 'Resolved' &&
-                   msg.resolution_notes !== 'Under review by ADRA Independent Safeguarding Unit.' && 
-                   !msg.resolution_notes.includes('Independent Safeguarding Unit') && (
-                    <div className="flex justify-end">
-                      <div className="max-w-[85%] sm:max-w-[75%] bg-[#d9fdd3] text-slate-900 rounded-2xl rounded-tr-xs p-3 shadow-xs border border-[#b8f5b0]">
-                        <div className="text-[11px] font-bold text-emerald-800 mb-0.5">
-                          You ({staffTitle})
-                        </div>
-                        <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap py-0.5">
-                          {msg.resolution_notes}
-                        </p>
-                        <div className="flex items-center justify-end gap-1.5 mt-1 text-[10px] text-slate-500">
-                          <span>{msg.resolved_at ? new Date(msg.resolved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recorded'}</span>
-                          <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  {msg.resolution_notes &&
+                    msg.status === 'Resolved' &&
+                    msg.resolution_notes !== 'Under review by ADRA Independent Safeguarding Unit.' &&
+                    !msg.resolution_notes.includes('Independent Safeguarding Unit') && (
+                      <div className="flex justify-end">
+                        <div className="max-w-[85%] sm:max-w-[75%] bg-[#d9fdd3] text-slate-900 rounded-2xl rounded-tr-xs p-3 shadow-xs border border-[#b8f5b0]">
+                          <div className="text-[11px] font-bold text-emerald-800 mb-0.5">
+                            You ({staffTitle})
+                          </div>
+                          <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap py-0.5">
+                            {msg.resolution_notes}
+                          </p>
+                          <div className="flex items-center justify-end gap-1.5 mt-1 text-[10px] text-slate-500">
+                            <span>{msg.resolved_at ? new Date(msg.resolved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recorded'}</span>
+                            <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
               );
             }
@@ -1173,11 +1197,10 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
             return (
               <div key={msg.id || msg.ticket_code} className="space-y-1.5">
                 <div className={`flex ${isOutgoing ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] sm:max-w-[75%] text-slate-900 rounded-2xl p-3 shadow-xs border ${
-                    isOutgoing
-                      ? 'bg-[#d9fdd3] rounded-tr-xs border-[#b8f5b0]'
-                      : 'bg-white rounded-tl-xs border-slate-200'
-                  }`}>
+                  <div className={`max-w-[85%] sm:max-w-[75%] text-slate-900 rounded-2xl p-3 shadow-xs border ${isOutgoing
+                    ? 'bg-[#d9fdd3] rounded-tr-xs border-[#b8f5b0]'
+                    : 'bg-white rounded-tl-xs border-slate-200'
+                    }`}>
                     {!isOutgoing && (
                       <p className="text-[11px] font-bold text-emerald-800 mb-1">
                         {msg.beneficiary_name || currentContact.name}
@@ -1195,32 +1218,32 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
                 </div>
 
                 {/* Official Response Bubble (Incoming - Aligned Left) */}
-                {msg.resolution_notes && 
-                 msg.status === 'Resolved' && 
-                 msg.resolution_notes !== 'Under review by ADRA Independent Safeguarding Unit.' && 
-                 !msg.resolution_notes.includes('Independent Safeguarding Unit') && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[85%] sm:max-w-[75%] bg-white rounded-2xl rounded-tl-xs p-3 shadow-xs border border-slate-200 text-slate-800">
-                      <div className="flex items-center justify-between gap-2 mb-1 pb-1 border-b border-slate-100">
-                        <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          {msg.resolved_by || currentContact.name || currentContact.role}
-                        </span>
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                          Reply
+                {msg.resolution_notes &&
+                  msg.status === 'Resolved' &&
+                  msg.resolution_notes !== 'Under review by ADRA Independent Safeguarding Unit.' &&
+                  !msg.resolution_notes.includes('Independent Safeguarding Unit') && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[85%] sm:max-w-[75%] bg-white rounded-2xl rounded-tl-xs p-3 shadow-xs border border-slate-200 text-slate-800">
+                        <div className="flex items-center justify-between gap-2 mb-1 pb-1 border-b border-slate-100">
+                          <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            {msg.resolved_by || currentContact.name || currentContact.role}
+                          </span>
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                            Reply
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap py-0.5">
+                          {msg.resolution_notes}
+                        </p>
+
+                        <span className="text-[10px] text-slate-400 block text-right mt-1">
+                          {msg.resolved_at ? new Date(msg.resolved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Delivered'}
                         </span>
                       </div>
-
-                      <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap py-0.5">
-                        {msg.resolution_notes}
-                      </p>
-
-                      <span className="text-[10px] text-slate-400 block text-right mt-1">
-                        {msg.resolved_at ? new Date(msg.resolved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Delivered'}
-                      </span>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             );
           })
@@ -1265,7 +1288,7 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
             placeholder={
               replyingTo
                 ? `Reply to ${replyingTo.beneficiary_name || 'household'}...`
-                : ((currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer) && activeTab === 'beneficiaries')) ? `Reply to ${currentContact?.name || 'household'}...` : `Message ${currentContact.role}...`)
+                : ((currentContact?.isBeneficiaryThread || ((isFieldWorker || isSupervisor || isInventoryManager || isFinanceOfficer || isProgrammeManager) && activeTab === 'beneficiaries')) ? `Reply to ${currentContact?.name || 'household'}...` : `Message ${currentContact.role}...`)
             }
             className="flex-1 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden bg-transparent"
             disabled={isSubmitting}
@@ -1276,11 +1299,10 @@ export function FeedbackComplaintsView({ beneficiary, currentUser: propUser, use
         <button
           type="submit"
           disabled={!messageText.trim() || isSubmitting || !contacts.length}
-          className={`w-10 h-10 rounded-full flex items-center justify-center transition shadow-md shrink-0 cursor-pointer ${
-            messageText.trim() && !isSubmitting
-              ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
-              : 'bg-slate-300 text-slate-500 cursor-not-allowed'
-          }`}
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition shadow-md shrink-0 cursor-pointer ${messageText.trim() && !isSubmitting
+            ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
+            : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+            }`}
           title="Send Message"
         >
           <Send className="w-4 h-4" />

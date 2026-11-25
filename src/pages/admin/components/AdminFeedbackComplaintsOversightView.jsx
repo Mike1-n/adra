@@ -404,27 +404,107 @@ export function AdminFeedbackComplaintsOversightView({
   const hasActiveFilters = activeFilterCount > 0 || statusFilter !== 'ALL' || searchQuery.trim() !== '';
 
   const conversationMessages = activeComplaint ? (() => {
-    const storedMessages = Array.isArray(activeComplaint.responses) ? activeComplaint.responses : [];
-    const firstMessage = storedMessages[0] || {
-      sender: activeComplaint.sender_name || activeComplaint.beneficiary_name,
-      role: activeComplaint.sender_role,
-      message: activeComplaint.description,
-      timestamp: activeComplaint.created_at
-    };
-    const messages = firstMessage.message ? [firstMessage] : [];
-    const replies = storedMessages.length > 1 ? storedMessages.slice(1) : [];
-    const conversation = [...messages, ...replies];
-    const lastMessage = conversation[conversation.length - 1];
+    const norm = (v) => String(v || '').toLowerCase().trim();
+    const senderName = norm(activeComplaint.sender_name || activeComplaint.beneficiary_name);
+    const senderEmail = norm(activeComplaint.sender_email);
+    const senderId = String(activeComplaint.beneficiary_id || '');
+    const recipientName = norm(activeComplaint.recipient_name);
+    const recipientEmail = norm(activeComplaint.recipient_email);
+    const recipientId = String(activeComplaint.recipient_id || '');
 
-    if (activeComplaint.resolution_notes && activeComplaint.resolution_notes !== lastMessage?.message) {
-      conversation.push({
-        sender: activeComplaint.resolved_by || activeComplaint.recipient_name,
-        role: activeComplaint.recipient_role,
-        message: activeComplaint.resolution_notes,
-        timestamp: activeComplaint.resolved_at
-      });
-    }
-    return conversation;
+    const isSameParty = (aName, aEmail, aId, bName, bEmail, bId) => {
+      if (aEmail && bEmail && aEmail === bEmail) return true;
+      if (aId && bId && aId !== 'b7' && bId !== 'b7' && !aId.startsWith('role:') && !bId.startsWith('role:') && aId === bId) return true;
+      if (aName && bName && (aName === bName || aName.includes(bName) || bName.includes(aName))) return true;
+      return false;
+    };
+
+    const relatedRows = (complaints || []).filter((r) => {
+      if (!r) return false;
+      if (r.id === activeComplaint.id) return true;
+      const rSName = norm(r.sender_name || r.beneficiary_name);
+      const rSEmail = norm(r.sender_email);
+      const rSId = String(r.beneficiary_id || '');
+      const rRName = norm(r.recipient_name);
+      const rREmail = norm(r.recipient_email);
+      const rRId = String(r.recipient_id || '');
+
+      const forwardMatch =
+        isSameParty(rSName, rSEmail, rSId, senderName, senderEmail, senderId) &&
+        isSameParty(rRName, rREmail, rRId, recipientName, recipientEmail, recipientId);
+      const reverseMatch =
+        isSameParty(rSName, rSEmail, rSId, recipientName, recipientEmail, recipientId) &&
+        isSameParty(rRName, rREmail, rRId, senderName, senderEmail, senderId);
+      return forwardMatch || reverseMatch;
+    });
+
+    const sortedRows = [...relatedRows].sort((a, b) => {
+      const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return tA - tB;
+    });
+
+    const timeline = [];
+    const seenKeys = new Set();
+    const pushUnique = (entry) => {
+      if (!entry || !entry.message) return;
+      const key = `${norm(entry.sender)}|${norm(entry.message)}|${entry.timestamp || ''}`;
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      timeline.push(entry);
+    };
+
+    sortedRows.forEach((row) => {
+      const rSName = norm(row.sender_name || row.beneficiary_name);
+      const rSEmail = norm(row.sender_email);
+      const rSId = String(row.beneficiary_id || '');
+      const rowIsFromSender = isSameParty(rSName, rSEmail, rSId, senderName, senderEmail, senderId);
+
+      const storedMessages = Array.isArray(row.responses) ? row.responses : [];
+      if (storedMessages.length > 0) {
+        storedMessages.forEach((m, idx) => {
+          const mSenderNorm = norm(m.sender);
+          const mIsSender = mSenderNorm
+            ? isSameParty(mSenderNorm, '', '', senderName, senderEmail, senderId)
+            : (idx === 0 ? rowIsFromSender : !rowIsFromSender);
+          pushUnique({
+            sender: m.sender || (idx === 0 ? (row.sender_name || row.beneficiary_name) : row.recipient_name),
+            role: m.role || (idx === 0 ? row.sender_role : row.recipient_role),
+            message: m.message,
+            timestamp: m.timestamp || row.created_at,
+            isSender: mIsSender
+          });
+        });
+      } else if (row.description) {
+        pushUnique({
+          sender: row.sender_name || row.beneficiary_name,
+          role: row.sender_role,
+          message: row.description,
+          timestamp: row.created_at,
+          isSender: rowIsFromSender
+        });
+      }
+
+      if (
+        row.resolution_notes &&
+        row.resolution_notes !== 'Under review by ADRA Independent Safeguarding Unit.' &&
+        !row.resolution_notes.includes('Independent Safeguarding Unit')
+      ) {
+        const resByNorm = norm(row.resolved_by);
+        const resIsSender = resByNorm
+          ? isSameParty(resByNorm, '', '', senderName, senderEmail, senderId)
+          : !rowIsFromSender;
+        pushUnique({
+          sender: row.resolved_by || row.recipient_name,
+          role: row.recipient_role,
+          message: row.resolution_notes,
+          timestamp: row.resolved_at || row.created_at,
+          isSender: resIsSender
+        });
+      }
+    });
+
+    return timeline;
   })() : [];
 
   const clearFilters = () => {
@@ -709,20 +789,20 @@ export function AdminFeedbackComplaintsOversightView({
 
               <div className="max-h-[38vh] min-h-48 space-y-3 overflow-y-auto p-3 sm:p-4">
                 {conversationMessages.length ? conversationMessages.map((message, index) => {
-                  const isReply = index > 0;
+                  const isSender = Boolean(message.isSender);
                   return (
-                    <div key={`${message.timestamp || index}-${index}`} className={`flex ${isReply ? 'justify-end' : 'justify-start'}`}>
+                    <div key={`${message.timestamp || index}-${index}`} className={`flex ${isSender ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[85%] rounded-2xl px-3 py-2 shadow-sm ${
-                        isReply
+                        isSender
                           ? 'rounded-br-md bg-emerald-100 text-emerald-950'
                           : 'rounded-bl-md border border-slate-200 bg-white text-slate-800'
                       }`}>
-                        <p className={`text-[10px] font-semibold ${isReply ? 'text-emerald-800' : 'text-slate-500'}`}>
-                          {[message.sender, message.role].filter(Boolean).join(' · ') || (isReply ? 'Reply' : 'Sender')}
+                        <p className={`text-[10px] font-semibold ${isSender ? 'text-emerald-800' : 'text-slate-500'}`}>
+                          {[message.sender, message.role].filter(Boolean).join(' · ') || (isSender ? 'Sender' : 'Receiver')}
                         </p>
                         <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{message.message}</p>
                         {message.timestamp && (
-                          <p className={`mt-1 text-right text-[9px] ${isReply ? 'text-emerald-700/70' : 'text-slate-400'}`}>
+                          <p className={`mt-1 text-right text-[9px] ${isSender ? 'text-emerald-700/70' : 'text-slate-400'}`}>
                             {formatDate(message.timestamp)}
                           </p>
                         )}
